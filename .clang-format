@@ -1,0 +1,131 @@
+BasedOnStyle: LLVM
+
+AccessModifierOffset: -4
+
+AlignAfterOpenBracket : Align
+
+AlignConsecutiveAssignments : true
+
+AlignConsecutiveDeclarations : true
+
+AlignConsecutiveMacros : true
+
+AlignEscapedNewlines : Right
+
+AlignOperands  : true
+
+AlignTrailingComments : true
+
+AllowAllParametersOfDeclarationOnNextLine : false
+
+AllowShortBlocksOnASingleLine : true
+
+AllowShortCaseLabelsOnASingleLine : true
+
+AllowShortFunctionsOnASingleLine : All
+
+AllowShortIfStatementsOnASingleLine : Never
+
+AlwaysBreakAfterReturnType : All
+
+AlwaysBreakBeforeMultilineStrings  : true
+
+AlwaysBreakTemplateDeclarations : Yes
+
+BinPackArguments : false
+
+BinPackParameters : false
+
+BreakBeforeBraces : Custom
+
+BraceWrapping :
+    AfterClass : true
+    AfterControlStatement : true
+    AfterCaseLabel : true
+    AfterEnum : true
+    AfterFunction : true
+    AfterNamespace : true
+    AfterStruct : true
+    AfterUnion : true
+    AfterExternBlock : true
+    BeforeCatch : true
+    BeforeElse : true
+    SplitEmptyFunction : false
+    SplitEmptyRecord : false
+    SplitEmptyNamespace : false
+
+BreakBeforeBinaryOperators : None
+
+BreakBeforeTernaryOperators : false
+
+BreakConstructorInitializers : AfterColon
+
+BreakInheritanceList : AfterColon
+
+BreakStringLiterals : false
+
+CompactNamespaces : false
+
+ConstructorInitializerAllOnOneLineOrOnePerLine : true
+
+ConstructorInitializerIndentWidth : 4
+
+ContinuationIndentWidth : 4
+
+ExperimentalAutoDetectBinPacking : true
+
+ColumnLimit : 100
+
+Cpp11BracedListStyle : true
+
+FixNamespaceComments : true
+
+IndentAccessModifiers: false
+
+IndentCaseLabels : true
+
+IndentWidth: 4
+
+IndentWrappedFunctionNames : false
+
+KeepEmptyLinesAtTheStartOfBlocks : true
+
+Language : Cpp
+
+MaxEmptyLinesToKeep : 1
+
+NamespaceIndentation : All
+
+PointerAlignment : Left
+
+ReflowComments : true
+
+SpaceBeforeAssignmentOperators : true
+
+SpaceBeforeCtorInitializerColon : false
+
+SpaceBeforeInheritanceColon : true
+
+SpaceBeforeParens : ControlStatements
+
+SpaceBeforeRangeBasedForLoopColon : false
+
+SpaceInEmptyParentheses : false
+
+SpacesBeforeTrailingComments : 1
+
+SpacesInAngles : false
+
+SpacesInCStyleCastParentheses  : false
+
+SpacesInContainerLiterals  : false
+
+SpacesInParentheses  : false
+
+SpacesInSquareBrackets : false
+
+SortIncludes : true
+
+Standard : Auto
+
+UseTab : Never

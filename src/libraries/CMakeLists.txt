@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.30)
+
+add_subdirectory(block_buffer)
+add_subdirectory(byte_streams)
+add_subdirectory(cast)
+add_subdirectory(command_options)
+add_subdirectory(csv)
+add_subdirectory(filesystem)
+add_subdirectory(io)
+add_subdirectory(math)
+add_subdirectory(memory)
+add_subdirectory(pe)
+add_subdirectory(strings)
+add_subdirectory(tracing)
+add_subdirectory(utf)
+

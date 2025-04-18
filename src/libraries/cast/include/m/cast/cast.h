@@ -14,8 +14,6 @@
 #include <mutex>
 #include <type_traits>
 
-#include <gsl/gsl>
-
 #include <m/type_traits/type_traits.h>
 
 //

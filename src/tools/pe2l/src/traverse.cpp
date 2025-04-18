@@ -13,8 +13,6 @@
 #include <string>
 #include <string_view>
 
-#include <gsl/gsl>
-
 #include <m/byte_streams/byte_streams.h>
 #include <m/command_options/command_options.h>
 #include <m/csv/writer.h>

@@ -5,8 +5,6 @@
 #include <memory>
 #include <utility>
 
-#include <gsl/gsl>
-
 #include <m/cast/to.h>
 #include <m/math/math.h>
 
@@ -16,12 +14,12 @@ m::byte_streams_impl::memory_ro_ra_seq::memory_ro_ra_seq(std::unique_ptr<std::by
                                                          size_t                         count):
     m_current_position{}, m_array(std::move(array))
 {
-    m_span = gsl::span<std::byte>(m_array.get(), count);
+    m_span = std::span<std::byte>(m_array.get(), count);
     //
 }
 
 std::size_t
-m::byte_streams_impl::memory_ro_ra_seq::do_read(gsl::span<std::byte>& span)
+m::byte_streams_impl::memory_ro_ra_seq::do_read(std::span<std::byte>& span)
 {
     auto l = std::unique_lock(m_mutex);
 
@@ -48,7 +46,7 @@ m::byte_streams_impl::memory_ro_ra_seq::do_read(gsl::span<std::byte>& span)
 }
 
 std::size_t
-m::byte_streams_impl::memory_ro_ra_seq::do_read(io::position_t p, gsl::span<std::byte>& span)
+m::byte_streams_impl::memory_ro_ra_seq::do_read(io::position_t p, std::span<std::byte>& span)
 {
     // We do not need to lock anything for random access
 

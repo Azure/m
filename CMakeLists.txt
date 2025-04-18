@@ -42,14 +42,6 @@ set(VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 
 include(FetchContent)
 
-FetchContent_Declare(GSL
-    GIT_REPOSITORY "https://github.com/microsoft/GSL"
-    GIT_TAG "v4.1.0"
-    GIT_SHALLOW ON
-)
-
-FetchContent_MakeAvailable(GSL)
-
 FetchContent_Declare(
   googletest
   GIT_REPOSITORY  https://github.com/google/googletest.git

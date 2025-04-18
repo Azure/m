@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 
 #include <m/filesystem/filesystem.h>
@@ -144,7 +145,7 @@ m::pe::loader_context::resolve(std::filesystem::path const& path)
 }
 
 m::pe::loader_context::pe_record::pe_record(std::filesystem::path const&          path,
-                                            gsl::not_null<m::pe::loader_context*> loader):
+                                            m::not_null<m::pe::loader_context*> loader):
     m_path(path),
     m_name(m::to_wstring(downcase(path.filename().c_str()))),
     m_not_found(!std::filesystem::exists(path)),

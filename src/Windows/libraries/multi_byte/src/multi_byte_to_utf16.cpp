@@ -31,7 +31,7 @@ namespace
     m::windows::win32_error_code
     multi_byte_to_utf16_fn(m::multi_byte::code_page cp,
                            std::string_view         view,
-                           gsl::span<TUtf16Char>&   buffer)
+                           std::span<TUtf16Char>&   buffer)
         requires std::is_same_v<TUtf16Char, wchar_t> || std::is_same_v<TUtf16Char, char16_t>
     {
         if (view.size() == 0)
@@ -59,7 +59,7 @@ namespace
 std::size_t
 m::multi_byte::multi_byte_to_utf16(m::multi_byte::code_page cp,
                                    std::string_view         view,
-                                   gsl::span<wchar_t>&      span)
+                                   std::span<wchar_t>&      span)
 {
     throw_if_failed(multi_byte_to_utf16_fn(cp, view, span));
     return span.size();
@@ -68,7 +68,7 @@ m::multi_byte::multi_byte_to_utf16(m::multi_byte::code_page cp,
 std::size_t
 m::multi_byte::multi_byte_to_utf16(m::multi_byte::code_page cp,
                                    std::string_view         view,
-                                   gsl::span<char16_t>&     span)
+                                   std::span<char16_t>&     span)
 {
     throw_if_failed(multi_byte_to_utf16_fn(cp, view, span));
     return span.size();
@@ -77,7 +77,7 @@ m::multi_byte::multi_byte_to_utf16(m::multi_byte::code_page cp,
 m::windows::win32_error_code
 m::multi_byte::try_multi_byte_to_utf16(m::multi_byte::code_page cp,
                                        std::string_view         view,
-                                       gsl::span<wchar_t>&      span)
+                                       std::span<wchar_t>&      span)
 {
     return multi_byte_to_utf16_fn(cp, view, span);
 }
@@ -85,7 +85,7 @@ m::multi_byte::try_multi_byte_to_utf16(m::multi_byte::code_page cp,
 m::windows::win32_error_code
 m::multi_byte::try_multi_byte_to_utf16(m::multi_byte::code_page cp,
                                        std::string_view         view,
-                                       gsl::span<char16_t>&     span)
+                                       std::span<char16_t>&     span)
 {
     return multi_byte_to_utf16_fn(cp, view, span);
 }
@@ -117,13 +117,13 @@ m::multi_byte::acp_to_utf16_length(std::string_view view)
 }
 
 std::size_t
-m::multi_byte::acp_to_utf16(std::string_view view, gsl::span<wchar_t>& buffer)
+m::multi_byte::acp_to_utf16(std::string_view view, std::span<wchar_t>& buffer)
 {
     return multi_byte_to_utf16(cp_acp, view, buffer);
 }
 
 std::size_t
-m::multi_byte::acp_to_utf16(std::string_view view, gsl::span<char16_t>& buffer)
+m::multi_byte::acp_to_utf16(std::string_view view, std::span<char16_t>& buffer)
 {
     return multi_byte_to_utf16(cp_acp, view, buffer);
 }

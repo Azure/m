@@ -6,8 +6,6 @@
 #include <memory>
 #include <stdexcept>
 
-#include <gsl/gsl>
-
 #include <m/cast/to.h>
 #include <m/filesystem/filesystem.h>
 
@@ -49,7 +47,7 @@ m::filesystem_impl::file::do_path()
 
 // byte_streams::seq_in
 std::size_t
-m::filesystem_impl::file::do_read(gsl::span<std::byte>& span)
+m::filesystem_impl::file::do_read(std::span<std::byte>& span)
 {
     auto const l = std::unique_lock(m_mutex);
     return read(span);
@@ -57,7 +55,7 @@ m::filesystem_impl::file::do_read(gsl::span<std::byte>& span)
 
 // byte_streams::ra_in
 std::size_t
-m::filesystem_impl::file::do_read(io::position_t p, gsl::span<std::byte>& span)
+m::filesystem_impl::file::do_read(io::position_t p, std::span<std::byte>& span)
 {
     auto const l = std::unique_lock(m_mutex);
     seek_to(p);
@@ -65,7 +63,7 @@ m::filesystem_impl::file::do_read(io::position_t p, gsl::span<std::byte>& span)
 }
 
 std::size_t
-m::filesystem_impl::file::read(gsl::span<std::byte>& span)
+m::filesystem_impl::file::read(std::span<std::byte>& span)
 {
     auto const count = std::fread(span.data(), sizeof(std::byte), span.size(), m_fp);
     if (count == 0)
@@ -77,7 +75,7 @@ m::filesystem_impl::file::read(gsl::span<std::byte>& span)
 
         if (std::feof(m_fp))
         {
-            span = gsl::span<std::byte>{};
+            span = std::span<std::byte>{};
             return 0;
         }
     }

@@ -3,7 +3,8 @@
 
 #pragma once
 
-
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 
 #include <m/byte_streams/byte_streams.h>

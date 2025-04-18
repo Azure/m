@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/strings/literal_string_view.h>
 
 #include "envelope.h"
@@ -43,7 +41,7 @@ namespace m
             name() const;
 
         protected:
-            sink(std::wstring_view name, gsl::not_null<monitor_class*> monitor);
+            sink(std::wstring_view name, m::not_null<monitor_class*> monitor);
 
             // Determine if the call to on_message would copy so that
             // caller knows whether to make a copy of the message if
@@ -65,7 +63,7 @@ namespace m
 
             std::mutex                    m_mutex;
             std::wstring                  m_name;
-            gsl::not_null<monitor_class*> m_monitor;
+            m::not_null<monitor_class*> m_monitor;
             bool                          m_closed;
 
             friend class monitor_class;

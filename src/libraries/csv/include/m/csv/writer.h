@@ -10,8 +10,6 @@
 #include <string>
 #include <string_view>
 
-#include <gsl/gsl>
-
 #include "field_quoter.h"
 
 using namespace std::string_view_literals;

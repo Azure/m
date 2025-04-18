@@ -10,7 +10,7 @@
 #include <string>
 #include <string_view>
 
-#include <gsl/gsl>
+#include <m/utility/zstring.h>
 
 #include <Windows.h>
 
@@ -85,7 +85,7 @@ namespace m
     throw_hresult(HRESULT hr);
 
     void
-    throw_hresult(HRESULT hr, gsl::zstring what);
+    throw_hresult(HRESULT hr, m::zstring what);
 
     //
     // Win32 errors are mapped to HRESULTs before being
@@ -98,7 +98,7 @@ namespace m
     throw_win32_error_code(DWORD error_code);
 
     void
-    throw_win32_error_code(DWORD error_code, gsl::zstring what);
+    throw_win32_error_code(DWORD error_code, m::zstring what);
 
     bool
     failed(windows::win32_error_code ec);
@@ -111,7 +111,7 @@ namespace m
     throw_error(windows::win32_error_code ec);
 
     void
-    throw_error(windows::win32_error_code ec, gsl::zstring what);
+    throw_error(windows::win32_error_code ec, m::zstring what);
 
     void
     throw_if_failed(windows::win32_error_code ec);

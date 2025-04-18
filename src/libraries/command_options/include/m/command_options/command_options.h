@@ -20,8 +20,6 @@
 #include <type_traits>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/cast/try_cast.h>
 #include <m/filesystem/filesystem.h>
 #include <m/strings/convert.h>

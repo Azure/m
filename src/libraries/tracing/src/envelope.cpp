@@ -10,12 +10,12 @@
 
 namespace m::tracing
 {
-    envelope::envelope(gsl::not_null<message*> msg):
+    envelope::envelope(m::not_null<message*> msg):
         m_message(msg), m_return_queue(nullptr)
     {}
 
-    envelope::envelope(gsl::not_null<message*>       msg,
-                                 gsl::not_null<message_queue*> return_queue):
+    envelope::envelope(m::not_null<message*>       msg,
+                                 m::not_null<message_queue*> return_queue):
         m_message(msg), m_return_queue(return_queue)
     {}
 
@@ -54,17 +54,17 @@ namespace m::tracing
         if (m_return_queue != nullptr)
         {
             std::exchange(m_return_queue, nullptr)
-                ->enqueue(gsl::not_null<message*>(std::exchange(m_message, nullptr)));
+                ->enqueue(m::not_null<message*>(std::exchange(m_message, nullptr)));
         }
     }
 
     void
-    envelope::reset(envelope const& other, gsl::not_null<message_queue*> return_queue)
+    envelope::reset(envelope const& other, m::not_null<message_queue*> return_queue)
     {
         if (m_return_queue != nullptr)
         {
             std::exchange(m_return_queue, nullptr)
-                ->enqueue(gsl::not_null<message*>(std::exchange(m_message, nullptr)));
+                ->enqueue(m::not_null<message*>(std::exchange(m_message, nullptr)));
         }
 
         *m_message     = *other.m_message;
@@ -74,6 +74,6 @@ namespace m::tracing
     envelope::~envelope()
     {
         if (m_return_queue != nullptr)
-            m_return_queue->enqueue(gsl::not_null<message*>(m_message));
+            m_return_queue->enqueue(m::not_null<message*>(m_message));
     }
 } // namespace m::tracing

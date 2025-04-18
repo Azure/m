@@ -8,8 +8,6 @@
 #include <string>
 #include <string_view>
 
-#include <gsl/gsl>
-
 #include <m/multi_byte/multi_byte.h>
 
 #include <Windows.h>

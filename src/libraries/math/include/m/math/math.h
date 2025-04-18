@@ -15,8 +15,6 @@
 #include <tuple>
 #include <type_traits>
 
-#include <gsl/gsl>
-
 #include <m/cast/cast.h>
 #include <m/cast/try_cast.h>
 #include <m/type_traits/type_traits.h>

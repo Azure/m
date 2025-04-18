@@ -6,10 +6,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <span>
 #include <stdexcept>
 #include <tuple>
-
-#include <gsl/gsl>
 
 #include "decode_result.h"
 #include "exceptions.h"

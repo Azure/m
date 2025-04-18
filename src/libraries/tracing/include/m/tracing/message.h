@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/cast/try_cast.h>
 #include <m/strings/literal_string_view.h>
 

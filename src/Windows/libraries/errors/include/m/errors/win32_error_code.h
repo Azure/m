@@ -10,8 +10,6 @@
 #include <string>
 #include <string_view>
 
-#include <gsl/gsl>
-
 #include <Windows.h>
 
 namespace m

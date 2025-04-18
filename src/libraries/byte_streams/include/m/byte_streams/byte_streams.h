@@ -5,9 +5,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <stdexcept>
-
-#include <gsl/gsl>
 
 #include <m/io/units.h>
 
@@ -34,24 +33,24 @@ namespace m
             /// bytes were read than were specified in the original span, the end of the stream was
             /// encountered.</param>
             size_t
-            read(gsl::span<std::byte>& span)
+            read(std::span<std::byte>& span)
             {
                 return do_read(span);
             }
 
         protected:
             virtual size_t
-            do_read(gsl::span<std::byte>& span) = 0;
+            do_read(std::span<std::byte>& span) = 0;
         };
 
         class ra_in
         {
         public:
             using position_t = m::io::position_t;
-            using offset_t = m::io::offset_t;
+            using offset_t   = m::io::offset_t;
 
-            size_t
-            read(position_t position, gsl::span<std::byte>& s)
+            std::size_t
+            read(position_t position, std::span<std::byte>& s)
             {
                 do_read(position, s);
                 return s.size();
@@ -61,10 +60,10 @@ namespace m
             // If the span is const, the returned size is nodiscard
             //
             [[nodiscard]]
-            size_t
-            read(position_t position, gsl::span<std::byte> const& s)
+            std::size_t
+            read(position_t position, std::span<std::byte> const& s)
             {
-                gsl::span<std::byte> span_copy = s;
+                std::span<std::byte> span_copy = s;
                 return do_read(position, span_copy);
             }
 
@@ -72,13 +71,13 @@ namespace m
             void
             read(position_t p, T& v)
             {
-                if (read(p, gsl::as_writable_bytes(gsl::span(&v, 1))) != sizeof(T))
+                if (read(p, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
                     throw std::runtime_error("end of file");
             }
 
         protected:
             virtual size_t
-            do_read(position_t position, gsl::span<std::byte>& s) = 0;
+            do_read(position_t position, std::span<std::byte>& s) = 0;
         };
 
         class seq_out

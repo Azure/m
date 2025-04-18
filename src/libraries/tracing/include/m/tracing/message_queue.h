@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/strings/literal_string_view.h>
 
 #include "envelope.h"
@@ -85,7 +83,7 @@ namespace m
             wait();
 
             void
-            enqueue(gsl::not_null<message*> msg);
+            enqueue(m::not_null<message*> msg);
 
             void
             enqueue(envelope& e);

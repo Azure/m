@@ -14,7 +14,7 @@ namespace m::tracing
         m_raw_messages                          = std::make_unique<message[]>(raw_message_count);
 
         for (std::size_t i = 0; i < raw_message_count; i++)
-            m_message_queue.enqueue(gsl::not_null<message*>(&m_raw_messages[i]));
+            m_message_queue.enqueue(m::not_null<message*>(&m_raw_messages[i]));
     }
 
     monitor_class::~monitor_class()
@@ -23,7 +23,7 @@ namespace m::tracing
             s->close();
     }
 
-    gsl::not_null<channel*>
+    m::not_null<channel*>
     monitor_class::make_channel(m::wliteral_string_view name)
     {
         auto l = std::unique_lock(m_mutex);

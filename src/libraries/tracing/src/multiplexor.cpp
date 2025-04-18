@@ -7,7 +7,7 @@
 
 namespace m::tracing
 {
-    multiplexor::multiplexor(gsl::not_null<monitor_class*>            monitor,
+    multiplexor::multiplexor(m::not_null<monitor_class*>            monitor,
                              topology_version                         topver,
                              std::initializer_list<std::wstring_view> channel_names):
         m_monitor(monitor),

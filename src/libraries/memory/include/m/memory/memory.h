@@ -14,8 +14,6 @@
 #include <mutex>
 #include <type_traits>
 
-#include <gsl/gsl>
-
 #include <m/byte_streams/byte_streams.h>
 #include <m/math/math.h>
 
@@ -48,7 +46,7 @@ namespace m
     load_from(SourceT s, io::position_t p)
     {
         T v{};
-        if (s->read(p, gsl::as_writable_bytes(gsl::span(&v, 1))) != sizeof(T))
+        if (s->read(p, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
             throw std::runtime_error("end of file");
         return v;
     }
@@ -57,7 +55,7 @@ namespace m
     void
     load_into(T& v, SourceT s, io::position_t p)
     {
-        if (s->read(p, gsl::as_writable_bytes(gsl::span(&v, 1))) != sizeof(T))
+        if (s->read(p, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
             throw std::runtime_error("end of file");
     }
 
@@ -65,7 +63,7 @@ namespace m
     void
     load_into(T& v, SourceT s, io::position_t origin, std::size_t limit)
     {
-        if (s->read(origin, gsl::as_writable_bytes(gsl::span(&v, 1))) != sizeof(T))
+        if (s->read(origin, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
             throw std::runtime_error("end of file");
     }
 
@@ -110,7 +108,7 @@ namespace m
     void
     load_data_members(load_from_position_context<SourceT> const&        lfpc,
                       TargetT&                                          target,
-                      gsl::span<data_member_loader_t<SourceT, TargetT>> span)
+                      std::span<data_member_loader_t<SourceT, TargetT>> span)
     {
         for (auto&& f: span)
         {

@@ -8,9 +8,8 @@
 #include <string>
 #include <string_view>
 
-#include <gsl/gsl>
-
 #include <m/multi_byte/multi_byte.h>
+#include <m/utility/make_span.h>
 
 #include <Windows.h>
 
@@ -69,7 +68,7 @@ test_multibyte_to_span(mb_test_data const& data)
     // If this hits, the data isn't going to fit so the test isn't going to work.
     EXPECT_LT(data.m_wview.size(), buffer.size());
 
-    auto span = gsl::make_span(buffer);
+    auto span = m::make_span(buffer);
 
     m::multi_byte::multi_byte_to_utf16(data.m_cp, data.m_view, span);
 

@@ -13,7 +13,7 @@ using namespace m::string_view_literals;
 
 namespace m::tracing
 {
-    cout_sink::cout_sink(gsl::not_null<monitor_class*> monitor):
+    cout_sink::cout_sink(m::not_null<monitor_class*> monitor):
         sink(L"cout_sink"_sl, monitor), m_done{false}, m_thread([this]() { this->sink_thread(); })
     {}
 
@@ -84,7 +84,7 @@ cout_sink::would_queue(envelope const&)
 }
 
 void
-cout_sink::register_sink(gsl::not_null<monitor_class*> monitor)
+cout_sink::register_sink(m::not_null<monitor_class*> monitor)
 {
     std::shared_ptr<cout_sink> expected = ms_cout_sink.load(std::memory_order_acquire);
 

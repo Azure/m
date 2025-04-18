@@ -8,6 +8,7 @@
 
 #include <m/cast/to.h>
 #include <m/multi_byte/multi_byte.h>
+#include <m/utility/make_span.h>
 
 #include <Windows.h>
 
@@ -36,7 +37,7 @@ namespace impl
     m::windows::win32_error_code
     try_utf16_to_multi_byte_fn(m::multi_byte::code_page                        cp,
                                std::basic_string_view<Utf16CharT, CharTraitsT> view,
-                               gsl::span<char>&                                buffer)
+                               std::span<char>&                                buffer)
     {
         auto i = ::WideCharToMultiByte(std::to_underlying(cp),
                                        WC_NO_BEST_FIT_CHARS,
@@ -58,7 +59,7 @@ namespace impl
     std::size_t
     utf16_to_multi_byte_fn(m::multi_byte::code_page                        cp,
                            std::basic_string_view<Utf16CharT, CharTraitsT> view,
-                           gsl::span<char>&                                buffer)
+                           std::span<char>&                                buffer)
     {
         m::throw_if_failed(impl::try_utf16_to_multi_byte_fn(cp, view, buffer));
         return buffer.size();
@@ -73,7 +74,7 @@ namespace impl
 
         auto length = utf16_to_multi_byte_length(cp, view);
         result.resize_and_overwrite(length, [&](auto buffer, auto size) -> auto {
-            auto span       = gsl::make_span(buffer, size);
+            auto span       = m::make_span(buffer, size);
             auto error_code = try_utf16_to_multi_byte(cp, view, span);
             m::throw_if_failed(error_code);
             return span.size();
@@ -88,25 +89,25 @@ namespace m::multi_byte
     namespace details
     {
         std::size_t
-        utf16_to_multi_byte(code_page cp, std::wstring_view view, gsl::span<char>& buffer)
+        utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer)
         {
             return impl::utf16_to_multi_byte_fn(cp, view, buffer);
         }
 
         std::size_t
-        utf16_to_multi_byte(code_page cp, std::u16string_view view, gsl::span<char>& buffer)
+        utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer)
         {
             return impl::utf16_to_multi_byte_fn(cp, view, buffer);
         }
 
         windows::win32_error_code
-        try_utf16_to_multi_byte(code_page cp, std::wstring_view view, gsl::span<char>& buffer)
+        try_utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer)
         {
             return impl::try_utf16_to_multi_byte_fn(cp, view, buffer);
         }
 
         windows::win32_error_code
-        try_utf16_to_multi_byte(code_page cp, std::u16string_view view, gsl::span<char>& buffer)
+        try_utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer)
         {
             return impl::try_utf16_to_multi_byte_fn(cp, view, buffer);
         }
@@ -143,7 +144,7 @@ namespace m::multi_byte
         string.clear();
         auto length = utf16_to_multi_byte_length(cp, view);
         string.resize_and_overwrite(length, [&](auto buffer, auto buffer_size) -> auto {
-            auto span = gsl::make_span(buffer, buffer_size);
+            auto span = m::make_span(buffer, buffer_size);
             utf16_to_multi_byte(cp, view, span);
             return span.size();
         });
@@ -155,7 +156,7 @@ namespace m::multi_byte
         string.clear();
         auto length = utf16_to_multi_byte_length(cp, view);
         string.resize_and_overwrite(length, [&](auto buffer, auto buffer_size) -> auto {
-            auto span = gsl::make_span(buffer, buffer_size);
+            auto span = m::make_span(buffer, buffer_size);
             utf16_to_multi_byte(cp, view, span);
             return span.size();
         });

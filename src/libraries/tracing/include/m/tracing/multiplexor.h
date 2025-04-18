@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/strings/literal_string_view.h>
 
 #include "channel.h"
@@ -49,7 +47,7 @@ namespace m
         class multiplexor
         {
         public:
-            multiplexor(gsl::not_null<monitor_class*>            monitor,
+            multiplexor(m::not_null<monitor_class*>            monitor,
                         topology_version                         topver,
                         std::initializer_list<std::wstring_view> channels);
 
@@ -62,7 +60,7 @@ namespace m
 
         private:
             // m_monitor and m_channel_names are not updated after construction
-            gsl::not_null<monitor_class*> m_monitor;
+            m::not_null<monitor_class*> m_monitor;
             std::vector<std::wstring>     m_channel_names;
 
             std::mutex                         m_mutex;

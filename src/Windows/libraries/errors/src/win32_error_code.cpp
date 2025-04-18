@@ -7,8 +7,6 @@
 
 #include <m/errors/win32_error_code.h>
 
-#include <gsl/gsl>
-
 #include <Windows.h>
 
 m::windows::win32_error_code

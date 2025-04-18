@@ -20,8 +20,6 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/strings/literal_string_view.h>
 
 #include "envelope.h"
@@ -38,12 +36,12 @@ namespace m
         class cout_sink : public sink
         {
         public:
-            cout_sink(gsl::not_null<monitor_class*> monitor);
+            cout_sink(m::not_null<monitor_class*> monitor);
 
             // Kind of hokey but who is responsible for registering the
             // cout based sink? This is how it's done I guess
             static void
-            register_sink(gsl::not_null<monitor_class*> monitor);
+            register_sink(m::not_null<monitor_class*> monitor);
 
         protected:
             on_message_disposition

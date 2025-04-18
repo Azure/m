@@ -3,15 +3,14 @@
 
 #pragma once
 
-#include <cstdint>
-#include <gsl/gsl>
+#include <cstddef>
 
 namespace m
 {
     namespace utf
     {
         constexpr char32_t k_invalid_character = 0xffffffff;
-        constexpr char32_t k_partial_encoding = 0xfffffffe;
+        constexpr char32_t k_partial_encoding  = 0xfffffffe;
 
         struct decode_result
         {

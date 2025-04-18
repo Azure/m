@@ -98,7 +98,7 @@ namespace m::tracing
     }
 
     void
-    message_queue::enqueue(gsl::not_null<message*> msg)
+    message_queue::enqueue(m::not_null<message*> msg)
     {
         bool wake = false;
 

@@ -12,8 +12,7 @@
 #include <type_traits>
 
 #include <m/errors/errors.h>
-
-#include <gsl/gsl>
+#include <m/utility/make_span.h>
 
 #include <Windows.h>
 
@@ -26,18 +25,18 @@ namespace m
         namespace details
         {
             std::size_t
-            utf16_to_multi_byte(code_page cp, std::wstring_view view, gsl::span<char>& buffer);
+            utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer);
 
             std::size_t
-            utf16_to_multi_byte(code_page cp, std::u16string_view view, gsl::span<char>& buffer);
+            utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer);
 
             windows::win32_error_code
-            try_utf16_to_multi_byte(code_page cp, std::wstring_view view, gsl::span<char>& buffer);
+            try_utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer);
 
             windows::win32_error_code
             try_utf16_to_multi_byte(code_page           cp,
                                     std::u16string_view view,
-                                    gsl::span<char>&    buffer);
+                                    std::span<char>&    buffer);
 
             std::string
             utf16_to_multi_byte_fn(code_page cp, std::wstring_view view);
@@ -46,10 +45,10 @@ namespace m
             utf16_to_multi_byte_fn(code_page cp, std::u16string_view view);
 
             std::size_t
-            utf16_to_acp(std::wstring_view view, gsl::span<char>& buffer);
+            utf16_to_acp(std::wstring_view view, std::span<char>& buffer);
 
             std::size_t
-            utf16_to_acp(std::u16string_view view, gsl::span<char>& buffer);
+            utf16_to_acp(std::u16string_view view, std::span<char>& buffer);
 
         } // namespace details
 
@@ -57,10 +56,10 @@ namespace m
         multi_byte_to_utf16_length(code_page cp, std::string_view view);
 
         std::size_t
-        multi_byte_to_utf16(code_page cp, std::string_view view, gsl::span<wchar_t>& buffer);
+        multi_byte_to_utf16(code_page cp, std::string_view view, std::span<wchar_t>& buffer);
 
         std::size_t
-        multi_byte_to_utf16(code_page cp, std::string_view view, gsl::span<char16_t>& buffer);
+        multi_byte_to_utf16(code_page cp, std::string_view view, std::span<char16_t>& buffer);
 
         void
         multi_byte_to_utf16(code_page cp, std::string_view view, std::wstring& string);
@@ -69,10 +68,10 @@ namespace m
         multi_byte_to_utf16(code_page cp, std::string_view view, std::u16string& string);
 
         windows::win32_error_code
-        try_multi_byte_to_utf16(code_page cp, std::string_view view, gsl::span<wchar_t>& buffer);
+        try_multi_byte_to_utf16(code_page cp, std::string_view view, std::span<wchar_t>& buffer);
 
         windows::win32_error_code
-        try_multi_byte_to_utf16(code_page cp, std::string_view view, gsl::span<char16_t>& buffer);
+        try_multi_byte_to_utf16(code_page cp, std::string_view view, std::span<char16_t>& buffer);
 
         template <typename OutIter, typename Utf16CharT = wchar_t, std::size_t BufferSize = 128>
         OutIter
@@ -105,7 +104,7 @@ namespace m
                 for (;;)
                 {
                     auto const view = std::string_view(input_cursor, chars_to_convert);
-                    auto       span = gsl::make_span(buffer);
+                    auto       span = m::make_span(buffer);
 
                     if (windows::is_success(try_multi_byte_to_utf16(cp, view, span)))
                     {
@@ -131,10 +130,10 @@ namespace m
         acp_to_utf16_length(std::string_view view);
 
         std::size_t
-        acp_to_utf16(std::string_view view, gsl::span<wchar_t>& buffer);
+        acp_to_utf16(std::string_view view, std::span<wchar_t>& buffer);
 
         std::size_t
-        acp_to_utf16(std::string_view view, gsl::span<char16_t>& buffer);
+        acp_to_utf16(std::string_view view, std::span<char16_t>& buffer);
 
         template <typename InputIt,
                   typename Utf16CharT  = wchar_t,
@@ -150,7 +149,7 @@ namespace m
 
             out.resize_and_overwrite(wchars_needed,
                                      [view](auto buffer, auto buffer_size) -> std::size_t {
-                                         auto span = gsl::make_span(buffer, buffer_size);
+                                         auto span = m::make_span(buffer, buffer_size);
                                          return acp_to_utf16(view, span);
                                      });
         }
@@ -188,7 +187,7 @@ namespace m
         std::size_t
         utf16_to_multi_byte(code_page                                       cp,
                             std::basic_string_view<Utf16CharT, CharTraitsT> view,
-                            gsl::span<char>&                                buffer)
+                            std::span<char>&                                buffer)
             requires std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>
         {
             return details::utf16_to_multi_byte(cp, view, buffer);
@@ -199,7 +198,7 @@ namespace m
         windows::win32_error_code
         try_utf16_to_multi_byte(code_page                                       cp,
                                 std::basic_string_view<Utf16CharT, CharTraitsT> view,
-                                gsl::span<char>&                                buffer)
+                                std::span<char>&                                buffer)
             requires std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>
         {
             return details::try_utf16_to_multi_byte(cp, view, buffer);
@@ -245,7 +244,7 @@ namespace m
                     // wouldn't have to be named here.
                     auto const view = std::basic_string_view<Utf16CharT, CharTraitsT>(
                         input_cursor, chars_to_convert);
-                    auto span = gsl::make_span(buffer);
+                    auto span = m::make_span(buffer);
 
                     if (windows::is_success(try_utf16_to_multi_byte(cp, view, span)))
                     {
@@ -288,7 +287,7 @@ namespace m
 
         template <typename Utf16CharT, typename CharTraitsT = std::char_traits<Utf16CharT>>
         std::size_t
-        utf16_to_acp(std::basic_string_view<Utf16CharT, CharTraitsT> view, gsl::span<char>& buffer)
+        utf16_to_acp(std::basic_string_view<Utf16CharT, CharTraitsT> view, std::span<char>& buffer)
             requires std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>
         {
             return details::utf16_to_acp(view, buffer);
@@ -308,7 +307,7 @@ namespace m
 
             out.resize_and_overwrite(chars_needed,
                                      [view](auto buffer, auto buffer_size) -> std::size_t {
-                                         auto span = gsl::make_span(buffer, buffer_size);
+                                         auto span = m::make_span(buffer, buffer_size);
                                          return utf16_to_acp(view, span);
                                      });
         }

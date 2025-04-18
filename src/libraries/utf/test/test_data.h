@@ -8,8 +8,6 @@
 #include <string_view>
 #include <vector>
 
-#include <gsl/gsl>
-
 struct utf_data_set
 {
     utf_data_set(std::initializer_list<char8_t>  utf8data,

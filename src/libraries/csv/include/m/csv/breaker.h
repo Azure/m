@@ -13,8 +13,6 @@
 #include <string>
 #include <string_view>
 
-#include <gsl/gsl>
-
 #include <m/io/units.h>
 
 namespace m

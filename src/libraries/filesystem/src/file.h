@@ -34,17 +34,17 @@ namespace m
 
             // byte_streams::seq_in
             size_t
-            do_read(gsl::span<std::byte>& span) override;
+            do_read(std::span<std::byte>& span) override;
 
             // byte_streams::ra_in
             size_t
-            do_read(io::position_t p, gsl::span<std::byte>& span) override;
+            do_read(io::position_t p, std::span<std::byte>& span) override;
 
             void
             seek(long offset, int origin);
 
             std::size_t
-            read(gsl::span<std::byte>& span);
+            read(std::span<std::byte>& span);
 
             void
             seek_to(io::position_t p);

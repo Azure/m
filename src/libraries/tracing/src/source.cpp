@@ -5,13 +5,11 @@
 #include <string_view>
 #include <utility>
 
-#include <gsl/gsl>
-
 #include <m/tracing/tracing.h>
 
 namespace m::tracing
 {
-    source::source(gsl::not_null<monitor_class*>            monitor,
+    source::source(m::not_null<monitor_class*>              monitor,
                    event_kind                               kind,
                    std::initializer_list<std::wstring_view> channel_names):
         m_monitor(monitor),
@@ -20,9 +18,9 @@ namespace m::tracing
         m_channel_names(channel_names.begin(), channel_names.end())
     {}
 
-    source::source(gsl::not_null<monitor_class*> monitor,
-                   event_kind                    kind,
-                   std::wstring_view             channel_name):
+    source::source(m::not_null<monitor_class*> monitor,
+                   event_kind                  kind,
+                   std::wstring_view           channel_name):
         m_monitor(monitor),
         m_multiplexor(m_monitor->get_multiplexor({channel_name})),
         m_event_kind(kind)

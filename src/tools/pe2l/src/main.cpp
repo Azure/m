@@ -8,8 +8,6 @@
 #include <string>
 #include <string_view>
 
-#include <gsl/gsl>
-
 #include <m/byte_streams/byte_streams.h>
 #include <m/command_options/command_options.h>
 #include <m/csv/writer.h>
@@ -37,9 +35,9 @@ main(int argc, char const* argv[])
         path_parameter.release()};
     std::array<std::unique_ptr<m::command_options::option<char>>, 0>    options;
     auto                                                try_load_verb =
-        std::make_unique<m::command_options::verb<char>>("try-loader"sv, gsl::span(parameters), gsl::span(options));
+        std::make_unique<m::command_options::verb<char>>("try-loader"sv, std::span(parameters), std::span(options));
     std::array<std::unique_ptr<m::command_options::verb<char>>, 1> verbs{try_load_verb.release()};
-    auto verb_set = m::command_options::command_verb_set<char>(gsl::span(verbs));
+    auto verb_set = m::command_options::command_verb_set<char>(std::span(verbs));
 #endif
 
     auto commands = m::command_options::command_verb_set<char>();

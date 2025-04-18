@@ -6,12 +6,9 @@
 #include <string_view>
 
 #include <m/errors/errors.h>
-
-#include <gsl/gsl>
+#include <m/utility/zstring.h>
 
 #include <Windows.h>
-
-
 
 inline const std::error_category&
 m::hresult_category() noexcept
@@ -26,7 +23,7 @@ m::throw_hresult(HRESULT hr)
 }
 
 void
-m::throw_hresult(HRESULT hr, gsl::zstring what)
+m::throw_hresult(HRESULT hr, m::zstring what)
 {
     throw std::system_error(hr, m::hresult_category(), what);
 }
@@ -38,7 +35,7 @@ m::throw_win32_error_code(DWORD error_code)
 }
 
 void
-m::throw_win32_error_code(DWORD error_code, gsl::zstring what)
+m::throw_win32_error_code(DWORD error_code, m::zstring what)
 {
     throw_hresult(HRESULT_FROM_WIN32(error_code), what);
 }
@@ -50,7 +47,7 @@ m::throw_error(windows::win32_error_code error_code)
 }
 
 void
-m::throw_error(windows::win32_error_code error_code, gsl::zstring what)
+m::throw_error(windows::win32_error_code error_code, m::zstring what)
 {
     throw_win32_error_code(std::to_underlying(error_code), what);
 }

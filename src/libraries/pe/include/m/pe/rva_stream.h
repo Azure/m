@@ -3,13 +3,14 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <format>
+#include <span>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/cast/to.h>
+#include <m/utility/make_span.h>
 
 #include "basic_types.h"
 #include "file_offset_t.h"
@@ -37,11 +38,11 @@ namespace m
                 file_offset_t m_pointer_to_raw_data;
             };
 
-            rva_ra_in(SourceT source, gsl::span<section_header_data const> const& section_headers):
+            rva_ra_in(SourceT source, std::span<section_header_data const> const& section_headers):
                 m_source(source), m_section_headers(section_headers.begin(), section_headers.end())
             {}
 
-            rva_ra_in(SourceT source, gsl::span<section_header_data> const& section_headers):
+            rva_ra_in(SourceT source, std::span<section_header_data> const& section_headers):
                 m_source(source), m_section_headers(section_headers.begin(), section_headers.end())
             {}
 
@@ -88,8 +89,8 @@ namespace m
                     if ((rva >= start) && (rva < end))
                     {
                         auto offset = e.m_pointer_to_raw_data + (rva - e.m_virtual_address);
-                        return position_t{m::to<std::underlying_type_t<position_t>>(
-                            std::to_underlying(offset))};
+                        return position_t{
+                            m::to<std::underlying_type_t<position_t>>(std::to_underlying(offset))};
                     }
                 }
 
@@ -97,7 +98,7 @@ namespace m
             }
 
             std::size_t
-            read(rva_t rva, gsl::span<std::byte> span)
+            read(rva_t rva, std::span<std::byte> span)
             {
                 auto const position = rva_to_position(rva);
 
@@ -114,7 +115,7 @@ namespace m
             // Maybe that will be confusing? We can always delete.
             //
             std::size_t
-            read(position_t position, gsl::span<std::byte> span)
+            read(position_t position, std::span<std::byte> span)
             {
                 return m_source->read(position, span);
             }
@@ -171,7 +172,7 @@ namespace m
                 for (;;)
                 {
                     std::array<std::byte, 64> buffer;
-                    auto                      bufferspan = gsl::make_span(buffer);
+                    auto                      bufferspan = m::make_span(buffer);
                     auto                      length     = read(rva, bufferspan);
                     if (length == 0)
                         throw std::runtime_error("end of file reached while loading string");
@@ -205,7 +206,7 @@ namespace m
         void
         load_into(T& v, SourceT s, rva_t origin)
         {
-            if (s->read(origin, gsl::as_writable_bytes(gsl::span(&v, 1))) != sizeof(T))
+            if (s->read(origin, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
                 throw std::runtime_error("end of file");
         }
 

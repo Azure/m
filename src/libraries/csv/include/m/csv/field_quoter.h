@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <exception>
 #include <format>
 #include <functional>
@@ -10,8 +11,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-
-#include <gsl/gsl>
 
 using namespace std::string_view_literals;
 

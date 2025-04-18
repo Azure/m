@@ -19,9 +19,8 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/strings/literal_string_view.h>
+#include <m/utility/pointers.h>
 
 #include "event_context.h"
 #include "event_kind.h"
@@ -39,8 +38,8 @@ namespace m
         {
         public:
             envelope() = default;
-            envelope(gsl::not_null<message*> msg);
-            envelope(gsl::not_null<message*> msg, gsl::not_null<message_queue*> return_queue);
+            envelope(m::not_null<message*> msg);
+            envelope(m::not_null<message*> msg, m::not_null<message_queue*> return_queue);
             envelope(envelope&& other) noexcept;
             void
             operator=(envelope&& other) noexcept;
@@ -49,7 +48,7 @@ namespace m
             reset();
 
             void
-            reset(envelope const& other, gsl::not_null<message_queue*> return_queue);
+            reset(envelope const& other, m::not_null<message_queue*> return_queue);
 
             message*
             get_message() const;

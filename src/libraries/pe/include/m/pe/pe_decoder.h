@@ -17,8 +17,6 @@
 #include <variant>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/byte_streams/byte_streams.h>
 #include <m/math/math.h>
 #include <m/memory/memory.h>

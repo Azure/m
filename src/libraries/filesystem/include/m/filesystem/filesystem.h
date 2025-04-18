@@ -14,8 +14,6 @@
 #include <memory>
 #include <mutex>
 
-#include <gsl/gsl>
-
 #include <m/byte_streams/byte_streams.h>
 
 namespace m

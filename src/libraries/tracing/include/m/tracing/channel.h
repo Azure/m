@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/strings/literal_string_view.h>
 
 #include "event_kind.h"

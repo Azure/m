@@ -6,8 +6,6 @@
 #include <cstddef>
 #include <string_view>
 
-#include <gsl/gsl>
-
 namespace m
 {
     namespace strings

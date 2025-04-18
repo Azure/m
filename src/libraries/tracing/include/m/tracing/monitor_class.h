@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/strings/literal_string_view.h>
 #include <m/utility/locked.h>
 
@@ -48,7 +46,7 @@ namespace m
             monitor_class();
             ~monitor_class();
 
-            gsl::not_null<channel*>
+            m::not_null<channel*>
             make_channel(m::wliteral_string_view name);
 
             std::shared_ptr<source>

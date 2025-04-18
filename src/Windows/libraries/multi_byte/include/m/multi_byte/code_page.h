@@ -13,8 +13,6 @@
 
 #include <m/errors/errors.h>
 
-#include <gsl/gsl>
-
 #include <Windows.h>
 
 namespace m

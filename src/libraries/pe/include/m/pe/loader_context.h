@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <m/pe/pe_decoder.h>
+#include <m/utility/pointers.h>
 
 using namespace std::string_view_literals;
 
@@ -173,7 +174,7 @@ namespace m
                     pe_not_found,
                 };
 
-                pe_record(std::filesystem::path const& path, gsl::not_null<loader_context*> loader);
+                pe_record(std::filesystem::path const& path, m::not_null<loader_context*> loader);
 
                 //
                 // Constructor without a loader context is for "known PEs" where

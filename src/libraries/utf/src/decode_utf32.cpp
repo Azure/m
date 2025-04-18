@@ -2,7 +2,6 @@
 // Licensed under the MIT License.
 
 #include <cstdint>
-#include <gsl/gsl>
 
 #include <m/utf/decode_result.h>
 #include <m/utf/utf_decode.h>

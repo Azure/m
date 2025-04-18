@@ -20,8 +20,6 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/gsl>
-
 #include <m/cast/try_cast.h>
 #include <m/strings/literal_string_view.h>
 
@@ -47,19 +45,17 @@ namespace m
         class source
         {
         public:
-            source(gsl::not_null<monitor_class*>            monitor,
+            source(m::not_null<monitor_class*>              monitor,
                    event_kind                               kind,
                    std::initializer_list<std::wstring_view> channels);
 
-            source(gsl::not_null<monitor_class*> monitor,
-                   event_kind                    kind,
-                   std::wstring_view             channel);
+            source(m::not_null<monitor_class*> monitor, event_kind kind, std::wstring_view channel);
 
             template <typename InputIt>
-            source(gsl::not_null<monitor_class*> monitor,
-                   event_kind                    kind,
-                   InputIt                       channels_begin,
-                   InputIt                       channels_end):
+            source(m::not_null<monitor_class*> monitor,
+                   event_kind                  kind,
+                   InputIt                     channels_begin,
+                   InputIt                     channels_end):
                 m_monitor(monitor), m_event_kind(kind), m_channels(channels_begin, channels_end)
             {}
 
@@ -99,12 +95,12 @@ namespace m
                 }
             }
 
-            gsl::not_null<monitor_class*>        m_monitor;
-            std::shared_ptr<multiplexor>         m_multiplexor;
-            std::vector<std::wstring>            m_channel_names;
-            std::vector<gsl::not_null<channel*>> m_channels;
-            event_kind                           m_event_kind;
-            bool                                 m_closed{false};
+            m::not_null<monitor_class*>        m_monitor;
+            std::shared_ptr<multiplexor>       m_multiplexor;
+            std::vector<std::wstring>          m_channel_names;
+            std::vector<m::not_null<channel*>> m_channels;
+            event_kind                         m_event_kind;
+            bool                               m_closed{false};
         };
 
         template <typename... Types>

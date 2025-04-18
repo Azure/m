@@ -21,13 +21,9 @@
 
 #include <gsl/gsl>
 
-#include <m/strings/literal_string_view.h>
-
 #include "envelope.h"
 #include "event_context.h"
 #include "event_kind.h"
-
-using namespace m::string_view_literals;
 
 namespace m
 {

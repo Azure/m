@@ -3,6 +3,12 @@
 
 #pragma once
 
+#ifdef __GNUG__
+
+#error The Gnu G++ compiler version 14.2 does not support user defined string literals and so cannot use this header
+
+#endif
+
 #include <array>
 #include <cstdint>
 #include <string>
@@ -44,7 +50,13 @@ namespace m
 
     public:
     protected:
-        constexpr basic_literal_string_view(const CharT* str, std::size_t len): base_t(str, len) {}
+        constexpr basic_literal_string_view(const CharT* str) noexcept:
+            base_t(str, char_traits_t::length(str))
+        {}
+
+        constexpr basic_literal_string_view(const CharT* str, std::size_t len) noexcept:
+            base_t(str, len)
+        {}
 
         friend constexpr basic_literal_string_view<char>
         string_view_literals::operator""_sl(const char*, std::size_t);
@@ -106,5 +118,4 @@ namespace m
 #endif
     using u16literal_string_view = basic_literal_string_view<char16_t>;
     using u32literal_string_view = basic_literal_string_view<char32_t>;
-
 } // namespace m

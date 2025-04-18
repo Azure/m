@@ -21,8 +21,6 @@
 
 #include <gsl/gsl>
 
-#include <m/strings/literal_string_view.h>
-
 #include "event_kind.h"
 #include "message.h"
 #include "message_queue.h"
@@ -31,7 +29,7 @@
 #include "on_message_disposition.h"
 #include "sink.h"
 
-using namespace m::string_view_literals;
+using namespace std::string_view_literals;
 
 namespace m
 {
@@ -52,10 +50,10 @@ namespace m
             friend class multiplexor;
         };
 
-        inline constexpr auto diagnostic_channel_name = L"diagnostic"_sl;
+        inline constexpr auto diagnostic_channel_name = L"diagnostic"sv;
 
         inline auto diagnostic_channel = monitor.make_channel(diagnostic_channel_name);
 
-        // inline auto operational_channel = monitor.make_channel(L"operational"_sl);
+        // inline auto operational_channel = monitor.make_channel(L"operational"sv);
     } // namespace tracing
 } // namespace m

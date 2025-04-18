@@ -23,7 +23,6 @@
 #include <gsl/gsl>
 
 #include <m/cast/try_cast.h>
-#include <m/strings/literal_string_view.h>
 
 #include "channel.h"
 #include "event_kind.h"
@@ -33,8 +32,6 @@
 #include "on_message_disposition.h"
 #include "safe_array_iterator.h"
 #include "sink.h"
-
-using namespace m::string_view_literals;
 
 namespace m
 {

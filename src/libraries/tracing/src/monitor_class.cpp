@@ -24,7 +24,7 @@ namespace m::tracing
     }
 
     gsl::not_null<channel*>
-    monitor_class::make_channel(m::wliteral_string_view name)
+    monitor_class::make_channel(std::wstring_view name)
     {
         auto l = std::unique_lock(m_mutex);
 

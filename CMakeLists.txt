@@ -44,7 +44,7 @@ include(FetchContent)
 
 FetchContent_Declare(GSL
     GIT_REPOSITORY "https://github.com/microsoft/GSL"
-    GIT_TAG "v4.1.0"
+    GIT_TAG "v4.2.0"
     GIT_SHALLOW ON
 )
 
@@ -52,7 +52,7 @@ FetchContent_MakeAvailable(GSL)
 
 FetchContent_Declare(
   googletest
-  GIT_REPOSITORY  https://github.com/google/googletest.git
+  GIT_REPOSITORY https://github.com/google/googletest.git
   GIT_TAG v1.16.0
 )
 
@@ -68,4 +68,3 @@ include_directories(
 )
 
 add_subdirectory(src)
-

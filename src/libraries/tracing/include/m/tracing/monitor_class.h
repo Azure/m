@@ -21,7 +21,6 @@
 
 #include <gsl/gsl>
 
-#include <m/strings/literal_string_view.h>
 #include <m/utility/locked.h>
 
 #include "channel.h"
@@ -32,8 +31,6 @@
 #include "sink.h"
 #include "source.h"
 #include "topology_version.h"
-
-using namespace m::string_view_literals;
 
 namespace m
 {
@@ -49,13 +46,13 @@ namespace m
             ~monitor_class();
 
             gsl::not_null<channel*>
-            make_channel(m::wliteral_string_view name);
+            make_channel(std::wstring_view name);
 
             std::shared_ptr<source>
             make_source(event_kind kind = event_kind::information);
 
             std::shared_ptr<source>
-            make_source(event_kind kind, std::initializer_list<m::wliteral_string_view> channels);
+            make_source(event_kind kind, std::initializer_list<std::wstring_view> channels);
 
             void
             register_sink(std::shared_ptr<sink> snk);

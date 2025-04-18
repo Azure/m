@@ -5,16 +5,15 @@
 #include <memory>
 #include <string_view>
 
-#include <m/strings/literal_string_view.h>
 #include <m/tracing/cout_sink.h>
 #include <m/tracing/tracing.h>
 
-using namespace m::string_view_literals;
+using namespace std::string_view_literals;
 
 namespace m::tracing
 {
     cout_sink::cout_sink(gsl::not_null<monitor_class*> monitor):
-        sink(L"cout_sink"_sl, monitor), m_done{false}, m_thread([this]() { this->sink_thread(); })
+        sink(L"cout_sink"sv, monitor), m_done{false}, m_thread([this]() { this->sink_thread(); })
     {}
 
     // For all console output, just enqueue the input to the message queue, tracking

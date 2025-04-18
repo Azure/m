@@ -21,8 +21,6 @@
 
 #include <gsl/gsl>
 
-#include <m/strings/literal_string_view.h>
-
 #include "channel.h"
 #include "event_kind.h"
 #include "message_queue.h"

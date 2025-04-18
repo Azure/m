@@ -21,8 +21,6 @@
 
 #include <gsl/gsl>
 
-#include <m/strings/literal_string_view.h>
-
 #include "channel.h"
 #include "envelope.h"
 #include "event_kind.h"
@@ -32,8 +30,6 @@
 #include "sink.h"
 #include "source.h"
 #include "topology_version.h"
-
-using namespace m::string_view_literals;
 
 namespace m
 {

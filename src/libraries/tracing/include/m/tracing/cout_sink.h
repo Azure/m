@@ -22,14 +22,10 @@
 
 #include <gsl/gsl>
 
-#include <m/strings/literal_string_view.h>
-
 #include "envelope.h"
 #include "message_queue.h"
 #include "sink.h"
 #include "tracing.h"
-
-using namespace m::string_view_literals;
 
 namespace m
 {

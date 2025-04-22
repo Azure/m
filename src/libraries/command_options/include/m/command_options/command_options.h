@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <climits>
 #include <cstddef>
@@ -15,6 +16,7 @@
 #include <mutex>
 #include <new>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <type_traits>

@@ -6,6 +6,7 @@
 #include <compare>
 #include <concepts>
 #include <type_traits>
+#include <utility>
 
 #include <m/cast/to.h>
 #include <m/math/math.h>

@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <climits>
 #include <cstdint>
+#include <limits>
 
 #include <m/utf/decode_result.h>
 #include <m/utf/utf_decode.h>

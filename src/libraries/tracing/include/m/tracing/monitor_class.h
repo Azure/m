@@ -8,6 +8,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <format>
+#include <functional>
 #include <initializer_list>
 #include <map>
 #include <mutex>

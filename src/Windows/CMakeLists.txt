@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.22)
 
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles([=[

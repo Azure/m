@@ -1,10 +1,5 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.22)
 
-set_property(TARGET m APPEND PROPERTY PUBLIC_INCLUDE_DIRECTORIES
-  $<BUILD_PUBLIC:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<INSTALL_PUBLIC:.>
+install(DIRECTORY m/math
+        DESTINATION ${M_INSTALL_INCLUDEDIR}
 )
-
-include(CMakePrintHelpers)
-
-cmake_print_properties(TARGETS m PROPERTIES PUBLIC_INCLUDE_DIRECTORIES)

@@ -1,41 +1,72 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.22)
 
 # de-duplicate linker inputs
 cmake_policy(SET CMP0156 NEW)
 
 cmake_policy(SET CMP0082 NEW)
 
-project(m)
+set(VERSION_MAJOR "0")
+set(VERSION_MINOR "0")
+set(VERSION_PATCH "6")
+set(VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 
-if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+project(m
+    LANGUAGES CXX
+    VERSION ${VERSION})
+
+include(GNUInstallDirs)
+
+set(M_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR}/m CACHE PATH "Root directory for M installed include files" FORCE)
+
+if(DEFINED VCPKG_TARGET_TRIPLET)
     set(M_VCPKG_MODE true)
 else()
     set(M_VCPKG_MODE false)
 endif()
 
+message(STATUS "Project M: VCPKG_TARGET_TRIPLET: '${VCPKG_TARGET_TRIPLET}' -> M_VCPKG_MODE: ${M_VCPKG_MODE}")
+message(STATUS "Project M: Using vcpkg toolchain file at ${CMAKE_TOOLCHAIN_FILE}")
+
 # The tests build by default if the repo is accessed directly, not
 # by default if included as a dependency via vcpkg. You may enable
 # this by turning this option on.
 if(M_VCPKG_MODE)
-    option(M_BUILD_TESTS "Build the tests for M" OFF)
+    option(build_tests "Build the tests for M" OFF)
 else()
-    option(M_BUILD_TESTS "Build the tests for M" ON)
+    option(build_tests "Build the tests for M" ON)
 endif()
 
-set(CMAKE_CXX_STANDARD 23)
+#
+# The logic for the defaulting of options is somehow weird
+# perhaps use of CMake_condition_option() would fix it but
+# it doesn't seem so.
+#
+# In practice, for vcpkg mode, we will assume that the
+# options are correctly configured since they are always
+# configured via the vcpkg.json manifest.
+#
+# For non-vcpkg mode, at least building using visual
+# studio, the defaults are not honored and the developer
+# has to go in to the CMakePresets.json and set the
+# cache variables for the options in order for them to
+# be recognized.
+#
+# So for non-vcpkg mode, we will just always build tests,
+# with no way to avoid it for now. Sorry.
+#
 
+if(M_VCPKG_MODE)
+    set(M_BUILD_TESTS ${build_tests} CACHE BOOL "Are the tests being built" FORCE)
+else()
+    set(M_BUILD_TESTS ON CACHE BOOL "Are the tests being built" FORCE)
+endif()
 
 set(M_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Add custom modules
+# Add custom CMake module
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-set(CMAKE_CXX_STANDARD "23")
 
-# Enable vcpkg integration if CMAKE_TOOLCHAIN_FILE is set
-if(${M_VCPKG_MODE})
-    set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
-    message(STATUS "Using vcpkg toolchain file at ${CMAKE_TOOLCHAIN_FILE}")
-endif()
+set(CMAKE_CXX_STANDARD "23")
 
 # MSVC specific settings
 if(MSVC)
@@ -61,26 +92,16 @@ if(GIT_FOUND)
     set(VCS_REVISION ${GIT_SHA1})
 endif()
 
-# Set the version number of your project here (format is MAJOR.MINOR.PATCHLEVEL - e.g. 1.0.0)
-set(VERSION_MAJOR "0")
-set(VERSION_MINOR "0")
-set(VERSION_PATCH "3")
-set(VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
-
 # Dependencies
 include(FetchContent)
 
-if (${M_VCPKG_MODE})
-
-    if (${M_BUILD_TESTS})
-        include(FindGTest)
-
-        find_package(GTest REQUIRED)
+if (M_VCPKG_MODE)
+    if (M_BUILD_TESTS)
+        # include(FindGTest)
+        find_package(GTest CONFIG REQUIRED)
     endif()
-
 else()
-
-    if (${M_BUILD_TESTS})
+    if (M_BUILD_TESTS)
         FetchContent_Declare(
           GTest
           GIT_REPOSITORY https://github.com/google/googletest.git
@@ -100,7 +121,6 @@ else()
     )
 
     FetchContent_MakeAvailable(GSL)
-
 endif()
 
 # Global include directories
@@ -110,3 +130,27 @@ include_directories(
 
 # Add project subdirectories
 add_subdirectory(src)
+
+list(APPEND m_targets
+    block_buffer
+    byte_streams
+    cast
+    command_options
+    csv
+    filesystem
+    io
+    math
+    memory
+    pe
+    strings
+    tracing
+    utf
+    errors
+    multi_byte
+    pe2csv
+    pe2l
+)
+
+install(
+    TARGETS ${m_targets}
+)

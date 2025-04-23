@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
-project(math)
+cmake_minimum_required(VERSION 3.22)
 
 add_library(math STATIC
     math.cpp
@@ -10,11 +9,5 @@ target_include_directories(math PUBLIC
 )
 
 target_link_libraries(math PUBLIC
-#    math
     cast
 )
-
-set_target_properties(math PROPERTIES
-    VERSION ${VERSION}
-)
-

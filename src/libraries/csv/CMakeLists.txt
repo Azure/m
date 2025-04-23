@@ -1,8 +1,6 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.22)
 
-# Set the name of your project here
-project(csv)
-
+add_subdirectory(include)
 add_subdirectory(src)
 add_subdirectory(test)
 

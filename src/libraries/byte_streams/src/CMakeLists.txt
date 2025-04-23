@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
-project(byte_streams)
+cmake_minimum_required(VERSION 3.22)
 
 # Define the library
 add_library(byte_streams STATIC
@@ -17,13 +16,6 @@ target_link_libraries(byte_streams PUBLIC
 #    memory
 )
 
-target_include_directories(
-    byte_streams
-        PUBLIC
-            ../include
+target_include_directories(byte_streams PUBLIC
+    ../include
 )
-
-set_target_properties(byte_streams PROPERTIES
-    VERSION ${VERSION}
-)
-

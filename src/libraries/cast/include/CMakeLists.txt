@@ -1,3 +1,5 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.22)
 
-add_subdirectory(cast)
+install(DIRECTORY m/cast
+        DESTINATION ${M_INSTALL_INCLUDEDIR}
+)

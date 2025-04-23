@@ -1,7 +1,6 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.22)
 
-project(strings)
-
+add_subdirectory(include)
 add_subdirectory(src)
 add_subdirectory(test)
 

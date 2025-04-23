@@ -1,7 +1,6 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.22)
 
 if(M_BUILD_TESTS)
-    project(test_csv)
 
     include(GoogleTest)
 

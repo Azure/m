@@ -1,9 +1,8 @@
-cmake_minimum_required(VERSION 3.30)
-project(pe)
+cmake_minimum_required(VERSION 3.22)
 
 add_library(pe STATIC
     pe_decoder.cpp
- "loader_context.cpp")
+    loader_context.cpp)
 
 target_include_directories(pe PUBLIC
     ../include
@@ -15,8 +14,4 @@ target_link_libraries(pe PUBLIC
     filesystem
     math
     memory
-)
-
-set_target_properties(pe PROPERTIES
-    VERSION ${VERSION}
 )

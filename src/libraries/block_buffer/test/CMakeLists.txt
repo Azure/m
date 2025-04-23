@@ -1,6 +1,3 @@
 
-cmake_minimum_required(VERSION 3.30)
-
-project(block_buffer)
-
+cmake_minimum_required(VERSION 3.22)
 

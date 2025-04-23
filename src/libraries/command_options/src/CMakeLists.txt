@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
-project(command_options)
+cmake_minimum_required(VERSION 3.22)
 
 # Define the library
 add_library(command_options STATIC
@@ -16,13 +15,6 @@ target_link_libraries(command_options PUBLIC
     strings
 )
 
-target_include_directories(
-    command_options
-        PUBLIC
-            ../include
+target_include_directories(command_options PUBLIC
+    ../include
 )
-
-set_target_properties(command_options PROPERTIES
-    VERSION ${VERSION}
-)
-

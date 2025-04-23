@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
-
-project(pe2csv)
+cmake_minimum_required(VERSION 3.22)
 
 add_executable(pe2csv
     main.cpp)
@@ -14,8 +12,3 @@ target_link_libraries(pe2csv
     filesystem
     pe
 )
-
-set_target_properties(pe2csv PROPERTIES
-  VERSION ${VERSION}  # ${VERSION} was defined in the main CMakeLists.
-)
-

@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
-project(cast)
+cmake_minimum_required(VERSION 3.22)
 
 add_library(cast STATIC
     cast.cpp
@@ -8,8 +7,3 @@ add_library(cast STATIC
 target_include_directories(cast PUBLIC
     ../include
 )
-
-set_target_properties(cast PROPERTIES
-    VERSION ${VERSION}
-)
-

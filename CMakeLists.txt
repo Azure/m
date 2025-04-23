@@ -7,7 +7,23 @@ cmake_policy(SET CMP0082 NEW)
 
 project(m)
 
+if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    set(M_VCPKG_MODE true)
+else()
+    set(M_VCPKG_MODE false)
+endif()
+
+# The tests build by default if the repo is accessed directly, not
+# by default if included as a dependency via vcpkg. You may enable
+# this by turning this option on.
+if(M_VCPKG_MODE)
+    option(M_BUILD_TESTS "Build the tests for M" OFF)
+else()
+    option(M_BUILD_TESTS "Build the tests for M" ON)
+endif()
+
 set(CMAKE_CXX_STANDARD 23)
+
 
 set(M_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -16,7 +32,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(CMAKE_CXX_STANDARD "23")
 
 # Enable vcpkg integration if CMAKE_TOOLCHAIN_FILE is set
-if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+if(${M_VCPKG_MODE})
     set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
     message(STATUS "Using vcpkg toolchain file at ${CMAKE_TOOLCHAIN_FILE}")
 endif()
@@ -51,29 +67,41 @@ set(VERSION_MINOR "0")
 set(VERSION_PATCH "3")
 set(VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 
-# Enable testing
-enable_testing()
-
 # Dependencies
 include(FetchContent)
 
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.16.0
-)
+if (${M_VCPKG_MODE})
 
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+    if (${M_BUILD_TESTS})
+        include(FindGTest)
 
-FetchContent_Declare(GSL
-    GIT_REPOSITORY "https://github.com/microsoft/GSL"
-    GIT_TAG "v4.2.0"
-    GIT_SHALLOW ON
-)
+        find_package(GTest REQUIRED)
+    endif()
 
-FetchContent_MakeAvailable(GSL)
+else()
+
+    if (${M_BUILD_TESTS})
+        FetchContent_Declare(
+          GTest
+          GIT_REPOSITORY https://github.com/google/googletest.git
+          GIT_TAG v1.16.0
+        )
+
+        # For Windows: Prevent overriding the parent project's compiler/linker settings
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+        FetchContent_MakeAvailable(GTest)
+    endif()
+
+    FetchContent_Declare(GSL
+        GIT_REPOSITORY "https://github.com/microsoft/GSL"
+        GIT_TAG "v4.2.0"
+        GIT_SHALLOW ON
+    )
+
+    FetchContent_MakeAvailable(GSL)
+
+endif()
 
 # Global include directories
 include_directories(

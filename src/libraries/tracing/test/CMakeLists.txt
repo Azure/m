@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
 if(M_BUILD_TESTS)
     include(GoogleTest)
@@ -10,10 +10,10 @@ if(M_BUILD_TESTS)
 
     target_link_libraries(
       test_tracing
-      cast
-      math
-      strings
-      tracing
+      m_cast
+      m_math
+      m_strings
+      m_tracing
       GTest::gtest_main
     )
 

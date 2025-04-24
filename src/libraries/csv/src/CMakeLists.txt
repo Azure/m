@@ -1,14 +1,14 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-add_library(csv STATIC
+target_sources(m_csv PRIVATE
     csv.cpp
     breaker.cpp)
 
-target_include_directories(csv PUBLIC
+target_include_directories(m_csv PUBLIC
     ../include
 )
 
-target_link_libraries(csv PUBLIC
-    io
-    math
+target_link_libraries(m_csv PUBLIC
+    m_io
+    m_math
 )

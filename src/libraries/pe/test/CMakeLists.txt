@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
 if(M_BUILD_TESTS)
     include(GoogleTest)
@@ -10,11 +10,11 @@ if(M_BUILD_TESTS)
 
     target_link_libraries(
       test_pe
-      byte_streams
-      filesystem
-      math
-      memory
-      pe
+      m_byte_streams
+      m_filesystem
+      m_math
+      m_memory
+      m_pe
       GTest::gtest_main
     )
 

@@ -1,13 +1,13 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-add_library(math STATIC
+target_sources(m_math PRIVATE
     math.cpp
 )
 
-target_include_directories(math PUBLIC
+target_include_directories(m_math PUBLIC
     ../include
 )
 
-target_link_libraries(math PUBLIC
-    cast
+target_link_libraries(m_math PUBLIC
+    m_cast
 )

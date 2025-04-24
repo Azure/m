@@ -1,5 +1,7 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-install(DIRECTORY m/cast
-        DESTINATION ${M_INSTALL_INCLUDEDIR}
+target_sources(m_cast PUBLIC FILE_SET HEADERS FILES 
+    m/cast/cast.h
+    m/cast/to.h
+    m/cast/try_cast.h
 )

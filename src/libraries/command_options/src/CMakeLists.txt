@@ -1,20 +1,19 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-# Define the library
-add_library(command_options STATIC
+target_sources(m_command_options PRIVATE
     command_options.cpp
 )
 
-target_compile_definitions(command_options PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_compile_definitions(m_command_options PRIVATE _CRT_SECURE_NO_WARNINGS)
 
-target_link_libraries(command_options PUBLIC
-    cast
-    filesystem
-    math
-    memory
-    strings
+target_link_libraries(m_command_options PUBLIC
+    m_cast
+    m_filesystem
+    m_math
+    m_memory
+    m_strings
 )
 
-target_include_directories(command_options PUBLIC
+target_include_directories(m_command_options PUBLIC
     ../include
 )

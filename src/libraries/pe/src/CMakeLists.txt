@@ -1,17 +1,17 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-add_library(pe STATIC
+target_sources(m_pe PRIVATE
     pe_decoder.cpp
     loader_context.cpp)
 
-target_include_directories(pe PUBLIC
+target_include_directories(m_pe PUBLIC
     ../include
 )
 
-target_link_libraries(pe PUBLIC
-    byte_streams
-    cast
-    filesystem
-    math
-    memory
+target_link_libraries(m_pe PUBLIC
+    m_byte_streams
+    m_cast
+    m_filesystem
+    m_math
+    m_memory
 )

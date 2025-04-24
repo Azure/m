@@ -53,8 +53,10 @@ namespace m
             std::shared_ptr<source>
             make_source(event_kind kind = event_kind::information);
 
+#if 0
             std::shared_ptr<source>
             make_source(event_kind kind, std::initializer_list<m::wliteral_string_view> channels);
+#endif
 
             void
             register_sink(std::shared_ptr<sink> snk);

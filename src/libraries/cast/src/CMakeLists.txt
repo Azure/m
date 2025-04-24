@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-add_library(cast STATIC
+target_sources(m_cast PRIVATE
     cast.cpp
 )
 
-target_include_directories(cast PUBLIC
+target_include_directories(m_cast PUBLIC
     ../include
 )

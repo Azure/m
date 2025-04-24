@@ -1,20 +1,15 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-add_library(strings STATIC
+target_sources(m_strings PRIVATE
     convert.cpp
     punning.cpp
 )
 
-target_include_directories(strings PUBLIC
+target_include_directories(m_strings PUBLIC
     ../include
 )
 
-target_link_libraries(strings PUBLIC
-    math
-    utf
+target_link_libraries(m_strings PUBLIC
+    m_math
+    m_utf
 )
-
-set_target_properties(strings PROPERTIES
-    VERSION ${VERSION}
-)
-

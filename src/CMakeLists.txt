@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
 add_subdirectory(include)
 add_subdirectory(libraries)
@@ -11,3 +11,5 @@ endif()
 if(LINUX)
     add_subdirectory(Linux)
 endif()
+
+set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

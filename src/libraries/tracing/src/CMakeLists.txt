@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-add_library(tracing STATIC
+target_sources(m_tracing PRIVATE
     channel.cpp
     cout_sink.cpp
     envelope.cpp
@@ -13,17 +13,12 @@ add_library(tracing STATIC
     source.cpp
   )
 
-target_include_directories(tracing PUBLIC
+target_include_directories(m_tracing PUBLIC
     ../include
 )
 
-target_link_libraries(tracing PUBLIC
-    math
-    strings
-    utf
+target_link_libraries(m_tracing PUBLIC
+    m_math
+    m_strings
+    m_utf
 )
-
-set_target_properties(tracing PROPERTIES
-    VERSION ${VERSION}
-)
-

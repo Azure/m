@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
 # de-duplicate linker inputs
 cmake_policy(SET CMP0156 NEW)
@@ -131,26 +131,13 @@ include_directories(
 # Add project subdirectories
 add_subdirectory(src)
 
-list(APPEND m_targets
-    block_buffer
-    byte_streams
-    cast
-    command_options
-    csv
-    filesystem
-    io
-    math
-    memory
-    pe
-    strings
-    tracing
-    utf
-    errors
-    multi_byte
+list(APPEND m_installation_targets
     pe2csv
     pe2l
 )
 
 install(
-    TARGETS ${m_targets}
+    TARGETS ${m_installation_targets}
+    FILE_SET HEADERS
+#        DESTINATION ${M_INSTALL_INCLUDEDIR}
 )

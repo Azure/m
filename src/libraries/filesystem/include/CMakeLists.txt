@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-install(DIRECTORY m/filesystem
-        DESTINATION ${M_INSTALL_INCLUDEDIR}
+target_sources(m_filesystem PUBLIC FILE_SET HEADERS FILES 
+    m/filesystem/filesystem.h 
 )

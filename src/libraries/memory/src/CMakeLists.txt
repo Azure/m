@@ -1,14 +1,14 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-add_library(memory STATIC
+target_sources(m_memory PRIVATE
     memory.cpp
 )
 
-target_include_directories(memory PUBLIC
+target_include_directories(m_memory PUBLIC
     ../include
 )
 
-target_link_libraries(memory PUBLIC
-    block_buffer
-    math
+target_link_libraries(m_memory PUBLIC
+    m_block_buffer
+    m_math
 )

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
 if(M_BUILD_TESTS)
 
@@ -11,8 +11,8 @@ if(M_BUILD_TESTS)
 
     target_link_libraries(
       test_csv
-      csv
-      math
+      m_csv
+      m_math
       GTest::gtest_main
     )
 

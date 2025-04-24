@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
 add_subdirectory(block_buffer)
 add_subdirectory(byte_streams)
@@ -14,3 +14,4 @@ add_subdirectory(strings)
 add_subdirectory(tracing)
 add_subdirectory(utf)
 
+set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

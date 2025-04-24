@@ -1,17 +1,14 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 
-add_library(errors STATIC
+target_sources(m_errors PRIVATE
     errors.cpp
     win32_error_code.cpp)
 
-target_include_directories(errors PUBLIC
+target_include_directories(m_errors PUBLIC
     ../include
 )
 
-target_link_libraries(errors PUBLIC
+target_link_libraries(m_errors PUBLIC
 )
 
-set_target_properties(errors PROPERTIES
-    VERSION ${VERSION}
-)
-
+set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

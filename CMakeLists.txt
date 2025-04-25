@@ -7,7 +7,7 @@ cmake_policy(SET CMP0082 NEW)
 
 set(VERSION_MAJOR "0")
 set(VERSION_MINOR "0")
-set(VERSION_PATCH "6")
+set(VERSION_PATCH "9")
 set(VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 
 project(m
@@ -141,3 +141,33 @@ install(
     FILE_SET HEADERS
 #        DESTINATION ${M_INSTALL_INCLUDEDIR}
 )
+
+set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR}/m
+    CACHE PATH "Location of header files" )
+
+set(SYSCONFIG_INSTALL_DIR ${CMAKE_INSTALL_SYSCONFDIR}/share/m
+    CACHE PATH "Location of configuration files" )
+#...
+
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+    m-config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/m-config.cmake
+    INSTALL_DESTINATION share/m
+    PATH_VARS INCLUDE_INSTALL_DIR SYSCONFIG_INSTALL_DIR
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/m-configVersion.cmake
+  VERSION ${VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+install(
+    FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/m-config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/m-configVersion.cmake
+    DESTINATION
+        share/m )
+

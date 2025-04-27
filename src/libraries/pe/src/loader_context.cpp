@@ -149,7 +149,9 @@ m::pe::loader_context::pe_record::pe_record(std::filesystem::path const&        
     m_path(path),
     m_name(m::to_wstring(downcase(path.filename().c_str()))),
     m_not_found(!std::filesystem::exists(path)),
-    m_decoder(m_not_found ? nullptr : std::make_unique<m::pe::decoder>(m::filesystem::open(path)))
+    m_decoder(m_not_found ?
+                  nullptr :
+                  std::make_unique<m::pe::decoder>(m::filesystem::open_seekable_input_file(path)))
 {
     if (!m_decoder)
         return;

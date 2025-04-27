@@ -12,7 +12,8 @@ set(VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 
 project(m
     LANGUAGES CXX
-    VERSION ${VERSION})
+    VERSION ${VERSION}
+)
 
 include(GNUInstallDirs)
 

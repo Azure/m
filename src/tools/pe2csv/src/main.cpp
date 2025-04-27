@@ -21,7 +21,7 @@ main(int argc, char const* argv[])
     for (int i = 1; i < argc; i++)
     {
         auto path       = m::filesystem::make_path(argv[i]);
-        auto file       = m::filesystem::open(path);
+        auto file       = m::filesystem::open_seekable_input_file(path);
         auto decoded_pe = m::pe::decoder(file);
 
         std::wstring buffer;

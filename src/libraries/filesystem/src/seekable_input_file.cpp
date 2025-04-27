@@ -9,9 +9,10 @@
 #include <m/cast/to.h>
 #include <m/filesystem/filesystem.h>
 
-#include "file.h"
+#include "seekable_input_file.h"
 
-m::filesystem_impl::file::file(std::filesystem::path const& path): m_fp(nullptr), m_path(path)
+m::filesystem_impl::seekable_input_file::seekable_input_file(std::filesystem::path const& path):
+    m_fp(nullptr), m_path(path)
 {
     auto const s = path.c_str();
     m_fp =
@@ -24,7 +25,8 @@ m::filesystem_impl::file::file(std::filesystem::path const& path): m_fp(nullptr)
         throw std::runtime_error("unable to open input file");
 }
 
-m::filesystem_impl::file::file(file&& other) noexcept: m_fp(nullptr)
+m::filesystem_impl::seekable_input_file::seekable_input_file(seekable_input_file&& other) noexcept:
+    m_fp(nullptr)
 {
     using std::swap;
 
@@ -32,14 +34,14 @@ m::filesystem_impl::file::file(file&& other) noexcept: m_fp(nullptr)
     swap(m_path, other.m_path);
 }
 
-m::filesystem_impl::file::~file()
+m::filesystem_impl::seekable_input_file::~seekable_input_file()
 {
     if (m_fp)
         fclose(std::exchange(m_fp, nullptr));
 }
 
 std::filesystem::path
-m::filesystem_impl::file::do_path()
+m::filesystem_impl::seekable_input_file::do_path()
 {
     auto const l = std::unique_lock(m_mutex);
     return m_path;
@@ -47,7 +49,7 @@ m::filesystem_impl::file::do_path()
 
 // byte_streams::seq_in
 std::size_t
-m::filesystem_impl::file::do_read(std::span<std::byte>& span)
+m::filesystem_impl::seekable_input_file::do_read(std::span<std::byte>& span)
 {
     auto const l = std::unique_lock(m_mutex);
     return read(span);
@@ -55,7 +57,7 @@ m::filesystem_impl::file::do_read(std::span<std::byte>& span)
 
 // byte_streams::ra_in
 std::size_t
-m::filesystem_impl::file::do_read(io::position_t p, std::span<std::byte>& span)
+m::filesystem_impl::seekable_input_file::do_read(io::position_t p, std::span<std::byte>& span)
 {
     auto const l = std::unique_lock(m_mutex);
     seek_to(p);
@@ -63,7 +65,7 @@ m::filesystem_impl::file::do_read(io::position_t p, std::span<std::byte>& span)
 }
 
 std::size_t
-m::filesystem_impl::file::read(std::span<std::byte>& span)
+m::filesystem_impl::seekable_input_file::read(std::span<std::byte>& span)
 {
     auto const count = std::fread(span.data(), sizeof(std::byte), span.size(), m_fp);
     if (count == 0)
@@ -85,14 +87,41 @@ m::filesystem_impl::file::read(std::span<std::byte>& span)
 }
 
 void
-m::filesystem_impl::file::seek(long offset, int origin)
+m::filesystem_impl::seekable_input_file::do_seek(io::position_t p)
+{
+    seek_to(p);
+}
+
+void
+m::filesystem_impl::seekable_input_file::do_seek(io::offset_t o)
+{
+    auto const o1 = std::to_underlying(o);
+    auto const o2 = m::to<long>(o1);
+    auto l = std::unique_lock(m_mutex);
+    seek(o2, SEEK_CUR);
+}
+
+m::io::position_t
+m::filesystem_impl::seekable_input_file::do_tell()
+{
+    auto       l = std::unique_lock(m_mutex);
+    auto const p = std::ftell(m_fp);
+    if (p == -1L)
+        throw std::runtime_error("Error getting file position");
+    if (p < 0)
+        throw std::runtime_error("ftell() returned a negative file position; impossible");
+    return m::io::position_t{static_cast<unsigned long>(p)};
+}
+
+void
+m::filesystem_impl::seekable_input_file::seek(long offset, int origin)
 {
     if (std::fseek(m_fp, offset, origin))
         throw std::runtime_error("error seeking file");
 }
 
 void
-m::filesystem_impl::file::seek_to(io::position_t p)
+m::filesystem_impl::seekable_input_file::seek_to(io::position_t p)
 {
     //
     // The C/C++ API doesn't give a way to directly seek past 2^32-1 bytes so if the

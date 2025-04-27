@@ -20,7 +20,7 @@ namespace m
 {
     namespace filesystem
     {
-        class file : public byte_streams::ra_in, public byte_streams::seq_in
+        class file
         {
         public:
             std::filesystem::path
@@ -34,8 +34,29 @@ namespace m
             do_path() = 0;
         };
 
-        std::shared_ptr<file>
-        open(std::filesystem::path const& path);
+        class seekable_input_file :
+            public m::filesystem::file,
+            public m::byte_streams::ra_in,
+            public m::byte_streams::seq_in,
+            public m::byte_streams::seekable
+        {
+        public:
+        };
+
+        class seekable_output_file :
+            public m::filesystem::file,
+            public m::byte_streams::ra_out,
+            public m::byte_streams::seq_out,
+            public m::byte_streams::seekable
+        {
+        public:
+        };
+
+        std::shared_ptr<seekable_input_file>
+        open_seekable_input_file(std::filesystem::path const& path);
+
+        std::shared_ptr<seekable_output_file>
+        open_seekable_output_file(std::filesystem::path const& path);
 
         //
         // Hide the gory details of mapping character sets

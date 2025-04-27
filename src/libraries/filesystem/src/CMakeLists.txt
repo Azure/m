@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_filesystem PRIVATE
-    file.cpp
     filesystem.cpp
-    make_path.cpp)
+    make_path.cpp
+    seekable_input_file.cpp
+    seekable_output_file.cpp
+)
 
 target_compile_definitions(m_filesystem PRIVATE _CRT_SECURE_NO_WARNINGS)
 

@@ -4,7 +4,7 @@
       "inheritEnvironments": [
         "msvc_x64"
       ],
-      "name": "x64-Rel-NoOpt",
+      "name": "x64 Release",
       "includePath": [
         "${env.INCLUDE}",
         "${workspaceRoot}\\**"

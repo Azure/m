@@ -124,6 +124,10 @@ else()
     FetchContent_MakeAvailable(GSL)
 endif()
 
+if (M_BUILD_TESTS)
+    enable_testing()
+endif()
+
 # Global include directories
 include_directories(
     ${PROJECT_SOURCE_DIR}/src/include

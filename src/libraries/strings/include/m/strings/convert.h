@@ -11,8 +11,15 @@ namespace m
     //
     // "safe" conversion of std::byte to wchar_t
     //
-    wchar_t
+    constexpr wchar_t
     byte_to_wchar(std::byte b);
+
+    //
+    // Map "plain" char to wchar_t, including whatever
+    // semantic conversions are required.
+    //
+    constexpr wchar_t
+    char_to_wchar(char ch);
 
     //
     // to_wstring, across all the interesting input types

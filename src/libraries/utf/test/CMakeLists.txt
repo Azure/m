@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.23)
 
+project(m)
+
 if(M_BUILD_TESTS)
     include(GoogleTest)
 

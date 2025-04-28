@@ -1,0 +1,9 @@
+
+m provides headers and various libraries
+
+at this time it is only really targeted at integration into vcpkg
+being used within msbuild where the usual CMake and vcpkg integration
+isn't used so namespace based libraries are not provided at this moment.
+
+This will be addressed in the future.
+

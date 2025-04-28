@@ -163,13 +163,13 @@ namespace m::multi_byte
     }
 
     void
-    utf16_to_acp(std::wstring_view const& view, std::string& string)
+    utf16_to_acp(std::wstring_view view, std::string& string)
     {
         utf16_to_multi_byte(cp_acp, view, string);
     }
 
     void
-    utf16_to_acp(std::u16string_view const& view, std::string& string)
+    utf16_to_acp(std::u16string_view view, std::string& string)
     {
         utf16_to_multi_byte(cp_acp, view, string);
     }
@@ -177,7 +177,7 @@ namespace m::multi_byte
 } // namespace m::multi_byte
 
 std::string
-m::to_string(std::wstring_view const& view)
+m::to_string_acp(std::wstring_view view)
 {
     std::string string;
     m::multi_byte::utf16_to_acp(view, string);
@@ -185,7 +185,7 @@ m::to_string(std::wstring_view const& view)
 }
 
 std::string
-m::to_string(std::u16string_view const& view)
+m::to_string_acp(std::u16string_view view)
 {
     std::string string;
     m::multi_byte::utf16_to_acp(view, string);
@@ -193,7 +193,7 @@ m::to_string(std::u16string_view const& view)
 }
 
 std::string
-m::to_string(m::multi_byte::code_page cp, std::wstring_view const& view)
+m::to_string(m::multi_byte::code_page cp, std::wstring_view view)
 {
     std::string string;
     m::multi_byte::utf16_to_multi_byte(cp, view, string);
@@ -201,7 +201,7 @@ m::to_string(m::multi_byte::code_page cp, std::wstring_view const& view)
 }
 
 std::string
-m::to_string(m::multi_byte::code_page cp, std::u16string_view const& view)
+m::to_string(m::multi_byte::code_page cp, std::u16string_view view)
 {
     std::string string;
     m::multi_byte::utf16_to_multi_byte(cp, view, string);

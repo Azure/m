@@ -129,7 +129,7 @@ m::multi_byte::acp_to_utf16(std::string_view view, std::span<char16_t>& buffer)
 }
 
 std::wstring
-m::to_wstring(std::string_view const& view)
+m::to_wstring_acp(std::string_view view)
 {
     std::wstring string;
     //    auto         outit = std::back_inserter(string);
@@ -138,7 +138,7 @@ m::to_wstring(std::string_view const& view)
 }
 
 std::u16string
-m::to_u16string(std::string_view const& view)
+m::to_u16string_acp(std::string_view view)
 {
     std::u16string string;
     //    auto         outit = std::back_inserter(string);
@@ -147,7 +147,7 @@ m::to_u16string(std::string_view const& view)
 }
 
 std::wstring
-m::to_wstring(m::multi_byte::code_page cp, std::string_view const& view)
+m::to_wstring(m::multi_byte::code_page cp, std::string_view view)
 {
     std::wstring string;
     m::multi_byte::multi_byte_to_utf16(cp, view, string);
@@ -155,7 +155,7 @@ m::to_wstring(m::multi_byte::code_page cp, std::string_view const& view)
 }
 
 std::u16string
-m::to_u16string(m::multi_byte::code_page cp, std::string_view const& view)
+m::to_u16string(m::multi_byte::code_page cp, std::string_view view)
 {
     std::u16string string;
     m::multi_byte::multi_byte_to_utf16(cp, view, string);

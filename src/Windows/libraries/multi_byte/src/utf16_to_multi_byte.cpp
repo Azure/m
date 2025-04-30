@@ -7,7 +7,7 @@
 #include <type_traits>
 
 #include <m/cast/to.h>
-#include <m/multi_byte/multi_byte.h>
+#include <m/multi_byte/convert.h>
 #include <m/utility/make_span.h>
 
 #include <Windows.h>
@@ -176,34 +176,67 @@ namespace m::multi_byte
 
 } // namespace m::multi_byte
 
-std::string
-m::to_string_acp(std::wstring_view view)
+void
+m::to_string(m::multi_byte::code_page cp, std::wstring_view view, std::string& str)
 {
-    std::string string;
-    m::multi_byte::utf16_to_acp(view, string);
-    return string;
-}
-
-std::string
-m::to_string_acp(std::u16string_view view)
-{
-    std::string string;
-    m::multi_byte::utf16_to_acp(view, string);
-    return string;
+    str.erase();
+    m::multi_byte::utf16_to_multi_byte(cp, view, str);
 }
 
 std::string
 m::to_string(m::multi_byte::code_page cp, std::wstring_view view)
 {
-    std::string string;
-    m::multi_byte::utf16_to_multi_byte(cp, view, string);
-    return string;
+    std::string str;
+    to_string(cp, view, str);
+    return str;
+}
+
+void
+m::to_string(m::multi_byte::code_page cp, std::u8string_view view, std::string& str)
+{
+    str.erase();
+    throw std::runtime_error("not yet implemented");
+    // m::multi_byte::utf8_to_multi_byte(cp, view, str);
+}
+
+std::string
+m::to_string(m::multi_byte::code_page cp, std::u8string_view view)
+{
+    std::string str;
+    to_string(cp, view, str);
+    return str;
+}
+
+void
+m::to_string(m::multi_byte::code_page cp, std::u16string_view view, std::string& str)
+{
+    str.erase();
+    m::multi_byte::utf16_to_multi_byte(cp, view, str);
 }
 
 std::string
 m::to_string(m::multi_byte::code_page cp, std::u16string_view view)
 {
-    std::string string;
-    m::multi_byte::utf16_to_multi_byte(cp, view, string);
-    return string;
+    std::string str;
+    to_string(cp, view, str);
+    return str;
 }
+
+void
+m::to_string(m::multi_byte::code_page cp, std::u32string_view view, std::string& str)
+{
+    str.erase();
+    throw std::runtime_error("not yet implemented");
+    // m::multi_byte::utf32_to_multi_byte(cp, view, str);
+}
+
+std::string
+m::to_string(m::multi_byte::code_page cp, std::u32string_view view)
+{
+    std::string str;
+    to_string(cp, view, str);
+    return str;
+}
+
+
+

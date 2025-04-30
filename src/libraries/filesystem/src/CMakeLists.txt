@@ -5,7 +5,7 @@ target_sources(m_filesystem PRIVATE
     make_path.cpp
     seekable_input_file.cpp
     seekable_output_file.cpp
-)
+ "path_conversions.cpp")
 
 target_compile_definitions(m_filesystem PRIVATE _CRT_SECURE_NO_WARNINGS)
 
@@ -17,6 +17,17 @@ target_link_libraries(m_filesystem PUBLIC
     m_memory
     m_strings
 )
+
+if(WIN32)
+    target_link_libraries(m_filesystem PUBLIC
+        m_windows_strings
+    )
+else()
+    target_link_libraries(m_filesystem PUBLIC
+        m_linux_strings
+    )
+
+endif()
 
 target_include_directories(m_filesystem PUBLIC
     ../include

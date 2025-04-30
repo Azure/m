@@ -710,8 +710,7 @@ namespace m
             usage(std::filesystem::path program)
             {
                 auto filename     = program.filename();
-                auto filename_str = filename.c_str();
-                auto filename2    = m::to_string(filename_str);
+                auto filename2    = m::filesystem::path_to_string(filename);
 
                 string_t buffer;
                 auto     it = std::back_inserter(buffer);

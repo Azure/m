@@ -13,7 +13,7 @@
 
 #include <m/strings/convert.h>
 #include <m/utf/exceptions.h>
-#include <m/utf/utf_decode.h>
+#include <m/utf/decode.h>
 
 #include "test_data.h"
 

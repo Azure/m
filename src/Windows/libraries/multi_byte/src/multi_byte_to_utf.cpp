@@ -7,7 +7,8 @@
 #include <type_traits>
 
 #include <m/cast/to.h>
-#include <m/multi_byte/multi_byte.h>
+#include <m/multi_byte/convert.h>
+#include <m/multi_byte/convert_wchar.h>
 
 #include <Windows.h>
 
@@ -129,29 +130,25 @@ m::multi_byte::acp_to_utf16(std::string_view view, std::span<char16_t>& buffer)
 }
 
 std::wstring
-m::to_wstring_acp(std::string_view view)
-{
-    std::wstring string;
-    //    auto         outit = std::back_inserter(string);
-    m::multi_byte::acp_to_utf16(view, string);
-    return string;
-}
-
-std::u16string
-m::to_u16string_acp(std::string_view view)
-{
-    std::u16string string;
-    //    auto         outit = std::back_inserter(string);
-    m::multi_byte::acp_to_utf16(view, string);
-    return string;
-}
-
-std::wstring
 m::to_wstring(m::multi_byte::code_page cp, std::string_view view)
 {
     std::wstring string;
     m::multi_byte::multi_byte_to_utf16(cp, view, string);
     return string;
+}
+
+void
+m::to_wstring(m::multi_byte::code_page cp, std::string_view view, std::wstring& str)
+{
+    str.erase();
+    m::multi_byte::multi_byte_to_utf16(cp, view, str);
+}
+
+void
+m::to_u16string(m::multi_byte::code_page cp, std::string_view view, std::u16string& str)
+{
+    str.erase();
+    m::multi_byte::multi_byte_to_utf16(cp, view, str);
 }
 
 std::u16string
@@ -160,4 +157,50 @@ m::to_u16string(m::multi_byte::code_page cp, std::string_view view)
     std::u16string string;
     m::multi_byte::multi_byte_to_utf16(cp, view, string);
     return string;
+}
+
+void
+m::to_u8string(m::multi_byte::code_page cp, std::string_view v, std::u8string& str)
+{
+    //
+    // There is no direct conversion from multibyte to multibyte. So the best we can do
+    // is multibyte to UTF-16 and then back to UTF-8.
+    // 
+    // In a better world we might try to do something to avoid heap
+    // allocations with the temporary conversion, but for now, we allocate.
+    //
+    std::wstring wstr;
+    to_wstring(cp, v, wstr);
+    to_u8string(wstr, str);
+}
+
+std::u8string
+m::to_u8string(m::multi_byte::code_page cp, std::string_view v)
+{
+    std::u8string str;
+    to_u8string(cp, v, str);
+    return str;
+}
+
+void
+m::to_u32string(m::multi_byte::code_page cp, std::string_view v, std::u32string& str)
+{
+    //
+    // There is no direct conversion from multibyte to multibyte. So the best we can do
+    // is multibyte to UTF-16 and then back to UTF-8.
+    //
+    // In a better world we might try to do something to avoid heap
+    // allocations with the temporary conversion, but for now, we allocate.
+    //
+    std::wstring wstr;
+    to_wstring(cp, v, wstr);
+    to_u32string(wstr, str);
+}
+
+std::u32string
+m::to_u32string(m::multi_byte::code_page cp, std::string_view v)
+{
+    std::u32string str;
+    to_u32string(cp, v, str);
+    return str;
 }

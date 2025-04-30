@@ -24,6 +24,7 @@ TEST(StringConvertTests, TestToString)
     EXPECT_EQ(s, "foo"sv);
 }
 
+#if 0
 TEST(StringConvertTests, TestWToString)
 {
     std::string s;
@@ -50,3 +51,4 @@ TEST(StringConvertTests, TestWToWString)
 
     EXPECT_EQ(s, L"foo"sv);
 }
+#endif

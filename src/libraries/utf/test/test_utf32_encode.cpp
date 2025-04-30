@@ -13,7 +13,7 @@
 
 #include <m/strings/convert.h>
 #include <m/utf/exceptions.h>
-#include <m/utf/utf_encode.h>
+#include <m/utf/encode.h>
 
 #include "test_data.h"
 
@@ -29,10 +29,10 @@ namespace
 
         auto it = std::back_inserter(buffer);
 
-        for (auto&& ch: data.m_u32sv)
-            m::utf::encode_utf32(ch, it);
+        for (auto&& ch: data.m_u32_sv)
+            it = m::utf::encode_utf32(char32_t{}, ch, it);
 
-        EXPECT_EQ(data.m_u32sv.compare(buffer), 0);
+        EXPECT_EQ(data.m_u32_sv.compare(buffer), 0);
     }
 } // namespace
 
@@ -45,4 +45,3 @@ TEST(Utf32Encoding, rfc3629_ex_2) { test_encode(rfc3629_ex_2); }
 TEST(Utf32Encoding, rfc3629_ex_3) { test_encode(rfc3629_ex_3); }
 
 TEST(Utf32Encoding, rfc3629_ex_4) { test_encode(rfc3629_ex_4); }
-

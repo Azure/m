@@ -5,18 +5,19 @@ project(m)
 if(M_BUILD_TESTS)
     include(GoogleTest)
 
-    add_executable(
-      test_utf
-      test_cvt_u32_to_u8.cpp
-      test_cvt_u8_to_u32.cpp
+    add_executable(test_utf
+      test_non_shortest_utf8.cpp
       test_truncated_utf8.cpp
-      test_utf16_encode.cpp
-      test_utf32_encode.cpp
-      test_utf8_decode.cpp
-      test_non_shortest_utf8.cpp)
+      utf16_typed_decoder.cpp
+      utf16be_byte_decoder.cpp
+      utf16le_byte_decoder.cpp
+      utf32_byte_decoder.cpp
+      utf32_typed_decoder.cpp
+      utf8_byte_decoder.cpp
+      utf8_typed_decoder.cpp
+    )
 
-    target_link_libraries(
-      test_utf
+    target_link_libraries(test_utf
       m_cast
       m_strings
       m_math

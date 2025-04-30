@@ -5,14 +5,14 @@
 #include <cstdint>
 #include <limits>
 
-#include <m/utf/utf_decode.h>
+#include <m/utf/decode.h>
 #include <m/utf/decode_result.h>
 
 namespace m
 {
     namespace utf
     {
-        constexpr decode_result
+        decode_result
         decode_utf8(std::span<std::byte const> input)
         {
             // Stolen from code I wrote ... a long long time ago.

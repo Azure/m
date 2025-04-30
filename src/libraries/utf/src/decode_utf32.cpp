@@ -6,7 +6,7 @@
 #include <limits>
 
 #include <m/utf/decode_result.h>
-#include <m/utf/utf_decode.h>
+#include <m/utf/decode.h>
 
 namespace
 {
@@ -39,7 +39,7 @@ namespace
     }
 } // namespace
 
-constexpr m::utf::decode_result
+m::utf::decode_result
 m::utf::decode_utf32(std::span<std::byte const> input)
 {
     decode_result     rv{.m_char   = k_invalid_character,

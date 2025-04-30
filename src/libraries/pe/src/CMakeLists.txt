@@ -15,3 +15,14 @@ target_link_libraries(m_pe PUBLIC
     m_math
     m_memory
 )
+
+if(WIN32)
+    target_link_libraries(m_pe PUBLIC
+        m_windows_strings
+    )
+else()
+    target_link_libraries(m_pe PUBLIC
+        m_linux_strings
+    )
+endif()
+

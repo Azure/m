@@ -14,6 +14,12 @@
 #include <m/pe/pe_decoder.h>
 #include <m/strings/convert.h>
 
+#ifdef WIN32
+#include <m/windows_strings/convert.h>
+#else
+#include <m/linux_strings/convert.h>
+#endif
+
 namespace
 {
     std::wstring
@@ -23,7 +29,7 @@ namespace
         auto         it = std::back_inserter(result);
 
         std::ranges::for_each(v, [&](wchar_t wch) {
-            if (wch <= std::numeric_limits<unsigned char>::max())
+            if (wch <= (std::numeric_limits<unsigned char>::max)())
             {
                 *it = std::tolower(static_cast<unsigned char>(wch));
                 ++it;
@@ -106,7 +112,7 @@ m::pe::loader_context::resolve(std::filesystem::path const& path)
     m_search_path.push_back(parent_path);
 
     auto path_name               = path.filename();
-    auto path_name_str           = path_name.c_str();
+    auto path_name_str           = filesystem::path_to_string(path_name);
     auto downcased_path_name_str = downcase(path_name_str);
     auto as_wstring              = m::to_wstring(downcased_path_name_str);
 

@@ -18,7 +18,7 @@
 //  similar treatment in certain circumstances, so generally most of the
 //  encoding and decoding is present in the headers so that it can be
 //  constexpr and common between the three types.
-// 
+//
 //  You cannot cast between unrelated types and remain constexpr so
 //  even though you "know" that a std::byte* and a char* are "really" the
 //  same thing, it's not possible to take advantage of this in a constexpr
@@ -26,7 +26,7 @@
 //  implementation like there sometimes are to strlen etc then go ahead and
 //  make non-constexpr implementations and use the appropriate mechanisms
 //  to select.
-// 
+//
 // Utf-16 has a similar challenge but on two axis. First, sometimes the
 //  iterator is over a collection where sizeof(T) == 2 (e.g. char16_t) and
 //  others it will be over a byte array. In order to be constexpr here,
@@ -34,13 +34,13 @@
 //  the sizeof(*iter)==2, and the other for when it is ==1. Perhaps this
 //  too can be unified but it's not how the code has been written at this
 //  point.
-// 
+//
 // The sizing functions got confused between whether they were reporting
 //  their sizes in bytes or quanta so the names changed to _count and
 //  _bytes. Since UTF-32 does not have a variable length output, there
 //  is no _count variant; feel free to add one in the future if there is
 //  some cause. It will return 1 in all cases.
-// 
+//
 // When building for Windows, wchar_t is a UTF-16LE type. It may be the
 // language native wchar_t type or it may be "unsigned short" for some
 // legacy Windows code bases. The char type represents a character in an
@@ -50,17 +50,17 @@
 // interpret correctly. Use your favorite search engine to search for
 // "MultiByteToWideChar CP_ACP" to find out more than you probably want
 // to know.
-// 
+//
 // When building for Linux, wchar_t is probably a 32-bit type, perhaps
 // the same as char32_t but perhaps not. Common wisdom is that it's
 // UTF-32, although this does seem to depend on the C runtime library and
 // compiler, and its settings, that you are using. This is the default
 // assumption that we are making here.
-// 
+//
 // Further, regardless of building for Linux or not, many open source
 // software projects make the assumption that "char" means UTF-8, which
 // can play havoc on Windows.
-// 
+//
 // This library focuses on encoding and decoding, see the m::strings library
 // for more information about techniques for working with open source
 // software that uses char/std::string/std::string_view for UTF-8
@@ -72,9 +72,9 @@ namespace m
 {
     namespace utf
     {
-        constexpr decode_result
-        decode_utf8(std::span<std::byte const> input);
-
+        //
+        // Iterator-based UTF decoding
+        //
         template <typename It>
         struct iter_decode_result
         {
@@ -98,6 +98,12 @@ namespace m
 
             constexpr char16_t
             to_utf16le(char16_t ch)
+            {
+                return ch;
+            }
+
+            constexpr char32_t
+            to_utf32le(char32_t ch)
             {
                 return ch;
             }
@@ -325,13 +331,74 @@ namespace m
             return iter_decode_result<It>{.it = first, .ch = ch};
         }
 
-        constexpr decode_result
+        template <typename It>
+            requires std::input_iterator<It>
+        constexpr iter_decode_result<It>
+        decode_utf32(It first, It last)
+        {
+            if (first == last)
+                throw std::runtime_error("read past end of iterator");
+
+            auto const ch = details::to_utf32le(*first++);
+            if (ch > 0x10ffff)
+                throw std::runtime_error("invalid UTF-32 character");
+
+            return iter_decode_result<It>{.it = first, .ch = ch};
+        }
+
+        template <typename SourceCharT, typename It>
+            requires std::is_integral_v<SourceCharT> && std::input_iterator<It> &&
+                     (sizeof(SourceCharT) == sizeof(char8_t))
+        constexpr iter_decode_result<It> decode_utf(SourceCharT, It first, It last)
+        {
+            return decode_utf8(first, last);
+        }
+
+        template <typename SourceCharT, typename It>
+            requires std::is_integral_v<SourceCharT> && std::input_iterator<It> &&
+                     (sizeof(SourceCharT) == sizeof(char16_t))
+        constexpr iter_decode_result<It> decode_utf(SourceCharT, It first, It last)
+        {
+            return decode_utf16(first, last);
+        }
+
+        template <typename SourceCharT, typename It>
+            requires std::is_integral_v<SourceCharT> && std::input_iterator<It> &&
+                     (sizeof(SourceCharT) == sizeof(char32_t))
+        constexpr iter_decode_result<It> decode_utf(SourceCharT, It first, It last)
+        {
+            return decode_utf32(first, last);
+        }
+
+        //
+        // Non-iterator-based UTF decoding. Takes a minimal input signature
+        // that usually can be enregistered and returns the return character
+        // and (new) offset into the input span, indicating the number of
+        // bytes consumed.
+        // 
+        // The anticipated utility of these functions is to operate on byte-
+        // buffers whereas the iterator-based patterns is to operate on "well
+        // known types" that define the encodings via the type, like how
+        // char16_t denotes UTF-16.
+        // 
+        // The code could be more shared but the hope is that by being more
+        // "pure C++" and type-based, the type-ful code can be better
+        // optimized and // flow into the caller via the optimizer so that
+        // perhaps the overall decoding and whatever operation is happening
+        // above (transcoding, counting, comparing) can happen interleaved
+        // whereas in this pattern, we are focusing on having the most
+        // efficient standard UCS character recognizer pattern we can.
+        //
+        decode_result
+        decode_utf8(std::span<std::byte const> input);
+
+        decode_result
         decode_utf16le(std::span<std::byte const> input);
 
-        constexpr decode_result
+        decode_result
         decode_utf16be(std::span<std::byte const> input);
 
-        constexpr decode_result
+        decode_result
         decode_utf32(std::span<std::byte const> input);
     } // namespace utf
 } // namespace m

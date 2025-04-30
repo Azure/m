@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.23)
 
 # de-duplicate linker inputs
-cmake_policy(SET CMP0156 NEW)
+# cmake_policy(SET CMP0156 NEW)
 
 cmake_policy(SET CMP0082 NEW)
 
@@ -14,6 +14,11 @@ project(m
     LANGUAGES CXX
     VERSION ${VERSION}
 )
+
+add_compile_options(
+"$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:RELWITHDEBINFO>>:-Od>"
+)
+
 
 include(GNUInstallDirs)
 

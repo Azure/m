@@ -6,12 +6,15 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <numeric>
 #include <ranges>
 #include <string>
 #include <string_view>
 #include <type_traits>
 
 #include <m/errors/errors.h>
+#include <m/utf/decode.h>
+#include <m/utf/encode.h>
 #include <m/utility/make_span.h>
 
 #include <Windows.h>
@@ -74,10 +77,9 @@ namespace m
         try_multi_byte_to_utf16(code_page cp, std::string_view view, std::span<char16_t>& buffer);
 
         template <typename OutIter, typename Utf16CharT = wchar_t, std::size_t BufferSize = 128>
-        OutIter
-        multi_byte_to_utf16(code_page cp, std::string_view in, OutIter it)
             requires std::output_iterator<OutIter, Utf16CharT> &&
                      (std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>)
+        OutIter multi_byte_to_utf16(code_page cp, std::string_view in, OutIter it)
         {
             std::array<Utf16CharT, BufferSize> buffer;
             auto                               input_cursor{in.data()};
@@ -85,7 +87,7 @@ namespace m
 
             while (chars_left != 0)
             {
-                std::size_t chars_to_convert{std::min(chars_left, buffer.size())};
+                std::size_t chars_to_convert{(std::min)(chars_left, buffer.size())};
 
                 // mbcs -> Utf16 cannot (proof separate, as long as chars
                 // above U+FFFF aren't encoded in single byte form in the
@@ -138,11 +140,11 @@ namespace m
         template <typename InputIt,
                   typename Utf16CharT  = wchar_t,
                   typename CharTraitsT = std::char_traits<Utf16CharT>>
-        void
-        acp_to_utf16(InputIt front, InputIt end, std::basic_string<Utf16CharT, CharTraitsT>& out)
             requires std::input_iterator<InputIt> && std::forward_iterator<InputIt> &&
                      std::contiguous_iterator<InputIt> &&
                      std::is_same_v<std::iter_value_t<InputIt>, char>
+        void
+        acp_to_utf16(InputIt front, InputIt end, std::basic_string<Utf16CharT, CharTraitsT>& out)
         {
             auto const view          = std::string_view(front, end);
             auto const wchars_needed = acp_to_utf16_length(view);
@@ -164,10 +166,9 @@ namespace m
         }
 
         template <typename OutIter, typename Utf16CharT, std::size_t BufferSize = 128>
-        OutIter
-        acp_to_utf16(std::string_view in, OutIter it)
             requires std::output_iterator<OutIter, Utf16CharT> &&
                      (std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>)
+        OutIter acp_to_utf16(std::string_view in, OutIter it)
         {
             return multibyte_to_utf16(cp_acp, in, it);
         }
@@ -184,11 +185,11 @@ namespace m
 
         template <typename Utf16CharT  = wchar_t,
                   typename CharTraitsT = std::char_traits<Utf16CharT>>
+            requires std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>
         std::size_t
         utf16_to_multi_byte(code_page                                       cp,
                             std::basic_string_view<Utf16CharT, CharTraitsT> view,
                             std::span<char>&                                buffer)
-            requires std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>
         {
             return details::utf16_to_multi_byte(cp, view, buffer);
         }
@@ -208,12 +209,11 @@ namespace m
                   typename Utf16CharT    = wchar_t,
                   std::size_t BufferSize = 128,
                   typename CharTraitsT   = std::char_traits<Utf16CharT>>
-        OutIter
-        utf16_to_multi_byte(code_page                                              cp,
-                            std::basic_string_view<Utf16CharT, CharTraitsT> const& in,
-                            OutIter                                                it)
             requires std::output_iterator<OutIter, char> &&
                      (std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>)
+        OutIter utf16_to_multi_byte(code_page                                              cp,
+                                    std::basic_string_view<Utf16CharT, CharTraitsT> const& in,
+                                    OutIter                                                it)
         {
             std::array<char, BufferSize> buffer;
             auto                         input_cursor{in.data()};
@@ -221,7 +221,7 @@ namespace m
 
             while (chars_left != 0)
             {
-                std::size_t chars_to_convert{std::min(chars_left, buffer.size())};
+                std::size_t chars_to_convert{(std::min)(chars_left, buffer.size())};
 
                 // mbcs -> Utf16 cannot (proof separate, as long as chars
                 // above U+FFFF aren't encoded in single byte form in the
@@ -286,9 +286,9 @@ namespace m
         utf16_to_acp_length(std::u16string_view view);
 
         template <typename Utf16CharT, typename CharTraitsT = std::char_traits<Utf16CharT>>
+            requires std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>
         std::size_t
         utf16_to_acp(std::basic_string_view<Utf16CharT, CharTraitsT> view, std::span<char>& buffer)
-            requires std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>
         {
             return details::utf16_to_acp(view, buffer);
         }
@@ -296,11 +296,10 @@ namespace m
         template <typename InputIt,
                   typename Utf16CharT  = wchar_t,
                   typename CharTraitsT = std::char_traits<Utf16CharT>>
-        void
-        utf16_to_acp(InputIt front, InputIt end, std::string& out)
             requires std::input_iterator<InputIt> && std::forward_iterator<InputIt> &&
                      std::contiguous_iterator<InputIt> &&
                      (std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>)
+        void utf16_to_acp(InputIt front, InputIt end, std::string& out)
         {
             auto const view         = std::basic_string_view<Utf16CharT, CharTraitsT>(front, end);
             auto const chars_needed = utf16_to_acp_length(view);
@@ -347,41 +346,143 @@ namespace m
         }
     } // namespace multi_byte
 
-    // Conversions to and from CP_ACP
-    std::string
-    to_string_acp(std::wstring_view view);
-
-    std::u8string
-    to_u8string_acp(std::wstring_view view);
-
-    std::string
-    to_string_acp(std::u16string_view view);
-
-    std::u8string
-    to_u8string_acp(std::u16string_view view);
-
-    std::wstring
-    to_wstring_acp(std::string_view view);
-
-    std::wstring
-    to_wstring_acp(std::u8string_view view);
-
-    std::u16string
-    to_u16string_acp(std::string_view view);
-
-    std::u16string
-    to_u16string_acp(std::u8string_view view);
-
-    // and again with explicit code page specifications
     std::string
     to_string(multi_byte::code_page cp, std::wstring_view view);
+
+    void
+    to_string(multi_byte::code_page cp, std::wstring_view view, std::string& str);
+
+    std::string
+    to_string(multi_byte::code_page cp, std::u8string_view view);
+
+    void
+    to_string(multi_byte::code_page cp, std::u8string_view view, std::string& str);
 
     std::string
     to_string(multi_byte::code_page cp, std::u16string_view view);
 
+    void
+    to_string(multi_byte::code_page cp, std::u16string_view view, std::string& str);
+
+    std::string
+    to_string(multi_byte::code_page cp, std::u32string_view view);
+
+    void
+    to_string(multi_byte::code_page cp, std::u32string_view view, std::string& str);
+
+    //
     std::wstring
     to_wstring(multi_byte::code_page cp, std::string_view view);
 
+    void
+    to_wstring(multi_byte::code_page cp, std::string_view view, std::wstring& str);
+
+    //
+    std::u8string
+    to_u8string(multi_byte::code_page cp, std::string_view view);
+
+    void
+    to_u8string(multi_byte::code_page cp, std::string_view view, std::u8string& str);
+
+    //
     std::u16string
     to_u16string(multi_byte::code_page cp, std::string_view view);
+
+    void
+    to_u16string(multi_byte::code_page cp, std::string_view view, std::u16string& str);
+
+    //
+    std::u32string
+    to_u32string(multi_byte::code_page cp, std::string_view view);
+
+    void
+    to_u32string(multi_byte::code_page cp, std::string_view view, std::u32string& str);
+
+    //
+    // Conversions to and from CP_ACP
+    //
+    // Unfortunately since they call ::MultiByteToWideChar and
+    // / or ::WideCharToMultiByte, they cannot be constexpr.
+    //
+
+    //
+    // to_acp_string
+    //
+    std::string
+    to_acp_string(std::wstring_view view);
+
+    void
+    to_acp_string(std::wstring_view view, std::string& str);
+
+    std::string
+    to_acp_string(std::u8string_view view);
+
+    void
+    to_acp_string(std::u8string_view view, std::string& str);
+
+    std::string
+    to_acp_string(std::u16string_view view);
+
+    void
+    to_acp_string(std::u16string_view view, std::string& str);
+
+    std::string
+    to_acp_string(std::u32string_view view);
+
+    void
+    to_acp_string(std::u32string_view view, std::string& str);
+
+    //
+    // acp_to_wstring
+    //
+    std::wstring
+    acp_to_wstring(std::string_view view);
+
+    void
+    acp_to_wstring(std::string_view view, std::wstring& str);
+
+    //
+    // acp_to_u8string
+    //
+    std::u8string
+    acp_to_u8string(std::string_view view);
+
+    void
+    acp_to_u8string(std::string_view view, std::u8string& str);
+
+    //
+    // to_u8string
+    //
+    constexpr std::u8string
+    to_u8string(std::wstring_view view);
+
+    constexpr void
+    to_u8string(std::wstring_view view, std::u8string& str);
+
+    //
+    // acp_to_u16string
+    //
+    std::u16string
+    acp_to_u16string(std::string_view view);
+
+    void
+    acp_to_u16string(std::string_view view, std::u16string& str);
+
+    //
+    // to_u16string
+    //
+    constexpr std::u16string
+    to_u16string(std::wstring_view view);
+
+    constexpr void
+    to_u16string(std::wstring_view view, std::u16string& str);
+
+    //
+    // acp_to_u32string
+    //
+    std::u32string
+    acp_to_u32string(std::string_view view);
+
+    void
+    acp_to_u32string(std::string_view view, std::u32string& str);
 } // namespace m

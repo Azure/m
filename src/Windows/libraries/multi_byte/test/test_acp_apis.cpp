@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-#include <m/multi_byte/multi_byte.h>
+#include <m/multi_byte/convert.h>
 
 #include <Windows.h>
 
@@ -32,33 +32,33 @@ auto u16sv_t1 =
 
 TEST(AcpAPIs, acp_2_wstring)
 {
-    auto s = m::to_wstring_acp(s_t1);
+    auto s = m::acp_to_wstring(s_t1);
     EXPECT_EQ(s, ws_t1);
 
-    auto s2 = m::to_wstring_acp(sv_t1);
+    auto s2 = m::acp_to_wstring(sv_t1);
     EXPECT_EQ(s2, ws_t1);
 }
 
 TEST(AcpAPIs, acp_2_u16string)
 {
-    auto s = m::to_u16string_acp(s_t1);
+    auto s = m::acp_to_u16string(s_t1);
     EXPECT_EQ(s, u16sv_t1);
 
-    auto s2 = m::to_u16string_acp(sv_t1);
+    auto s2 = m::acp_to_u16string(sv_t1);
     EXPECT_EQ(s2, u16sv_t1);
 }
 
 TEST(AcpAPIs, wstring_2_acp)
 {
-    auto s1 = m::to_string_acp(ws_t1);
+    auto s1 = m::to_acp_string(ws_t1);
     EXPECT_EQ(s1, s_t1);
 
-    auto s2 = m::to_string_acp(wsv_t1);
+    auto s2 = m::to_acp_string(wsv_t1);
     EXPECT_EQ(s2, s_t1);
 }
 
 TEST(AcpAPIs, u16string_2_acp)
 {
-    auto s1 = m::to_string_acp(u16sv_t1);
+    auto s1 = m::to_acp_string(u16sv_t1);
     EXPECT_EQ(s1, s_t1);
 }

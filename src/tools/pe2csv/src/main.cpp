@@ -14,6 +14,12 @@
 #include <m/pe/pe_decoder.h>
 #include <m/strings/convert.h>
 
+#if WIN32
+#include <m/windows_strings/convert.h>
+#else
+#include <m/linux_strings/convert.h>
+#endif
+
 int
 main(int argc, char const* argv[])
 {
@@ -28,7 +34,7 @@ main(int argc, char const* argv[])
         auto         iter = std::back_inserter(buffer);
 
         auto path_name      = path.filename();
-        auto path_name_str  = m::to_wstring(path_name.c_str());
+        auto path_name_str  = m::filesystem::path_to_wstring(path_name);
         auto path_name_view = std::wstring_view(path_name_str);
 
         auto csv_writer = m::csv::writer(iter);
@@ -44,14 +50,12 @@ main(int argc, char const* argv[])
                     case m::pe::image_import_descriptor::k_import_name_table_entry_type_index_name:
                     {
                         //
-                        auto import_name =
-                            std::wstring_view(std::get<m::pe::image_import_descriptor::
-                                         k_import_name_table_entry_type_index_name>(f).m_name_string);
+                        auto import_name = std::wstring_view(
+                            std::get<m::pe::image_import_descriptor::
+                                         k_import_name_table_entry_type_index_name>(f)
+                                .m_name_string);
 
-                        auto cols = {L"IMPORT"sv,
-                                     path_name_view,
-                                     import_name_sv,
-                                     import_name};
+                        auto cols = {L"IMPORT"sv, path_name_view, import_name_sv, import_name};
 
                         csv_writer.write_row(cols);
 

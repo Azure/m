@@ -6,183 +6,170 @@
 #include <string>
 #include <string_view>
 
+#include <m/utf/decode.h>
+#include <m/utf/encode.h>
+#include <m/utf/transcode.h>
+
 namespace m
 {
     //
-    // "safe" conversion of std::byte to wchar_t
-    //
-    constexpr wchar_t
-    byte_to_wchar(std::byte b);
-
-    //
-    // Map "plain" char to wchar_t, including whatever
-    // semantic conversions are required.
-    //
-    constexpr wchar_t
-    char_to_wchar(char ch);
-
-    //
-    // to_wstring, across all the interesting input types
-    //
-    std::wstring
-    to_wstring(std::string_view v);
-
-    void
-    to_wstring(std::string_view v, std::wstring& str);
-
-    std::wstring
-    to_wstring(std::wstring_view v);
-
-    void
-    to_wstring(std::wstring_view v, std::wstring& str);
-
-    std::wstring
-    to_wstring(std::u8string_view v);
-
-    void
-    to_wstring(std::u8string_view v, std::wstring& str);
-
-    std::wstring
-    to_wstring(std::u16string_view v);
-
-    void
-    to_wstring(std::u16string_view v, std::wstring& str);
-
-    std::wstring
-    to_wstring(std::u32string_view v);
-
-    void
-    to_wstring(std::u32string_view v, std::wstring& str);
-
-    std::string
-    to_string(std::string_view v);
-
-    //
     // to_string
     //
-    void
-    to_string(std::string_view v, std::string& str);
 
-    std::string
-    to_string(std::wstring_view v);
+    constexpr std::string
+        to_string(std::string_view v)
+    {
+        return std::string(v);
+    }
 
-    void
-    to_string(std::wstring_view v, std::string& str);
+    constexpr void
+        to_string(std::string_view v, std::string& str)
+    {
+        str = v;
+    }
 
-    std::string
-    to_string(std::u8string_view v);
+    //
+    // to_wstring, across all the safe input types
+    //
+    constexpr std::wstring
+        to_wstring(std::wstring_view v)
+    {
+        return std::wstring(v);
+    }
 
-    void
-    to_string(std::u8string_view v, std::string& str);
-
-    std::string
-    to_string(std::u16string_view v);
-
-    void
-    to_string(std::u16string_view v, std::string& str);
-
-    std::string
-    to_string(std::u32string_view v);
-
-    void
-    to_string(std::u32string_view v, std::string& str);
+    constexpr void
+        to_wstring(std::wstring_view v, std::wstring& str)
+    {
+        str = v;
+    }
 
     //
     // to_u8string
     //
-    std::u8string
-    to_u8string(std::string_view v);
+    constexpr std::u8string
+    to_u8string(std::u8string_view v)
+    {
+        return std::u8string(v);
+    }
 
-    void
-    to_u8string(std::string_view v, std::u8string& str);
+    constexpr void
+    to_u8string(std::u8string_view v, std::u8string& str)
+    {
+        str = v;
+    }
 
-    std::u8string
-    to_u8string(std::wstring_view v);
+    constexpr void
+    to_u8string(std::u16string_view v, std::u8string& str)
+    {
+        utf::transcode(v, str);
+    }
 
-    void
-    to_u8string(std::wstring_view v, std::u8string& str);
+    constexpr std::u8string
+    to_u8string(std::u16string_view v)
+    {
+        std::u8string str;
+        to_u8string(v, str);
+        return str;
+    }
 
-    std::u8string
-    to_u8string(std::u8string_view v);
+    constexpr void
+    to_u8string(std::u32string_view v, std::u8string& str)
+    {
+        utf::transcode(v, str);
+    }
 
-    void
-    to_u8string(std::u8string_view v, std::u8string& str);
-
-    std::u8string
-    to_u8string(std::u16string_view v);
-
-    void
-    to_u8string(std::u16string_view v, std::u8string& str);
-
-    std::u8string
-    to_u8string(std::u32string_view v);
-
-    void
-    to_u8string(std::u32string_view v, std::u8string& str);
+    constexpr std::u8string
+    to_u8string(std::u32string_view v)
+    {
+        std::u8string str;
+        to_u8string(v, str);
+        return str;
+    }
 
     //
     // to_u16string
     //
-    std::u16string
-    to_u16string(std::string_view v);
+    constexpr void
+    to_u16string(std::u8string_view v, std::u16string& str)
+    {
+        utf::transcode(v, str);
+    }
 
-    void
-    to_u16string(std::string_view v, std::u16string& str);
+    constexpr std::u16string
+    to_u16string(std::u8string_view v)
+    {
+        std::u16string str;
+        to_u16string(v, str);
+        return str;
+    }
 
-    std::u16string
-    to_u16string(std::wstring_view v);
+    constexpr std::u16string
+    to_u16string(std::u16string_view v)
+    {
+        return std::u16string(v);
+    }
 
-    void
-    to_u16string(std::wstring_view v, std::u16string& str);
+    constexpr void
+    to_u16string(std::u16string_view v, std::u16string& str)
+    {
+        str = v;
+    }
 
-    std::u16string
-    to_u16string(std::u8string_view v);
+    constexpr void
+    to_u16string(std::u32string_view v, std::u16string& str)
+    {
+        utf::transcode(v, str);
+    }
 
-    void
-    to_u16string(std::u8string_view v, std::u16string& str);
-
-    std::u16string
-    to_u16string(std::u16string_view v);
-
-    void
-    to_u16string(std::u16string_view v, std::u16string& str);
-
-    std::u16string
-    to_u16string(std::u32string_view v);
-
-    void
-    to_u16string(std::u32string_view v, std::u16string& str);
+    constexpr std::u16string
+    to_u16string(std::u32string_view v)
+    {
+        std::u16string str;
+        to_u16string(v, str);
+        return str;
+    }
 
     //
     // to_u32string
     //
-    std::u32string
-    to_u32string(std::string_view v);
+    constexpr void
+    to_u32string(std::u8string_view v, std::u32string& str)
+    {
+        utf::transcode(v, str);
+    }
 
-    void
-    to_u32string(std::string_view v, std::u32string& str);
+    constexpr std::u32string
+    to_u32string(std::u8string_view v)
+    {
+        std::u32string str;
+        to_u32string(v, str);
+        return str;
+    }
 
-    std::u32string
-    to_u32string(std::wstring_view v);
+    constexpr void
+    to_u32string(std::u16string_view v, std::u32string& str)
+    {
+        utf::transcode(v, str);
+    }
 
-    void
-    to_u32string(std::wstring_view v, std::u32string& str);
+    constexpr std::u32string
+    to_u32string(std::u16string_view v)
+    {
+        std::u32string str;
+        to_u32string(v, str);
+        return str;
+    }
 
-    std::u32string
-    to_u32string(std::u8string_view v);
+    constexpr std::u32string
+    to_u32string(std::u32string_view v)
+    {
+        return std::u32string(v);
+    }
 
-    void
-    to_u32string(std::u8string_view v, std::u32string& str);
+    constexpr void
+    to_u32string(std::u32string_view v, std::u32string& str)
+    {
+        str = v;
+    }
 
-    std::u32string
-    to_u32string(std::u16string_view v);
-
-    void
-    to_u32string(std::u16string_view v, std::u32string& str);
-
-    std::u32string
-    to_u32string(std::u32string_view v);
-
-    void
-    to_u32string(std::u32string_view v, std::u32string& str);
 } // namespace m

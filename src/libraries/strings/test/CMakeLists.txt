@@ -7,6 +7,10 @@ if(M_BUILD_TESTS)
       test_strings
       test_convert.cpp
       test_literal_string_view.cpp
+      verify_to_string.cpp
+      verify_to_u8string.cpp
+      verify_to_u16string.cpp
+      verify_to_u32string.cpp
     )
 
     target_link_libraries(

@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <limits>
 
-#include <m/utf/utf_decode.h>
+#include <m/utf/decode.h>
 #include <m/utf/decode_result.h>
 
 namespace
@@ -33,7 +33,7 @@ namespace m
 {
     namespace utf
     {
-        constexpr decode_result
+        decode_result
         decode_utf16le(std::span<std::byte const> input)
         {
             decode_result     rv{.m_char   = k_invalid_character,
@@ -79,7 +79,7 @@ namespace m
             return rv;
         }
 
-        constexpr decode_result
+        decode_result
         decode_utf16be(std::span<std::byte const> input)
         {
             decode_result rv{.m_char   = k_invalid_character,

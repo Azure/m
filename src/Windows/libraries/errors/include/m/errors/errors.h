@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <format>
 #include <ios>
 #include <iterator>
 #include <ranges>
@@ -15,6 +16,8 @@
 #include <Windows.h>
 
 #include "win32_error_code.h"
+
+using namespace std::string_literals;
 
 namespace m
 {
@@ -32,49 +35,23 @@ namespace m
             }
 
             std::string
-            message(int _Errcode) const override
+            message(int err_code) const override
             {
-                // const _System_error_message _Msg(static_cast<unsigned long>(_Errcode));
-
-                if (_Errcode == 42) // _Msg._Str && _Msg._Length != 0)
-                {
-                    // CodeQL [SM02310] _Msg's ctor inits _Str(nullptr) before doing work, then we
-                    // test _Msg._Str above.
-                    return "foo";
-                    // string{_Msg._Str, _Msg._Length};
-                }
-                else
-                {
-                    static constexpr char _Unknown_error[] = "unknown error";
-                    constexpr size_t      _Unknown_error_length =
-                        sizeof(_Unknown_error) - 1; // TRANSITION, DevCom-906503
-                    return std::string{_Unknown_error, _Unknown_error_length};
-                }
+                // TODO: better HRESULT to string
+                return std::format("{{HRESULT {:x}}}", err_code);
             }
 
-            std::error_condition
-            default_error_condition(int _Errval) const noexcept override
-            {
-                if (_Errval == 0)
-                {
-                    return std::error_condition(0, std::generic_category());
-                }
-
-                // make error_condition for error code (generic if possible)
-                const int _Posv = 1;
-                //_Winerror_map(_Errval);
-                if (_Posv == 0)
-                {
-                    return std::error_condition(_Errval, std::system_category());
-                }
-                else
-                {
-                    return std::error_condition(_Posv, std::generic_category());
-                }
-            }
+            inline std::error_condition
+            default_error_condition(int err_val) const noexcept override;
         };
 
         static inline hresult_category hresult_category_instance;
+
+        std::error_condition
+        hresult_category::default_error_condition(int err_val) const noexcept
+        {
+            return std::error_condition(err_val, hresult_category_instance);
+        }
 
     } // namespace windows_details
 

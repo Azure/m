@@ -13,12 +13,12 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
-        "cacheVariables": {
-            "CMAKE_C_COMPILER": "clang.exe",
-            "CMAKE_CXX_COMPILER": "clang.exe",
-            "build_tests": "ON",
-            "CMAKE_BUILD_TYPE": "Debug"
-        },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang.exe",
+        "CMAKE_CXX_COMPILER": "clang.exe",
+        "build_tests": "ON",
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -98,6 +98,16 @@
       "inherits": "x64-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "x64-release-no-wchar_t",
+      "displayName": "x64 Rel wchar_t-",
+      "description": "x64 Rel /Zc:wchar_t-",
+      "inherits": "x64-relwithdebinfo",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "disable_native_wchar_t": "ON"
       }
     }
   ],

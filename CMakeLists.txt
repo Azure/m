@@ -15,10 +15,15 @@ project(m
     VERSION ${VERSION}
 )
 
+option(disable_native_wchar_t "Disable the use of wchar_t as a native distinct type" OFF)
+
 add_compile_options(
 "$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:RELWITHDEBINFO>>:-Od>"
 )
 
+if(disable_native_wchar_t)
+    add_compile_options("/Zc:wchar_t-")
+endif()
 
 include(GNUInstallDirs)
 

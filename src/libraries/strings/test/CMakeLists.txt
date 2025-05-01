@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 3.23)
 if(M_BUILD_TESTS)
     include(GoogleTest)
 
-    add_executable(
-      test_strings
+    add_executable(test_strings
+        punning_test.cpp
       test_convert.cpp
       test_literal_string_view.cpp
       verify_to_string.cpp

@@ -21,13 +21,15 @@ namespace m
     std::wstring
     acp_to_wstring(std::string_view view)
     {
-        return to_wstring(multi_byte::cp_acp, view);
+        std::wstring str;
+        acp_to_wstring(view, str);
+        return str;
     }
 
     void
     acp_to_wstring(std::string_view view, std::wstring& str)
     {
-        acp_to_wstring(view, str);
+        to_wstring(multi_byte::cp_acp, view, str);
     }
 
     void
@@ -71,6 +73,4 @@ namespace m
         acp_to_u32string(v, str);
         return str;
     }
-
-    //
 } // namespace m

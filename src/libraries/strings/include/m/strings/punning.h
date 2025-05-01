@@ -6,33 +6,41 @@
 #include <cstddef>
 #include <string_view>
 
+//
+// These are relatively type-unsafe coercions which assume that
+// two types are the same size and alignment and therefore that
+// views of one sort can be used equally as views of another
+// sort.
+// 
+// Primarily this is to enable playing fast and loose between
+// the type-safe char8_t which is well-defined as indicating that
+// basic_string<char8_t> (a/k/a u8string) is encoded using UTF-8
+// and basic_string<char> (a/k/a std::string) which on OSS from
+// the Unix/Linux world commonly assumes that std::string is
+// UTF-8 encoded.
+// 
+// The idempotent functions are provided so that code can be written
+// to not care which platform is being targeted in case there is some
+// variance.
+//
+
 namespace m
 {
-    namespace strings
-    {
-        using byte_string_view = std::basic_string_view<std::byte>;
-
-        byte_string_view
-        as_byte_string_view(std::u8string_view const& view);
-
-        byte_string_view
-        as_byte_string_view(std::string_view const& view);
-
         //
-        // Linux equates char with char8_t and wchar_t with char32_t, so
-        // we will take the bull by the horns and use these punnings to force
-        // use of the Utf-8 conversions on Linux.
-        //
-        // Windows, unfortunately, is still left adrift w.r.t. what to do
-        // about char to wchar_t.
+        // Should these really take <foo>_view&& ?
+        // 
+        // The lifetime management issues still confound me.
         //
 
         std::u8string_view
         as_u8string_view(std::string_view const& view);
 
-#ifndef WIN32
-        std::u32string_view
-        as_u32string_view(std::wstring_view const& view);
-#endif
-    } // namespace strings
+        std::u8string_view
+        as_u8string_view(std::u8string_view const& view);
+
+        std::string_view
+        as_string_view(std::u8string_view const& view);
+
+        std::string_view
+        as_string_view(std::string_view const& view);
 } // namespace m

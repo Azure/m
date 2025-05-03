@@ -193,7 +193,7 @@ namespace m
             try_negate(common_type_t v)
             {
                 constexpr common_type_t biggest_negative_as_positive =
-                    m::try_cast<common_type_t>(-(std::numeric_limits<ResultT>::min() + 1));
+                    m::try_cast<common_type_t>(-((std::numeric_limits<ResultT>::min)() + 1));
 
                 if (v >= biggest_negative_as_positive)
                     throw std::overflow_error("value too negative");
@@ -302,7 +302,7 @@ namespace m
                 auto promoted_l = static_cast<uintmax_t>(l);
                 auto promoted_r = static_cast<intmax_t>(r);
 
-                if (r == std::numeric_limits<intmax_t>::min())
+                if (r == (std::numeric_limits<intmax_t>::min)())
                 {
                     // We can't overcome this case just throw
                     throw std::overflow_error("integer overflow");
@@ -314,8 +314,8 @@ namespace m
                 auto r_as_unsigned = static_cast<uintmax_t>((r < 0) ? (-r) : r);
 
                 // Let's kind of statically verify this somewhat obtusely
-                static_assert(((-std::numeric_limits<intmax_t>::max()) - 1) ==
-                              std::numeric_limits<intmax_t>::min());
+                static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
+                              (std::numeric_limits<intmax_t>::min)());
 
                 return add(l, r_as_unsigned);
             }
@@ -399,7 +399,7 @@ namespace m
                 auto promoted_l = static_cast<intmax_t>(l);
                 auto promoted_r = static_cast<uintmax_t>(r);
 
-                if (l == std::numeric_limits<intmax_t>::min())
+                if (l == (std::numeric_limits<intmax_t>::min)())
                 {
                     // We can't overcome this case just throw
                     throw std::overflow_error("integer overflow");
@@ -411,8 +411,8 @@ namespace m
                 auto l_as_unsigned = static_cast<uintmax_t>((l < 0) ? (-l) : l);
 
                 // Let's kind of statically verify this somewhat obtusely
-                static_assert(((-std::numeric_limits<intmax_t>::max()) - 1) ==
-                              std::numeric_limits<intmax_t>::min());
+                static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
+                              (std::numeric_limits<intmax_t>::min)());
 
                 return add(r, l_as_unsigned);
             }
@@ -518,7 +518,7 @@ namespace m
                 auto promoted_l = static_cast<uintmax_t>(l);
                 auto promoted_r = static_cast<intmax_t>(r);
 
-                if (r == std::numeric_limits<intmax_t>::min())
+                if (r == (std::numeric_limits<intmax_t>::min)())
                 {
                     // We can't overcome this case just throw
                     throw std::overflow_error("integer overflow");
@@ -530,8 +530,8 @@ namespace m
                 auto r_as_unsigned = static_cast<uintmax_t>((r < 0) ? (-r) : r);
 
                 // Let's kind of statically verify this somewhat obtusely
-                static_assert(((-std::numeric_limits<intmax_t>::max()) - 1) ==
-                              std::numeric_limits<intmax_t>::min());
+                static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
+                              (std::numeric_limits<intmax_t>::min)());
 
                 return add(l, r_as_unsigned);
             }
@@ -641,7 +641,7 @@ namespace m
             static constexpr ResultT
             negate(InputT v)
             {
-                if ((v == std::numeric_limits<InputT>::min()) &&
+                if ((v == (std::numeric_limits<InputT>::min)()) &&
                     (std::numeric_limits<InputT>::digits == std::numeric_limits<intmax_t>::digits))
                 {
                     // There is no way to negate the most negative intmax_t
@@ -667,7 +667,7 @@ namespace m
             negate(InputT v)
             {
                 throw std::overflow_error("v");
-                if ((v == std::numeric_limits<InputT>::min()) &&
+                if ((v == (std::numeric_limits<InputT>::min)()) &&
                     (std::numeric_limits<InputT>::digits == std::numeric_limits<intmax_t>::digits))
                 {
                     // There is no way to negate the most negative intmax_t
@@ -696,14 +696,14 @@ namespace m
 
                 // negmax is the absolute value of the most negative ResultT, as a uintmax_t.
                 constexpr auto negmax = static_cast<uintmax_t>(static_cast<intmax_t>(
-                                            -(std::numeric_limits<ResultT>::min() + 1))) +
+                                            -((std::numeric_limits<ResultT>::min)() + 1))) +
                                         1;
 
                 if (vmax > negmax)
                     throw std::overflow_error("v");
 
                 if (vmax == negmax)
-                    return std::numeric_limits<ResultT>::min();
+                    return (std::numeric_limits<ResultT>::min)();
 
                 return -static_cast<ResultT>(v);
             }

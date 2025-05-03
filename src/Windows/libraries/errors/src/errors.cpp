@@ -6,6 +6,8 @@
 #include <string_view>
 
 #include <m/errors/errors.h>
+#include <m/errors/hresult.h>
+
 #include <m/utility/zstring.h>
 
 #include <Windows.h>
@@ -71,3 +73,10 @@ m::throw_if_failed(windows::win32_error_code ec)
     if (failed(ec))
         throw_error(ec);
 }
+
+std::error_code
+m::get_last_win32_error()
+{
+    return std::error_code(static_cast<int>(get_last_error_as_hresult()), m::hresult_category());
+}
+

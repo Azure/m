@@ -2,10 +2,18 @@ cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_filesystem PRIVATE
     filesystem.cpp
+    loadstore.cpp
     make_path.cpp
+    path_conversions.cpp
     seekable_input_file.cpp
     seekable_output_file.cpp
- "path_conversions.cpp")
+)
+
+if(WIN32)
+    target_sources(m_filesystem PRIVATE
+        windows_loadstore.cpp 
+    )
+endif()
 
 target_compile_definitions(m_filesystem PRIVATE _CRT_SECURE_NO_WARNINGS)
 

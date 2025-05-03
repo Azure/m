@@ -58,11 +58,15 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_C_COMPILER": "cl.exe",
-        "CMAKE_CXX_COMPILER": "cl.exe",
-        "build_tests": "ON"
-      },
+        "cacheVariables": {
+            "CMAKE_TOOLCHAIN_FILE": {
+                "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "type": "FILEPATH"
+            },
+            "CMAKE_C_COMPILER": "cl.exe",
+            "CMAKE_CXX_COMPILER": "cl.exe",
+            "build_tests": "ON"
+        },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",

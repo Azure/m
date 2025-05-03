@@ -96,4 +96,9 @@ namespace m
     void
     throw_last_win32_error();
 
+    std::error_code
+    get_last_win32_error();
+
 } // namespace m
+
+

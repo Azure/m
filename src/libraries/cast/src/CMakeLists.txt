@@ -7,3 +7,7 @@ target_sources(m_cast PRIVATE
 target_include_directories(m_cast PUBLIC
     ../include
 )
+
+target_link_libraries(m_cast PUBLIC
+    m_math
+)

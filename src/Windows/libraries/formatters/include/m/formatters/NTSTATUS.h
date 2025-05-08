@@ -48,7 +48,7 @@ struct std::formatter<fmtNTSTATUS, CharT>
         auto out = ctx.out();
         auto s   = ntstatus.s;
 
-        switch (s)
+        switch (static_cast<DWORD>(s))
         {
             case STATUS_PENDING: return std::ranges::copy(L"STATUS_PENDING"sv, out).out;
             case STATUS_WAIT_0: return std::ranges::copy(L"STATUS_WAIT_0"sv, out).out;

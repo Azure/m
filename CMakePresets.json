@@ -58,15 +58,15 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
-        "cacheVariables": {
-            "CMAKE_TOOLCHAIN_FILE": {
-                "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                "type": "FILEPATH"
-            },
-            "CMAKE_C_COMPILER": "cl.exe",
-            "CMAKE_CXX_COMPILER": "cl.exe",
-            "build_tests": "ON"
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": {
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+          "type": "FILEPATH"
         },
+        "CMAKE_C_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "cl.exe",
+        "build_tests": "ON"
+      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -113,6 +113,18 @@
         "CMAKE_BUILD_TYPE": "Release",
         "disable_native_wchar_t": "ON"
       }
+    },
+    {
+      "name": "x64-release-clang-cl",
+      "displayName": "x64 Release Clang-cl",
+      "description": "Build x64 release with clang-cl",
+      "inherits": "x64-debug",
+        "cacheVariables": {
+            "CMAKE_C_COMPILER": "clang-cl.exe",
+            "CMAKE_CXX_COMPILER": "clang-cl.exe",
+            "build_tests": "ON",
+            "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        }
     }
   ],
   "testPresets": [

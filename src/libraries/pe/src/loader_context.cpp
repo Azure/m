@@ -31,13 +31,11 @@ namespace
         std::ranges::for_each(v, [&](wchar_t wch) {
             if (wch <= (std::numeric_limits<unsigned char>::max)())
             {
-                *it = std::tolower(static_cast<unsigned char>(wch));
-                ++it;
+                *it++ = static_cast<wchar_t>(std::tolower(static_cast<unsigned char>(wch)));
             }
             else
             {
-                *it = wch;
-                ++it;
+                *it++ = wch;
             }
         });
 
@@ -53,20 +51,17 @@ namespace
         std::ranges::for_each(v, [&](char ch) {
             if constexpr (std::is_unsigned_v<char>)
             {
-                *it = std::tolower(static_cast<unsigned char>(ch));
-                ++it;
+                *it++ = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             }
             else
             {
                 if (ch >= 0)
                 {
-                    *it = std::tolower(static_cast<unsigned char>(ch));
-                    ++it;
+                    *it++ = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
                 }
                 else
                 {
-                    *it = static_cast<wchar_t>(ch);
-                    ++it;
+                    *it++ = ch;
                 }
             }
         });
@@ -152,9 +147,9 @@ m::pe::loader_context::resolve(std::filesystem::path const& path)
 
 m::pe::loader_context::pe_record::pe_record(std::filesystem::path const&          path,
                                             m::not_null<m::pe::loader_context*> loader):
-    m_path(path),
     m_name(m::to_wstring(downcase(path.filename().c_str()))),
     m_not_found(!std::filesystem::exists(path)),
+    m_path(path),
     m_decoder(m_not_found ?
                   nullptr :
                   std::make_unique<m::pe::decoder>(m::filesystem::open_seekable_input_file(path)))
@@ -170,12 +165,12 @@ m::pe::loader_context::pe_record::pe_record(std::filesystem::path const&        
 }
 
 m::pe::loader_context::pe_record::pe_record(std::wstring_view view):
-    m_path(view), m_name(view), m_not_found(false), m_decoder(nullptr)
+    m_name{view}, m_not_found{false}, m_path{view}, m_decoder{nullptr}
 {}
 
 m::pe::loader_context::pe_record::pe_record(std::wstring_view view,
                                             m::pe::loader_context::pe_record::pe_not_found_t):
-    m_path(view), m_name(view), m_not_found(true), m_decoder(nullptr)
+    m_name{view}, m_not_found{true}, m_path{view}, m_decoder{nullptr}
 {}
 
 bool

@@ -29,12 +29,11 @@ namespace m
         //
         //
 
-
         //
         // The value cache_line_length should be std::hardware_constructive_interference_size
         // from the <new> header but it seems to be missing in the clang build so instead of
         // messing around we'll just define it for now.
-        // 
+        //
         // Some ARM64 processors have larger cache line sizes. Intel processors will fetch
         // two cache lines at a time when loads are aligned on even cache lines, so the
         // "hardware destructive interference size" should arguably be 128 since they will
@@ -49,7 +48,7 @@ namespace m
         struct break_parse_context
         {
             constexpr break_parse_context() noexcept:
-                m_position{0}, m_in_quote(false), m_last_char(0), m_done(false)
+                m_position{0}, m_in_quote{false}, m_done{false}, m_last_char{0}
             {}
 
             m::io::position_t m_position;

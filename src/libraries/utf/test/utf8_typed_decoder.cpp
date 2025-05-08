@@ -25,16 +25,13 @@ verify_utf8_decode(utf_data_set const& data)
     auto it  = data.m_u8_sv.begin();
     auto end = data.m_u8_sv.end();
 
-    // We'll follow the u32 data along and expect one char32_t to pop out for each one present
-
-    std::size_t decode_count{};
+    // follow the u32 data along and expect one char32_t to pop out for each one present
 
     for (auto&& ch: data.m_u32_chardata)
     {
         auto retval = m::utf::decode_utf8(it, end);
         EXPECT_EQ(retval.ch, ch);
         it = retval.it;
-        decode_count++;
     }
 
     EXPECT_EQ(it, end);

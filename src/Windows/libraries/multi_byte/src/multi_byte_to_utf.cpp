@@ -19,7 +19,7 @@ m::multi_byte::multi_byte_to_utf16_length(code_page cp, std::string_view view)
         return 0;
 
     int wchars_needed = ::MultiByteToWideChar(
-        std::to_underlying(cp), MB_ERR_INVALID_CHARS, view.data(), view.size(), nullptr, 0);
+        std::to_underlying(cp), MB_ERR_INVALID_CHARS, view.data(), m::to<int>(view.size()), nullptr, 0);
     if (wchars_needed < 1)
         throw_last_win32_error();
 
@@ -44,9 +44,9 @@ namespace
         auto const i = ::MultiByteToWideChar(std::to_underlying(cp),
                                              MB_ERR_INVALID_CHARS,
                                              view.data(),
-                                             view.size(),
+                                             m::to<int>(view.size()),
                                              reinterpret_cast<LPWSTR>(buffer.data()),
-                                             buffer.size());
+                                             m::to<int>(buffer.size()));
         if (i < 1)
             return m::windows::get_last_error();
 

@@ -28,7 +28,7 @@ namespace m::filesystem
         {
             auto const saved_errno = errno;
             throw std::filesystem::filesystem_error(path.c_str(),
-                                                    std::make_error_code(std::errc{errno}));
+                                                    std::make_error_code(std::errc{saved_errno}));
         }
 
         std::array<std::byte, k_chunk_size> buffer;

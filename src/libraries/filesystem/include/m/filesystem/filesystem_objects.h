@@ -41,6 +41,8 @@ namespace m
             public m::byte_streams::seekable
         {
         public:
+            seekable_input_file() {}
+            virtual ~seekable_input_file() {}
         };
 
         class seekable_output_file :
@@ -50,6 +52,8 @@ namespace m
             public m::byte_streams::seekable
         {
         public:
+            seekable_output_file() {}
+            virtual ~seekable_output_file() {}
         };
 
         std::shared_ptr<seekable_input_file>

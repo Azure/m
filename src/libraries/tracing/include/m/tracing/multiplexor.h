@@ -47,7 +47,7 @@ namespace m
         class multiplexor
         {
         public:
-            multiplexor(m::not_null<monitor_class*>            monitor,
+            multiplexor(m::not_null<monitor_class*>              monitor,
                         topology_version                         topver,
                         std::initializer_list<std::wstring_view> channels);
 
@@ -61,10 +61,16 @@ namespace m
         private:
             // m_monitor and m_channel_names are not updated after construction
             m::not_null<monitor_class*> m_monitor;
-            std::vector<std::wstring>     m_channel_names;
-
-            std::mutex                         m_mutex;
-            topology_version                   m_topology_version;
+            std::vector<std::wstring>   m_channel_names;
+            std::mutex                  m_mutex;
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-private-field"
+#endif
+            topology_version m_topology_version;
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
             std::vector<std::shared_ptr<sink>> m_sinks;
         };
     } // namespace tracing

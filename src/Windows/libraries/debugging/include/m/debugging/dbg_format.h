@@ -68,6 +68,14 @@ namespace m
             {}
 
             output_debug_string_iter&
+            operator=(output_debug_string_iter const& iter)
+            {
+                _buffer = iter._buffer;
+                _index  = iter._index;
+                return *this;
+            }
+
+            output_debug_string_iter&
             operator++()
             {
                 if (_index == limit)
@@ -113,7 +121,7 @@ namespace m
                     {
                         if constexpr (std::is_same_v<CharT, char>)
                         {
-                            std::cout < &_buffer->_array[0];
+                            std::cout << &_buffer->_array[0];
                         }
                         else
                         {

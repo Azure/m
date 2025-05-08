@@ -102,10 +102,10 @@ namespace m
             // Counter for which block to use next. always increment, use modulus
             // to determine which buffer/control block is selected.
             //
-            std::size_t                                            m_allocated_buffer_counter;
+            // std::size_t                                            m_allocated_buffer_counter;
             std::map<file_position_t, buffer_control_block const*> m_bcbmap;
             std::array<buffer_control_block, buffer_count>         m_control_blocks;
-            std::array<buffer_type, buffer_count>                  m_buffers;
+            // std::array<buffer_type, buffer_count>                  m_buffers;
         };
     } // namespace block_buffer
 } // namespace m

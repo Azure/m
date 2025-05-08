@@ -9,9 +9,9 @@
 #include <utility>
 
 #include <m/cast/to.h>
-#include <m/math/math.h>
-
 #include <m/type_traits/type_traits.h>
+
+#include "math.h"
 
 namespace m
 {
@@ -198,4 +198,14 @@ namespace m
 
     template <typename LeftT, typename RightT>
     division_functor(LeftT, RightT) -> division_functor<LeftT, RightT>;
+
+    template <typename TTo, typename TFrom>
+        requires m::math::is_functor<TFrom>
+    TTo
+    to(TFrom const& v)
+    {
+        // Invokes the to<TTo> operation on the functor
+        return v.template to<TTo>();
+    }
+
 }; // namespace m

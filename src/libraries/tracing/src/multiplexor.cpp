@@ -7,12 +7,12 @@
 
 namespace m::tracing
 {
-    multiplexor::multiplexor(m::not_null<monitor_class*>            monitor,
+    multiplexor::multiplexor(m::not_null<monitor_class*>              monitor,
                              topology_version                         topver,
                              std::initializer_list<std::wstring_view> channel_names):
-        m_monitor(monitor),
-        m_topology_version(topver),
-        m_channel_names(channel_names.begin(), channel_names.end())
+        m_monitor{monitor},
+        m_channel_names(channel_names.begin(), channel_names.end()),
+        m_topology_version{topver}
     {
         for (auto&& e: m_channel_names)
             m_monitor->for_each_channel_sink(
@@ -41,7 +41,7 @@ namespace m::tracing
             if (snk->would_queue(env))
             {
                 auto msg_copy = m_monitor->copy_message(m::locked, env);
-                std::ignore    = snk->on_message(sink::may_queue_option::may_queue, msg_copy);
+                std::ignore   = snk->on_message(sink::may_queue_option::may_queue, msg_copy);
             }
             else
             {

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <initializer_list>
 #include <string_view>
@@ -12,13 +13,22 @@
 
 using namespace std::string_view_literals;
 
+using test_uchar = unsigned char;
+
 struct mb_test_data
 {
-    mb_test_data(m::multi_byte::code_page    cp,
-                 std::initializer_list<char> chars,
-                 std::wstring_view           view):
-        m_cp(cp), m_chars{chars}, m_wview(view)
+    mb_test_data(m::multi_byte::code_page             cp,
+                 std::initializer_list<test_uchar> chars,
+                 std::wstring_view                    view):
+        m_cp(cp), m_wview(view)
     {
+        // char may be signed so the bytes are stored as test_uchar, but we
+        // want a vector of char to work with the APIs.
+        //
+        std::ranges::transform(chars, std::back_inserter(m_chars), [](test_uchar ch) -> char {
+            return static_cast<char>(ch);
+        });
+
         m_view = std::string_view(m_chars.begin(), m_chars.end());
         m_u16view =
             std::u16string_view(reinterpret_cast<char16_t const*>(m_wview.data()), m_wview.size());
@@ -88,22 +98,22 @@ struct mb_test_data
 // # SMALL COMMERCIAL AT
 inline auto mb_cp950_t1 = mb_test_data(m::multi_byte::code_page{950},
                                        {
-                                           char(0xa2),
-                                           char{0x4e},
+                                           test_uchar(0xa2),
+                                           test_uchar{0x4e},
                                        },
                                        L"\ufe6b"sv);
 
 // # SMALL COMMERCIAL AT, #SQUARE MIL, U+5159, #FULL BLOCK
 inline auto mb_cp950_t2 = mb_test_data(m::multi_byte::code_page{950},
                                        {
-                                           char(0xa2),
-                                           char{0x4e},
-                                           char(0xa2),
-                                           char{0x4f},
-                                           char(0xa2),
-                                           char{0x59},
-                                           char(0xa2),
-                                           char{0x69},
+                                           test_uchar(0xa2),
+                                           test_uchar{0x4e},
+                                           test_uchar(0xa2),
+                                           test_uchar{0x4f},
+                                           test_uchar(0xa2),
+                                           test_uchar{0x59},
+                                           test_uchar(0xa2),
+                                           test_uchar{0x69},
                                        },
                                        L"\ufe6b\u33d5\u5159\u2588"sv);
 
@@ -129,11 +139,14 @@ inline auto mb_cp950_t2 = mb_test_data(m::multi_byte::code_page{950},
 inline auto mb_cp950_t3 = mb_test_data(
     m::multi_byte::code_page{950},
     {
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
     },
     L"\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588"sv);
 
@@ -142,25 +155,38 @@ inline auto mb_cp950_t3 = mb_test_data(
 inline auto mb_cp950_t4 = mb_test_data(
     m::multi_byte::code_page{950},
     {
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
     },
     L"\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588"
     L"\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588"
@@ -172,80 +198,134 @@ inline auto mb_cp950_t4 = mb_test_data(
 inline auto mb_cp950_t5 = mb_test_data(
     m::multi_byte::code_page{950},
     {
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59},
-        char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2),
-        char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2), char{0x4f},
-        char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e}, char(0xa2),
-        char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2), char{0x4e},
-        char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69}, char(0xa2),
-        char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2), char{0x69},
-        char(0xa2), char{0x4e}, char(0xa2), char{0x4f}, char(0xa2), char{0x59}, char(0xa2),
-        char{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
+        test_uchar(0xa2), test_uchar{0x4e}, test_uchar(0xa2), test_uchar{0x4f},
+        test_uchar(0xa2), test_uchar{0x59}, test_uchar(0xa2), test_uchar{0x69},
     },
     L"\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588"
     L"\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588\ufe6b\u33d5\u5159\u2588"
@@ -381,416 +461,416 @@ inline auto mb_cp950_t6 =
                  {
                      //
                      // 0xA179	0x300E	#LEFT WHITE CORNER BRACKET
-                     char(0xA1),
-                     char(0x79),
+                     test_uchar(0xA1),
+                     test_uchar(0x79),
                      //
                      // 0xA17A	0x300F	#RIGHT WHITE CORNER BRACKET
-                     char(0xA1),
-                     char(0x7A),
+                     test_uchar(0xA1),
+                     test_uchar(0x7A),
                      //
                      // 0xA17B	0xFE43	#PRESENTATION FORM FOR VERTICAL LEFT WHITE CORNER BRACKET
-                     char(0xA1),
-                     char(0x7B),
+                     test_uchar(0xA1),
+                     test_uchar(0x7B),
                      //
                      // 0xA17C	0xFE44	#PRESENTATION FORM FOR VERTICAL RIGHT WHITE CORNER BRACKET
-                     char(0xA1),
-                     char(0x7C),
+                     test_uchar(0xA1),
+                     test_uchar(0x7C),
                      //
                      // 0xA17D	0xFE59	#SMALL LEFT PARENTHESIS
-                     char(0xA1),
-                     char(0x7D),
+                     test_uchar(0xA1),
+                     test_uchar(0x7D),
                      //
                      // 0xA17E	0xFE5A	#SMALL RIGHT PARENTHESIS
-                     char(0xA1),
-                     char(0x7E),
+                     test_uchar(0xA1),
+                     test_uchar(0x7E),
                      //
                      // 0xA1A1	0xFE5B	#SMALL LEFT CURLY BRACKET
-                     char(0xA1),
-                     char(0xA1),
+                     test_uchar(0xA1),
+                     test_uchar(0xA1),
                      //
                      // 0xA1A2	0xFE5C	#SMALL RIGHT CURLY BRACKET
-                     char(0xA1),
-                     char(0xA2),
+                     test_uchar(0xA1),
+                     test_uchar(0xA2),
                      //
                      // 0xA1A3	0xFE5D	#SMALL LEFT TORTOISE SHELL BRACKET
-                     char(0xA1),
-                     char(0xA3),
+                     test_uchar(0xA1),
+                     test_uchar(0xA3),
                      //
                      // 0xA1A4	0xFE5E	#SMALL RIGHT TORTOISE SHELL BRACKET
-                     char(0xA1),
-                     char(0xA4),
+                     test_uchar(0xA1),
+                     test_uchar(0xA4),
                      //
                      // 0xA1A5	0x2018	#LEFT SINGLE QUOTATION MARK
-                     char(0xA1),
-                     char(0xA5),
+                     test_uchar(0xA1),
+                     test_uchar(0xA5),
                      //
                      // 0xA1A6	0x2019	#RIGHT SINGLE QUOTATION MARK
-                     char(0xA1),
-                     char(0xA6),
+                     test_uchar(0xA1),
+                     test_uchar(0xA6),
                      //
                      // 0xA1A7	0x201C	#LEFT DOUBLE QUOTATION MARK
-                     char(0xA1),
-                     char(0xA7),
+                     test_uchar(0xA1),
+                     test_uchar(0xA7),
                      //
                      // 0xA1A8	0x201D	#RIGHT DOUBLE QUOTATION MARK
-                     char(0xA1),
-                     char(0xA8),
+                     test_uchar(0xA1),
+                     test_uchar(0xA8),
                      //
                      // 0xA1A9	0x301D	#REVERSED DOUBLE PRIME QUOTATION MARK
-                     char(0xA1),
-                     char(0xA9),
+                     test_uchar(0xA1),
+                     test_uchar(0xA9),
                      //
                      // 0xA1AA	0x301E	#DOUBLE PRIME QUOTATION MARK
-                     char(0xA1),
-                     char(0xAA),
+                     test_uchar(0xA1),
+                     test_uchar(0xAA),
                      //
                      // 0xA1AB	0x2035	#REVERSED PRIME
-                     char(0xA1),
-                     char(0xAB),
+                     test_uchar(0xA1),
+                     test_uchar(0xAB),
                      //
                      // 0xA1AC	0x2032	#PRIME
-                     char(0xA1),
-                     char(0xAC),
+                     test_uchar(0xA1),
+                     test_uchar(0xAC),
                      //
                      // 0xA1AD	0xFF03	#FULLWIDTH NUMBER SIGN
-                     char(0xA1),
-                     char(0xAD),
+                     test_uchar(0xA1),
+                     test_uchar(0xAD),
                      //
                      // 0xA1AE	0xFF06	#FULLWIDTH AMPERSAND
-                     char(0xA1),
-                     char(0xAE),
+                     test_uchar(0xA1),
+                     test_uchar(0xAE),
                      //
                      // 0xA1AF	0xFF0A	#FULLWIDTH ASTERISK
-                     char(0xA1),
-                     char(0xAF),
+                     test_uchar(0xA1),
+                     test_uchar(0xAF),
                      //
                      // 0xA1B0	0x203B	#REFERENCE MARK
-                     char(0xA1),
-                     char(0xB0),
+                     test_uchar(0xA1),
+                     test_uchar(0xB0),
                      //
                      // 0xA1B1	0x00A7	#SECTION SIGN
-                     char(0xA1),
-                     char(0xB1),
+                     test_uchar(0xA1),
+                     test_uchar(0xB1),
                      //
                      // 0xA1B2	0x3003	#DITTO MARK
-                     char(0xA1),
-                     char(0xB2),
+                     test_uchar(0xA1),
+                     test_uchar(0xB2),
                      //
                      // 0xA1B3	0x25CB	#WHITE CIRCLE
-                     char(0xA1),
-                     char(0xB3),
+                     test_uchar(0xA1),
+                     test_uchar(0xB3),
                      //
                      // 0xA1B4	0x25CF	#BLACK CIRCLE
-                     char(0xA1),
-                     char(0xB4),
+                     test_uchar(0xA1),
+                     test_uchar(0xB4),
                      //
                      // 0xA1B5	0x25B3	#WHITE UP-POINTING TRIANGLE
-                     char(0xA1),
-                     char(0xB5),
+                     test_uchar(0xA1),
+                     test_uchar(0xB5),
                      //
                      // 0xA1B6	0x25B2	#BLACK UP-POINTING TRIANGLE
-                     char(0xA1),
-                     char(0xB6),
+                     test_uchar(0xA1),
+                     test_uchar(0xB6),
                      //
                      // 0xA1B7	0x25CE	#BULLSEYE
-                     char(0xA1),
-                     char(0xB7),
+                     test_uchar(0xA1),
+                     test_uchar(0xB7),
                      //
                      // 0xA1B8	0x2606	#WHITE STAR
-                     char(0xA1),
-                     char(0xB8),
+                     test_uchar(0xA1),
+                     test_uchar(0xB8),
                      //
                      // 0xA1B9	0x2605	#BLACK STAR
-                     char(0xA1),
-                     char(0xB9),
+                     test_uchar(0xA1),
+                     test_uchar(0xB9),
                      //
                      // 0xA1BA	0x25C7	#WHITE DIAMOND
-                     char(0xA1),
-                     char(0xBA),
+                     test_uchar(0xA1),
+                     test_uchar(0xBA),
                      //
                      // 0xA1BB	0x25C6	#BLACK DIAMOND
-                     char(0xA1),
-                     char(0xBB),
+                     test_uchar(0xA1),
+                     test_uchar(0xBB),
                      //
                      // 0xA1BC	0x25A1	#WHITE SQUARE
-                     char(0xA1),
-                     char(0xBC),
+                     test_uchar(0xA1),
+                     test_uchar(0xBC),
                      //
                      // 0xA1BD	0x25A0	#BLACK SQUARE
-                     char(0xA1),
-                     char(0xBD),
+                     test_uchar(0xA1),
+                     test_uchar(0xBD),
                      //
                      // 0xA1BE	0x25BD	#WHITE DOWN-POINTING TRIANGLE
-                     char(0xA1),
-                     char(0xBE),
+                     test_uchar(0xA1),
+                     test_uchar(0xBE),
                      //
                      // 0xA1BF	0x25BC	#BLACK DOWN-POINTING TRIANGLE
-                     char(0xA1),
-                     char(0xBF),
+                     test_uchar(0xA1),
+                     test_uchar(0xBF),
                      //
                      // 0xA1C0	0x32A3	#CIRCLED IDEOGRAPH CORRECT
-                     char(0xA1),
-                     char(0xC0),
+                     test_uchar(0xA1),
+                     test_uchar(0xC0),
                      //
                      // 0xA1C1	0x2105	#CARE OF
-                     char(0xA1),
-                     char(0xC1),
+                     test_uchar(0xA1),
+                     test_uchar(0xC1),
                      //
                      // 0xA1C2	0x00AF	#MACRON
-                     char(0xA1),
-                     char(0xC2),
+                     test_uchar(0xA1),
+                     test_uchar(0xC2),
                      //
                      // 0xA1C3	0xFFE3	#FULLWIDTH MACRON
-                     char(0xA1),
-                     char(0xC3),
+                     test_uchar(0xA1),
+                     test_uchar(0xC3),
                      //
                      // 0xA1C4	0xFF3F	#FULLWIDTH LOW LINE
-                     char(0xA1),
-                     char(0xC4),
+                     test_uchar(0xA1),
+                     test_uchar(0xC4),
                      //
                      // 0xA1C5	0x02CD	#MODIFIER LETTER LOW MACRON
-                     char(0xA1),
-                     char(0xC5),
+                     test_uchar(0xA1),
+                     test_uchar(0xC5),
                      //
                      // 0xA1C6	0xFE49	#DASHED OVERLINE
-                     char(0xA1),
-                     char(0xC6),
+                     test_uchar(0xA1),
+                     test_uchar(0xC6),
                      //
                      // 0xA1C7	0xFE4A	#CENTRELINE OVERLINE
-                     char(0xA1),
-                     char(0xC7),
+                     test_uchar(0xA1),
+                     test_uchar(0xC7),
                      //
                      // 0xA1C8	0xFE4D	#DASHED LOW LINE
-                     char(0xA1),
-                     char(0xC8),
+                     test_uchar(0xA1),
+                     test_uchar(0xC8),
                      //
                      // 0xA1C9	0xFE4E	#CENTRELINE LOW LINE
-                     char(0xA1),
-                     char(0xC9),
+                     test_uchar(0xA1),
+                     test_uchar(0xC9),
                      //
                      // 0xA1CA	0xFE4B	#WAVY OVERLINE
-                     char(0xA1),
-                     char(0xCA),
+                     test_uchar(0xA1),
+                     test_uchar(0xCA),
                      //
                      // 0xA1CB	0xFE4C	#DOUBLE WAVY OVERLINE
-                     char(0xA1),
-                     char(0xCB),
+                     test_uchar(0xA1),
+                     test_uchar(0xCB),
                      //
                      // 0xA1CC	0xFE5F	#SMALL NUMBER SIGN
-                     char(0xA1),
-                     char(0xCC),
+                     test_uchar(0xA1),
+                     test_uchar(0xCC),
                      //
                      // 0xA1CD	0xFE60	#SMALL AMPERSAND
-                     char(0xA1),
-                     char(0xCD),
+                     test_uchar(0xA1),
+                     test_uchar(0xCD),
                      //
                      // 0xA1CE	0xFE61	#SMALL ASTERISK
-                     char(0xA1),
-                     char(0xCE),
+                     test_uchar(0xA1),
+                     test_uchar(0xCE),
                      //
                      // 0xA1CF	0xFF0B	#FULLWIDTH PLUS SIGN
-                     char(0xA1),
-                     char(0xCF),
+                     test_uchar(0xA1),
+                     test_uchar(0xCF),
                      //
                      // 0xA1D0	0xFF0D	#FULLWIDTH HYPHEN-MINUS
-                     char(0xA1),
-                     char(0xD0),
+                     test_uchar(0xA1),
+                     test_uchar(0xD0),
                      //
                      // 0xA1D1	0x00D7	#MULTIPLICATION SIGN
-                     char(0xA1),
-                     char(0xD1),
+                     test_uchar(0xA1),
+                     test_uchar(0xD1),
                      //
                      // 0xA1D2	0x00F7	#DIVISION SIGN
-                     char(0xA1),
-                     char(0xD2),
+                     test_uchar(0xA1),
+                     test_uchar(0xD2),
                      //
                      // 0xA1D3	0x00B1	#PLUS-MINUS SIGN
-                     char(0xA1),
-                     char(0xD3),
+                     test_uchar(0xA1),
+                     test_uchar(0xD3),
                      //
                      // 0xA1D4	0x221A	#SQUARE ROOT
-                     char(0xA1),
-                     char(0xD4),
+                     test_uchar(0xA1),
+                     test_uchar(0xD4),
                      //
                      // 0xA1D5	0xFF1C	#FULLWIDTH LESS-THAN SIGN
-                     char(0xA1),
-                     char(0xD5),
+                     test_uchar(0xA1),
+                     test_uchar(0xD5),
                      //
                      // 0xA1D6	0xFF1E	#FULLWIDTH GREATER-THAN SIGN
-                     char(0xA1),
-                     char(0xD6),
+                     test_uchar(0xA1),
+                     test_uchar(0xD6),
                      //
                      // 0xA1D7	0xFF1D	#FULLWIDTH EQUALS SIGN
-                     char(0xA1),
-                     char(0xD7),
+                     test_uchar(0xA1),
+                     test_uchar(0xD7),
                      //
                      // 0xA1D8	0x2266	#LESS-THAN OVER EQUAL TO
-                     char(0xA1),
-                     char(0xD8),
+                     test_uchar(0xA1),
+                     test_uchar(0xD8),
                      //
                      // 0xA1D9	0x2267	#GREATER-THAN OVER EQUAL TO
-                     char(0xA1),
-                     char(0xD9),
+                     test_uchar(0xA1),
+                     test_uchar(0xD9),
                      //
                      // 0xA1DA	0x2260	#NOT EQUAL TO
-                     char(0xA1),
-                     char(0xDA),
+                     test_uchar(0xA1),
+                     test_uchar(0xDA),
                      //
                      // 0xA1DB	0x221E	#INFINITY
-                     char(0xA1),
-                     char(0xDB),
+                     test_uchar(0xA1),
+                     test_uchar(0xDB),
                      //
                      // 0xA1DC	0x2252	#APPROXIMATELY EQUAL TO OR THE IMAGE OF
-                     char(0xA1),
-                     char(0xDC),
+                     test_uchar(0xA1),
+                     test_uchar(0xDC),
                      //
                      // 0xA1DD	0x2261	#IDENTICAL TO
-                     char(0xA1),
-                     char(0xDD),
+                     test_uchar(0xA1),
+                     test_uchar(0xDD),
                      //
                      // 0xA1DE	0xFE62	#SMALL PLUS SIGN
-                     char(0xA1),
-                     char(0xDE),
+                     test_uchar(0xA1),
+                     test_uchar(0xDE),
                      //
                      // 0xA1DF	0xFE63	#SMALL HYPHEN-MINUS
-                     char(0xA1),
-                     char(0xDF),
+                     test_uchar(0xA1),
+                     test_uchar(0xDF),
                      //
                      // 0xA1E0	0xFE64	#SMALL LESS-THAN SIGN
-                     char(0xA1),
-                     char(0xE0),
+                     test_uchar(0xA1),
+                     test_uchar(0xE0),
                      //
                      // 0xA1E1	0xFE65	#SMALL GREATER-THAN SIGN
-                     char(0xA1),
-                     char(0xE1),
+                     test_uchar(0xA1),
+                     test_uchar(0xE1),
                      //
                      // 0xA1E2	0xFE66	#SMALL EQUALS SIGN
-                     char(0xA1),
-                     char(0xE2),
+                     test_uchar(0xA1),
+                     test_uchar(0xE2),
                      //
                      // 0xA1E3	0xFF5E	#FULLWIDTH TILDE
-                     char(0xA1),
-                     char(0xE3),
+                     test_uchar(0xA1),
+                     test_uchar(0xE3),
                      //
                      // 0xA1E4	0x2229	#INTERSECTION
-                     char(0xA1),
-                     char(0xE4),
+                     test_uchar(0xA1),
+                     test_uchar(0xE4),
                      //
                      // 0xA1E5	0x222A	#UNION
-                     char(0xA1),
-                     char(0xE5),
+                     test_uchar(0xA1),
+                     test_uchar(0xE5),
                      //
                      // 0xA1E6	0x22A5	#UP TACK
-                     char(0xA1),
-                     char(0xE6),
+                     test_uchar(0xA1),
+                     test_uchar(0xE6),
                      //
                      // 0xA1E7	0x2220	#ANGLE
-                     char(0xA1),
-                     char(0xE7),
+                     test_uchar(0xA1),
+                     test_uchar(0xE7),
                      //
                      // 0xA1E8	0x221F	#RIGHT ANGLE
-                     char(0xA1),
-                     char(0xE8),
+                     test_uchar(0xA1),
+                     test_uchar(0xE8),
                      //
                      // 0xA1E9	0x22BF	#RIGHT TRIANGLE
-                     char(0xA1),
-                     char(0xE9),
+                     test_uchar(0xA1),
+                     test_uchar(0xE9),
                      //
                      // 0xA1EA	0x33D2	#SQUARE LOG
-                     char(0xA1),
-                     char(0xEA),
+                     test_uchar(0xA1),
+                     test_uchar(0xEA),
                      //
                      // 0xA1EB	0x33D1	#SQUARE LN
-                     char(0xA1),
-                     char(0xEB),
+                     test_uchar(0xA1),
+                     test_uchar(0xEB),
                      //
                      // 0xA1EC	0x222B	#INTEGRAL
-                     char(0xA1),
-                     char(0xEC),
+                     test_uchar(0xA1),
+                     test_uchar(0xEC),
                      //
                      // 0xA1ED	0x222E	#CONTOUR INTEGRAL
-                     char(0xA1),
-                     char(0xED),
+                     test_uchar(0xA1),
+                     test_uchar(0xED),
                      //
                      // 0xA1EE	0x2235	#BECAUSE
-                     char(0xA1),
-                     char(0xEE),
+                     test_uchar(0xA1),
+                     test_uchar(0xEE),
                      //
                      // 0xA1EF	0x2234	#THEREFORE
-                     char(0xA1),
-                     char(0xEF),
+                     test_uchar(0xA1),
+                     test_uchar(0xEF),
                      //
                      // 0xA1F0	0x2640	#FEMALE SIGN
-                     char(0xA1),
-                     char(0xF0),
+                     test_uchar(0xA1),
+                     test_uchar(0xF0),
                      //
                      // 0xA1F1	0x2642	#MALE SIGN
-                     char(0xA1),
-                     char(0xF1),
+                     test_uchar(0xA1),
+                     test_uchar(0xF1),
                      //
                      // 0xA1F2	0x2295	#CIRCLED PLUS
-                     char(0xA1),
-                     char(0xF2),
+                     test_uchar(0xA1),
+                     test_uchar(0xF2),
                      //
                      // 0xA1F3	0x2299	#CIRCLED DOT OPERATOR
-                     char(0xA1),
-                     char(0xF3),
+                     test_uchar(0xA1),
+                     test_uchar(0xF3),
                      //
                      // 0xA1F4	0x2191	#UPWARDS ARROW
-                     char(0xA1),
-                     char(0xF4),
+                     test_uchar(0xA1),
+                     test_uchar(0xF4),
                      //
                      // 0xA1F5	0x2193	#DOWNWARDS ARROW
-                     char(0xA1),
-                     char(0xF5),
+                     test_uchar(0xA1),
+                     test_uchar(0xF5),
                      //
                      // 0xA1F6	0x2190	#LEFTWARDS ARROW
-                     char(0xA1),
-                     char(0xF6),
+                     test_uchar(0xA1),
+                     test_uchar(0xF6),
                      //
                      // 0xA1F7	0x2192	#RIGHTWARDS ARROW
-                     char(0xA1),
-                     char(0xF7),
+                     test_uchar(0xA1),
+                     test_uchar(0xF7),
                      //
                      // 0xA1F8	0x2196	#NORTH WEST ARROW
-                     char(0xA1),
-                     char(0xF8),
+                     test_uchar(0xA1),
+                     test_uchar(0xF8),
                      //
                      // 0xA1F9	0x2197	#NORTH EAST ARROW
-                     char(0xA1),
-                     char(0xF9),
+                     test_uchar(0xA1),
+                     test_uchar(0xF9),
                      //
                      // 0xA1FA	0x2199	#SOUTH WEST ARROW
-                     char(0xA1),
-                     char(0xFA),
+                     test_uchar(0xA1),
+                     test_uchar(0xFA),
                      //
                      // 0xA1FB	0x2198	#SOUTH EAST ARROW
-                     char(0xA1),
-                     char(0xFB),
+                     test_uchar(0xA1),
+                     test_uchar(0xFB),
                      //
                      // 0xA1FC	0x2225	#PARALLEL TO
-                     char(0xA1),
-                     char(0xFC),
+                     test_uchar(0xA1),
+                     test_uchar(0xFC),
                      //
                      // 0xA1FD	0x2223	#DIVIDES
-                     char(0xA1),
-                     char(0xFD),
+                     test_uchar(0xA1),
+                     test_uchar(0xFD),
                      //
                      // 0xA1FE	0xFF0F	#FULLWIDTH SOLIDUS
-                     char(0xA1),
-                     char(0xFE),
+                     test_uchar(0xA1),
+                     test_uchar(0xFE),
                      //
                      // 0xA240	0xFF3C	#FULLWIDTH REVERSE SOLIDUS
-                     char(0xA2),
-                     char(0x40),
+                     test_uchar(0xA2),
+                     test_uchar(0x40),
                      //
                      // 0xA241	0x2215	#DIVISION SLASH
-                     char(0xA2),
-                     char(0x41),
+                     test_uchar(0xA2),
+                     test_uchar(0x41),
                      //
                      // 0xA242	0xFE68	#SMALL REVERSE SOLIDUS
-                     char(0xA2),
-                     char(0x42),
+                     test_uchar(0xA2),
+                     test_uchar(0x42),
                  },
                  L"\u300E"
                  L"\u300F"
@@ -903,418 +983,418 @@ inline auto mb_cp950_t7 =
                  {
                      //
                      // 0xA179	0x300E	#LEFT WHITE CORNER BRACKET
-                     char(0xA1),
-                     char(0x79),
+                     test_uchar(0xA1),
+                     test_uchar(0x79),
                      //
                      // 0xA17A	0x300F	#RIGHT WHITE CORNER BRACKET
-                     char(0xA1),
-                     char(0x7A),
+                     test_uchar(0xA1),
+                     test_uchar(0x7A),
                      //
                      // 0xA17B	0xFE43	#PRESENTATION FORM FOR VERTICAL LEFT WHITE CORNER BRACKET
-                     char(0xA1),
-                     char(0x7B),
+                     test_uchar(0xA1),
+                     test_uchar(0x7B),
                      //
                      // 0xA17C	0xFE44	#PRESENTATION FORM FOR VERTICAL RIGHT WHITE CORNER BRACKET
-                     char(0xA1),
-                     char(0x7C),
+                     test_uchar(0xA1),
+                     test_uchar(0x7C),
                      //
                      // 0xA17D	0xFE59	#SMALL LEFT PARENTHESIS
-                     char(0xA1),
-                     char(0x7D),
+                     test_uchar(0xA1),
+                     test_uchar(0x7D),
                      //
                      // 0xA17E	0xFE5A	#SMALL RIGHT PARENTHESIS
-                     char(0xA1),
-                     char(0x7E),
+                     test_uchar(0xA1),
+                     test_uchar(0x7E),
                      // dash, added at character 7
                      '-',
                      //
                      // 0xA1A1	0xFE5B	#SMALL LEFT CURLY BRACKET
-                     char(0xA1),
-                     char(0xA1),
+                     test_uchar(0xA1),
+                     test_uchar(0xA1),
                      //
                      // 0xA1A2	0xFE5C	#SMALL RIGHT CURLY BRACKET
-                     char(0xA1),
-                     char(0xA2),
+                     test_uchar(0xA1),
+                     test_uchar(0xA2),
                      //
                      // 0xA1A3	0xFE5D	#SMALL LEFT TORTOISE SHELL BRACKET
-                     char(0xA1),
-                     char(0xA3),
+                     test_uchar(0xA1),
+                     test_uchar(0xA3),
                      //
                      // 0xA1A4	0xFE5E	#SMALL RIGHT TORTOISE SHELL BRACKET
-                     char(0xA1),
-                     char(0xA4),
+                     test_uchar(0xA1),
+                     test_uchar(0xA4),
                      //
                      // 0xA1A5	0x2018	#LEFT SINGLE QUOTATION MARK
-                     char(0xA1),
-                     char(0xA5),
+                     test_uchar(0xA1),
+                     test_uchar(0xA5),
                      //
                      // 0xA1A6	0x2019	#RIGHT SINGLE QUOTATION MARK
-                     char(0xA1),
-                     char(0xA6),
+                     test_uchar(0xA1),
+                     test_uchar(0xA6),
                      //
                      // 0xA1A7	0x201C	#LEFT DOUBLE QUOTATION MARK
-                     char(0xA1),
-                     char(0xA7),
+                     test_uchar(0xA1),
+                     test_uchar(0xA7),
                      //
                      // 0xA1A8	0x201D	#RIGHT DOUBLE QUOTATION MARK
-                     char(0xA1),
-                     char(0xA8),
+                     test_uchar(0xA1),
+                     test_uchar(0xA8),
                      //
                      // 0xA1A9	0x301D	#REVERSED DOUBLE PRIME QUOTATION MARK
-                     char(0xA1),
-                     char(0xA9),
+                     test_uchar(0xA1),
+                     test_uchar(0xA9),
                      //
                      // 0xA1AA	0x301E	#DOUBLE PRIME QUOTATION MARK
-                     char(0xA1),
-                     char(0xAA),
+                     test_uchar(0xA1),
+                     test_uchar(0xAA),
                      //
                      // 0xA1AB	0x2035	#REVERSED PRIME
-                     char(0xA1),
-                     char(0xAB),
+                     test_uchar(0xA1),
+                     test_uchar(0xAB),
                      //
                      // 0xA1AC	0x2032	#PRIME
-                     char(0xA1),
-                     char(0xAC),
+                     test_uchar(0xA1),
+                     test_uchar(0xAC),
                      //
                      // 0xA1AD	0xFF03	#FULLWIDTH NUMBER SIGN
-                     char(0xA1),
-                     char(0xAD),
+                     test_uchar(0xA1),
+                     test_uchar(0xAD),
                      //
                      // 0xA1AE	0xFF06	#FULLWIDTH AMPERSAND
-                     char(0xA1),
-                     char(0xAE),
+                     test_uchar(0xA1),
+                     test_uchar(0xAE),
                      //
                      // 0xA1AF	0xFF0A	#FULLWIDTH ASTERISK
-                     char(0xA1),
-                     char(0xAF),
+                     test_uchar(0xA1),
+                     test_uchar(0xAF),
                      //
                      // 0xA1B0	0x203B	#REFERENCE MARK
-                     char(0xA1),
-                     char(0xB0),
+                     test_uchar(0xA1),
+                     test_uchar(0xB0),
                      //
                      // 0xA1B1	0x00A7	#SECTION SIGN
-                     char(0xA1),
-                     char(0xB1),
+                     test_uchar(0xA1),
+                     test_uchar(0xB1),
                      //
                      // 0xA1B2	0x3003	#DITTO MARK
-                     char(0xA1),
-                     char(0xB2),
+                     test_uchar(0xA1),
+                     test_uchar(0xB2),
                      //
                      // 0xA1B3	0x25CB	#WHITE CIRCLE
-                     char(0xA1),
-                     char(0xB3),
+                     test_uchar(0xA1),
+                     test_uchar(0xB3),
                      //
                      // 0xA1B4	0x25CF	#BLACK CIRCLE
-                     char(0xA1),
-                     char(0xB4),
+                     test_uchar(0xA1),
+                     test_uchar(0xB4),
                      //
                      // 0xA1B5	0x25B3	#WHITE UP-POINTING TRIANGLE
-                     char(0xA1),
-                     char(0xB5),
+                     test_uchar(0xA1),
+                     test_uchar(0xB5),
                      //
                      // 0xA1B6	0x25B2	#BLACK UP-POINTING TRIANGLE
-                     char(0xA1),
-                     char(0xB6),
+                     test_uchar(0xA1),
+                     test_uchar(0xB6),
                      //
                      // 0xA1B7	0x25CE	#BULLSEYE
-                     char(0xA1),
-                     char(0xB7),
+                     test_uchar(0xA1),
+                     test_uchar(0xB7),
                      //
                      // 0xA1B8	0x2606	#WHITE STAR
-                     char(0xA1),
-                     char(0xB8),
+                     test_uchar(0xA1),
+                     test_uchar(0xB8),
                      //
                      // 0xA1B9	0x2605	#BLACK STAR
-                     char(0xA1),
-                     char(0xB9),
+                     test_uchar(0xA1),
+                     test_uchar(0xB9),
                      //
                      // 0xA1BA	0x25C7	#WHITE DIAMOND
-                     char(0xA1),
-                     char(0xBA),
+                     test_uchar(0xA1),
+                     test_uchar(0xBA),
                      //
                      // 0xA1BB	0x25C6	#BLACK DIAMOND
-                     char(0xA1),
-                     char(0xBB),
+                     test_uchar(0xA1),
+                     test_uchar(0xBB),
                      //
                      // 0xA1BC	0x25A1	#WHITE SQUARE
-                     char(0xA1),
-                     char(0xBC),
+                     test_uchar(0xA1),
+                     test_uchar(0xBC),
                      //
                      // 0xA1BD	0x25A0	#BLACK SQUARE
-                     char(0xA1),
-                     char(0xBD),
+                     test_uchar(0xA1),
+                     test_uchar(0xBD),
                      //
                      // 0xA1BE	0x25BD	#WHITE DOWN-POINTING TRIANGLE
-                     char(0xA1),
-                     char(0xBE),
+                     test_uchar(0xA1),
+                     test_uchar(0xBE),
                      //
                      // 0xA1BF	0x25BC	#BLACK DOWN-POINTING TRIANGLE
-                     char(0xA1),
-                     char(0xBF),
+                     test_uchar(0xA1),
+                     test_uchar(0xBF),
                      //
                      // 0xA1C0	0x32A3	#CIRCLED IDEOGRAPH CORRECT
-                     char(0xA1),
-                     char(0xC0),
+                     test_uchar(0xA1),
+                     test_uchar(0xC0),
                      //
                      // 0xA1C1	0x2105	#CARE OF
-                     char(0xA1),
-                     char(0xC1),
+                     test_uchar(0xA1),
+                     test_uchar(0xC1),
                      //
                      // 0xA1C2	0x00AF	#MACRON
-                     char(0xA1),
-                     char(0xC2),
+                     test_uchar(0xA1),
+                     test_uchar(0xC2),
                      //
                      // 0xA1C3	0xFFE3	#FULLWIDTH MACRON
-                     char(0xA1),
-                     char(0xC3),
+                     test_uchar(0xA1),
+                     test_uchar(0xC3),
                      //
                      // 0xA1C4	0xFF3F	#FULLWIDTH LOW LINE
-                     char(0xA1),
-                     char(0xC4),
+                     test_uchar(0xA1),
+                     test_uchar(0xC4),
                      //
                      // 0xA1C5	0x02CD	#MODIFIER LETTER LOW MACRON
-                     char(0xA1),
-                     char(0xC5),
+                     test_uchar(0xA1),
+                     test_uchar(0xC5),
                      //
                      // 0xA1C6	0xFE49	#DASHED OVERLINE
-                     char(0xA1),
-                     char(0xC6),
+                     test_uchar(0xA1),
+                     test_uchar(0xC6),
                      //
                      // 0xA1C7	0xFE4A	#CENTRELINE OVERLINE
-                     char(0xA1),
-                     char(0xC7),
+                     test_uchar(0xA1),
+                     test_uchar(0xC7),
                      //
                      // 0xA1C8	0xFE4D	#DASHED LOW LINE
-                     char(0xA1),
-                     char(0xC8),
+                     test_uchar(0xA1),
+                     test_uchar(0xC8),
                      //
                      // 0xA1C9	0xFE4E	#CENTRELINE LOW LINE
-                     char(0xA1),
-                     char(0xC9),
+                     test_uchar(0xA1),
+                     test_uchar(0xC9),
                      //
                      // 0xA1CA	0xFE4B	#WAVY OVERLINE
-                     char(0xA1),
-                     char(0xCA),
+                     test_uchar(0xA1),
+                     test_uchar(0xCA),
                      //
                      // 0xA1CB	0xFE4C	#DOUBLE WAVY OVERLINE
-                     char(0xA1),
-                     char(0xCB),
+                     test_uchar(0xA1),
+                     test_uchar(0xCB),
                      //
                      // 0xA1CC	0xFE5F	#SMALL NUMBER SIGN
-                     char(0xA1),
-                     char(0xCC),
+                     test_uchar(0xA1),
+                     test_uchar(0xCC),
                      //
                      // 0xA1CD	0xFE60	#SMALL AMPERSAND
-                     char(0xA1),
-                     char(0xCD),
+                     test_uchar(0xA1),
+                     test_uchar(0xCD),
                      //
                      // 0xA1CE	0xFE61	#SMALL ASTERISK
-                     char(0xA1),
-                     char(0xCE),
+                     test_uchar(0xA1),
+                     test_uchar(0xCE),
                      //
                      // 0xA1CF	0xFF0B	#FULLWIDTH PLUS SIGN
-                     char(0xA1),
-                     char(0xCF),
+                     test_uchar(0xA1),
+                     test_uchar(0xCF),
                      //
                      // 0xA1D0	0xFF0D	#FULLWIDTH HYPHEN-MINUS
-                     char(0xA1),
-                     char(0xD0),
+                     test_uchar(0xA1),
+                     test_uchar(0xD0),
                      //
                      // 0xA1D1	0x00D7	#MULTIPLICATION SIGN
-                     char(0xA1),
-                     char(0xD1),
+                     test_uchar(0xA1),
+                     test_uchar(0xD1),
                      //
                      // 0xA1D2	0x00F7	#DIVISION SIGN
-                     char(0xA1),
-                     char(0xD2),
+                     test_uchar(0xA1),
+                     test_uchar(0xD2),
                      //
                      // 0xA1D3	0x00B1	#PLUS-MINUS SIGN
-                     char(0xA1),
-                     char(0xD3),
+                     test_uchar(0xA1),
+                     test_uchar(0xD3),
                      //
                      // 0xA1D4	0x221A	#SQUARE ROOT
-                     char(0xA1),
-                     char(0xD4),
+                     test_uchar(0xA1),
+                     test_uchar(0xD4),
                      //
                      // 0xA1D5	0xFF1C	#FULLWIDTH LESS-THAN SIGN
-                     char(0xA1),
-                     char(0xD5),
+                     test_uchar(0xA1),
+                     test_uchar(0xD5),
                      //
                      // 0xA1D6	0xFF1E	#FULLWIDTH GREATER-THAN SIGN
-                     char(0xA1),
-                     char(0xD6),
+                     test_uchar(0xA1),
+                     test_uchar(0xD6),
                      //
                      // 0xA1D7	0xFF1D	#FULLWIDTH EQUALS SIGN
-                     char(0xA1),
-                     char(0xD7),
+                     test_uchar(0xA1),
+                     test_uchar(0xD7),
                      //
                      // 0xA1D8	0x2266	#LESS-THAN OVER EQUAL TO
-                     char(0xA1),
-                     char(0xD8),
+                     test_uchar(0xA1),
+                     test_uchar(0xD8),
                      //
                      // 0xA1D9	0x2267	#GREATER-THAN OVER EQUAL TO
-                     char(0xA1),
-                     char(0xD9),
+                     test_uchar(0xA1),
+                     test_uchar(0xD9),
                      //
                      // 0xA1DA	0x2260	#NOT EQUAL TO
-                     char(0xA1),
-                     char(0xDA),
+                     test_uchar(0xA1),
+                     test_uchar(0xDA),
                      //
                      // 0xA1DB	0x221E	#INFINITY
-                     char(0xA1),
-                     char(0xDB),
+                     test_uchar(0xA1),
+                     test_uchar(0xDB),
                      //
                      // 0xA1DC	0x2252	#APPROXIMATELY EQUAL TO OR THE IMAGE OF
-                     char(0xA1),
-                     char(0xDC),
+                     test_uchar(0xA1),
+                     test_uchar(0xDC),
                      //
                      // 0xA1DD	0x2261	#IDENTICAL TO
-                     char(0xA1),
-                     char(0xDD),
+                     test_uchar(0xA1),
+                     test_uchar(0xDD),
                      //
                      // 0xA1DE	0xFE62	#SMALL PLUS SIGN
-                     char(0xA1),
-                     char(0xDE),
+                     test_uchar(0xA1),
+                     test_uchar(0xDE),
                      //
                      // 0xA1DF	0xFE63	#SMALL HYPHEN-MINUS
-                     char(0xA1),
-                     char(0xDF),
+                     test_uchar(0xA1),
+                     test_uchar(0xDF),
                      //
                      // 0xA1E0	0xFE64	#SMALL LESS-THAN SIGN
-                     char(0xA1),
-                     char(0xE0),
+                     test_uchar(0xA1),
+                     test_uchar(0xE0),
                      //
                      // 0xA1E1	0xFE65	#SMALL GREATER-THAN SIGN
-                     char(0xA1),
-                     char(0xE1),
+                     test_uchar(0xA1),
+                     test_uchar(0xE1),
                      //
                      // 0xA1E2	0xFE66	#SMALL EQUALS SIGN
-                     char(0xA1),
-                     char(0xE2),
+                     test_uchar(0xA1),
+                     test_uchar(0xE2),
                      //
                      // 0xA1E3	0xFF5E	#FULLWIDTH TILDE
-                     char(0xA1),
-                     char(0xE3),
+                     test_uchar(0xA1),
+                     test_uchar(0xE3),
                      //
                      // 0xA1E4	0x2229	#INTERSECTION
-                     char(0xA1),
-                     char(0xE4),
+                     test_uchar(0xA1),
+                     test_uchar(0xE4),
                      //
                      // 0xA1E5	0x222A	#UNION
-                     char(0xA1),
-                     char(0xE5),
+                     test_uchar(0xA1),
+                     test_uchar(0xE5),
                      //
                      // 0xA1E6	0x22A5	#UP TACK
-                     char(0xA1),
-                     char(0xE6),
+                     test_uchar(0xA1),
+                     test_uchar(0xE6),
                      //
                      // 0xA1E7	0x2220	#ANGLE
-                     char(0xA1),
-                     char(0xE7),
+                     test_uchar(0xA1),
+                     test_uchar(0xE7),
                      //
                      // 0xA1E8	0x221F	#RIGHT ANGLE
-                     char(0xA1),
-                     char(0xE8),
+                     test_uchar(0xA1),
+                     test_uchar(0xE8),
                      //
                      // 0xA1E9	0x22BF	#RIGHT TRIANGLE
-                     char(0xA1),
-                     char(0xE9),
+                     test_uchar(0xA1),
+                     test_uchar(0xE9),
                      //
                      // 0xA1EA	0x33D2	#SQUARE LOG
-                     char(0xA1),
-                     char(0xEA),
+                     test_uchar(0xA1),
+                     test_uchar(0xEA),
                      //
                      // 0xA1EB	0x33D1	#SQUARE LN
-                     char(0xA1),
-                     char(0xEB),
+                     test_uchar(0xA1),
+                     test_uchar(0xEB),
                      //
                      // 0xA1EC	0x222B	#INTEGRAL
-                     char(0xA1),
-                     char(0xEC),
+                     test_uchar(0xA1),
+                     test_uchar(0xEC),
                      //
                      // 0xA1ED	0x222E	#CONTOUR INTEGRAL
-                     char(0xA1),
-                     char(0xED),
+                     test_uchar(0xA1),
+                     test_uchar(0xED),
                      //
                      // 0xA1EE	0x2235	#BECAUSE
-                     char(0xA1),
-                     char(0xEE),
+                     test_uchar(0xA1),
+                     test_uchar(0xEE),
                      //
                      // 0xA1EF	0x2234	#THEREFORE
-                     char(0xA1),
-                     char(0xEF),
+                     test_uchar(0xA1),
+                     test_uchar(0xEF),
                      //
                      // 0xA1F0	0x2640	#FEMALE SIGN
-                     char(0xA1),
-                     char(0xF0),
+                     test_uchar(0xA1),
+                     test_uchar(0xF0),
                      //
                      // 0xA1F1	0x2642	#MALE SIGN
-                     char(0xA1),
-                     char(0xF1),
+                     test_uchar(0xA1),
+                     test_uchar(0xF1),
                      //
                      // 0xA1F2	0x2295	#CIRCLED PLUS
-                     char(0xA1),
-                     char(0xF2),
+                     test_uchar(0xA1),
+                     test_uchar(0xF2),
                      //
                      // 0xA1F3	0x2299	#CIRCLED DOT OPERATOR
-                     char(0xA1),
-                     char(0xF3),
+                     test_uchar(0xA1),
+                     test_uchar(0xF3),
                      //
                      // 0xA1F4	0x2191	#UPWARDS ARROW
-                     char(0xA1),
-                     char(0xF4),
+                     test_uchar(0xA1),
+                     test_uchar(0xF4),
                      //
                      // 0xA1F5	0x2193	#DOWNWARDS ARROW
-                     char(0xA1),
-                     char(0xF5),
+                     test_uchar(0xA1),
+                     test_uchar(0xF5),
                      //
                      // 0xA1F6	0x2190	#LEFTWARDS ARROW
-                     char(0xA1),
-                     char(0xF6),
+                     test_uchar(0xA1),
+                     test_uchar(0xF6),
                      //
                      // 0xA1F7	0x2192	#RIGHTWARDS ARROW
-                     char(0xA1),
-                     char(0xF7),
+                     test_uchar(0xA1),
+                     test_uchar(0xF7),
                      //
                      // 0xA1F8	0x2196	#NORTH WEST ARROW
-                     char(0xA1),
-                     char(0xF8),
+                     test_uchar(0xA1),
+                     test_uchar(0xF8),
                      //
                      // 0xA1F9	0x2197	#NORTH EAST ARROW
-                     char(0xA1),
-                     char(0xF9),
+                     test_uchar(0xA1),
+                     test_uchar(0xF9),
                      //
                      // 0xA1FA	0x2199	#SOUTH WEST ARROW
-                     char(0xA1),
-                     char(0xFA),
+                     test_uchar(0xA1),
+                     test_uchar(0xFA),
                      //
                      // 0xA1FB	0x2198	#SOUTH EAST ARROW
-                     char(0xA1),
-                     char(0xFB),
+                     test_uchar(0xA1),
+                     test_uchar(0xFB),
                      //
                      // 0xA1FC	0x2225	#PARALLEL TO
-                     char(0xA1),
-                     char(0xFC),
+                     test_uchar(0xA1),
+                     test_uchar(0xFC),
                      //
                      // 0xA1FD	0x2223	#DIVIDES
-                     char(0xA1),
-                     char(0xFD),
+                     test_uchar(0xA1),
+                     test_uchar(0xFD),
                      //
                      // 0xA1FE	0xFF0F	#FULLWIDTH SOLIDUS
-                     char(0xA1),
-                     char(0xFE),
+                     test_uchar(0xA1),
+                     test_uchar(0xFE),
                      //
                      // 0xA240	0xFF3C	#FULLWIDTH REVERSE SOLIDUS
-                     char(0xA2),
-                     char(0x40),
+                     test_uchar(0xA2),
+                     test_uchar(0x40),
                      //
                      // 0xA241	0x2215	#DIVISION SLASH
-                     char(0xA2),
-                     char(0x41),
+                     test_uchar(0xA2),
+                     test_uchar(0x41),
                      //
                      // 0xA242	0xFE68	#SMALL REVERSE SOLIDUS
-                     char(0xA2),
-                     char(0x42),
+                     test_uchar(0xA2),
+                     test_uchar(0x42),
                  },
                  L"\u300E"
                  L"\u300F"

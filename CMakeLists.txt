@@ -17,12 +17,18 @@ project(m
 
 option(disable_native_wchar_t "Disable the use of wchar_t as a native distinct type" OFF)
 
-add_compile_options(
-"$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:RELWITHDEBINFO>>:-Od>"
-)
+if (MSVC)
+    add_compile_options(/W4 /WX)
+    add_compile_options(/wd4459)        # declaration of 'foo' hides global declaration
 
-if(disable_native_wchar_t)
-    add_compile_options("/Zc:wchar_t-")
+    string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
+    if(disable_native_wchar_t)
+        add_compile_options("/Zc:wchar_t-")
+    endif()
+
+else()
+    add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas)
 endif()
 
 include(GNUInstallDirs)

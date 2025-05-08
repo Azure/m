@@ -132,7 +132,7 @@ TEST(FieldQuoterTests, TestBEL)
 
     auto q = m::csv::field_quoter(iter);
 
-    q.enquote(L"abc\007123"sv);
+    q.enquote(L"abc\u0007123"sv);
 
     EXPECT_EQ(s, L"\"abc{U+0007}123\""s);
 }

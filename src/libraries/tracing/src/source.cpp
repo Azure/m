@@ -12,10 +12,10 @@ namespace m::tracing
     source::source(m::not_null<monitor_class*>              monitor,
                    event_kind                               kind,
                    std::initializer_list<std::wstring_view> channel_names):
-        m_monitor(monitor),
-        m_multiplexor(m_monitor->get_multiplexor(channel_names)),
-        m_event_kind(kind),
-        m_channel_names(channel_names.begin(), channel_names.end())
+        m_monitor{monitor},
+        m_multiplexor{m_monitor->get_multiplexor(channel_names)},
+        m_channel_names(channel_names.begin(), channel_names.end()),
+        m_event_kind{kind}
     {}
 
     source::source(m::not_null<monitor_class*> monitor,

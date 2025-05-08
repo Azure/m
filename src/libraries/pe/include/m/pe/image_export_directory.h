@@ -64,7 +64,7 @@ namespace m
 
             template <typename SourceT>
             static image_export_directory
-            load_from(SourceT s, image_magic_t image_magic, image_data_directory const& idd)
+            load_from(SourceT s, image_magic_t /* image_magic */, image_data_directory const& idd)
             {
                 image_export_directory ied{};
 
@@ -93,18 +93,6 @@ namespace m
 template <>
 struct std::formatter<m::pe::image_export_directory, wchar_t>
 {
-    formatter()                 = default;
-    formatter(formatter const&) = default;
-    formatter(formatter&&)      = default;
-    ~formatter()                = default;
-
-    formatter&
-    operator=(formatter const& other)
-    {
-        // no state??
-        return *this;
-    }
-
     template <typename ParseContext>
     constexpr decltype(auto)
     parse(ParseContext& ctx)

@@ -5,9 +5,9 @@
 
 #include <mutex>
 
-#include <m/io/units.h>
 #include <m/byte_streams/byte_streams.h>
 #include <m/byte_streams/memory_based_byte_streams.h>
+#include <m/io/units.h>
 
 namespace m
 {
@@ -24,7 +24,7 @@ namespace m
             // memory_ro_ra_seq(std::span<std::byte const> const&);
             memory_ro_ra_seq(std::unique_ptr<std::byte[]>&&, size_t count);
             memory_ro_ra_seq(memory_ro_ra_seq const&) = delete;
-            ~memory_ro_ra_seq()                       = default;
+            virtual ~memory_ro_ra_seq()               = default;
 
         protected:
             // byte_streams::seq_in
@@ -38,7 +38,7 @@ namespace m
         private:
             std::mutex                   m_mutex;
             std::unique_ptr<std::byte[]> m_array; // for lifetime management only
-            io::position_t     m_current_position;
+            io::position_t               m_current_position;
             std::span<std::byte const>   m_span; // always use for access
         };
     } // namespace byte_streams_impl

@@ -17,18 +17,16 @@ struct utf_data_set
         m_u16le_chardata(utf16data.begin(), utf16data.end()),
         m_u32_chardata(utf32data.begin(), utf32data.end())
     {
-        m_u16be_chardata.resize(m_u16le_chardata.size());
-        for (std::size_t i = 0; i < m_u16le_chardata.size(); i++)
-        {
-            char16_t ch         = m_u16le_chardata[i];
-            char16_t ch2        = ((ch & 0xff) << 8) | ((ch >> 8) & 0xff);
-            m_u16be_chardata[i] = ch2;
-        }
+        std::ranges::transform(
+            m_u16le_chardata, std::back_inserter(m_u16be_chardata), [](char16_t ch) -> char16_t {
+                return ((ch & 0xff) << 8) | ((ch >> 8) & 0xff);
+            });
 
-        m_u8_sv    = std::u8string_view(&m_u8_chardata[0], m_u8_chardata.size());
-        m_u16le_sv = std::u16string_view(&m_u16le_chardata[0], m_u16le_chardata.size());
-        m_u16be_sv = std::u16string_view(&m_u16be_chardata[0], m_u16be_chardata.size());
-        m_u32_sv   = std::u32string_view(&m_u32_chardata[0], m_u32_chardata.size());
+
+        m_u8_sv    = std::u8string_view(m_u8_chardata.begin(), m_u8_chardata.end());
+        m_u16le_sv = std::u16string_view(m_u16le_chardata.begin(), m_u16le_chardata.end());
+        m_u16be_sv = std::u16string_view(m_u16be_chardata.begin(), m_u16be_chardata.end());
+        m_u32_sv   = std::u32string_view(m_u32_chardata.begin(), m_u32_chardata.end());
 
         m_u8_byte_data = std::as_bytes(std::span(m_u8_chardata.begin(), m_u8_chardata.end()));
         m_u16le_byte_data =

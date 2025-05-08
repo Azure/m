@@ -70,8 +70,10 @@ namespace
         // are obvious repetitions but I fear making another factoring mistake
         // which is less valuable than getting it right.
         //
+#pragma warning(suppress: 4127) // conditional expression is constant
         if (ldigits >= sdigits)
         {
+#pragma warning(suppress : 4127) // conditional expression is constant
             if (ldigits > sdigits)
             {
                 // The left type is outright larger than the sum type. Even adding
@@ -91,11 +93,13 @@ namespace
                     << ", RightType: " << typeid(RightType).name()
                     << ", and SumType: " << typeid(SumType).name();
 
+#pragma warning(suppress : 4127) // conditional expression is constant
                 if (rdigits >= sdigits)
                 {
                     //
                     // (ldigits > sdigits) && (rdigits >= sdigits)
                     //
+#pragma warning(suppress : 4127) // conditional expression is constant
                     if (rdigits > sdigits)
                     {
                         //
@@ -186,8 +190,10 @@ namespace
                     << ", RightType: " << typeid(RightType).name()
                     << ", and SumType: " << typeid(SumType).name();
 
+#pragma warning(suppress : 4127) // conditional expression is constant
                 if (rdigits >= sdigits)
                 {
+#pragma warning(suppress : 4127) // conditional expression is constant
                     if (rdigits > sdigits)
                     {
                         EXPECT_THROW(m::math::add(l_zero, r_greatest, SumType{}),
@@ -251,8 +257,10 @@ namespace
                 << ", RightType: " << typeid(RightType).name()
                 << ", and SumType: " << typeid(SumType).name();
 
+#pragma warning(suppress : 4127) // conditional expression is constant
             if (rdigits >= sdigits)
             {
+#pragma warning(suppress : 4127) // conditional expression is constant
                 if (rdigits > sdigits)
                 {
                     EXPECT_THROW(m::math::add(l_zero, r_greatest, SumType{}), std::overflow_error)

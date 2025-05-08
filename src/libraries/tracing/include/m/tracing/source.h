@@ -56,7 +56,7 @@ namespace m
                    event_kind                  kind,
                    InputIt                     channels_begin,
                    InputIt                     channels_end):
-                m_monitor(monitor), m_event_kind(kind), m_channels(channels_begin, channels_end)
+                m_monitor{monitor}, m_channels(channels_begin, channels_end), m_event_kind{kind}
             {}
 
             template <typename... Types>

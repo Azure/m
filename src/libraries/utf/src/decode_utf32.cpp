@@ -24,6 +24,7 @@ namespace
         return v1 | v2 | v3 | v4;
     }
 
+#if 0
     constexpr char32_t
     get_char32t_be(std::span<std::byte const> input, std::size_t& offset)
     {
@@ -37,6 +38,7 @@ namespace
         auto const v4 = std::to_integer<char32_t>(b1) << (CHAR_BIT * 3);
         return v1 | v2 | v3 | v4;
     }
+#endif
 } // namespace
 
 m::utf::decode_result

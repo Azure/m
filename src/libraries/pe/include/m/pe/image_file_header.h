@@ -153,18 +153,6 @@ namespace m
 template <>
 struct std::formatter<m::pe::image_file_header, wchar_t>
 {
-    formatter()                 = default;
-    formatter(formatter const&) = default;
-    formatter(formatter&&)      = default;
-    ~formatter()                = default;
-
-    formatter&
-    operator=(formatter const& other)
-    {
-        // no state??
-        return *this;
-    }
-
     template <typename ParseContext>
     constexpr decltype(auto)
     parse(ParseContext& ctx)
@@ -206,18 +194,6 @@ template <>
 struct std::formatter<m::pe::image_file_header::machine_t, wchar_t>
 {
     using machine_t = m::pe::image_file_header::machine_t;
-
-    formatter()                 = default;
-    formatter(formatter const&) = default;
-    formatter(formatter&&)      = default;
-    ~formatter()                = default;
-
-    formatter&
-    operator=(formatter const& other)
-    {
-        // no state??
-        return *this;
-    }
 
     template <typename ParseContext>
     constexpr decltype(auto)
@@ -261,18 +237,6 @@ template <>
 struct std::formatter<m::pe::image_file_header::characteristics, wchar_t>
 {
     using characteristics = m::pe::image_file_header::characteristics;
-
-    formatter()                 = default;
-    formatter(formatter const&) = default;
-    formatter(formatter&&)      = default;
-    ~formatter()                = default;
-
-    formatter&
-    operator=(formatter const& other)
-    {
-        // no state??
-        return *this;
-    }
 
     template <typename ParseContext>
     constexpr decltype(auto)

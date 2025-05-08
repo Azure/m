@@ -61,7 +61,7 @@ namespace m
 
     template <typename T, typename SourceT>
     void
-    load_into(T& v, SourceT s, io::position_t origin, std::size_t limit)
+    load_into(T& v, SourceT s, io::position_t origin, std::size_t /* limit */)
     {
         if (s->read(origin, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
             throw std::runtime_error("end of file");

@@ -36,7 +36,7 @@ namespace
             EXPECT_NE(it, end);
         }
 
-        EXPECT_THROW(auto y = m::utf::decode_utf8(it, end), m::utf::utf_invalid_encoding_error);
+        EXPECT_THROW(std::ignore = m::utf::decode_utf8(it, end), m::utf::utf_invalid_encoding_error);
     }
 } // namespace
 

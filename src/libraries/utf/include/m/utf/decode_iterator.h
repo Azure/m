@@ -32,15 +32,15 @@ namespace m
             using difference_type = ptrdiff_t;
 
             constexpr ucs_decoder_iterator(CollectionT const& c, SourceCharT):
-                m_next(std::ranges::cbegin(c)),
-                m_end(std::ranges::cend(c)),
-                m_ch{k_invalid_character}
+                m_ch{k_invalid_character},
+                m_next{std::ranges::cbegin(c)},
+                m_end{std::ranges::cend(c)}
             {
                 try_advance();
             }
 
             constexpr ucs_decoder_iterator(ucs_decoder_iterator const& other):
-                m_next(other.m_next), m_end(other.m_end), m_ch(other.m_ch)
+                m_ch{other.m_ch}, m_next{other.m_next}, m_end{other.m_end}
             {}
 
             ~ucs_decoder_iterator() = default;

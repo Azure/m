@@ -12,7 +12,7 @@
 
 m::byte_streams_impl::memory_ro_ra_seq::memory_ro_ra_seq(std::unique_ptr<std::byte[]>&& array,
                                                          size_t                         count):
-    m_current_position{}, m_array(std::move(array))
+    m_array(std::move(array)), m_current_position{}
 {
     m_span = std::span<std::byte>(m_array.get(), count);
     //

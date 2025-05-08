@@ -22,9 +22,8 @@ using namespace std::string_view_literals;
 void
 test_utf16le_byte_decode(utf_data_set const& data)
 {
-    // We'll follow the u32 data along and expect one char32_t to pop out for each one present
+    // follow the u32 data along and expect one char32_t to pop out for each one present
 
-    std::size_t decode_count{};
     std::span<std::byte const> cursor = data.m_u16le_byte_data;
 
     for (auto&& ch: data.m_u32_chardata)
@@ -33,7 +32,6 @@ test_utf16le_byte_decode(utf_data_set const& data)
         auto const retval = m::utf::decode_utf16le(cursor);
         EXPECT_EQ(retval.m_char, ch);
         cursor = cursor.subspan(retval.m_offset);
-        decode_count++;
     }
 
     EXPECT_EQ(cursor.size(), 0);

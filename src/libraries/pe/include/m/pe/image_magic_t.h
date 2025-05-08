@@ -26,19 +26,6 @@ template <>
 struct std::formatter<m::pe::image_magic_t, wchar_t>
 {
     using image_magic_t = m::pe::image_magic_t;
-
-    formatter()                 = default;
-    formatter(formatter const&) = default;
-    formatter(formatter&&)      = default;
-    ~formatter()                = default;
-
-    formatter&
-    operator=(formatter const& other)
-    {
-        // no state??
-        return *this;
-    }
-
     template <typename ParseContext>
     constexpr decltype(auto)
     parse(ParseContext& ctx)

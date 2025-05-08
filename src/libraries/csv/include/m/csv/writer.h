@@ -30,7 +30,7 @@ namespace m
             using traits_t           = TraitsT;
 
             constexpr writer(output_back_iter_t& iter) noexcept:
-                m_iter(iter), m_field_quoter(iter), m_first_field{true}, m_first_row{true}
+                m_iter{iter}, m_first_field{true}, m_first_row{true}, m_field_quoter{iter}
             {}
 
             template <typename T>

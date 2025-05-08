@@ -62,18 +62,6 @@ struct std::formatter<m::io::offset_t, wchar_t>
 {
     using offset_t = m::io::offset_t;
 
-    formatter()                 = default;
-    formatter(formatter const&) = default;
-    formatter(formatter&&)      = default;
-    ~formatter()                = default;
-
-    formatter&
-    operator=(formatter const& other)
-    {
-        // no state??
-        return *this;
-    }
-
     template <typename ParseContext>
     constexpr decltype(auto)
     parse(ParseContext& ctx)
@@ -98,20 +86,6 @@ struct std::formatter<m::io::offset_t, wchar_t>
 template <>
 struct std::formatter<m::io::position_t, wchar_t>
 {
-    using position_t = m::io::position_t;
-
-    formatter()                 = default;
-    formatter(formatter const&) = default;
-    formatter(formatter&&)      = default;
-    ~formatter()                = default;
-
-    formatter&
-    operator=(formatter const& other)
-    {
-        // no state??
-        return *this;
-    }
-
     template <typename ParseContext>
     constexpr decltype(auto)
     parse(ParseContext& ctx)
@@ -127,7 +101,7 @@ struct std::formatter<m::io::position_t, wchar_t>
 
     template <typename FormatContext>
     FormatContext::iterator
-    format(position_t p, FormatContext& ctx) const
+    format(m::io::position_t p, FormatContext& ctx) const
     {
         return std::format_to(ctx.out(), L"@{:#x}", std::to_underlying(p));
     }

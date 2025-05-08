@@ -7,8 +7,6 @@
 #include <cstdlib>
 #include <format>
 
-constexpr static size_t buffer_length = 64 * 1024;
-
 int
 main(int argc, char** argv)
 {

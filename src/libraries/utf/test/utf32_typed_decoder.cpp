@@ -33,14 +33,11 @@ verify_utf32_decode(utf_data_set const& data)
     // machinery so we are verifying that it is working.
     //
 
-    std::size_t decode_count{};
-
     for (auto&& ch: data.m_u32_chardata)
     {
         auto retval = m::utf::decode_utf32(it, end);
         EXPECT_EQ(retval.ch, ch);
         it = retval.it;
-        decode_count++;
     }
 
     EXPECT_EQ(it, end);

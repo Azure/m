@@ -172,8 +172,6 @@ namespace m
             bool
             process_option(int& index, int argc, char_t const* argv[])
             {
-                bool processed = false;
-
                 if (index >= argc)
                     throw std::runtime_error("internal error - past end of command line arguments");
 
@@ -251,7 +249,7 @@ namespace m
 
         protected:
             bool
-            do_process_option(int& index, int argc, char_t const* argv[]) override
+            do_process_option(int&, int, char_t const*[]) override
             {
                 option<char_t>::m_defaulted = false;
 
@@ -408,8 +406,6 @@ namespace m
             void
             process_parameter(int& index, int argc, char_t const* argv[])
             {
-                bool processed = false;
-
                 if (index >= argc && m_required)
                     throw std::runtime_error("too few arguments");
 
@@ -709,8 +705,8 @@ namespace m
             string_t
             usage(std::filesystem::path program)
             {
-                auto filename     = program.filename();
-                auto filename2    = m::filesystem::path_to_string(filename);
+                auto filename  = program.filename();
+                auto filename2 = m::filesystem::path_to_string(filename);
 
                 string_t buffer;
                 auto     it = std::back_inserter(buffer);
@@ -749,7 +745,7 @@ namespace m
 
         template <typename CharT>
         void
-        parse(int argc, CharT const* args[])
+        parse(int , CharT const* [])
         {
             //
             // We assume that this is the full argument set from main(), so

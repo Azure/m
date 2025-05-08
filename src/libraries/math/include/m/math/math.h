@@ -16,6 +16,7 @@
 #include <type_traits>
 
 #include <m/cast/cast.h>
+#include <m/cast/to.h>
 #include <m/cast/try_cast.h>
 #include <m/type_traits/type_traits.h>
 
@@ -289,35 +290,39 @@ namespace m
 
                 promoted_l -= that_which_remains;
 
-                return m::try_cast<ResultT>(promoted_l);
+                return m::to<ResultT>(promoted_l);
             }
 
             static constexpr ResultT
             subtract(LeftT l, RightT r)
             {
-                // Again to make the math easy even if small (16 bit) math ends
-                // up taking 64 bits, we're just going to promote everything to
-                // uintmax_t and bluster along.
-                //
-                auto promoted_l = static_cast<uintmax_t>(l);
-                auto promoted_r = static_cast<intmax_t>(r);
-
-                if (r == (std::numeric_limits<intmax_t>::min)())
+                if (r < 0)
                 {
-                    // We can't overcome this case just throw
-                    throw std::overflow_error("integer overflow");
+                    if (r == (std::numeric_limits<intmax_t>::min)())
+                    {
+                        // We can't overcome this case just throw
+                        throw std::overflow_error("integer overflow");
+                    }
+
+                    // since r is not the most negative number, and we know since we're
+                    // C++20 and later that this is 2s compliment arithmetic, we can
+                    // simply negate r to get its absolute value if it's negative.
+                    auto r_as_unsigned = static_cast<uintmax_t>(-r);
+
+                    // Let's kind of statically verify this somewhat obtusely
+                    static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
+                                  (std::numeric_limits<intmax_t>::min)());
+
+                    return safe_math_helper<LeftT, uintmax_t, ResultT>::add(l, r_as_unsigned);
                 }
 
-                // since r is not the most negative number, and we know since we're
-                // C++20 and later that this is 2s compliment arithmetic, we can
-                // simply negate r to get its absolute value if it's negative.
-                auto r_as_unsigned = static_cast<uintmax_t>((r < 0) ? (-r) : r);
+                // Plain old subtraction. r is positive, l is positive, and we require a
+                // positive answer, so if r > l, overflow.
 
-                // Let's kind of statically verify this somewhat obtusely
-                static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
-                              (std::numeric_limits<intmax_t>::min)());
+                if (static_cast<uintmax_t>(r) > static_cast<uintmax_t>(l))
+                    throw std::overflow_error("integer overflow");
 
-                return add(l, r_as_unsigned);
+                return m::to<ResultT>(static_cast<uintmax_t>(l) - static_cast<uintmax_t>(r));
             }
         };
 
@@ -396,9 +401,6 @@ namespace m
             static constexpr ResultT
             subtract(LeftT l, RightT r)
             {
-                auto promoted_l = static_cast<intmax_t>(l);
-                auto promoted_r = static_cast<uintmax_t>(r);
-
                 if (l == (std::numeric_limits<intmax_t>::min)())
                 {
                     // We can't overcome this case just throw
@@ -414,7 +416,7 @@ namespace m
                 static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
                               (std::numeric_limits<intmax_t>::min)());
 
-                return add(r, l_as_unsigned);
+                return safe_math_helper<RightT, uintmax_t, ResultT>::add(r, l_as_unsigned);
             }
         };
 
@@ -511,13 +513,6 @@ namespace m
             static constexpr ResultT
             subtract(LeftT l, RightT r)
             {
-                // Again to make the math easy even if small (16 bit) math ends
-                // up taking 64 bits, we're just going to promote everything to
-                // uintmax_t and bluster along.
-                //
-                auto promoted_l = static_cast<uintmax_t>(l);
-                auto promoted_r = static_cast<intmax_t>(r);
-
                 if (r == (std::numeric_limits<intmax_t>::min)())
                 {
                     // We can't overcome this case just throw

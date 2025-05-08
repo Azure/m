@@ -37,6 +37,7 @@ namespace m
         {
         public:
             cout_sink(m::not_null<monitor_class*> monitor);
+            virtual ~cout_sink() {}
 
             // Kind of hokey but who is responsible for registering the
             // cout based sink? This is how it's done I guess
@@ -47,15 +48,16 @@ namespace m
             on_message_disposition
             on_message(may_queue_option may_queue, envelope& env) override;
 
-            bool would_queue(envelope const&) override;
+            bool
+            would_queue(envelope const&) override;
 
             void
             close() override;
 
         private:
             message_queue                                         m_message_queue;
-            std::thread                                           m_thread;
             bool                                                  m_done;
+            std::thread                                           m_thread;
             static inline std::atomic<std::shared_ptr<cout_sink>> ms_cout_sink;
 
             void

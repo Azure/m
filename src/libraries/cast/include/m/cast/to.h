@@ -4,8 +4,7 @@
 #pragma once
 
 #include <type_traits>
-
-#include <m/math/functors.h>
+#include <utility>
 
 #include "cast.h"
 #include "try_cast.h"
@@ -89,15 +88,6 @@ namespace m
     to(TFrom v)
     {
         return m::try_cast<TTo>(v);
-    }
-
-    template <typename TTo, typename TFrom>
-        requires m::math::is_functor<TFrom>
-    TTo
-    to(TFrom const& v)
-    {
-        // Invokes the to<TTo> operation on the functor
-        return v.template to<TTo>();
     }
 
     template <typename TTo, typename TFrom>

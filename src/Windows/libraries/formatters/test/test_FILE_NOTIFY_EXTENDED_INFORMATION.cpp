@@ -92,9 +92,10 @@ constexpr testingFILE_NOTIFY_EXTENDED_INFORMATION info1 = {.NextEntryOffset = 0,
                                                            .CreationTime    = some_file_time,
                                                            .LastModificationTime = some_file_time,
                                                            .LastChangeTime       = some_file_time,
-                                                           .LastAccessTime = large_integer_zero,
-                                                           .FileSize       = large_integer_zero,
-                                                           .FileAttributes = 0,
+                                                           .LastAccessTime  = large_integer_zero,
+                                                           .AllocatedLength = large_integer_zero,
+                                                           .FileSize        = large_integer_zero,
+                                                           .FileAttributes  = 0,
                                                            .SomeUnion      = {.ReparsePointTag = 0},
                                                            .FileId         = large_integer_zero,
                                                            .ParentFileId   = large_integer_zero,
@@ -105,5 +106,7 @@ TEST(FILE_NOTIFY_EXTENDED_INFORMATION, first)
 {
     auto p = reinterpret_cast<FILE_NOTIFY_EXTENDED_INFORMATION const*>(&info1);
     auto s = std::format(L"{}", *p);
-    EXPECT_EQ(s, L"{ NextEntryOffset: 0, Action: FILE_ACTION_ADDED, CreationTime: { Su 2043-05-31 11:40:11.040 }, LastModificationTime: { Su 2043-05-31 11:40:11.040 }, LastChangeTime: { Su 2043-05-31 11:40:11.040 }, LastAccessTime: { Mo 1601-01-01 00:00:00.000 }, AllocatedLength: 0, FileSize: 0, FileAttributes: 0, ReparsePointTag: 0, FileId: 0, ParentFileId: 0, FileName: \"README.TXT\" }"s);
+    EXPECT_EQ(
+        s,
+        L"{ NextEntryOffset: 0, Action: FILE_ACTION_ADDED, CreationTime: { Su 2043-05-31 11:40:11.040 }, LastModificationTime: { Su 2043-05-31 11:40:11.040 }, LastChangeTime: { Su 2043-05-31 11:40:11.040 }, LastAccessTime: { Mo 1601-01-01 00:00:00.000 }, AllocatedLength: 0, FileSize: 0, FileAttributes: 0, ReparsePointTag: 0, FileId: 0, ParentFileId: 0, FileName: \"README.TXT\" }"s);
 }

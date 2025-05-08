@@ -22,7 +22,7 @@ namespace impl
         auto i = ::WideCharToMultiByte(std::to_underlying(cp),
                                        WC_NO_BEST_FIT_CHARS,
                                        reinterpret_cast<wchar_t const*>(view.data()),
-                                       view.size(),
+                                       m::to<int>(view.size()),
                                        nullptr,
                                        0,
                                        nullptr,  // lpDefaultChar
@@ -42,9 +42,9 @@ namespace impl
         auto i = ::WideCharToMultiByte(std::to_underlying(cp),
                                        WC_NO_BEST_FIT_CHARS,
                                        reinterpret_cast<wchar_t const*>(view.data()),
-                                       view.size(),
+                                       m::to<int>(view.size()),
                                        buffer.data(),
-                                       buffer.size(),
+                                       m::to<int>(buffer.size()),
                                        nullptr,  // lpDefaultChar
                                        nullptr); // lpUsedDefaultChar
         if (i < 1)
@@ -192,7 +192,7 @@ m::to_string(m::multi_byte::code_page cp, std::wstring_view view)
 }
 
 void
-m::to_string(m::multi_byte::code_page cp, std::u8string_view view, std::string& str)
+m::to_string(m::multi_byte::code_page /* cp*/, std::u8string_view /* view*/, std::string& str)
 {
     str.erase();
     throw std::runtime_error("not yet implemented");
@@ -223,7 +223,7 @@ m::to_string(m::multi_byte::code_page cp, std::u16string_view view)
 }
 
 void
-m::to_string(m::multi_byte::code_page cp, std::u32string_view view, std::string& str)
+m::to_string(m::multi_byte::code_page, std::u32string_view, std::string& str)
 {
     str.erase();
     throw std::runtime_error("not yet implemented");
@@ -237,6 +237,3 @@ m::to_string(m::multi_byte::code_page cp, std::u32string_view view)
     to_string(cp, view, str);
     return str;
 }
-
-
-

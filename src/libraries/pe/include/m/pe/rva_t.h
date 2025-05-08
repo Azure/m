@@ -40,20 +40,6 @@ M_INTEGER_OPERATIONS_MINUSES_NODECAY(m::pe::rva_t, m::pe::rva_t, m::pe::offset_t
 template <>
 struct std::formatter<m::pe::rva_t, wchar_t>
 {
-    using rva_t = m::pe::rva_t;
-
-    formatter()                 = default;
-    formatter(formatter const&) = default;
-    formatter(formatter&&)      = default;
-    ~formatter()                = default;
-
-    formatter&
-    operator=(formatter const& other)
-    {
-        // no state??
-        return *this;
-    }
-
     template <typename ParseContext>
     constexpr decltype(auto)
     parse(ParseContext& ctx)
@@ -69,7 +55,7 @@ struct std::formatter<m::pe::rva_t, wchar_t>
 
     template <typename FormatContext>
     FormatContext::iterator
-    format(rva_t rva, FormatContext& ctx) const
+    format(m::pe::rva_t rva, FormatContext& ctx) const
     {
         return std::format_to(ctx.out(), L"{{ RVA {:#x} }}", std::to_underlying(rva));
     }

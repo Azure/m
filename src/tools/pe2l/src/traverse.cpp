@@ -40,13 +40,11 @@ downcase(std::wstring_view v)
     std::ranges::for_each(v, [&](wchar_t wch) {
         if (wch <= (std::numeric_limits<unsigned char>::max)())
         {
-            *it = std::tolower(static_cast<unsigned char>(wch));
-            ++it;
+            *it++ = static_cast<wchar_t>(std::tolower(static_cast<unsigned char>(wch)));
         }
         else
         {
-            *it = wch;
-            ++it;
+            *it++ = wch;
         }
     });
 

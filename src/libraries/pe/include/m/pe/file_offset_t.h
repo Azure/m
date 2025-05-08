@@ -39,20 +39,6 @@ operator+(m::io::position_t l, m::pe::file_offset_t r)
 template <>
 struct std::formatter<m::pe::file_offset_t, wchar_t>
 {
-    using file_offset_t = m::pe::file_offset_t;
-
-    formatter()                 = default;
-    formatter(formatter const&) = default;
-    formatter(formatter&&)      = default;
-    ~formatter()                = default;
-
-    formatter&
-    operator=(formatter const& other)
-    {
-        // no state??
-        return *this;
-    }
-
     template <typename ParseContext>
     constexpr decltype(auto)
     parse(ParseContext& ctx)
@@ -68,7 +54,7 @@ struct std::formatter<m::pe::file_offset_t, wchar_t>
 
     template <typename FormatContext>
     FormatContext::iterator
-    format(file_offset_t fo, FormatContext& ctx) const
+    format(m::pe::file_offset_t fo, FormatContext& ctx) const
     {
         return std::format_to(ctx.out(), L"{{ OFF {:#x} }}", std::to_underlying(fo));
     }

@@ -52,7 +52,6 @@ namespace m
             void
             format_log(FormatStringT&& fmt, FormatArgsT format_args)
             {
-                using array_t    = decltype(m_chars);
                 auto       it    = safe_array_iterator(m_chars, 0);
                 auto       endit = std::vformat_to(it, fmt.get(), format_args);
                 auto const diff  = &*endit - &*it;

@@ -99,8 +99,13 @@ namespace m
             if constexpr (std::numeric_limits<ToType>::digits <
                           std::numeric_limits<FromType>::digits)
             {
-                if (v > (std::numeric_limits<ToType>::max)())
+                // The representation of ToType is smaller than FromType, so
+                // its max value is representable in FromType, which is
+                // unsigned.
+                if (v > static_cast<FromType>((std::numeric_limits<ToType>::max)()))
                     throw std::overflow_error("v");
+
+                // Otherwise there is no opportunity for overflow
             }
 
             return static_cast<ToType>(v);

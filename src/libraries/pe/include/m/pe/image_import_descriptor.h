@@ -97,10 +97,10 @@ namespace m
                 lfrc.load_into(iid.m_import_address_table,
                                base_offset + k_offset_import_address_table);
 
-                if (iid.m_name != 0)
+                if (iid.m_name != m::pe::rva_t{0})
                     iid.m_name_string = s->load_ascii(iid.m_name);
 
-                if (iid.m_import_name_table != 0)
+                if (iid.m_import_name_table != m::pe::rva_t{0})
                 {
                     switch (image_magic)
                     {

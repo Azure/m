@@ -133,7 +133,7 @@ m::filesystem_impl::seekable_input_file::seek_to(io::position_t p)
     // ("long" is relevant here because it's the "offset" parameter to std::fseek().)
     //
 
-    if (p < std::numeric_limits<long>::max())
+    if (p < (std::numeric_limits<long>::max)())
     {
         // The simple case.
         seek(m::to<long>(std::to_underlying(p)), SEEK_SET);
@@ -145,10 +145,10 @@ m::filesystem_impl::seekable_input_file::seek_to(io::position_t p)
     {
         long offset{};
 
-        if (p < std::numeric_limits<long>::max())
+        if (p < (std::numeric_limits<long>::max)())
             offset = m::to<long>(std::to_underlying(p));
         else
-            offset = std::numeric_limits<long>::max();
+            offset = (std::numeric_limits<long>::max)();
 
         seek(offset, SEEK_CUR);
 

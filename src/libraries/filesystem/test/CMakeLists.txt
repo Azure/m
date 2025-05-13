@@ -4,6 +4,7 @@ if(M_BUILD_TESTS)
     include(GoogleTest)
 
     add_executable(test_filesystem
+        exercise_path_casts.cpp
         exercise_store.cpp
     )
 

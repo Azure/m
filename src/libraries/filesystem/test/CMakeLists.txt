@@ -5,6 +5,7 @@ if(M_BUILD_TESTS)
 
     add_executable(test_filesystem
         exercise_path_casts.cpp
+        exercise_path_formatting.cpp
         exercise_store.cpp
     )
 

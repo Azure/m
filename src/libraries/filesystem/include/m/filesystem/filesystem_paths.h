@@ -8,6 +8,8 @@
 
 #include <m/cast/to.h>
 #include <m/strings/convert.h>
+#include <m/utf/decode.h>
+#include <m/utf/encode.h>
 
 //
 // The filesystem paths are platform specific so it's more or less required
@@ -147,12 +149,59 @@ namespace m
     } // namespace details
 
     template <typename TTo, typename TFrom>
-        requires std::is_same_v<std::remove_cvref_t<TFrom>, std::filesystem::path>
+        requires std::is_same_v<TFrom, std::filesystem::path>
     TTo
     to(TFrom const& from)
     {
-        auto c_str = from.c_str();
-        return details::FilesystemPathCastHelper<TTo>::do_to(c_str);
+        auto const native = from.native();
+        return details::FilesystemPathCastHelper<TTo>::do_to(native);
     }
 
 } // namespace m
+
+//
+// For the std::formatter<> specialization, we have specific capability to
+// disable via a macro since it's possible that at some point an overload
+// could be provided by someone else (both std::formatter and
+// std::filesystem::path are not in our namespace; we are only providing
+// this as a convenience) and we should back off.
+//
+#ifndef M_DISABLE_FILESYSTEM_PATH_FORMATTER
+
+template <typename TChar>
+struct std::formatter<std::filesystem::path, TChar>
+{
+    template <typename ParseContext>
+    constexpr decltype(auto)
+    parse(ParseContext& ctx)
+    {
+        auto       it  = ctx.begin();
+        auto const end = ctx.end();
+
+        if (it != end && *it != '}')
+            throw std::format_error("Invalid format string");
+
+        return it;
+    }
+
+    template <typename FormatContext>
+    FormatContext::iterator
+    format(std::filesystem::path const& p, FormatContext& ctx) const
+    {
+        auto out    = ctx.out();
+        auto native = p.native();
+        auto it     = native.cbegin();
+        auto end    = native.cend();
+
+        while (it != end)
+        {
+            auto [newit, ch] = m::utf::decode_utf(std::filesystem::path::value_type{}, it, end);
+            out              = m::utf::encode_char(TChar{}, ch, out);
+            it               = newit;
+        }
+
+        return out;
+    }
+};
+
+#endif

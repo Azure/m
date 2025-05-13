@@ -10,10 +10,10 @@ namespace m
 {
     namespace utf
     {
-        template <typename OutIter, typename ByteT = std::iterator_traits<OutIter>::value_type>
-            requires(sizeof(ByteT) == 1) && std::output_iterator<OutIter, ByteT>
-        constexpr OutIter
-        encode_utf8(char32_t ch, OutIter it)
+        template <typename OutIterT, typename ByteT = std::iterator_traits<OutIterT>::value_type>
+            requires(sizeof(ByteT) == 1) && std::output_iterator<OutIterT, ByteT>
+        constexpr OutIterT
+        encode_utf8(char32_t ch, OutIterT it)
         {
             if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
@@ -24,47 +24,67 @@ namespace m
             }
             else if (ch < 0x00000800)
             {
-                *it++ = static_cast<ByteT>(std::byte{0xc0} | static_cast<std::byte>((ch >> 6) & 0x1f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0xc0} | static_cast<std::byte>((ch >> 6) & 0x1f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
             }
             else if (ch < 0x00010000)
             {
-                *it++ = static_cast<ByteT>(std::byte{0xe0} | static_cast<std::byte>((ch >> 12) & 0x0f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 6) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0xe0} | static_cast<std::byte>((ch >> 12) & 0x0f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 6) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
             }
             else if (ch < 0x00200000)
             {
-                *it++ = static_cast<ByteT>(std::byte{0xf0} | static_cast<std::byte>((ch >> 18) & 0x07));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 12) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 6) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0xf0} | static_cast<std::byte>((ch >> 18) & 0x07));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 12) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 6) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
             }
             else if (ch < 0x04000000)
             {
-                *it++ = static_cast<ByteT>(std::byte{0xf8} | static_cast<std::byte>((ch >> 24) & 0x03));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 18) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 12) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 6) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0xf8} | static_cast<std::byte>((ch >> 24) & 0x03));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 18) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 12) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 6) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
             }
             else
             {
-                *it++ = static_cast<ByteT>(std::byte{0xfc} | static_cast<std::byte>((ch >> 30) & 0x01));
-                *it++ = static_cast<ByteT>(std::byte{0xf8} | static_cast<std::byte>((ch >> 24) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 18) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 12) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 6) & 0x3f));
-                *it++ = static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0xfc} | static_cast<std::byte>((ch >> 30) & 0x01));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0xf8} | static_cast<std::byte>((ch >> 24) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 18) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 12) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 6) & 0x3f));
+                *it++ =
+                    static_cast<ByteT>(std::byte{0x80} | static_cast<std::byte>((ch >> 0) & 0x3f));
             }
 
             return it;
         }
 
-        template <typename OutIter, typename ByteT = std::iterator_traits<OutIter>::value_type>
-            requires std::output_iterator<OutIter, ByteT>
-        constexpr OutIter
-        encode_utf8(char32_t ch, OutIter it)
+        template <typename OutIterT, typename ByteT = std::iterator_traits<OutIterT>::value_type>
+            requires std::weakly_incrementable<OutIterT> // && std::output_iterator<OutIterT, ByteT>
+        constexpr OutIterT
+        encode_utf8(char32_t ch, OutIterT it)
         {
             if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
@@ -113,12 +133,12 @@ namespace m
         }
 
         // crazy signature to enable selection via overload. First parameter not used.
-        template <typename ByteT, typename OutIter>
-            requires std::output_iterator<OutIter, ByteT>
-        constexpr OutIter
-        encode_utf8(ByteT, char32_t ch, OutIter it)
+        template <typename ByteT, typename OutIterT>
+            requires std::output_iterator<OutIterT, ByteT>
+        constexpr OutIterT
+        encode_utf8(ByteT, char32_t ch, OutIterT it)
         {
-            return encode_utf8<OutIter, ByteT>(ch, it);
+            return encode_utf8<OutIterT, ByteT>(ch, it);
         }
 
         template <typename UtcCharT>
@@ -146,30 +166,30 @@ namespace m
             return compute_encoded_utf8_size(ch);
         }
 
-        template <typename OutIter, typename ByteT = std::iterator_traits<OutIter>::value_type>
-            requires(sizeof(ByteT) == 1) && std::output_iterator<OutIter, ByteT>
-        constexpr OutIter
-        write_uint16_be(uint16_t v, OutIter it)
+        template <typename OutIterT, typename ByteT = std::iterator_traits<OutIterT>::value_type>
+            requires(sizeof(ByteT) == 1) // && std::output_iterator<OutIterT, ByteT>
+        constexpr OutIterT
+        write_uint16_be(uint16_t v, OutIterT it)
         {
             *it++ = static_cast<ByteT>(static_cast<uint8_t>((v >> 8) & 0xffu));
             *it++ = static_cast<ByteT>(static_cast<uint8_t>((v >> 0) & 0xffu));
             return it;
         }
 
-        template <typename OutIter, typename ByteT = std::iterator_traits<OutIter>::value_type>
-            requires(sizeof(ByteT) == 1) && std::output_iterator<OutIter, ByteT>
-        constexpr OutIter
-        write_uint16_le(uint16_t v, OutIter it)
+        template <typename OutIterT, typename ByteT = std::iterator_traits<OutIterT>::value_type>
+            requires(sizeof(ByteT) == 1) // && std::output_iterator<OutIterT, ByteT>
+        constexpr OutIterT
+        write_uint16_le(uint16_t v, OutIterT it)
         {
             *it++ = static_cast<ByteT>(static_cast<uint8_t>((v >> 0) & 0xffu));
             *it++ = static_cast<ByteT>(static_cast<uint8_t>((v >> 8) & 0xffu));
             return it;
         }
 
-        template <typename OutIter, typename ByteT = std::iterator_traits<OutIter>::value_type>
-            requires(sizeof(ByteT) == 1) && std::output_iterator<OutIter, ByteT>
-        constexpr OutIter
-        encode_utf16le(char32_t ch, OutIter it)
+        template <typename OutIterT, typename ByteT = std::iterator_traits<OutIterT>::value_type>
+            requires std::is_integral_v<ByteT> && (!std::is_same_v<ByteT, bool>) && (sizeof(ByteT) == 1) &&
+                     std::weakly_incrementable<OutIterT> // && std::output_iterator<OutIterT, ByteT>
+        constexpr OutIterT encode_utf16le(char32_t ch, OutIterT it)
         {
             if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
@@ -187,10 +207,10 @@ namespace m
             return it;
         }
 
-        template <typename OutIter, typename WordT = std::iterator_traits<OutIter>::value_type>
-            requires std::is_integral_v<WordT> &&
-                     (sizeof(WordT) == 2) && std::output_iterator<OutIter, WordT>
-        constexpr OutIter encode_utf16(char32_t ch, OutIter it)
+        template <typename OutIterT, typename WordT = std::iterator_traits<OutIterT>::value_type>
+            requires std::is_integral_v<WordT> && (sizeof(WordT) == 2) &&
+                     std::weakly_incrementable<OutIterT> // && std::output_iterator<OutIterT, WordT>
+        constexpr OutIterT encode_utf16(char32_t ch, OutIterT it)
         {
             if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
@@ -208,12 +228,12 @@ namespace m
             return it;
         }
 
-        template <typename WordT, typename OutIter>
+        template <typename WordT, typename OutIterT>
             requires std::is_integral_v<WordT> &&
-                     (sizeof(WordT) == 2) && std::output_iterator<OutIter, WordT>
-        constexpr OutIter encode_utf16(WordT, char32_t ch, OutIter it)
+                     (sizeof(WordT) == 2) && std::output_iterator<OutIterT, WordT>
+        constexpr OutIterT encode_utf16(WordT, char32_t ch, OutIterT it)
         {
-            return encode_utf16<OutIter, WordT>(ch, it);
+            return encode_utf16<OutIterT, WordT>(ch, it);
         }
 
         constexpr std::size_t
@@ -246,10 +266,10 @@ namespace m
             return compute_encoded_utf16_bytes(ch);
         }
 
-        template <typename OutIter, typename ByteT = std::iterator_traits<OutIter>::value_type>
-            requires std::output_iterator<OutIter, ByteT>
-        constexpr OutIter
-        encode_utf16be(char32_t ch, OutIter it)
+        template <typename OutIterT, typename ByteT = std::iterator_traits<OutIterT>::value_type>
+            requires std::output_iterator<OutIterT, ByteT>
+        constexpr OutIterT
+        encode_utf16be(char32_t ch, OutIterT it)
         {
             if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
@@ -279,10 +299,10 @@ namespace m
             return compute_encoded_utf16_count(ch);
         }
 
-        template <typename OutIter, typename ByteT = std::iterator_traits<OutIter>::value_type>
-            requires std::output_iterator<OutIter, ByteT>
-        constexpr OutIter
-        encode_utf32le(char32_t ch, OutIter it)
+        template <typename OutIterT, typename ByteT = std::iterator_traits<OutIterT>::value_type>
+            requires std::output_iterator<OutIterT, ByteT>
+        constexpr OutIterT
+        encode_utf32le(char32_t ch, OutIterT it)
         {
             if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
@@ -295,10 +315,10 @@ namespace m
             return it;
         }
 
-        template <typename OutIter, typename DwordT = std::iterator_traits<OutIter>::value_type>
+        template <typename OutIterT, typename DwordT = std::iterator_traits<OutIterT>::value_type>
             requires std::is_integral_v<DwordT> &&
-                     (sizeof(DwordT) == 4) && std::output_iterator<OutIter, DwordT>
-        constexpr OutIter encode_utf32(char32_t ch, OutIter it)
+                     (sizeof(DwordT) == 4) && std::output_iterator<OutIterT, DwordT>
+        constexpr OutIterT encode_utf32(char32_t ch, OutIterT it)
         {
             if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
@@ -308,12 +328,12 @@ namespace m
             return it;
         }
 
-        template <typename DwordT, typename OutIter>
+        template <typename DwordT, typename OutIterT>
             requires std::is_integral_v<DwordT> &&
-                     (sizeof(DwordT) == 4) && std::output_iterator<OutIter, DwordT>
-        constexpr OutIter encode_utf32(DwordT, char32_t ch, OutIter it)
+                     (sizeof(DwordT) == 4) && std::output_iterator<OutIterT, DwordT>
+        constexpr OutIterT encode_utf32(DwordT, char32_t ch, OutIterT it)
         {
-            return encode_utf32<OutIter, DwordT>(ch, it);
+            return encode_utf32<OutIterT, DwordT>(ch, it);
         }
 
         constexpr std::size_t

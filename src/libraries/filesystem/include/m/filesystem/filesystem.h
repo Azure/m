@@ -17,6 +17,7 @@
 #include <m/byte_streams/byte_streams.h>
 
 #include "filesystem_loadstore.h"
+#include "filesystem_monitor.h"
 #include "filesystem_objects.h"
 #include "filesystem_paths.h"
 

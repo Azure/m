@@ -80,3 +80,15 @@ m::get_last_win32_error()
     return std::error_code(static_cast<int>(get_last_error_as_hresult()), m::hresult_category());
 }
 
+std::error_code
+m::make_win32_error_code(DWORD win32_error_code)
+{
+    return std::error_code(static_cast<int>(HRESULT_FROM_WIN32(win32_error_code)),
+                           m::hresult_category());
+}
+
+std::error_code
+m::make_hresult_error_code(HRESULT hr)
+{
+    return std::error_code(static_cast<int>(hr), m::hresult_category());
+}

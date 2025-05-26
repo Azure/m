@@ -7,7 +7,7 @@ target_sources(m_filesystem PRIVATE
     path_conversions.cpp
     seekable_input_file.cpp
     seekable_output_file.cpp
-)
+ "monitor.cpp")
 
 if(WIN32)
     target_sources(m_filesystem PRIVATE
@@ -37,6 +37,11 @@ else()
 
 endif()
 
+# Include platform-specific code
+add_subdirectory(platforms)
+
 target_include_directories(m_filesystem PUBLIC
     ../include
 )
+
+set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

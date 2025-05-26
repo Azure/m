@@ -44,6 +44,21 @@ namespace m
         std::filesystem::path
         make_path(std::u32string_view v);
 
+        std::filesystem::path
+        make_path(std::filesystem::path const&, std::string_view v);
+
+        std::filesystem::path
+        make_path(std::filesystem::path const&, std::wstring_view v);
+
+        std::filesystem::path
+        make_path(std::filesystem::path const&, std::u8string_view v);
+
+        std::filesystem::path
+        make_path(std::filesystem::path const&, std::u16string_view v);
+
+        std::filesystem::path
+        make_path(std::filesystem::path const&, std::u32string_view v);
+
         //
         // Note that on Windows, char based access to paths uses a character
         // encoding that is lossy and may lose some Unicode characters.

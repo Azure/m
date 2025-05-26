@@ -99,6 +99,11 @@ namespace m
     std::error_code
     get_last_win32_error();
 
+    std::error_code
+    make_win32_error_code(DWORD win32_error_code);
+
+    std::error_code
+    make_hresult_error_code(HRESULT hr);
 } // namespace m
 
 

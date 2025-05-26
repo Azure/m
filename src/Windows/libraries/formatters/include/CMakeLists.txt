@@ -9,3 +9,5 @@ target_sources(m_formatters PUBLIC FILE_SET HEADERS FILES
     m/formatters/OVERLAPPED.h
     m/formatters/Win32ErrorCode.h
 )
+
+set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

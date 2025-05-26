@@ -4,14 +4,15 @@ if(M_BUILD_TESTS)
     include(GoogleTest)
 
     add_executable(test_filesystem
+        exercise_monitor.cpp
         exercise_path_casts.cpp
         exercise_path_formatting.cpp
         exercise_store.cpp
     )
 
-    target_link_libraries(
-        test_filesystem
+    target_link_libraries(test_filesystem
         m_filesystem
+        m_googletest
         GTest::gtest_main
     )
 

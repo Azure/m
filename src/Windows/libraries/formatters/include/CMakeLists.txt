@@ -5,6 +5,7 @@ target_sources(m_formatters PUBLIC FILE_SET HEADERS FILES
     m/formatters/FILE_ACTION.h
     m/formatters/FILE_NOTIFY_EXTENDED_INFORMATION.h
     m/formatters/FILE_NOTIFY_INFORMATION.h
+    m/formatters/HRESULT.h
     m/formatters/NTSTATUS.h
     m/formatters/OVERLAPPED.h
     m/formatters/Win32ErrorCode.h

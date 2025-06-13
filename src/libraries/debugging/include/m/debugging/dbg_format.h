@@ -13,11 +13,19 @@
 #include <ranges>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 
 #include <m/utility/zstring.h>
 
+#ifdef WIN32
+
+#undef NOMINMAX
+#define NOMINMAX
+
 #include <Windows.h>
+
+#endif
 
 using namespace std::string_literals;
 
@@ -25,6 +33,34 @@ namespace m
 {
     namespace dbg_format_details
     {
+#ifdef WIN32
+        inline void
+        write_to_debugger(char const* str)
+        {
+            ::OutputDebugStringA(str);
+        }
+
+        inline void
+        write_to_debugger(wchar_t const* str)
+        {
+            ::OutputDebugStringW(str);
+        }
+
+#else
+        inline void
+        write_to_debugger(char const* str)
+        {
+            std::ignore = str;
+        }
+
+        inline void
+        write_to_debugger(wchar_t const* str)
+        {
+            std::ignore = str;
+        }
+
+#endif
+
         inline std::atomic<uint64_t> g_dbg_format_stdout_message_count;
 
         inline bool
@@ -86,10 +122,7 @@ namespace m
                                 long_line_suffix.size() + 1,
                                 &_buffer->_array[_index + 1]);
 
-                    if constexpr (std::is_same_v<CharT, wchar_t>)
-                        ::OutputDebugStringW(&_buffer->_array[0]);
-                    else
-                        ::OutputDebugStringA(&_buffer->_array[0]);
+                    write_to_debugger(&_buffer->_array[0]);
 
                     _index = 0;
                 }
@@ -112,10 +145,7 @@ namespace m
                                 long_line_suffix.size() + 1,
                                 &_buffer->_array[_index]);
 
-                    if constexpr (std::is_same_v<CharT, wchar_t>)
-                        ::OutputDebugStringW(&_buffer->_array[0]);
-                    else
-                        ::OutputDebugStringA(&_buffer->_array[0]);
+                    write_to_debugger(&_buffer->_array[0]);
 
                     if (dbg_format_details::try_allocate_std_out_message())
                     {
@@ -182,9 +212,8 @@ namespace m
 
     } // namespace dbg_format_details
 
-    template <typename CharT>
-    void
-    dbg_format_v(std::basic_string_view<CharT> fmt, const std::format_args args)
+    inline void
+    dbg_format_v(std::string_view fmt, const std::format_args args)
     {
         dbg_format_details::output_debug_string_buffer<char, 512> buffer;
         auto                                                      iter = buffer.begin();
@@ -192,15 +221,14 @@ namespace m
         iter    = std::vformat_to(iter, fmt, args);
         *iter++ = 0;
 
-        OutputDebugStringA(buffer.data());
-        OutputDebugStringA("\n");
+        dbg_format_details::write_to_debugger(buffer.data());
+        dbg_format_details::write_to_debugger("\n");
 
         if (dbg_format_details::try_allocate_std_out_message())
             std::cout << buffer.data() << '\n';
     }
 
-    template <int = 0>
-    void
+    inline void
     dbg_format_v(std::wstring_view fmt, const std::wformat_args args)
     {
         dbg_format_details::output_debug_string_buffer<wchar_t, 512> buffer;
@@ -209,8 +237,8 @@ namespace m
         iter    = std::vformat_to(iter, fmt, args);
         *iter++ = 0;
 
-        OutputDebugStringW(buffer.data());
-        OutputDebugStringW(L"\n");
+        dbg_format_details::write_to_debugger(buffer.data());
+        dbg_format_details::write_to_debugger(L"\n");
 
         if (dbg_format_details::try_allocate_std_out_message())
             std::wcout << buffer.data() << L'\n';
@@ -244,8 +272,8 @@ namespace m
             iter    = std::vformat_to(iter, fmt.get(), formatArgs);
             *iter++ = 0;
 
-            OutputDebugStringA(buffer.data());
-            OutputDebugStringA("\n");
+            dbg_format_details::write_to_debugger(buffer.data());
+            dbg_format_details::write_to_debugger("\n");
 
             if (dbg_format_details::try_allocate_std_out_message())
                 std::cout << buffer.data() << '\n';
@@ -260,8 +288,8 @@ namespace m
             iter    = std::vformat_to(iter, fmt.get(), formatArgs);
             *iter++ = L'\0';
 
-            OutputDebugStringW(buffer.data());
-            OutputDebugStringW(L"\n");
+            dbg_format_details::write_to_debugger(buffer.data());
+            dbg_format_details::write_to_debugger(L"\n");
 
             if (dbg_format_details::try_allocate_std_out_message())
                 std::wcout << buffer.data() << L'\n';

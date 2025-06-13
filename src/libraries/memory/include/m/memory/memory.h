@@ -116,8 +116,5 @@ namespace m
         }
     }
 
-    namespace memory
-    {
-        //
-    }
 } // namespace m
+

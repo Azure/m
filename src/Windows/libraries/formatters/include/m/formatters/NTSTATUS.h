@@ -60,6 +60,17 @@ struct std::formatter<fmtNTSTATUS, CharT>
                 return std::ranges::copy(L"STATUS_INVALID_PARAMETER"sv, out).out;
         }
 
-        return std::format_to(out, L"0x{:08x}", s);
+        if constexpr (std::is_same_v<CharT, char>)
+        {
+            return std::format_to(out, "0x{:08x}", static_cast<unsigned long>(s));
+        }
+        else if constexpr (std::is_same_v<CharT, wchar_t>)
+        {
+            return std::format_to(out, L"0x{:08x}", static_cast<unsigned long>(s));
+        }
+        else
+        {
+            throw std::runtime_error("Bad CharT");
+        }
     }
 };

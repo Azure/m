@@ -193,9 +193,10 @@ namespace m
         *iter++ = 0;
 
         OutputDebugStringA(buffer.data());
+        OutputDebugStringA("\n");
 
         if (dbg_format_details::try_allocate_std_out_message())
-            std::cout << buffer.data();
+            std::cout << buffer.data() << '\n';
     }
 
     template <int = 0>
@@ -209,9 +210,10 @@ namespace m
         *iter++ = 0;
 
         OutputDebugStringW(buffer.data());
+        OutputDebugStringW(L"\n");
 
         if (dbg_format_details::try_allocate_std_out_message())
-            std::wcout << buffer.data();
+            std::wcout << buffer.data() << L'\n';
     }
 
     template <typename... Types>
@@ -243,9 +245,10 @@ namespace m
             *iter++ = 0;
 
             OutputDebugStringA(buffer.data());
+            OutputDebugStringA("\n");
 
             if (dbg_format_details::try_allocate_std_out_message())
-                std::cout << buffer.data();
+                std::cout << buffer.data() << '\n';
         }
         else
         {
@@ -258,9 +261,10 @@ namespace m
             *iter++ = L'\0';
 
             OutputDebugStringW(buffer.data());
+            OutputDebugStringW(L"\n");
 
             if (dbg_format_details::try_allocate_std_out_message())
-                std::wcout << buffer.data();
+                std::wcout << buffer.data() << L'\n';
         }
     }
 } // namespace m

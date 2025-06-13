@@ -6,6 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <latch>
 #include <span>
 #include <string_view>
 
@@ -177,3 +178,27 @@ TEST(Timer, Wait100msTwice)
             << "; deltaratio = " << deltaratio << "]" << std::endl;
     }
 }
+
+TEST(Timer, EnsureDestructionDelayed)
+{
+    std::latch        started(2);
+    std::atomic<bool> ran{false};
+
+    auto t1 = m::threadpool->create_timer([&]() {
+        started.arrive_and_wait();
+        std::this_thread::sleep_for(250ms);
+        ran.store(true, std::memory_order_release);
+        ran.notify_all();
+    });
+
+    EXPECT_EQ(ran, false);
+    t1->set(0s);
+    EXPECT_EQ(ran, false);
+    // Wait until we know that the other thread is in the timer before 
+    // we release the last reference on the smart pointer otherwise
+    // we could release the pointer before the timer even launches.
+    started.arrive_and_wait();
+    t1.reset();
+    EXPECT_EQ(ran, true);
+}
+

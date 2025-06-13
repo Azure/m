@@ -13,7 +13,7 @@ namespace m
     template <typename CharT, std::size_t Extent = std::dynamic_extent>
     using basic_zstring = CharT*;
 
-    using czstring = basic_zstring<char const , std::dynamic_extent>;
+    using czstring = basic_zstring<char const, std::dynamic_extent>;
 
     using cwzstring = basic_zstring<wchar_t const, std::dynamic_extent>;
 

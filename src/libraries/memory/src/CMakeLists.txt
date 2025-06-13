@@ -12,3 +12,6 @@ target_link_libraries(m_memory PUBLIC
     m_block_buffer
     m_math
 )
+
+
+set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

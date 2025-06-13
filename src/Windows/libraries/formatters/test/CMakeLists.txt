@@ -8,6 +8,7 @@ if(M_BUILD_TESTS)
         test_FILE_ACTION.cpp
         test_FILE_NOTIFY_EXTENDED_INFORMATION.cpp
         test_FILE_NOTIFY_INFORMATION.cpp
+        test_HRESULT.cpp
         test_NTSTATUS.cpp
         test_OVERLAPPED.cpp
         test_Win32ErrorCode.cpp

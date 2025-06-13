@@ -11,6 +11,7 @@ if(M_BUILD_TESTS)
     )
 
     target_link_libraries(test_filesystem
+        m_debugging
         m_filesystem
         m_googletest
         GTest::gtest_main

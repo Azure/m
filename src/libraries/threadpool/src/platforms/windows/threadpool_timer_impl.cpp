@@ -1,9 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <chrono>
 #include <variant>
 
+#include <m/debugging/dbg_format.h>
+
 #include "threadpool_timer_impl.h"
+
+using namespace std::chrono_literals;
 
 m::threadpool_impl::timer::timer(m::threadpool_impl::timer::task_type&& task):
     m_task(std::move(task))
@@ -14,7 +19,11 @@ m::threadpool_impl::timer::timer(m::threadpool_impl::timer::task_type&& task):
 m::threadpool_impl::timer::~timer()
 {
     if (auto timer = std::exchange(m_timer, nullptr); timer != nullptr)
+    {
+        ::SetThreadpoolTimer(timer, nullptr, 0, 0);
+        ::WaitForThreadpoolTimerCallbacks(timer, TRUE);
         ::CloseThreadpoolTimer(timer);
+    }
 }
 
 bool
@@ -27,8 +36,7 @@ m::threadpool_impl::timer::do_cancel_requested()
 bool
 m::threadpool_impl::timer::do_done()
 {
-    auto l = std::unique_lock(m_mutex);
-    return m_done;
+    return m_done.load(std::memory_order_acquire);
 }
 
 void
@@ -45,6 +53,7 @@ m::threadpool_impl::timer::do_set(duration dur)
     auto l = std::unique_lock(m_mutex);
 
     m_duration = dur;
+    m_done.store(false, std::memory_order_release);
     m_task.reset();
 
     set_threadpool_timer_ex_parameters parameters;
@@ -65,28 +74,26 @@ m::threadpool_impl::timer::compute_timer_times(duration                         
     parameters.m_ms_period                         = 0;
     parameters.m_ms_window_length                  = 0;
 
-    ULARGE_INTEGER uli_filetime{};
-
-    // Use relative time
-    FILETIME ft{};
-
-    auto const filetime_duration = std::chrono::duration_cast<m::threadpool_impl::file_time>(dur);
-    uli_filetime.QuadPart = -filetime_duration.count();
-
-    parameters.m_buffer_do_not_pass.dwLowDateTime  = uli_filetime.LowPart;
-    parameters.m_buffer_do_not_pass.dwHighDateTime = uli_filetime.HighPart;
-    parameters.m_p_ft_due_time                     = &parameters.m_buffer_do_not_pass;
-
-    // Trick answer: if the duration's count was zero, the timer should fire
-    // immediately. The documented way for that to happen is to have the due time
-    // pointer point to a file_time of zero. It *probably* will happen if the
-    // relative file_time is very small, or if the absolute approaching file_time
-    // is very near but let's follow the letter of the contract.
-
     if (dur.count() == 0)
     {
+        // Yes these were just set in the initialization of the
+        // function but it's important that these be zero
+        // semantically and the compiler should optimize these
+        // down to one set of moves.
         parameters.m_buffer_do_not_pass.dwLowDateTime  = 0;
         parameters.m_buffer_do_not_pass.dwHighDateTime = 0;
+        parameters.m_p_ft_due_time                     = &parameters.m_buffer_do_not_pass;
+    }
+    else
+    {
+        auto const filetime_duration =
+            std::chrono::duration_cast<m::threadpool_impl::file_time>(dur);
+
+        ULARGE_INTEGER uli_filetime{};
+        uli_filetime.QuadPart = -filetime_duration.count();
+
+        parameters.m_buffer_do_not_pass.dwLowDateTime  = uli_filetime.LowPart;
+        parameters.m_buffer_do_not_pass.dwHighDateTime = uli_filetime.HighPart;
         parameters.m_p_ft_due_time                     = &parameters.m_buffer_do_not_pass;
     }
 
@@ -114,7 +121,7 @@ m::threadpool_impl::timer::on_tp_timer(PTP_CALLBACK_INSTANCE) noexcept
         // If the cancellation request came in before we've started the task
         // we'll not even start it. Note that the state in this case is odd.
         // m_done == true, but m_started == false.
-        m_done      = true;
+        m_done.store(true, std::memory_order_release);
         m_cancelled = true;
         return;
     }
@@ -123,5 +130,5 @@ m::threadpool_impl::timer::on_tp_timer(PTP_CALLBACK_INSTANCE) noexcept
 
     m_task(m_cancel_requested);
 
-    m_done = true;
+    m_done.store(true, std::memory_order_release);
 }

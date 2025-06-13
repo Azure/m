@@ -131,8 +131,8 @@ namespace m::threadpool_impl
         task_type          m_task;
         duration           m_duration;
         std::atomic<bool>  m_cancel_requested{false};
+        std::atomic<bool>  m_done{true};
         bool               m_cancelled{false};
-        bool               m_done{true};
         bool               m_started{false};
     };
 

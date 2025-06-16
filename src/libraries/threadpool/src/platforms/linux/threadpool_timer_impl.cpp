@@ -5,8 +5,9 @@
 
 #include "threadpool_timer_impl.h"
 
-m::threadpool_impl::timer::timer(m::threadpool_impl::timer::task_type&& task):
-    m_task(std::move(task))
+m::threadpool_impl::timer::timer(m::threadpool_impl::timer::task_type&& task,
+                                 std::wstring&&                         description):
+    m_task(std::move(task)), m_description(std::move(description))
 {
     //
 }
@@ -45,6 +46,4 @@ m::threadpool_impl::timer::do_set(duration dur)
 
     m_duration = dur;
     m_task.reset();
-
 }
-

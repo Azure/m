@@ -8,6 +8,7 @@ target_include_directories(m_threadpool PUBLIC
 )
 
 target_link_libraries(m_threadpool PUBLIC
+    m_thread_description
 )
 
 list(APPEND m_installation_targets

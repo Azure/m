@@ -32,18 +32,15 @@ namespace m::filesystem_impl::platform_specific
         class file
         {
         public:
-            file() = default;
-            file(file&& other)
+            constexpr file() = default;
+            constexpr file(file&& other) noexcept
             {
                 using std::swap;
                 swap(m_h, other.m_h);
             }
-            // One could imagine copy constructor and operator = that used DuplicateHandle but these
-            // could then fail and I don't think that that's a better life than just not having
-            // them.
             file(file const& other) = delete;
-            file&
-            operator=(file&& other)
+            constexpr file&
+            operator=(file&& other) noexcept
             {
                 using std::swap;
                 swap(m_h, other.m_h);
@@ -53,7 +50,18 @@ namespace m::filesystem_impl::platform_specific
             operator=(file const&) = delete;
             ~file() { close_handle(); }
 
-            operator bool() const { return is_handle_valid(m_h); }
+            constexpr
+            operator bool() const noexcept
+            {
+                return is_handle_valid(m_h);
+            }
+
+            constexpr void
+            swap(file& other) noexcept
+            {
+                using std::swap;
+                swap(m_h, other.m_h);
+            }
 
             void
             reset(HANDLE h = INVALID_HANDLE_VALUE)
@@ -92,7 +100,7 @@ namespace m::filesystem_impl::platform_specific
                 reset();
             }
 
-            static bool
+            static constexpr bool
             is_handle_valid(HANDLE h)
             {
                 return (h != nullptr) && (h != INVALID_HANDLE_VALUE);
@@ -141,9 +149,6 @@ namespace m::filesystem_impl::platform_specific
                 using std::swap;
                 swap(m_p, other.m_p);
             }
-            // One could imagine copy constructor and operator = that used DuplicateHandle but these
-            // could then fail and I don't think that that's a better life than just not having
-            // them.
             ptp_io(ptp_io const& other) = delete;
             ptp_io&
             operator=(ptp_io&& other)
@@ -204,7 +209,6 @@ namespace m::filesystem_impl::platform_specific
 
             PTP_IO m_p{};
         };
-
     } // namespace details
 
     class directory_watcher;
@@ -225,18 +229,19 @@ namespace m::filesystem_impl::platform_specific
         directory_watcher(std::filesystem::path const& path);
 
         std::unique_ptr<m::filesystem::change_notification_registration_token>
-        try_add_watch(uintmax_t                                        key,
-                      std::filesystem::path const&                     p,
-                      m::not_null<m::filesystem::change_notification*> change_notification_ptr);
+        add_file_watch(uintmax_t                                        key,
+                       std::filesystem::path const&                     p,
+                       m::not_null<m::filesystem::change_notification*> change_notification_ptr);
 
         void
         remove_watch(uintmax_t key);
 
+        void
+        ensure_watching();
+
     protected:
         void
         on_directory_probe_timer();
-
-
 
         void
         enqueue_async_read_directory_changes();
@@ -264,7 +269,7 @@ namespace m::filesystem_impl::platform_specific
         // Define a type that we will use for the buffer that the
         // ReadDirectoryChanges data will write into.
         //
-        // The std::array<> branch is only to ensure a certain size.
+        // The std::array<> branch is present only to ensure a certain size.
         //
         union file_notify_buffer
         {
@@ -273,12 +278,11 @@ namespace m::filesystem_impl::platform_specific
             std::array<std::byte, 32768>     m_data;
         };
 
-        struct registered_watch
+        struct file_watch
         {
-            registered_watch(
-                uintmax_t                                        key,
-                std::filesystem::path const&                     name,
-                m::not_null<m::filesystem::change_notification*> change_notification_ptr):
+            file_watch(uintmax_t                                        key,
+                       std::filesystem::path const&                     name,
+                       m::not_null<m::filesystem::change_notification*> change_notification_ptr):
                 m_key(key),
                 m_name(name),
                 m_name_string(name.c_str()),
@@ -316,7 +320,7 @@ namespace m::filesystem_impl::platform_specific
         details::file                           m_directory;
         details::ptp_io                         m_io;
         std::weak_ptr<m::filesystem::monitor>   m_monitor;
-        std::vector<registered_watch>           m_registered_watches;
+        std::vector<file_watch>                 m_registered_watches;
         READ_DIRECTORY_NOTIFY_INFORMATION_CLASS m_information_class;
         bool                                    m_is_valid;
         file_notify_buffer                      m_buffer;

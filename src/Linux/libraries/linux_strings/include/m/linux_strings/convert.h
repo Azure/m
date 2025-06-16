@@ -33,6 +33,66 @@ namespace m
         return str;
     }
 
+#if 0
+    constexpr void
+    to_string(std::string_view view, std::string& str)
+    {
+        str.clear();
+        str.reserve(view.size());
+        str.assign(view.data(), view.size());
+    }
+
+    constexpr std::string
+    to_string(std::string_view view)
+    {
+        std::string str;
+        to_string(view, str);
+        return str;
+    }
+#endif
+
+    constexpr void
+    to_string(std::u8string_view view, std::string& str)
+    {
+        utf::transcode(view, str);
+    }
+
+    constexpr std::string
+    to_string(std::u8string_view view)
+    {
+        std::string str;
+        to_string(view, str);
+        return str;
+    }
+
+    constexpr void
+    to_string(std::u16string_view view, std::string& str)
+    {
+        utf::transcode(view, str);
+    }
+
+    constexpr std::string
+    to_string(std::u16string_view view)
+    {
+        std::string str;
+        to_string(view, str);
+        return str;
+    }
+
+    constexpr void
+    to_string(std::u32string_view view, std::string& str)
+    {
+        utf::transcode(view, str);
+    }
+
+    constexpr std::string
+    to_string(std::u32string_view view)
+    {
+        std::string str;
+        to_string(view, str);
+        return str;
+    }
+
     //
     // to_wstring
     //

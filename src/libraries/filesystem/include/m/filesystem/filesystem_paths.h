@@ -99,6 +99,37 @@ namespace m
         void
         path_to_u32string(std::filesystem::path const& p, std::u32string& str);
 
+        //
+        void
+        to_native(std::string_view v, std::basic_string<std::filesystem::path::value_type>& str);
+
+        std::basic_string<std::filesystem::path::value_type>
+        to_native(std::string_view v);
+
+        void
+        to_native(std::wstring_view v, std::basic_string<std::filesystem::path::value_type>& str);
+
+        std::basic_string<std::filesystem::path::value_type>
+        to_native(std::wstring_view v);
+
+        void
+        to_native(std::u8string_view v, std::basic_string<std::filesystem::path::value_type>& str);
+
+        std::basic_string<std::filesystem::path::value_type>
+        to_native(std::u8string_view v);
+
+        void
+        to_native(std::u16string_view v, std::basic_string<std::filesystem::path::value_type>& str);
+
+        std::basic_string<std::filesystem::path::value_type>
+        to_native(std::u16string_view v);
+
+        void
+        to_native(std::u32string_view v, std::basic_string<std::filesystem::path::value_type>& str);
+
+        std::basic_string<std::filesystem::path::value_type>
+        to_native(std::u32string_view v);
+
     } // namespace filesystem
 
     //

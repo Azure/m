@@ -53,12 +53,18 @@ namespace m::filesystem_impl
         auto const filename = path.filename();
 
         auto l = std::unique_lock(m_mutex);
-
-        // TODO: if TryAddWatch returns nullptr, the DirWatcher is invalid so
-        // it should be removed from the map and a new one added.
-        //
-        return get_dir_watcher(parent)->try_add_watch(
+        // This pattern is hazardous and assumes that directories are NOT
+        // removed from the list of directories watched which is not good.
+        // Unfortunately to fix it would require making the list have
+        // std::shared_ptr<>s instead of just plain directory_watcher
+        // pointers which also seems heavyweight. Will have to be fixed
+        // some day.
+        auto const watcher = get_dir_watcher(parent);
+        auto token = watcher->add_file_watch(
             m_generator(), filename, change_notification_ptr);
+        l.unlock();
+        watcher->ensure_watching();
+        return token;
     }
 
     m::not_null<m::filesystem_impl::platform_specific::directory_watcher*>

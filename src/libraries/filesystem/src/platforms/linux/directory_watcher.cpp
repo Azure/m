@@ -22,9 +22,9 @@ namespace m::filesystem_impl::platform_specific
     {}
 
     std::unique_ptr<m::filesystem::change_notification_registration_token>
-    directory_watcher::try_add_watch(uintmax_t                                        key,
-                                     std::filesystem::path const&                     p,
-                                     m::not_null<m::filesystem::change_notification*> ptr)
+    directory_watcher::add_file_watch(uintmax_t                                        key,
+                                      std::filesystem::path const&                     p,
+                                      m::not_null<m::filesystem::change_notification*> ptr)
     {
         auto filename = p.filename();
 
@@ -32,11 +32,6 @@ namespace m::filesystem_impl::platform_specific
             throw std::runtime_error("path must be leaf only");
 
         auto l = std::unique_lock(m_mutex);
-
-        // If the watcher has become invalid, return nullptr so that the monitor starts a new
-        // watcher.
-        if (!m_is_valid)
-            return nullptr;
 
         auto token = std::make_unique<registration_token>(key, m::not_null(this));
 
@@ -60,6 +55,17 @@ namespace m::filesystem_impl::platform_specific
         result->m_change_notification->on_cancelled();
 
         m_registered_watches.erase(result);
+    }
+
+    void directory_watcher::ensure_watching()
+    {
+        auto l = std::unique_lock(m_mutex);
+
+        // Here is the place to ensure that the threads or async tasks to
+        // actually monitor the filesystem are active. There are
+        // reentrancy problewms if you try to do this during
+        // add_file_watch() so the monitor promises to call ensure_watching()
+        // after add_file_watch(), but after the monitor's locks are released.
     }
 
     registration_token::registration_token(uintmax_t key, m::not_null<directory_watcher*> ptr):

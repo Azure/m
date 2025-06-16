@@ -82,7 +82,7 @@ namespace m::threadpool_impl
             }
         };
 
-        timer(task_type&& task);
+        timer(task_type&& task, std::wstring&& description);
         timer(m::threadpool_impl::timer&& other) = delete;
         timer(m::threadpool_impl::timer const&)  = delete;
         ~timer();
@@ -109,6 +109,7 @@ namespace m::threadpool_impl
         mutable std::mutex m_mutex;
         task_type          m_task;
         duration           m_duration;
+        std::wstring       m_description;
         std::atomic<bool>  m_cancel_requested{false};
         bool               m_cancelled{false};
         bool               m_done{true};

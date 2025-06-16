@@ -89,22 +89,11 @@ namespace m::filesystem_impl::platform_specific
     }
 
     directory_watcher::directory_watcher(std::filesystem::path const& path):
-        m_minimum_retry_delay(50ms),
-        m_default_retry_delay(500ms),
-        m_path(path),
-        m_is_valid(true)
+        m_minimum_retry_delay(50ms), m_default_retry_delay(500ms), m_path(path), m_is_valid(true)
     {
-        //
-        // Use a lock in the constructor because otherwise the timer could start execution
-        // before leaving the constructor. 
-        //
-        auto lock = std::unique_lock(m_mutex);
-
-        auto l = [this]() { this->on_directory_probe_timer(); };
-
-        auto sp = m::threadpool->create_timer(l);
-
-        sp->set(std::chrono::milliseconds(0));
+        auto l        = [this]() { this->on_directory_probe_timer(); };
+        auto path_str = m::to_wstring(path.native());
+        auto sp       = m::threadpool->create_timer(l, L"\"{}\" directory probe", path_str);
 
         using std::swap;
         swap(sp, m_directory_probe_timer);
@@ -169,7 +158,9 @@ namespace m::filesystem_impl::platform_specific
             // Go to each registered watch and see what they have to say about retrying.
             std::chrono::milliseconds         retry_duration = std::chrono::milliseconds::max();
             std::filesystem::filesystem_error error(
-                "Unable to associate asynchronous I/O with directory"s, m_path, m::make_win32_error_code(last_error));
+                "Unable to associate asynchronous I/O with directory"s,
+                m_path,
+                m::make_win32_error_code(last_error));
 
             for (auto&& rw: m_registered_watches)
             {
@@ -195,9 +186,9 @@ namespace m::filesystem_impl::platform_specific
     }
 
     std::unique_ptr<m::filesystem::change_notification_registration_token>
-    directory_watcher::try_add_watch(uintmax_t                                        key,
-                                     std::filesystem::path const&                     p,
-                                     m::not_null<m::filesystem::change_notification*> ptr)
+    directory_watcher::add_file_watch(uintmax_t                                        key,
+                                      std::filesystem::path const&                     p,
+                                      m::not_null<m::filesystem::change_notification*> ptr)
     {
         auto filename = p.filename();
 
@@ -206,11 +197,6 @@ namespace m::filesystem_impl::platform_specific
 
         auto l = std::unique_lock(m_mutex);
 
-        // If the watcher has become invalid, return nullptr so that the monitor starts a new
-        // watcher.
-        if (!m_is_valid)
-            return nullptr;
-
         auto token = std::make_unique<registration_token>(key, m::not_null(this));
 
         m_registered_watches.emplace_back(key, filename, ptr);
@@ -218,6 +204,14 @@ namespace m::filesystem_impl::platform_specific
         ptr->on_begin();
 
         return token;
+    }
+
+    void
+    directory_watcher::ensure_watching()
+    {
+        auto l = std::unique_lock(m_mutex);
+        if (!m_directory)
+            m_directory_probe_timer->set(std::chrono::milliseconds(0));
     }
 
     void
@@ -367,6 +361,7 @@ namespace m::filesystem_impl::platform_specific
                                                           ULONG_PTR NumberOfBytesTransferred,
                                                           PTP_IO    Io)
     {
+#if 0
         m::dbg_format(
             L"directory_watcher::ReadDirectoryChangesExCallback(CallbackInstance = 0x{:x}, Context = 0x{:x}, Overlapped = {}, IoResult = {}, NumberOfBytesTransferred = {}, Io = 0x{:x})\n",
             reinterpret_cast<uintptr_t>(CallbackInstance),
@@ -375,6 +370,9 @@ namespace m::filesystem_impl::platform_specific
             fmtWin32ErrorCode{IoResult},
             NumberOfBytesTransferred,
             reinterpret_cast<uintptr_t>(Io));
+#else
+        std::ignore = Overlapped;
+#endif
 
         //
         // Thunk over to member function for easier reading
@@ -413,8 +411,7 @@ namespace m::filesystem_impl::platform_specific
 
                 for (;;)
                 {
-                    m::dbg_format(L"Processing file change: {}\n", *fni);
-
+                    // m::dbg_format(L"Processing file change: {}\n", *fni);
                     int cchFileName = fni->FileNameLength / sizeof(fni->FileName[0]);
 
                     // only make this copy if we have a match
@@ -422,9 +419,11 @@ namespace m::filesystem_impl::platform_specific
 
                     for (auto&& e: m_registered_watches)
                     {
+#if 0
                         m::dbg_format(L"Comparing \"{}\" and \"{}\"\n",
                                       std::wstring_view(e.m_name_view.data(), e.m_name_char_count),
                                       std::wstring_view(fni->FileName, cchFileName));
+#endif
                         if (are_file_names_equal(e.m_name_view.data(),
                                                  e.m_name_char_count,
                                                  fni->FileName,
@@ -466,7 +465,7 @@ namespace m::filesystem_impl::platform_specific
 
                 for (;;)
                 {
-                    m::dbg_format(L"Processing file change: {}\n", *fnei);
+                    // m::dbg_format(L"Processing file change: {}\n", *fnei);
 
                     int cchFileName = fnei->FileNameLength / sizeof(fnei->FileName[0]);
                     // only make this copy if we have a match
@@ -474,9 +473,11 @@ namespace m::filesystem_impl::platform_specific
 
                     for (auto&& e: m_registered_watches)
                     {
+#if 0
                         m::dbg_format(L"Comparing \"{}\" and \"{}\"\n",
                                       std::wstring_view(e.m_name_view.data(), e.m_name_char_count),
                                       std::wstring_view(fnei->FileName, cchFileName));
+#endif
 
                         if (are_file_names_equal(e.m_name_view.data(),
                                                  e.m_name_char_count,
@@ -522,7 +523,6 @@ namespace m::filesystem_impl::platform_specific
         m_key(key), m_directory_watcher(ptr)
     {}
 
-    registration_token::~registration_token() {
-        m_directory_watcher->remove_watch(m_key); }
+    registration_token::~registration_token() { m_directory_watcher->remove_watch(m_key); }
 
 } // namespace m::filesystem_impl::platform_specific

@@ -84,7 +84,17 @@ namespace m
         std::shared_ptr<timer>
         create_timer(F&& f)
         {
-            return do_create_timer(std::packaged_task<timer_callable>(std::forward<F>(f)));
+            return do_create_timer(std::packaged_task<timer_callable>(std::forward<F>(f)), L"");
+        }
+
+        template <typename F, typename... Args>
+        std::shared_ptr<timer>
+        create_timer(F&& f, std::wformat_string<Args...>&& fmt, Args&&... args)
+        {
+            auto description = std::format(std::forward<std::wformat_string<Args...>>(fmt),
+                                           std::forward<Args>(args)...);
+            return do_create_timer(std::packaged_task<timer_callable>(std::forward<F>(f)),
+                                   std::move(description));
         }
 
         template <typename F>
@@ -92,17 +102,17 @@ namespace m
         create_cancellable_timer(F&& f)
         {
             return do_create_timer(
-                std::packaged_task<timer_cancellable_callable>(std::forward<F>(f)));
+                std::packaged_task<timer_cancellable_callable>(std::forward<F>(f)), L"");
         }
 
     protected:
         virtual ~threadpool_class() = default;
 
         virtual std::shared_ptr<timer>
-        do_create_timer(std::packaged_task<timer_callable>&& task) = 0;
+        do_create_timer(std::packaged_task<timer_callable>&& task, std::wstring&& description) = 0;
 
         virtual std::shared_ptr<timer>
-        do_create_timer(std::packaged_task<timer_cancellable_callable>&& task) = 0;
+        do_create_timer(std::packaged_task<timer_cancellable_callable>&& task, std::wstring&& description) = 0;
 
         friend class timer;
     };

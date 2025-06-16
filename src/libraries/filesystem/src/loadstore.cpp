@@ -104,7 +104,7 @@ namespace m::filesystem
     }
 
     void
-    store_dynamic(std::filesystem::path const& path, std::span<std::byte const, std::dynamic_extent> data)
+    store(std::filesystem::path const& path, std::span<std::byte const, std::dynamic_extent> data)
     {
         auto const fp = std::fopen(path.c_str(), "wb");
         if (!fp)
@@ -129,7 +129,7 @@ namespace m::filesystem
     }
 
     void
-    store_dynamic(std::filesystem::path const& path, std::span<std::byte const, std::dynamic_extent> data, std::error_code& ec)
+    store(std::filesystem::path const& path, std::span<std::byte const, std::dynamic_extent> data, std::error_code& ec)
     {
         auto const fp = std::fopen(path.c_str(), "wb");
         if (!fp)

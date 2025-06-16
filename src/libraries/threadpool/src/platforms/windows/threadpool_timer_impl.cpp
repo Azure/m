@@ -5,13 +5,14 @@
 #include <variant>
 
 #include <m/debugging/dbg_format.h>
+#include <m/thread_description/thread_description.h>
 
 #include "threadpool_timer_impl.h"
 
 using namespace std::chrono_literals;
 
-m::threadpool_impl::timer::timer(m::threadpool_impl::timer::task_type&& task):
-    m_task(std::move(task))
+m::threadpool_impl::timer::timer(m::threadpool_impl::timer::task_type&& task, std::wstring&& description):
+    m_task(std::move(task)), m_description(std::move(description))
 {
     m_timer = ::CreateThreadpoolTimer(tp_timer_callback, this, nullptr);
 }
@@ -115,6 +116,8 @@ void
 m::threadpool_impl::timer::on_tp_timer(PTP_CALLBACK_INSTANCE) noexcept
 {
     auto l = std::unique_lock(m_mutex);
+
+    m::thread_description td(m_description);
 
     if (m_cancel_requested)
     {

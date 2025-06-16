@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_filesystem PRIVATE
     directory_watcher.cpp
+    string_to_path_native.cpp
 )
 
 target_link_libraries(m_filesystem PUBLIC

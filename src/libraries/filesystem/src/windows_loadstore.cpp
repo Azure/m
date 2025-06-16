@@ -126,9 +126,9 @@ m::filesystem::load(std::filesystem::path const& path, std::error_code& ec)
 }
 
 void
-m::filesystem::store_dynamic(std::filesystem::path const&                    path,
-                             std::span<std::byte const, std::dynamic_extent> data,
-                             std::error_code&                                ec)
+m::filesystem::store(std::filesystem::path const&                    path,
+                     std::span<std::byte const, std::dynamic_extent> data,
+                     std::error_code&                                ec)
 {
     //
     // It's kind of too bad we can't do some cool transactional filesystem
@@ -181,8 +181,8 @@ m::filesystem::store_dynamic(std::filesystem::path const&                    pat
 }
 
 void
-m::filesystem::store_dynamic(std::filesystem::path const&                    path,
-                             std::span<std::byte const, std::dynamic_extent> data)
+m::filesystem::store(std::filesystem::path const&                    path,
+                     std::span<std::byte const, std::dynamic_extent> data)
 {
     unique_hfile file{::CreateFileW(path.c_str(),
                                     GENERIC_WRITE,

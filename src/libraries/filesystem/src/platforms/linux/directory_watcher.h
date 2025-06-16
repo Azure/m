@@ -37,36 +37,36 @@ namespace m::filesystem_impl::platform_specific
         directory_watcher(std::filesystem::path const& path);
 
         std::unique_ptr<m::filesystem::change_notification_registration_token>
-        try_add_watch(uintmax_t                                        key,
-                      std::filesystem::path const&                     p,
-                      m::not_null<m::filesystem::change_notification*> change_notification_ptr);
+        add_file_watch(uintmax_t                                        key,
+                       std::filesystem::path const&                     p,
+                       m::not_null<m::filesystem::change_notification*> change_notification_ptr);
+
+        void
+        ensure_watching();
 
         void
         remove_watch(uintmax_t key);
 
     protected:
-        struct registered_watch
+        struct file_watch
         {
-            registered_watch(
-                uintmax_t                                        key,
-                std::filesystem::path const&                     name,
-                m::not_null<m::filesystem::change_notification*> change_notification_ptr):
-                m_key(key),
-                m_name(name),
-                m_change_notification(change_notification_ptr)
+            file_watch(uintmax_t                                        key,
+                       std::filesystem::path const&                     name,
+                       m::not_null<m::filesystem::change_notification*> change_notification_ptr):
+                m_key(key), m_name(name), m_change_notification(change_notification_ptr)
             {}
 
-            uintmax_t             m_key;
-            std::filesystem::path m_name;
+            uintmax_t                                        m_key;
+            std::filesystem::path                            m_name;
             m::not_null<m::filesystem::change_notification*> m_change_notification;
         };
 
-        std::mutex                              m_mutex;
-        std::chrono::milliseconds               m_default_retry_delay;
-        std::chrono::milliseconds               m_minimum_retry_delay;
-        std::filesystem::path                   m_path;
-        std::weak_ptr<m::filesystem::monitor>   m_monitor;
-        std::vector<registered_watch>           m_registered_watches;
-        bool                                    m_is_valid;
+        std::mutex                            m_mutex;
+        std::chrono::milliseconds             m_default_retry_delay;
+        std::chrono::milliseconds             m_minimum_retry_delay;
+        std::filesystem::path                 m_path;
+        std::weak_ptr<m::filesystem::monitor> m_monitor;
+        std::vector<file_watch>               m_registered_watches;
+        bool                                  m_is_valid;
     };
 } // namespace m::filesystem_impl::platform_specific

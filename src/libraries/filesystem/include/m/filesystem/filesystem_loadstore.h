@@ -27,37 +27,11 @@ namespace m
         load(std::filesystem::path const& p, std::error_code& ec);
 
         void
-        store_dynamic(std::filesystem::path const&                    p,
-                      std::span<std::byte const, std::dynamic_extent> s);
-
-        template <std::size_t Extent>
-        void
-        store(std::filesystem::path const& p, std::span<std::byte const, Extent> s)
-        {
-            if constexpr (Extent == std::dynamic_extent)
-                store_dynamic(p, s);
-            else
-                store_dynamic(p,
-                              std::span<std::byte const, std::dynamic_extent>(s.data(), s.size()));
-        }
-
+        store(std::filesystem::path const& p, std::span<std::byte const, std::dynamic_extent> s);
 
         void
-        store_dynamic(std::filesystem::path const&                    p,
-                      std::span<std::byte const, std::dynamic_extent> s,
-                      std::error_code&                                ec);
-
-        template <std::size_t Extent>
-        void
-        store(std::filesystem::path const&       p,
-              std::span<std::byte const, Extent> s,
-              std::error_code&                   ec)
-        {
-            if constexpr (Extent == std::dynamic_extent)
-                store_dynamic(p, s, ec);
-            else
-                store_dynamic(
-                    p, std::span<std::byte const, std::dynamic_extent>(s.data(), s.size()), ec);
-        }
+        store(std::filesystem::path const&                    p,
+              std::span<std::byte const, std::dynamic_extent> s,
+              std::error_code&                                ec);
     } // namespace filesystem
 } // namespace m

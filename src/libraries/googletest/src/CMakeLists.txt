@@ -11,7 +11,7 @@ target_compile_definitions(m_googletest PRIVATE _CRT_SECURE_NO_WARNINGS)
 
 target_link_libraries(m_googletest PUBLIC
     m_strings
-    GTest::gtest_main
+    GTest::gtest
 )
 
 if(WIN32)

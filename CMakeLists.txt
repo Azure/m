@@ -113,10 +113,8 @@ endif()
 include(FetchContent)
 
 if (M_VCPKG_MODE)
-    if (M_BUILD_TESTS)
-        # include(FindGTest)
-        find_package(GTest CONFIG REQUIRED)
-    endif()
+    include(FindGTest)
+    find_package(GTest CONFIG REQUIRED)
 else()
     if (M_BUILD_TESTS)
         FetchContent_Declare(

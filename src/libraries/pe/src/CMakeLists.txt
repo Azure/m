@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_pe PRIVATE
     pe_decoder.cpp
-    loader_context.cpp)
+    "loader.cpp" "reference.cpp" "pe_record.cpp")
 
 target_include_directories(m_pe PUBLIC
     ../include

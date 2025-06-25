@@ -20,8 +20,11 @@ option(disable_native_wchar_t "Disable the use of wchar_t as a native distinct t
 if (MSVC)
     add_compile_options(/W4 /WX)
     add_compile_options(/wd4459)        # declaration of 'foo' hides global declaration
+    add_compile_options(/Od)
 
-    string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    if (($<CONFIG:RelWithDebInfo> EQUAL 1) OR (${CMAKE_BUILD_TYPE} EQUAL "RelWithDebInfo"))
+        add_compile_option(/Od)
+    endif()
 
     if(disable_native_wchar_t)
         add_compile_options("/Zc:wchar_t-")

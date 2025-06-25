@@ -13,7 +13,7 @@ target_sources(m_pe PUBLIC FILE_SET HEADERS FILES
     m/pe/image_nt_headers.h
     m/pe/image_optional_headers.h
     m/pe/image_section_header.h
-    m/pe/loader_context.h
+    m/pe/loader.h
     m/pe/offset_t.h
     m/pe/pe.h
     m/pe/pe_decoder.h

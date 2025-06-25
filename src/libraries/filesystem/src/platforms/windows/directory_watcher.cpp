@@ -89,7 +89,13 @@ namespace m::filesystem_impl::platform_specific
     }
 
     directory_watcher::directory_watcher(std::filesystem::path const& path):
-        m_minimum_retry_delay(50ms), m_default_retry_delay(500ms), m_path(path), m_is_valid(true)
+        m_minimum_retry_delay(50ms),
+        m_default_retry_delay(500ms),
+        m_path(path),
+        m_overlapped{},
+        m_information_class{},
+        m_is_valid(true),
+        m_buffer{}
     {
         auto l        = [this]() { this->on_directory_probe_timer(); };
         auto path_str = m::to_wstring(path.native());
@@ -236,7 +242,7 @@ namespace m::filesystem_impl::platform_specific
         auto sv = std::wstring_view(s);
 
         // m::dbg_format(L"directory_watcher::RecheckWatcher() for path {}\n", sv);
-        auto str = std::format(L"directory_watcher::rechec_wWatcher() for path {}\n", sv);
+        auto str = std::format(L"directory_watcher::recheck_wWatcher() for path {}\n", sv);
 
         for (auto&& e: m_registered_watches)
             e.m_change_notification->on_file_recheck_required(m_path, e.m_name);
@@ -264,55 +270,6 @@ namespace m::filesystem_impl::platform_specific
         m_overlapped.InternalHigh = 0;
         m_overlapped.Pointer      = 0;
 
-        ::StartThreadpoolIo(m_io.get());
-
-        if (::ReadDirectoryChangesExW(
-                m_directory.get(),
-                &m_buffer,
-                sizeof(m_buffer),
-                FALSE, // bWatchSubtree
-                FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
-                    FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE,
-                nullptr, // lpBytesReturned - undefined since we are asynchronous
-                &m_overlapped,
-                nullptr, // lpCompletionRoutine - nullptr because we are using threadpool
-                ReadDirectoryNotifyExtendedInformation))
-        {
-            m_information_class = ReadDirectoryNotifyExtendedInformation;
-            return;
-        }
-
-        auto last_error = ::GetLastError();
-
-        ::CancelThreadpoolIo(m_io.get());
-
-        m::dbg_format(L"ReadDirectoryChangesExW() failed with Win32 error code {}\n",
-                      fmtWin32ErrorCode{last_error});
-
-        if (last_error == ERROR_NOTIFY_ENUM_DIR)
-        {
-            recheck_watcher();
-            return;
-        }
-
-        if (last_error == ERROR_ACCESS_DENIED)
-        {
-            // ERROR_ACCESS_DENIED happens when the directory is deleted.
-            invalidate_watcher();
-            return;
-        }
-
-        if (last_error != ERROR_INVALID_FUNCTION)
-            m::throw_win32_error_code(last_error);
-
-        // ReFS doesn't seem to support the extended information format, so
-        // try using the non-extended format.
-
-        m_overlapped.hEvent       = nullptr;
-        m_overlapped.Internal     = 0;
-        m_overlapped.InternalHigh = 0;
-        m_overlapped.Pointer      = 0;
-
         StartThreadpoolIo(m_io.get());
 
         if (::ReadDirectoryChangesW(
@@ -330,7 +287,7 @@ namespace m::filesystem_impl::platform_specific
             return;
         }
 
-        last_error = ::GetLastError();
+        auto const last_error = ::GetLastError();
 
         m::dbg_format(L"ReadDirectoryChangesW() failed with Win32 error code {}\n",
                       fmtWin32ErrorCode{last_error});

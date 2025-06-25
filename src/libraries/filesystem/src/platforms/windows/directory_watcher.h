@@ -144,14 +144,14 @@ namespace m::filesystem_impl::platform_specific
         {
         public:
             ptp_io() = default;
-            ptp_io(ptp_io&& other)
+            ptp_io(ptp_io&& other) noexcept
             {
                 using std::swap;
                 swap(m_p, other.m_p);
             }
             ptp_io(ptp_io const& other) = delete;
             ptp_io&
-            operator=(ptp_io&& other)
+            operator=(ptp_io&& other) noexcept
             {
                 using std::swap;
                 swap(m_p, other.m_p);

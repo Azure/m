@@ -5,13 +5,15 @@
 #include <variant>
 
 #include <m/debugging/dbg_format.h>
+#include <m/formatters/FILETIME.h>
 #include <m/thread_description/thread_description.h>
 
 #include "threadpool_timer_impl.h"
 
 using namespace std::chrono_literals;
 
-m::threadpool_impl::timer::timer(m::threadpool_impl::timer::task_type&& task, std::wstring&& description):
+m::threadpool_impl::timer::timer(m::threadpool_impl::timer::task_type&& task,
+                                 std::wstring&&                         description):
     m_task(std::move(task)), m_description(std::move(description))
 {
     m_timer = ::CreateThreadpoolTimer(tp_timer_callback, this, nullptr);
@@ -51,14 +53,22 @@ m::threadpool_impl::timer::do_try_cancel()
 void
 m::threadpool_impl::timer::do_set(duration dur)
 {
+    set_threadpool_timer_ex_parameters parameters;
+    compute_timer_times(dur, parameters);
+
     auto l = std::unique_lock(m_mutex);
 
     m_duration = dur;
     m_done.store(false, std::memory_order_release);
     m_task.reset();
 
-    set_threadpool_timer_ex_parameters parameters;
-    compute_timer_times(dur, parameters);
+    FILETIME ftZero{};
+
+    m::dbg_format(L"Setting timer for {}, with period {} and window {}",
+        fmtFILETIME{
+            *((parameters.m_p_ft_due_time == nullptr) ? &ftZero : parameters.m_p_ft_due_time)},
+                  parameters.m_ms_period,
+                  parameters.m_ms_window_length);
 
     bool cancelled = !!::SetThreadpoolTimerEx(
         m_timer, parameters.m_p_ft_due_time, parameters.m_ms_period, parameters.m_ms_window_length);
@@ -98,9 +108,8 @@ m::threadpool_impl::timer::compute_timer_times(duration                         
         parameters.m_p_ft_due_time                     = &parameters.m_buffer_do_not_pass;
     }
 
-    parameters.m_ms_period = 0; // these are not periodic timers
-    parameters.m_ms_window_length =
-        100; // allow for 1/10th of a second of window for system to batch timers
+    parameters.m_ms_period        = 0; // these are not periodic timers
+    parameters.m_ms_window_length = 100;
 }
 
 void

@@ -6,6 +6,7 @@ target_sources(m_thread_description PRIVATE
 
 target_link_libraries(m_thread_description PUBLIC
     m_debugging
+    m_errors
     m_formatters
     m_memory
 )

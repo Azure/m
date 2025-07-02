@@ -1,5 +1,7 @@
 name: Build and Push Docker Image
 
+disabled: true
+
 on:
   push:
     branches: [main]

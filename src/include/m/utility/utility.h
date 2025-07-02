@@ -63,6 +63,12 @@
         M_FAIL_FAST_NO_TEXT();                                                                     \
     } while (false)
 
+#define M_NOT_IMPLEMENTED(text)                                                                    \
+    do                                                                                             \
+    {                                                                                              \
+        throw m::not_implemented(text);                                                            \
+    } while (false)
+
 #define M_PARAMETER_CHECK(p, v)                                                                    \
     do                                                                                             \
     {                                                                                              \

@@ -19,6 +19,7 @@ target_link_libraries(m_filesystem PUBLIC
     m_math
     m_memory
     m_strings
+    m_tracing
 )
 
 if(WIN32)

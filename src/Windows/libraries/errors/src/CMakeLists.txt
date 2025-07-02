@@ -11,6 +11,7 @@ target_include_directories(m_errors PUBLIC
 )
 
 target_link_libraries(m_errors PUBLIC
+    m_debugging
 )
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

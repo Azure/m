@@ -7,6 +7,7 @@
 
 #include <m/cast/to.h>
 #include <m/errors/errors.h>
+#include <m/exception/exception.h>
 #include <m/filesystem/filesystem_loadstore.h>
 #include <m/formatters/Win32ErrorCode.h>
 #include <m/tracing/tracing.h>
@@ -129,7 +130,7 @@ m::filesystem::store(std::filesystem::path const&                    path,
     //
     unique_hfile file{::CreateFileW(path.c_str(),
                                     GENERIC_WRITE,
-                                    0, // FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                                     nullptr,
                                     CREATE_ALWAYS, // vs. CREATE_NEW
                                     0,
@@ -179,7 +180,7 @@ m::filesystem::store(std::filesystem::path const&                    path,
 {
     unique_hfile file{::CreateFileW(path.c_str(),
                                     GENERIC_WRITE,
-                                    0, // FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                                     nullptr,
                                     CREATE_ALWAYS, // vs. CREATE_NEW
                                     0,

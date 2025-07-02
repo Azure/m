@@ -53,6 +53,21 @@ namespace m
         }
     };
 
+    class sharing_violation : public m::runtime_error
+    {
+    public:
+        sharing_violation(std::string const& what_arg): m::runtime_error(what_arg) {}
+        sharing_violation(char const* what_arg): m::runtime_error(what_arg) {}
+        sharing_violation(sharing_violation const& other) noexcept: m::runtime_error(other) {}
+
+        sharing_violation&
+        operator=(sharing_violation const& other)
+        {
+            m::runtime_error::operator=(other);
+            return *this;
+        }
+    };
+
     class already_exists : public m::runtime_error
     {
     public:

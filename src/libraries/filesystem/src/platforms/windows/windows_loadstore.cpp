@@ -9,6 +9,7 @@
 #include <m/errors/errors.h>
 #include <m/filesystem/filesystem_loadstore.h>
 #include <m/formatters/Win32ErrorCode.h>
+#include <m/tracing/tracing.h>
 
 #include <Windows.h>
 

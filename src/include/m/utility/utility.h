@@ -7,6 +7,14 @@
 #include <type_traits>
 #include <utility>
 
+#define M_INTERNAL_ERROR_CHECK(e)                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        bool const m_internal_v = !!(e);                                                           \
+        if (!m_internal_v)                                                                         \
+            std::abort();                                                                          \
+    } while (0);
+
 namespace m
 {
     // std::to_underlying<>() is provided in <utility> in C++23

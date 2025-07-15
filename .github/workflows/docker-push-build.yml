@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Dockerfile'
+      - '**/Dockerfile'
       - '.github/workflows/docker-build-push.yml'
       - '**/*.sh'
       - '**/*.dockerignore'
@@ -21,13 +21,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-push:
+  discover-dockerfiles:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    permissions:
-      contents: read
-      packages: write
+      - name: Find Dockerfiles
+        id: set-matrix
+        run: |
+          files=$(find . -type f -name 'Dockerfile')
+          files_json=$(echo "$files" | jq -R -s -c 'split("\n")[:-1]')
+          echo "matrix={\"dockerfile\":$files_json}" >> $GITHUB_OUTPUT
 
+  build-and-push:
+    needs: discover-dockerfiles
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{fromJson(needs.discover-dockerfiles.outputs.matrix)}}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,10 +52,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute Docker image name
+        id: compute_docker_image_name
+        run: |
+          IMAGE_NAME=$(basename $(dirname ${{ matrix.dockerfile }}))
+          echo "uppercase_image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Lowercase the repository owner names
+        id: lower
+        run: |
+          echo "lowercase_repository_owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "lowercase_image_name=$(echo "${{ steps.compute_docker_image_name.outputs.uppercase_image_name }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/${{ github.repository_owner }}/doxygen-built:latest .
+          docker build -f "${{ matrix.dockerfile }}" -t ghcr.io/${{ steps.lower.outputs.lowercase_repository_owner }}m/${{ steps.lower.outputs.lowercase_image_name }}:latest "$(dirname "${{ matrix.dockerfile }}")"
 
       - name: Push Docker image to GHCR
         run: |
-          docker push ghcr.io/${{ github.repository_owner }}/doxygen-built:latest
+          IMAGE_NAME=$(basename $(dirname ${{ matrix.dockerfile }}))
+          docker push ghcr.io/${{ steps.lower.outputs.lowercase_repository_owner }}m/${{ steps.lower.outputs.lowercase_image_name }}:latest

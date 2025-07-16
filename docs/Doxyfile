@@ -1,0 +1,4 @@
+EXCLUDE = $(CMAKE_BINARY_DIR)/vcpkg_installed/
+
+EXCLUDE_PATTERNS = */test/*;*\\test\\*;*\test\*
+

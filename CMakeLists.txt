@@ -27,6 +27,9 @@ if (MSVC)
         add_compile_options("/Zc:wchar_t-")
     endif()
 
+    add_compile_options(/bigobj)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT Embedded)
+
 else()
     add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas)
 endif()
@@ -85,12 +88,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 set(CMAKE_CXX_STANDARD "23")
 
-# MSVC specific settings
-if(MSVC)
-    add_compile_options(/bigobj)
-    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT Embedded)
-endif()
-
 # Include common settings
 include(Common)
 
@@ -138,6 +135,8 @@ else()
     FetchContent_MakeAvailable(GSL)
 endif()
 
+message(STATUS "Project M: M_BUILD_TESTS: '${M_BUILD_TESTS}'")
+
 if (M_BUILD_TESTS)
     enable_testing()
 endif()
@@ -149,6 +148,8 @@ include_directories(
 
 # Add project subdirectories
 add_subdirectory(src)
+
+add_subdirectory(docs)
 
 list(APPEND m_installation_targets
     pe2csv

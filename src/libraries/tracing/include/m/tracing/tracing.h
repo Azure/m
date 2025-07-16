@@ -11,6 +11,7 @@
 #include <initializer_list>
 #include <map>
 #include <mutex>
+#include <print>
 #include <queue>
 #include <string>
 #include <string_view>
@@ -29,3 +30,54 @@
 #include "on_message_disposition.h"
 #include "sink.h"
 #include "source.h"
+
+namespace m::tracing
+{
+    inline auto src = monitor.make_source();
+}
+
+namespace m
+{
+    template <typename... Types>
+    void
+    wtrace(tracing::event_kind kind, const std::wformat_string<Types...> fmt, Types&&... args)
+    {
+        m::tracing::src->wlog(kind, fmt, std::forward<Types>(args)...);
+    }
+
+    template <typename... Types>
+    void
+    wtrace(const std::wformat_string<Types...> fmt, Types&&... args)
+    {
+        tracing::src->wlog(fmt, std::forward<Types>(args)...);
+    }
+
+    template <typename... Types>
+    void
+    wtrace_error(const std::wformat_string<Types...> fmt, Types&&... args)
+    {
+        tracing::src->wlog(tracing::event_kind::error, fmt, std::forward<Types>(args)...);
+    }
+
+    template <typename... Types>
+    void
+    trace(tracing::event_kind kind, const std::format_string<Types...> fmt, Types&&... args)
+    {
+        m::tracing::src->log(kind, fmt, std::forward<Types>(args)...);
+    }
+
+    template <typename... Types>
+    void
+    trace(const std::format_string<Types...> fmt, Types&&... args)
+    {
+        tracing::src->log(fmt, std::forward<Types>(args)...);
+    }
+
+    template <typename... Types>
+    void
+    trace_error(const std::format_string<Types...> fmt, Types&&... args)
+    {
+        tracing::src->log(tracing::event_kind::error, fmt, std::forward<Types>(args)...);
+    }
+
+}

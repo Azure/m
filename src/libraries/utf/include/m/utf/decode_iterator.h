@@ -45,14 +45,14 @@ namespace m
 
             ~ucs_decoder_iterator() = default;
 
-            void
-            swap(ucs_decoder_iterator& other)
+            friend void
+            swap(ucs_decoder_iterator& l, ucs_decoder_iterator& r) noexcept
             {
                 using std::swap;
 
-                swap(m_next, other.m_next);
-                swap(m_end, other.m_end);
-                swap(m_ch, other.m_ch);
+                swap(l.m_next, r.m_next);
+                swap(l.m_end, r.m_end);
+                swap(l.m_ch, r.m_ch);
             }
 
             constexpr ucs_decoder_iterator&

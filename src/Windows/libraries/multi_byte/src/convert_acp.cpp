@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 #include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -36,6 +37,20 @@ namespace m
     to_string(std::u16string_view v)
     {
         return to_acp_string(v);
+    }
+
+    void
+    to_string(std::u16string const& s, std::string& str)
+    {
+        to_acp_string(std::u16string_view{s}, str);
+    }
+
+    std::string
+    to_string(std::u16string const& s)
+    {
+        std::string str;
+        to_acp_string(std::u16string_view{s}, str);
+        return str;
     }
 
     void
@@ -108,6 +123,74 @@ namespace m
     to_wstring(std::string_view v)
     {
         return acp_to_wstring(v);
+    }
+
+    void
+    to_wstring(std::optional<std::string_view> v, std::optional<std::wstring>& str)
+    {
+        if (v)
+        {
+            std::wstring t;
+            acp_to_wstring(v.value(), t);
+            str = t;
+        }
+        else
+            str = std::nullopt;
+    }
+
+    std::wstring
+    to_wstring(std::string const& s)
+    {
+        return to_wstring(std::string_view{s});
+    }
+
+    void
+    to_wstring(std::string const& s, std::wstring& str)
+    {
+        to_wstring(std::string_view{s}, str);
+    }
+
+    std::optional<std::wstring>
+    to_wstring(std::optional<std::string_view> v)
+    {
+        if (v)
+            return acp_to_wstring(v.value());
+
+        return std::nullopt;
+    }
+
+    void
+    to_string(std::wstring const& s, std::string& str)
+    {
+        to_string(std::wstring_view{s}, str);
+    }
+
+    std::string
+    to_string(std::wstring const& s)
+    {
+        return to_string(std::wstring_view{s});
+    }
+
+    void
+    to_string(std::optional<std::wstring_view> v, std::optional<std::string>& str)
+    {
+        if (v)
+        {
+            std::string t;
+            to_string(v.value(), t);
+            str = t;
+        }
+        else
+            str = std::nullopt;
+    }
+
+    std::optional<std::string>
+    to_string(std::optional<std::wstring_view> v)
+    {
+        if (v)
+            return to_string(v.value());
+
+        return std::nullopt;
     }
 
     //

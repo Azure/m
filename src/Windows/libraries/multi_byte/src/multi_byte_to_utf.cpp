@@ -9,6 +9,7 @@
 #include <m/cast/to.h>
 #include <m/multi_byte/convert.h>
 #include <m/multi_byte/convert_wchar.h>
+#include <m/strings/convert.h>
 
 #include <Windows.h>
 
@@ -18,8 +19,12 @@ m::multi_byte::multi_byte_to_utf16_length(code_page cp, std::string_view view)
     if (view.size() == 0)
         return 0;
 
-    int wchars_needed = ::MultiByteToWideChar(
-        std::to_underlying(cp), MB_ERR_INVALID_CHARS, view.data(), m::to<int>(view.size()), nullptr, 0);
+    int wchars_needed = ::MultiByteToWideChar(std::to_underlying(cp),
+                                              MB_ERR_INVALID_CHARS,
+                                              view.data(),
+                                              m::to<int>(view.size()),
+                                              nullptr,
+                                              0);
     if (wchars_needed < 1)
         throw_last_win32_error();
 
@@ -144,6 +149,34 @@ m::to_wstring(m::multi_byte::code_page cp, std::string_view view, std::wstring& 
     m::multi_byte::multi_byte_to_utf16(cp, view, str);
 }
 
+std::optional<std::wstring>
+m::to_wstring(m::multi_byte::code_page cp, std::optional<std::string_view> view)
+{
+    if (view)
+    {
+        std::wstring string;
+        m::multi_byte::multi_byte_to_utf16(cp, view.value(), string);
+        return string;
+    }
+
+    return std::nullopt;
+}
+
+void
+m::to_wstring(m::multi_byte::code_page        cp,
+              std::optional<std::string_view> view,
+              std::optional<std::wstring>&    str)
+{
+    if (view)
+    {
+        std::wstring t;
+        m::multi_byte::multi_byte_to_utf16(cp, view.value(), t);
+        str = t;
+    }
+    else
+        str = std::nullopt;
+}
+
 void
 m::to_u16string(m::multi_byte::code_page cp, std::string_view view, std::u16string& str)
 {
@@ -165,7 +198,7 @@ m::to_u8string(m::multi_byte::code_page cp, std::string_view v, std::u8string& s
     //
     // There is no direct conversion from multibyte to multibyte. So the best we can do
     // is multibyte to UTF-16 and then back to UTF-8.
-    // 
+    //
     // In a better world we might try to do something to avoid heap
     // allocations with the temporary conversion, but for now, we allocate.
     //

@@ -4,6 +4,10 @@ cmake_minimum_required(VERSION 3.23)
 # We don't want to polute our source tree with it, thus putting it in binary tree.
 configure_file("version.h.in" "${CMAKE_CURRENT_BINARY_DIR}/version.h" @ONLY)
 
+install(DIRECTORY exception
+        DESTINATION ${M_INSTALL_INCLUDEDIR}
+)
+
 install(DIRECTORY type_traits
         DESTINATION ${M_INSTALL_INCLUDEDIR}
 )

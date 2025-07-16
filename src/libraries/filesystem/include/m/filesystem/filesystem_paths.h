@@ -139,6 +139,7 @@ namespace m
     namespace details
     {
         using filesystem_string_type = std::filesystem::path::string_type;
+        using filesystem_string_view_type = std::basic_string_view<std::filesystem::path::value_type>;
 
         template <typename TTo>
         struct FilesystemPathCastHelper;

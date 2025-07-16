@@ -9,7 +9,13 @@ target_include_directories(m_strings PUBLIC
     ../include
 )
 
+target_include_directories(m_strings PRIVATE
+    .
+)
+
 target_link_libraries(m_strings PUBLIC
     m_math
     m_utf
 )
+
+add_subdirectory(Platforms)

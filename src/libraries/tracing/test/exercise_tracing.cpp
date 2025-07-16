@@ -31,7 +31,7 @@ TEST(Tracing, LogAnEventNoFormattingNoSinks)
 {
     auto src = m::tracing::monitor.make_source();
 
-    src->log(m::tracing::event_kind::information, L"Hello, tracing!");
+    src->log(m::tracing::event_kind::information, "Hello, tracing!");
 }
 
 TEST(Tracing, LogAnEventNoFormattingWithConsoleSink)
@@ -40,7 +40,7 @@ TEST(Tracing, LogAnEventNoFormattingWithConsoleSink)
 
     auto src = m::tracing::monitor.make_source();
 
-    src->log(m::tracing::event_kind::information, L"Hello, tracing!");
+    src->log(m::tracing::event_kind::information, "Hello, tracing!");
 }
 
 TEST(Tracing, LogATracingEventNoFormattingWithConsoleSink)
@@ -49,7 +49,7 @@ TEST(Tracing, LogATracingEventNoFormattingWithConsoleSink)
 
     auto src = m::tracing::monitor.make_source();
 
-    src->log(m::tracing::event_kind::tracing, L"Hello, tracing this should not show up!");
+    src->log(m::tracing::event_kind::tracing, "Hello, tracing this should not show up!");
 }
 
 TEST(Tracing, LogAErrorEventNoFormattingWithConsoleSink)
@@ -58,5 +58,39 @@ TEST(Tracing, LogAErrorEventNoFormattingWithConsoleSink)
 
     auto src = m::tracing::monitor.make_source();
 
-    src->log(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
+    src->log(m::tracing::event_kind::error, "Hello, tracing this should definitely show up!");
+}
+
+TEST(Tracing, WLogAnEventNoFormattingNoSinks)
+{
+    auto src = m::tracing::monitor.make_source();
+
+    src->wlog(m::tracing::event_kind::information, L"Hello, tracing!");
+}
+
+TEST(Tracing, WLogAnEventNoFormattingWithConsoleSink)
+{
+    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+
+    auto src = m::tracing::monitor.make_source();
+
+    src->wlog(m::tracing::event_kind::information, L"Hello, tracing!");
+}
+
+TEST(Tracing, WLogATracingEventNoFormattingWithConsoleSink)
+{
+    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+
+    auto src = m::tracing::monitor.make_source();
+
+    src->wlog(m::tracing::event_kind::tracing, L"Hello, tracing this should not show up!");
+}
+
+TEST(Tracing, WLogAErrorEventNoFormattingWithConsoleSink)
+{
+    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+
+    auto src = m::tracing::monitor.make_source();
+
+    src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }

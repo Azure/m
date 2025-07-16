@@ -16,6 +16,7 @@ target_include_directories(m_multi_byte PUBLIC
 target_link_libraries(m_multi_byte PUBLIC
     m_errors
     m_math
+    m_strings
     m_utf
 )
 

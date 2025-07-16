@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <iterator>
 #include <numeric>
+#include <optional>
 #include <ranges>
 #include <string>
 #include <string_view>
@@ -353,10 +354,34 @@ namespace m
     to_string(multi_byte::code_page cp, std::wstring_view view, std::string& str);
 
     std::string
+    to_string(multi_byte::code_page cp, std::wstring const& s);
+
+    void
+    to_string(multi_byte::code_page cp, std::wstring const& s, std::string& str);
+
+    std::optional<std::string>
+    to_string(multi_byte::code_page cp, std::optional<std::wstring_view> view);
+
+    void
+    to_string(multi_byte::code_page cp, std::optional<std::wstring_view> view, std::optional<std::string>& str);
+
+    std::string
     to_string(multi_byte::code_page cp, std::u8string_view view);
 
     void
     to_string(multi_byte::code_page cp, std::u8string_view view, std::string& str);
+
+    std::string
+    to_string(multi_byte::code_page cp, std::u8string const& s);
+
+    void
+    to_string(multi_byte::code_page cp, std::u8string const& s, std::string& str);
+
+    std::optional<std::string>
+    to_string(multi_byte::code_page cp, std::optional<std::u8string_view> view);
+
+    void
+    to_string(multi_byte::code_page cp, std::optional<std::u8string_view> view, std::optional<std::string>& str);
 
     std::string
     to_string(multi_byte::code_page cp, std::u16string_view view);
@@ -365,10 +390,34 @@ namespace m
     to_string(multi_byte::code_page cp, std::u16string_view view, std::string& str);
 
     std::string
+    to_string(multi_byte::code_page cp, std::u16string const& s);
+
+    void
+    to_string(multi_byte::code_page cp, std::u16string const& s, std::string& str);
+
+    std::optional<std::string>
+    to_string(multi_byte::code_page cp, std::optional<std::u16string_view> view);
+
+    void
+    to_string(multi_byte::code_page cp, std::optional<std::u16string_view> view, std::optional<std::string>& str);
+
+    std::string
     to_string(multi_byte::code_page cp, std::u32string_view view);
 
     void
     to_string(multi_byte::code_page cp, std::u32string_view view, std::string& str);
+
+    std::string
+    to_string(multi_byte::code_page cp, std::u32string const& s);
+
+    void
+    to_string(multi_byte::code_page cp, std::u32string const& s, std::string& str);
+
+    std::optional<std::string>
+    to_string(multi_byte::code_page cp, std::optional<std::u32string_view> view);
+
+    void
+    to_string(multi_byte::code_page cp, std::optional<std::u32string_view> view, std::optional<std::string>& str);
 
     //
     std::wstring
@@ -376,6 +425,18 @@ namespace m
 
     void
     to_wstring(multi_byte::code_page cp, std::string_view view, std::wstring& str);
+
+    std::optional<std::wstring>
+    to_wstring(multi_byte::code_page cp, std::optional<std::string_view> view);
+
+    void
+    to_wstring(multi_byte::code_page cp, std::optional<std::string_view> view, std::optional<std::wstring>& str);
+
+    std::wstring
+    to_wstring(multi_byte::code_page cp, std::string const& s);
+
+    void
+    to_wstring(multi_byte::code_page cp, std::string const& s, std::wstring& str);
 
     //
     std::u8string

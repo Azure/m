@@ -4,13 +4,14 @@ if(M_BUILD_TESTS)
     include(GoogleTest)
 
     add_executable(test_strings
+        compare_optional_wstring_view.cpp
         punning_test.cpp
-      test_convert.cpp
-      test_literal_string_view.cpp
-      verify_to_string.cpp
-      verify_to_u8string.cpp
-      verify_to_u16string.cpp
-      verify_to_u32string.cpp
+        test_convert.cpp
+        test_literal_string_view.cpp
+        verify_to_string.cpp
+        verify_to_u8string.cpp
+        verify_to_u16string.cpp
+        verify_to_u32string.cpp
     )
 
     target_link_libraries(

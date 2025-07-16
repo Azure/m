@@ -7,6 +7,8 @@
 #include <type_traits>
 #include <utility>
 
+#include <m/exception/exception.h>
+
 #define M_FAIL_FAST_NO_TEXT()                                                                      \
     do                                                                                             \
     {                                                                                              \
@@ -59,6 +61,28 @@
     do                                                                                             \
     {                                                                                              \
         M_FAIL_FAST_NO_TEXT();                                                                     \
+    } while (false)
+
+#define M_PARAMETER_CHECK(p, v)                                                                    \
+    do                                                                                             \
+    {                                                                                              \
+        auto const m_internal_parameter_value           = (p);                                     \
+        auto const m_internal_parameter_reference_value = decltype(m_internal_parameter_value) v;  \
+        if (m_internal_parameter_value != m_internal_parameter_reference_value)                    \
+        {                                                                                          \
+            throw m::invalid_parameter(#p);                                                        \
+        }                                                                                          \
+    } while (false)
+
+#define M_API_PARAMETER_CHECK(api, p, v)                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        auto const m_internal_parameter_value           = (p);                                     \
+        auto const m_internal_parameter_reference_value = decltype(m_internal_parameter_value) v;  \
+        if (m_internal_parameter_value != m_internal_parameter_reference_value)                    \
+        {                                                                                          \
+            throw m::invalid_parameter(api "." #p);                                                \
+        }                                                                                          \
     } while (false)
 
 namespace m

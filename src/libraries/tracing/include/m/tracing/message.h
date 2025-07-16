@@ -50,10 +50,10 @@ namespace m
 
             template <typename FormatStringT, typename FormatArgsT>
             void
-            format_log(FormatStringT&& fmt, FormatArgsT format_args)
+            format_log(FormatStringT&& fmt, FormatArgsT&& format_args)
             {
                 auto       it    = safe_array_iterator(m_chars, 0);
-                auto       endit = std::vformat_to(it, fmt.get(), format_args);
+                auto       endit = std::vformat_to(it, fmt.get(), std::forward<FormatArgsT>(format_args));
                 auto const diff  = &*endit - &*it;
                 m_length         = m::try_cast<std::size_t>(diff);
             }

@@ -4,7 +4,7 @@ add_library(m_windows_strings STATIC)
 
 add_subdirectory(include)
 add_subdirectory(src)
-# add_subdirectory(test)
+add_subdirectory(test)
 
 list(APPEND m_installation_targets
     m_windows_strings

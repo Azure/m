@@ -31,7 +31,7 @@ namespace m
         }
 
         static void
-        swap(not_null& l, not_null& r)
+        swap(not_null& l, not_null& r) noexcept
         {
             T t{l.m_v};
             l.m_v = r.m_v;

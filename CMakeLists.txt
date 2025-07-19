@@ -152,8 +152,8 @@ add_subdirectory(src)
 add_subdirectory(docs)
 
 list(APPEND m_installation_targets
-    pe2csv
-    pe2l
+#    pe2csv
+#    pe2l
 )
 
 install(

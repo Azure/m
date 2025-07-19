@@ -33,8 +33,8 @@ if(M_BUILD_TESTS)
     gtest_discover_tests(test_filesystem stress_monitor)
 
     list(APPEND m_installation_targets
-        test_filesystem
-        stress_monitor
+#        test_filesystem
+#        stress_monitor
     )
 
     set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

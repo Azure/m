@@ -7,15 +7,16 @@
   },
   "configurePresets": [
     {
-      "name": "linux-debug",
-      "displayName": "Linux Debug",
-      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
+      "name": "linux-clang-debug",
+      "displayName": "linux x64 Debug",
+      "description": "Target Linux x64 Debug clang",
+      "cmakeExecutable": "/mnt/c/Users/micgrier/cmake-4.0.3-linux-x86_64/bin/cmake",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
       "cacheVariables": {
-        "CMAKE_C_COMPILER": "clang.exe",
-        "CMAKE_CXX_COMPILER": "clang.exe",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang",
         "build_tests": "ON",
         "CMAKE_BUILD_TYPE": "Debug"
       },

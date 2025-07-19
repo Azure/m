@@ -9,6 +9,7 @@
         "${env.INCLUDE}",
         "${workspaceRoot}\\**"
       ],
+      "cppStandard": "c++latest",
       "defines": [
         "WIN32",
         "UNICODE",
@@ -19,6 +20,23 @@
     },
     {
       "inheritEnvironments": [
+        "linux_x64"
+      ],
+      "name": "linux x64 Debug",
+      "includePath": [
+        "${env.INCLUDE}",
+        "${workspaceRoot}\\**"
+      ],
+      "defines": [
+        "LINUX",
+        "UNICODE",
+        "_UNICODE"
+      ],
+      "compilerSwitches": "/std:c++latest",
+      "intelliSenseMode": "android-clang-x64"
+    },
+    {
+      "inheritEnvironments": [
         "msvc_x64"
       ],
       "name": "x64 Release",
@@ -26,6 +44,7 @@
         "${env.INCLUDE}",
         "${workspaceRoot}\\**"
       ],
+      "cppStandard": "c++latest",
       "defines": [
         "WIN32",
         "NDEBUG",
@@ -44,6 +63,7 @@
         "${env.INCLUDE}",
         "${workspaceRoot}\\**"
       ],
+      "cppStandard": "c++latest",
       "defines": [
         "WIN32",
         "NDEBUG",

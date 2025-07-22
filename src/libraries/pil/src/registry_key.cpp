@@ -7,6 +7,7 @@
 #include <string_view>
 #include <tuple>
 
+#include <m/error_handling/macros.h>
 #include <m/pil/registry.h>
 #include <m/strings/convert.h>
 #include <m/strings/split.h>

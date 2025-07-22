@@ -22,6 +22,7 @@ using namespace std::chrono_literals;
 #include <m/formatters/Win32ErrorCode.h>
 #include <m/strings/convert.h>
 #include <m/threadpool/threadpool.h>
+#include <m/tracing/tracing.h>
 #include <m/utility/pointers.h>
 
 #include "directory_watcher.h"
@@ -131,6 +132,11 @@ namespace m::filesystem_impl::platform_specific
         {
             auto const last_error = ::GetLastError();
 
+            wtrace_error(
+                L"Opening file {} for FILE_LIST_DIRECTORY, FILE_SHARE_*, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED failed with {}",
+                m_path.c_str(),
+                fmtWin32ErrorCode{last_error});
+
             // Go to each registered watch and see what they have to say about retrying.
             std::chrono::milliseconds         retry_duration = std::chrono::milliseconds::max();
             std::filesystem::filesystem_error error(
@@ -138,7 +144,8 @@ namespace m::filesystem_impl::platform_specific
 
             for (auto&& rw: m_registered_watches)
             {
-                auto r = rw.m_change_notification->on_directory_access_failure(issue_time, m_path, error);
+                auto r = rw.m_change_notification->on_directory_access_failure(
+                    issue_time, m_path, error);
                 auto ms =
                     r.value_or(m::filesystem::change_notification::requeue_directory_access_attempt{
                                    m_default_retry_delay})
@@ -160,6 +167,11 @@ namespace m::filesystem_impl::platform_specific
         {
             auto const last_error = ::GetLastError();
 
+            wtrace_error(L"Call to ::CreateThreadpoolIo() on {:#x} (from \"{}\") failed with {}",
+                         reinterpret_cast<uintptr_t>(m_directory.get()),
+                         m_path.c_str(),
+                         fmtWin32ErrorCode{last_error});
+
             // Close the directory so we don't waste anyone's time.
             m_directory.reset();
 
@@ -172,7 +184,8 @@ namespace m::filesystem_impl::platform_specific
 
             for (auto&& rw: m_registered_watches)
             {
-                auto r = rw.m_change_notification->on_directory_access_failure(issue_time, m_path, error);
+                auto r = rw.m_change_notification->on_directory_access_failure(
+                    issue_time, m_path, error);
                 auto ms =
                     r.value_or(m::filesystem::change_notification::requeue_directory_access_attempt{
                                    m_default_retry_delay})
@@ -206,7 +219,7 @@ namespace m::filesystem_impl::platform_specific
         auto l = std::unique_lock(m_mutex);
 
         auto const issue_time = std::chrono::utc_clock::now();
-        auto token = std::make_unique<registration_token>(key, m::not_null(this));
+        auto       token      = std::make_unique<registration_token>(key, m::not_null(this));
 
         m_registered_watches.emplace_back(key, filename, ptr);
 
@@ -229,8 +242,8 @@ namespace m::filesystem_impl::platform_specific
         auto l = std::unique_lock(m_mutex);
 
         auto const issue_time = std::chrono::utc_clock::now();
-        auto const result = std::ranges::find_if(m_registered_watches,
-                                           [key](auto const& w) { return w.m_key == key; });
+        auto const result     = std::ranges::find_if(m_registered_watches,
+                                                 [key](auto const& w) { return w.m_key == key; });
         if (result == m_registered_watches.end())
             throw std::runtime_error("No matching watch found for key");
 
@@ -242,7 +255,7 @@ namespace m::filesystem_impl::platform_specific
     void
     directory_watcher::recheck_watcher(std::chrono::utc_clock::time_point issue_time)
     {
-        auto const s  = m_path.native();
+        auto&      s  = m_path.native();
         auto const sv = std::wstring_view(s);
 
         // m::dbg_format(L"directory_watcher::RecheckWatcher() for path {}\n", sv);
@@ -255,19 +268,15 @@ namespace m::filesystem_impl::platform_specific
     void
     directory_watcher::invalidate_watcher(std::chrono::utc_clock::time_point issue_time)
     {
-        auto s = m_path.native();
-        m::dbg_format(L"directory_watcher::invalidate_watcher() for path {}\n", s);
-
         for (auto&& e: m_registered_watches)
-        {
             e.m_change_notification->on_invalid(issue_time);
-        }
 
         m_is_valid = false;
     }
 
     void
-    directory_watcher::enqueue_async_read_directory_changes(std::chrono::utc_clock::time_point issue_time)
+    directory_watcher::enqueue_async_read_directory_changes(
+        std::chrono::utc_clock::time_point issue_time)
     {
         m_overlapped.hEvent       = nullptr;
         m_overlapped.Internal     = 0;
@@ -293,8 +302,10 @@ namespace m::filesystem_impl::platform_specific
 
         auto const last_error = ::GetLastError();
 
-        m::dbg_format(L"ReadDirectoryChangesW() failed with Win32 error code {}\n",
-                      fmtWin32ErrorCode{last_error});
+        wtrace_error(L"Call to ::ReadDirectoryChangesW() on {:#x} (from {}) failed with {}",
+                     reinterpret_cast<uintptr_t>(m_directory.get()),
+                     m_path.c_str(),
+                     fmtWin32ErrorCode{last_error});
 
         ::CancelThreadpoolIo(m_io.get());
 
@@ -322,18 +333,7 @@ namespace m::filesystem_impl::platform_specific
                                                           ULONG_PTR NumberOfBytesTransferred,
                                                           PTP_IO    Io)
     {
-#if 0
-        m::dbg_format(
-            L"directory_watcher::ReadDirectoryChangesExCallback(CallbackInstance = 0x{:x}, Context = 0x{:x}, Overlapped = {}, IoResult = {}, NumberOfBytesTransferred = {}, Io = 0x{:x})\n",
-            reinterpret_cast<uintptr_t>(CallbackInstance),
-            reinterpret_cast<uintptr_t>(Context),
-            *reinterpret_cast<OVERLAPPED*>(Overlapped),
-            fmtWin32ErrorCode{IoResult},
-            NumberOfBytesTransferred,
-            reinterpret_cast<uintptr_t>(Io));
-#else
         std::ignore = Overlapped;
-#endif
 
         //
         // Thunk over to member function for easier reading
@@ -374,7 +374,6 @@ namespace m::filesystem_impl::platform_specific
 
                 for (;;)
                 {
-                    // m::dbg_format(L"Processing file change: {}\n", *fni);
                     int cchFileName = fni->FileNameLength / sizeof(fni->FileName[0]);
 
                     // only make this copy if we have a match
@@ -382,11 +381,6 @@ namespace m::filesystem_impl::platform_specific
 
                     for (auto&& e: m_registered_watches)
                     {
-#if 0
-                        m::dbg_format(L"Comparing \"{}\" and \"{}\"\n",
-                                      std::wstring_view(e.m_name_view.data(), e.m_name_char_count),
-                                      std::wstring_view(fni->FileName, cchFileName));
-#endif
                         if (are_file_names_equal(e.m_name_view.data(),
                                                  e.m_name_char_count,
                                                  fni->FileName,
@@ -401,12 +395,14 @@ namespace m::filesystem_impl::platform_specific
                                 case FILE_ACTION_ADDED:
                                 case FILE_ACTION_MODIFIED:
                                 case FILE_ACTION_RENAMED_NEW_NAME:
-                                    e.m_change_notification->on_file_changed(issue_time, m_path, asPath);
+                                    e.m_change_notification->on_file_changed(
+                                        issue_time, m_path, asPath);
                                     break;
 
                                 case FILE_ACTION_REMOVED:
                                 case FILE_ACTION_RENAMED_OLD_NAME:
-                                    e.m_change_notification->on_file_deleted(issue_time, m_path, asPath);
+                                    e.m_change_notification->on_file_deleted(
+                                        issue_time, m_path, asPath);
                                     break;
                             }
                         }
@@ -436,12 +432,6 @@ namespace m::filesystem_impl::platform_specific
 
                     for (auto&& e: m_registered_watches)
                     {
-#if 0
-                        m::dbg_format(L"Comparing \"{}\" and \"{}\"\n",
-                                      std::wstring_view(e.m_name_view.data(), e.m_name_char_count),
-                                      std::wstring_view(fnei->FileName, cchFileName));
-#endif
-
                         if (are_file_names_equal(e.m_name_view.data(),
                                                  e.m_name_char_count,
                                                  fnei->FileName,
@@ -457,12 +447,14 @@ namespace m::filesystem_impl::platform_specific
                                 case FILE_ACTION_ADDED:
                                 case FILE_ACTION_MODIFIED:
                                 case FILE_ACTION_RENAMED_NEW_NAME:
-                                    e.m_change_notification->on_file_changed(issue_time, m_path, asPath);
+                                    e.m_change_notification->on_file_changed(
+                                        issue_time, m_path, asPath);
                                     break;
 
                                 case FILE_ACTION_REMOVED:
                                 case FILE_ACTION_RENAMED_OLD_NAME:
-                                    e.m_change_notification->on_file_deleted(issue_time, m_path, asPath);
+                                    e.m_change_notification->on_file_deleted(
+                                        issue_time, m_path, asPath);
                                     break;
                             }
                         }

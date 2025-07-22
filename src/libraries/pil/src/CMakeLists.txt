@@ -21,6 +21,7 @@ target_compile_definitions(m_pil PRIVATE _CRT_SECURE_NO_WARNINGS)
 
 target_link_libraries(m_pil PUBLIC
     m_cast
+    m_error_handling
     m_math
     m_strings
     m_tracing

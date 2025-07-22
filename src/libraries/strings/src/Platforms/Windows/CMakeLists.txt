@@ -5,7 +5,9 @@ target_sources(m_strings PRIVATE
 )
 
 target_link_libraries(m_strings PUBLIC
+    m_error_handling
     m_errors
+    m_windows_strings
 )
 
 target_include_directories(m_strings PUBLIC

@@ -8,6 +8,7 @@
 #include <string_view>
 #include <tuple>
 
+#include <m/error_handling/macros.h>
 #include <m/pil/pil.h>
 #include <m/pil/platform.h>
 #include <m/pil/registry.h>

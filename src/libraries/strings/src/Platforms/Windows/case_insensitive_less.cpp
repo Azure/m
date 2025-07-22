@@ -13,16 +13,16 @@
 #include <Windows.h>
 
 #include <m/cast/to.h>
+#include <m/error_handling/macros.h>
 #include <m/errors/errors.h>
+#include <m/windows_strings/convert.h>
+#include <m/strings/convert.h>
 #include <m/utility/utility.h>
 
 #include "platform.h"
 
 namespace m::strings::impl::ordinal_case_insensitive
 {
-    bool
-    less(std::string_view const& l, std::string_view const& r);
-
     bool
     less(std::wstring_view const& l, std::wstring_view const& r)
     {
@@ -43,9 +43,6 @@ namespace m::strings::impl::ordinal_case_insensitive
 
         return false; // should be dead code
     }
-
-    bool
-    less(std::u8string_view const& l, std::u8string_view const& r);
 
     bool
     less(std::u16string_view const& l, std::u16string_view const& r)
@@ -72,8 +69,23 @@ namespace m::strings::impl::ordinal_case_insensitive
     }
 
     bool
+    less(std::u8string_view const& l, std::u8string_view const& r)
+    {
+        auto const l_as_u16 = m::to_u16string(l);
+        auto const r_as_u16 = m::to_u16string(r);
+        return less(std::u16string_view(l_as_u16), std::u16string_view(r_as_u16));
+    }
+
+    bool
+        less(std::string_view const& l, std::string_view const& r)
+    {
+        auto const l_as_u16 = m::to_u16string(l);
+        auto const r_as_u16 = m::to_u16string(r);
+        return less(std::u16string_view(l_as_u16), std::u16string_view(r_as_u16));
+    }
+
+    bool
     less(std::u32string_view const& l, std::u32string_view const& r);
 
     //
 } // namespace m::strings::impl::ordinal_case_insensitive
-

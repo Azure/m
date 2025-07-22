@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include <m/cast/to.h>
+#include <m/error_handling/macros.h>
 #include <m/errors/errors.h>
 #include <m/exception/exception.h>
 #include <m/filesystem/filesystem_loadstore.h>
@@ -44,7 +45,14 @@ namespace
             FILE_STANDARD_INFO fsi{};
 
             if (!::GetFileInformationByHandleEx(get(), FileStandardInfo, &fsi, sizeof(fsi)))
-                m::throw_last_win32_error();
+            {
+                auto const last_error = ::GetLastError();
+                m::wtrace_error(
+                    L"Error on call to GetFileInformationByHandle {:#x} for FileStandardInfo: {}",
+                    reinterpret_cast<uintptr_t>(get()),
+                    fmtWin32ErrorCode{last_error});
+                m::throw_win32_error_code(last_error);
+            }
 
             uint64_t               file_size = fsi.EndOfFile.QuadPart;
             std::vector<std::byte> result(file_size);
@@ -52,22 +60,46 @@ namespace
             auto                   bytes_to_read    = m::to<DWORD>(std::min(1ull << 20, file_size));
             auto                   buffer_remaining = result.size();
 
+            M_INTERNAL_ERROR_CHECK(result.size() == file_size);
+
             for (;;)
             {
+                M_INTERNAL_ERROR_CHECK(buffer_remaining <= file_size);
+
                 // Even if the file has grown, don't read through past the
                 // end of the buffer.
-                bytes_to_read = m::to<DWORD>(std::min<std::size_t>(bytes_to_read, buffer_remaining));
+                bytes_to_read =
+                    m::to<DWORD>(std::min<std::size_t>(bytes_to_read, buffer_remaining));
 
                 DWORD bytes_read{};
 
                 if (!::ReadFile(get(), &*out_it, bytes_to_read, &bytes_read, nullptr))
                 {
                     auto const last_error = ::GetLastError();
+                    m::wtrace_error(L"Error on call to ReadFile {:#x} for {} bytes: {}",
+                                    reinterpret_cast<uintptr_t>(get()),
+                                    bytes_to_read,
+                                    fmtWin32ErrorCode{last_error});
                     m::throw_win32_error_code(last_error);
                 }
 
                 if (bytes_read == 0)
+                {
+                    if (buffer_remaining != 0)
+                    {
+                        std::size_t actual_size = file_size - buffer_remaining;
+
+                        m::wtrace(
+                            m::tracing::event_kind::information,
+                            L"File {:#x} found to be shorter during read than when first opened. {} vs. {} bytes",
+                            reinterpret_cast<uintptr_t>(get()),
+                            file_size,
+                            actual_size);
+
+                        result.resize(actual_size);
+                    }
                     break;
+                }
 
                 M_INTERNAL_ERROR_CHECK(bytes_read <= buffer_remaining);
                 M_INTERNAL_ERROR_CHECK(bytes_read <= bytes_to_read);
@@ -95,7 +127,13 @@ m::filesystem::load(std::filesystem::path const& path)
                                     0,
                                     nullptr)};
     if (file.get() == INVALID_HANDLE_VALUE)
-        throw_last_win32_error();
+    {
+        auto const last_error = ::GetLastError();
+        wtrace_error(L"Error opening file {} for GENERIC_READ, FILE_SHARE_*, OPEN_EXISTING: {}",
+                     path.c_str(),
+                     fmtWin32ErrorCode{last_error});
+        throw_win32_error_code(last_error);
+    }
 
     return file.load();
 }
@@ -112,7 +150,11 @@ m::filesystem::load(std::filesystem::path const& path, std::error_code& ec)
                                     nullptr)};
     if (file.get() == INVALID_HANDLE_VALUE)
     {
-        ec = get_last_win32_error();
+        auto const last_error = ::GetLastError();
+        wtrace_error(L"Error opening file {} for GENERIC_READ, FILE_SHARE_*, OPEN_EXISTING: {}",
+                     path.c_str(),
+                     fmtWin32ErrorCode{last_error});
+        ec = make_win32_error_code(last_error);
         return std::nullopt;
     }
 
@@ -137,12 +179,16 @@ m::filesystem::store(std::filesystem::path const&                    path,
                                     nullptr)};
     if (file.get() == INVALID_HANDLE_VALUE)
     {
-        ec = get_last_win32_error();
+        auto const last_error = ::GetLastError();
+        wtrace_error(L"Error opening file {} for GENERIC_WRITE, FILE_SHARE_*, CREATE_ALWAYS: {}",
+                     path.c_str(),
+                     fmtWin32ErrorCode{last_error});
+        ec = make_win32_error_code(last_error);
         return;
     }
 
     std::size_t offset{};
-    std::size_t remainingBytes{data.size_bytes()};
+    std::size_t remaining_bytes{data.size_bytes()};
 
     while (offset < data.size())
     {
@@ -159,18 +205,23 @@ m::filesystem::store(std::filesystem::path const&                    path,
         // If a Store variant is implemented that is async aware, it
         // perhaps should be smarter or tunable.
         //
-        constexpr std::size_t writeChunkSize = 1ull << 20;
-        static_assert(writeChunkSize < (std::numeric_limits<DWORD>::max)());
-        DWORD bytesToWrite = m::to<DWORD>(std::min<std::size_t>(1ull << 20, remainingBytes));
-        DWORD bytesWritten{};
-        if (!::WriteFile(file.get(), &data[offset], bytesToWrite, &bytesWritten, nullptr))
+        constexpr std::size_t write_chunk_size = 1ull << 20;
+        static_assert(write_chunk_size < (std::numeric_limits<DWORD>::max)());
+        DWORD bytes_to_write = m::to<DWORD>(std::min<std::size_t>(1ull << 20, remaining_bytes));
+        DWORD bytes_written{};
+        if (!::WriteFile(file.get(), &data[offset], bytes_to_write, &bytes_written, nullptr))
         {
-            ec = get_last_win32_error();
+            auto const last_error = ::GetLastError();
+            m::wtrace_error(L"Error on call to WriteFile {:#x} for {} bytes: {}",
+                            reinterpret_cast<uintptr_t>(file.get()),
+                            bytes_to_write,
+                            fmtWin32ErrorCode{last_error});
+            ec = make_win32_error_code(last_error);
             return;
         }
 
-        offset += bytesWritten;
-        remainingBytes -= bytesWritten;
+        offset += bytes_written;
+        remaining_bytes -= bytes_written;
     }
 }
 
@@ -186,10 +237,16 @@ m::filesystem::store(std::filesystem::path const&                    path,
                                     0,
                                     nullptr)};
     if (file.get() == INVALID_HANDLE_VALUE)
-        throw_last_win32_error();
+    {
+        auto const last_error = ::GetLastError();
+        wtrace_error(L"Error opening file {} for GENERIC_WRITE, FILE_SHARE_*, CREATE_ALWAYS: {}",
+                     path.c_str(),
+                     fmtWin32ErrorCode{last_error});
+        throw_win32_error_code(last_error);
+    }
 
     std::size_t offset{};
-    std::size_t remainingBytes{data.size_bytes()};
+    std::size_t remaining_bytes{data.size_bytes()};
 
     while (offset < data.size())
     {
@@ -206,14 +263,21 @@ m::filesystem::store(std::filesystem::path const&                    path,
         // If a Store variant is implemented that is async aware, it
         // perhaps should be smarter or tunable.
         //
-        constexpr std::size_t writeChunkSize = 1ull << 20;
-        static_assert(writeChunkSize < (std::numeric_limits<DWORD>::max)());
-        DWORD bytesToWrite = m::to<DWORD>(std::min<std::size_t>(1ull << 20, remainingBytes));
-        DWORD bytesWritten{};
-        if (!::WriteFile(file.get(), &data[offset], bytesToWrite, &bytesWritten, nullptr))
-            throw_last_win32_error();
+        constexpr std::size_t write_chunk_size = 1ull << 20;
+        static_assert(write_chunk_size < (std::numeric_limits<DWORD>::max)());
+        DWORD bytes_to_write = m::to<DWORD>(std::min<std::size_t>(1ull << 20, remaining_bytes));
+        DWORD bytes_written{};
+        if (!::WriteFile(file.get(), &data[offset], bytes_to_write, &bytes_written, nullptr))
+        {
+            auto const last_error = ::GetLastError();
+            m::wtrace_error(L"Error on call to WriteFile {:#x} for {} bytes: {}",
+                            reinterpret_cast<uintptr_t>(file.get()),
+                            bytes_to_write,
+                            fmtWin32ErrorCode{last_error});
+            throw_win32_error_code(last_error);
+        }
 
-        offset += bytesWritten;
-        remainingBytes -= bytesWritten;
+        offset += bytes_written;
+        remaining_bytes -= bytes_written;
     }
 }

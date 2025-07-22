@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <m/debugging/dbg_format.h>
+#include <m/exception/exception.h>
 #include <m/filesystem/filesystem.h>
 #include <m/googletest/temporary_directory.h>
 #include <m/utility/algorithm.h>

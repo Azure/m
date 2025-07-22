@@ -14,6 +14,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <m/error_handling/macros.h>
 #include <m/strings/convert.h>
 #include <m/utility/utility.h>
 

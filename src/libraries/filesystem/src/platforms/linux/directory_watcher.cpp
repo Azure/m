@@ -37,7 +37,7 @@ namespace m::filesystem_impl::platform_specific
 
         m_registered_watches.emplace_back(key, filename, ptr);
 
-        ptr->on_begin();
+        ptr->on_begin(std::chrono::utc_clock::now());
 
         return token;
     }
@@ -52,7 +52,7 @@ namespace m::filesystem_impl::platform_specific
         if (result == m_registered_watches.end())
             throw std::runtime_error("No matching watch found for key");
 
-        result->m_change_notification->on_cancelled();
+        result->m_change_notification->on_cancelled(std::chrono::utc_clock::now());
 
         m_registered_watches.erase(result);
     }

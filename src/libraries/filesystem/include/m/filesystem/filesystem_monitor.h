@@ -87,7 +87,7 @@ namespace m
             /// monitor prior to any other notifications.
             /// </summary>
             virtual void
-            on_begin() = 0;
+            on_begin(std::chrono::utc_clock::time_point issue_time) = 0;
 
             /// <summary>
             /// The `requeue_directory_access_attempt` struct encapsulates the data to
@@ -121,7 +121,8 @@ namespace m
             /// <param name="error"></param>
             /// <returns></returns>
             virtual std::optional<requeue_directory_access_attempt>
-            on_directory_access_failure(std::filesystem::path const&             directory,
+            on_directory_access_failure(std::chrono::utc_clock::time_point       issue_time,
+                                        std::filesystem::path const&             directory,
                                         std::filesystem::filesystem_error const& error) = 0;
 
             struct requeue_file_access_attempt
@@ -189,7 +190,8 @@ namespace m
             /// <param name="error"></param>
             /// <returns></returns>
             virtual std::optional<requeue_file_access_attempt>
-            on_file_access_failure(std::filesystem::path const&             directory,
+            on_file_access_failure(std::chrono::utc_clock::time_point       issue_time,
+                                   std::filesystem::path const&             directory,
                                    std::filesystem::path const&             filename,
                                    std::filesystem::filesystem_error const& error) = 0;
 
@@ -212,8 +214,9 @@ namespace m
             /// <param name="filename">The filename of the file
             /// which changed.</param>
             virtual void
-            on_file_changed(std::filesystem::path const& directory,
-                            std::filesystem::path const& filename) = 0;
+            on_file_changed(std::chrono::utc_clock::time_point issue_time,
+                            std::filesystem::path const&       directory,
+                            std::filesystem::path const&       filename) = 0;
 
             /// <summary>
             /// The `on_file_deleted` virtual function is called by the
@@ -234,8 +237,9 @@ namespace m
             /// <param name="filename">The filename of the file
             /// which was deleted.</param>
             virtual void
-            on_file_deleted(std::filesystem::path const& directory,
-                            std::filesystem::path const& filename) = 0;
+            on_file_deleted(std::chrono::utc_clock::time_point issue_time,
+                            std::filesystem::path const&       directory,
+                            std::filesystem::path const&       filename) = 0;
 
             /// <summary>
             /// The `on_file_recheck_required` virtual function is called by
@@ -256,8 +260,9 @@ namespace m
             /// file.</param>
             /// <param name="filename">The filename of the file.</param>
             virtual void
-            on_file_recheck_required(std::filesystem::path const& directory,
-                                     std::filesystem::path const& filename) = 0;
+            on_file_recheck_required(std::chrono::utc_clock::time_point issue_time,
+                                     std::filesystem::path const&       directory,
+                                     std::filesystem::path const&       filename) = 0;
 
             /// <summary>
             /// The `on_cancelled` virtual function is called by the
@@ -268,13 +273,13 @@ namespace m
             /// on_cancelled() has been called.
             /// </summary>
             virtual void
-            on_cancelled() = 0;
+            on_cancelled(std::chrono::utc_clock::time_point issue_time) = 0;
 
             /// <summary>
             /// ???
             /// </summary>
             virtual void
-            on_invalid() = 0;
+            on_invalid(std::chrono::utc_clock::time_point issue_time) = 0;
 
             //
             // Un-block-comment these after copy/paste for your derived
@@ -352,20 +357,23 @@ namespace m
             /// allowing it to be otherwise destroyed.
             /// </returns>
             std::unique_ptr<change_notification_registration_token>
-            register_watch(std::filesystem::path const&      path,
-                           m::not_null<change_notification*> change_notification_ptr,
+            register_watch(std::filesystem::path const&          path,
+                           m::not_null<change_notification*>     change_notification_ptr,
                            std::initializer_list<watch_policy>&& policies =
                                std::initializer_list<watch_policy>{})
             {
-                return do_register_watch(path, change_notification_ptr, std::forward<std::initializer_list<watch_policy>>(policies));
+                return do_register_watch(
+                    path,
+                    change_notification_ptr,
+                    std::forward<std::initializer_list<watch_policy>>(policies));
             }
 
         protected:
             virtual ~monitor() {}
 
             virtual std::unique_ptr<change_notification_registration_token>
-            do_register_watch(std::filesystem::path const&      path,
-                              m::not_null<change_notification*> change_notification_ptr,
+            do_register_watch(std::filesystem::path const&          path,
+                              m::not_null<change_notification*>     change_notification_ptr,
                               std::initializer_list<watch_policy>&& policies) = 0;
         };
 

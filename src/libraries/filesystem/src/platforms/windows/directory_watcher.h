@@ -244,13 +244,13 @@ namespace m::filesystem_impl::platform_specific
         on_directory_probe_timer();
 
         void
-        enqueue_async_read_directory_changes();
+        enqueue_async_read_directory_changes(std::chrono::utc_clock::time_point issue_time);
 
         void
-        invalidate_watcher();
+        invalidate_watcher(std::chrono::utc_clock::time_point issue_time);
 
         void
-        recheck_watcher();
+        recheck_watcher(std::chrono::utc_clock::time_point issue_time);
 
         static void
         read_directory_changes_ex_callback(PTP_CALLBACK_INSTANCE CallbackInstance,

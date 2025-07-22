@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include <m/cast/to.h>
+#include <m/error_handling/macros.h>
 #include <m/errors/errors.h>
 #include <m/pil/common.h>
 #include <m/pil/registry.h>
@@ -24,7 +25,7 @@ namespace m::pil::impl::registry::win32
     ikey::delete_value_disposition
     key::delete_value(delete_value_flags flags, std::u16string_view value_name)
     {
-        M_API_PARAMETER_CHECK("ikey::delete_value", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::delete_value", flags);
 
         auto const value_namez = pcwstr(value_name);
         auto       status      = ::RegDeleteValueW(m_hkey, value_namez);
@@ -40,7 +41,7 @@ namespace m::pil::impl::registry::win32
         std::size_t                                                            index,
         std::span<enumerate_value_names_and_types_value, std::dynamic_extent>& values_span)
     {
-        M_API_PARAMETER_CHECK("ikey::enumerate_value_names_and_types", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::enumerate_value_names_and_types", flags);
 
         std::size_t span_index{};
 

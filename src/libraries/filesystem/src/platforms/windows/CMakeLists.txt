@@ -8,6 +8,7 @@ target_sources(m_filesystem PRIVATE
 
 target_link_libraries(m_filesystem PUBLIC
     m_debugging
+    m_error_handling
     m_formatters
     m_threadpool
 )

@@ -14,6 +14,12 @@
 #include <type_traits>
 #include <vector>
 
+#include <m/error_handling/macros.h>
+#include <m/pil/common.h>
+#include <m/pil/disposition.h>
+#include <m/pil/registry_base_types.h>
+#include <m/pil/registry_interfaces.h>
+#include <m/pil/security_attributes.h>
 #include <m/strings/convert.h>
 #include <m/utility/utility.h>
 
@@ -22,12 +28,6 @@
 #else
 #include <m/linux_strings/convert.h>
 #endif
-
-#include <m/pil/common.h>
-#include <m/pil/disposition.h>
-#include <m/pil/registry_base_types.h>
-#include <m/pil/registry_interfaces.h>
-#include <m/pil/security_attributes.h>
 
 //
 // In the platform isolation layer, a "platform" represents a stack of whatever various layers
@@ -63,19 +63,17 @@ namespace m::pil
             disposition<get_registry_result_code, get_registry_result_flags>;
 
         virtual get_registry_disposition
-        get_registry(
-            get_registry_flags                                       flags,
-            std::shared_ptr<iregistry>& returned_registry) = 0;
+        get_registry(get_registry_flags flags, std::shared_ptr<iregistry>& returned_registry) = 0;
 
         std::shared_ptr<m::pil::iregistry>
         get_registry()
         {
             std::shared_ptr<iregistry> returned_registry;
-            auto const d = get_registry(get_registry_flags{}, returned_registry);
+            auto const                 d = get_registry(get_registry_flags{}, returned_registry);
             M_INTERNAL_ERROR_CHECK(!d);
             return returned_registry;
         }
 
         //
     };
-} // namespace m::pil::interfaces::platform
+} // namespace m::pil

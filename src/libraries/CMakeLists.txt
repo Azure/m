@@ -6,6 +6,7 @@ add_subdirectory(cast)
 add_subdirectory(command_options)
 add_subdirectory(csv)
 add_subdirectory(debugging)
+add_subdirectory(error_handling)
 add_subdirectory(filesystem)
 add_subdirectory(googletest)
 add_subdirectory(io)
@@ -20,5 +21,10 @@ add_subdirectory(thread_description)
 add_subdirectory(threadpool)
 add_subdirectory(tracing)
 add_subdirectory(utf)
+
+# this is by itself because it's a group of libraries
+# not a single library. no good cause.
+
+add_subdirectory(Platform-Adaptive)
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

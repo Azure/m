@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include <m/cast/to.h>
+#include <m/error_handling/macros.h>
 #include <m/errors/errors.h>
 #include <m/pil/common.h>
 #include <m/pil/registry.h>

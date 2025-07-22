@@ -8,6 +8,7 @@
 #include <string_view>
 #include <tuple>
 
+#include <m/error_handling/macros.h>
 #include <m/exception/exception.h>
 #include <m/pil/pil.h>
 #include <m/pil/platform.h>
@@ -187,7 +188,7 @@ namespace m::pil::impl::buffered
     ikey::delete_key_disposition
     key::delete_key(ikey::delete_key_flags flags, std::u16string_view key_name, sam)
     {
-        M_API_PARAMETER_CHECK("ikey::delete_key", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::delete_key", flags);
 
         if (key_name.contains(uregistry_delimiter))
             throw m::invalid_parameter("ikey::delete_key.key_name");
@@ -216,7 +217,7 @@ namespace m::pil::impl::buffered
     ikey::delete_tree_disposition
     key::delete_tree(ikey::delete_tree_flags flags, std::optional<std::u16string_view> name)
     {
-        M_API_PARAMETER_CHECK("ikey::delete_tree", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::delete_tree", flags);
 
         std::ignore = name;
 
@@ -230,7 +231,7 @@ namespace m::pil::impl::buffered
                         std::size_t                                     index,
                         std::span<std::u16string, std::dynamic_extent>& key_names)
     {
-        M_API_PARAMETER_CHECK("ikey::enumerate_keys", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::enumerate_keys", flags);
 
         auto const  lock = std::unique_lock(m_mutex);
         auto        it   = m_keys.begin();
@@ -262,7 +263,7 @@ namespace m::pil::impl::buffered
     ikey::flush_disposition
     key::flush(ikey::flush_flags flags)
     {
-        M_API_PARAMETER_CHECK("ikey::flush", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::flush", flags);
 
         auto lock = std::unique_lock(m_mutex);
 
@@ -280,7 +281,7 @@ namespace m::pil::impl::buffered
     {
         returned_key.reset();
 
-        M_API_PARAMETER_CHECK("ikey::open_key", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::open_key", flags);
 
         if (key_name && key_name.value().contains(uregistry_delimiter))
             throw m::invalid_parameter("ikey::open_key.key_name");
@@ -354,7 +355,7 @@ namespace m::pil::impl::buffered
         value_count              = 0;
         security_descriptor_size = 0;
         last_write_time          = (time_point::min)();
-        M_API_PARAMETER_CHECK("ikey::query_information_key", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::query_information_key", flags);
 
         auto lock = std::unique_lock(m_mutex);
 
@@ -373,7 +374,7 @@ namespace m::pil::impl::buffered
     {
         auto const entry_time = time_point::clock::now();
 
-        M_API_PARAMETER_CHECK("ikey::rename_key", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::rename_key", flags);
 
         // we have no way to navigate to our parent in the hierarchy in the
         // buffered registry, at least not now, so with the buffered
@@ -456,7 +457,7 @@ namespace m::pil::impl::buffered
             if (node.m_mirrored)
             {
                 m::wtrace(L"Attempt to unmirror subkey {} left the subkey mirrored",
-                         m::to_wstring(key_name));
+                          m::to_wstring(key_name));
                 return false;
             }
         }

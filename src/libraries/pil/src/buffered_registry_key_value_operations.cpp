@@ -11,6 +11,7 @@
 #include <vector>
 #include <version>
 
+#include <m/error_handling/macros.h>
 #include <m/exception/exception.h>
 #include <m/pil/pil.h>
 #include <m/pil/platform.h>
@@ -59,7 +60,7 @@ namespace m::pil::impl::buffered
     ikey::delete_value_disposition
     key::delete_value(ikey::delete_value_flags flags, std::u16string_view value_name)
     {
-        M_API_PARAMETER_CHECK("ikey::delete_value", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::delete_value", flags);
 
         auto lock = std::unique_lock(m_mutex);
 
@@ -79,7 +80,7 @@ namespace m::pil::impl::buffered
         std::size_t                                                            index,
         std::span<enumerate_value_names_and_types_value, std::dynamic_extent>& values_span)
     {
-        M_API_PARAMETER_CHECK("ikey::enumerate_value_names_and_types", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::enumerate_value_names_and_types", flags);
 
         auto lock = std::unique_lock(m_mutex);
 
@@ -142,7 +143,7 @@ namespace m::pil::impl::buffered
     {
         size = 0;
 
-        M_API_PARAMETER_CHECK("ikey::get_value_size", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::get_value_size", flags);
 
         auto lock = std::unique_lock(m_mutex);
 
@@ -171,7 +172,7 @@ namespace m::pil::impl::buffered
                         std::u16string_view        value_name,
                         reg_value_type&            type)
     {
-        M_API_PARAMETER_CHECK("ikey::get_value_type", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::get_value_type", flags);
 
         type = reg_value_type{};
 
@@ -196,7 +197,7 @@ namespace m::pil::impl::buffered
     {
         new_bytes_required = std::nullopt;
 
-        M_API_PARAMETER_CHECK("ikey::get_value", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::get_value", flags);
 
         auto lock = std::unique_lock(m_mutex);
 
@@ -239,7 +240,7 @@ namespace m::pil::impl::buffered
                    reg_value_type             type,
                    std::span<std::byte const> value)
     {
-        M_API_PARAMETER_CHECK("ikey::set_value", flags, {});
+        M_API_PARAMETER_MUST_BE_ZERO("ikey::set_value", flags);
 
         auto lock = std::unique_lock(m_mutex);
 

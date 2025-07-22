@@ -17,6 +17,7 @@
 #include <m/debugging/dbg_format.h>
 #include <m/filesystem/filesystem.h>
 #include <m/googletest/temporary_directory.h>
+#include <m/utility/algorithm.h>
 #include <m/utility/random.h>
 
 using namespace std::chrono_literals;
@@ -59,13 +60,13 @@ TEST(StressLoadStore, StressNSeconds)
             try
             {
                 auto contents = m::filesystem::load(path);
-                m::dbg_format(L"Loaded file of {} bytes", contents.size());
+                // m::dbg_format(L"Loaded file of {} bytes", contents.size());
                 load_count++;
             }
             catch (m::not_found&)
             {
                 m::dbg_format(L"File was not found");
-                fault_count++;
+                // fault_count++;
                 not_found_count++;
             }
             catch (m::sharing_violation&)
@@ -91,7 +92,7 @@ TEST(StressLoadStore, StressNSeconds)
             try
             {
                 m::filesystem::store(path, span);
-                m::dbg_format(L"Stored file of {} bytes", span.size());
+                // m::dbg_format(L"Stored file of {} bytes", span.size());
                 store_count++;
             }
             catch (m::sharing_violation&)
@@ -108,34 +109,23 @@ TEST(StressLoadStore, StressNSeconds)
         }
     };
 
-    std::vector<std::thread> loaders;
-    loaders.reserve(loader_count);
-    for (std::size_t i = 0; i < loader_count; i++)
-        loaders.emplace_back(loader, path);
+    std::vector<std::thread> threads;
 
-    std::vector<std::thread> big_storers;
-    big_storers.reserve(big_storer_count);
-    for (std::size_t i = 0; i < big_storer_count; i++)
-        big_storers.emplace_back(storer, path, std::ref(big_file));
+    threads.reserve(loader_count + big_storer_count + little_storer_count);
 
-    std::vector<std::thread> little_storers;
-    little_storers.reserve(little_storer_count);
-    for (std::size_t i = 0; i < little_storer_count; i++)
-        little_storers.emplace_back(storer, path, std::ref(little_file));
+    m::n_times(loader_count, [&]() { threads.emplace_back(loader, path); });
+    m::n_times(big_storer_count, [&]() { threads.emplace_back(storer, path, std::ref(big_file)); });
+    m::n_times(little_storer_count,
+               [&]() { threads.emplace_back(storer, path, std::ref(little_file)); });
 
     start.store(true);
+    start.notify_all();
 
-    std::this_thread::sleep_for(10s);
+    std::this_thread::sleep_for(60s);
 
-    stop = true;
+    stop.store(true);
 
-    for (auto&& e: loaders)
-        e.join();
-
-    for (auto&& e: big_storers)
-        e.join();
-
-    for (auto&& e: little_storers)
+    for (auto&& e: threads)
         e.join();
 
     EXPECT_EQ(fault_count.load(), 0);

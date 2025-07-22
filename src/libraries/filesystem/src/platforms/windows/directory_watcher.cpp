@@ -118,6 +118,8 @@ namespace m::filesystem_impl::platform_specific
         if (m_directory)
             return;
 
+        auto const issue_time = std::chrono::utc_clock::now();
+
         m_directory.reset(::CreateFileW(m_path.c_str(),
                                         FILE_LIST_DIRECTORY,
                                         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -136,7 +138,7 @@ namespace m::filesystem_impl::platform_specific
 
             for (auto&& rw: m_registered_watches)
             {
-                auto r = rw.m_change_notification->on_directory_access_failure(m_path, error);
+                auto r = rw.m_change_notification->on_directory_access_failure(issue_time, m_path, error);
                 auto ms =
                     r.value_or(m::filesystem::change_notification::requeue_directory_access_attempt{
                                    m_default_retry_delay})
@@ -170,7 +172,7 @@ namespace m::filesystem_impl::platform_specific
 
             for (auto&& rw: m_registered_watches)
             {
-                auto r = rw.m_change_notification->on_directory_access_failure(m_path, error);
+                auto r = rw.m_change_notification->on_directory_access_failure(issue_time, m_path, error);
                 auto ms =
                     r.value_or(m::filesystem::change_notification::requeue_directory_access_attempt{
                                    m_default_retry_delay})
@@ -188,7 +190,7 @@ namespace m::filesystem_impl::platform_specific
 
         // TODO: Make the two error paths above common.
 
-        enqueue_async_read_directory_changes();
+        enqueue_async_read_directory_changes(issue_time);
     }
 
     std::unique_ptr<m::filesystem::change_notification_registration_token>
@@ -203,11 +205,12 @@ namespace m::filesystem_impl::platform_specific
 
         auto l = std::unique_lock(m_mutex);
 
+        auto const issue_time = std::chrono::utc_clock::now();
         auto token = std::make_unique<registration_token>(key, m::not_null(this));
 
         m_registered_watches.emplace_back(key, filename, ptr);
 
-        ptr->on_begin();
+        ptr->on_begin(issue_time);
 
         return token;
     }
@@ -225,45 +228,46 @@ namespace m::filesystem_impl::platform_specific
     {
         auto l = std::unique_lock(m_mutex);
 
-        auto result = std::ranges::find_if(m_registered_watches,
+        auto const issue_time = std::chrono::utc_clock::now();
+        auto const result = std::ranges::find_if(m_registered_watches,
                                            [key](auto const& w) { return w.m_key == key; });
         if (result == m_registered_watches.end())
             throw std::runtime_error("No matching watch found for key");
 
-        result->m_change_notification->on_cancelled();
+        result->m_change_notification->on_cancelled(issue_time);
 
         m_registered_watches.erase(result);
     }
 
     void
-    directory_watcher::recheck_watcher()
+    directory_watcher::recheck_watcher(std::chrono::utc_clock::time_point issue_time)
     {
-        auto s  = m_path.native();
-        auto sv = std::wstring_view(s);
+        auto const s  = m_path.native();
+        auto const sv = std::wstring_view(s);
 
         // m::dbg_format(L"directory_watcher::RecheckWatcher() for path {}\n", sv);
         auto str = std::format(L"directory_watcher::recheck_wWatcher() for path {}\n", sv);
 
         for (auto&& e: m_registered_watches)
-            e.m_change_notification->on_file_recheck_required(m_path, e.m_name);
+            e.m_change_notification->on_file_recheck_required(issue_time, m_path, e.m_name);
     }
 
     void
-    directory_watcher::invalidate_watcher()
+    directory_watcher::invalidate_watcher(std::chrono::utc_clock::time_point issue_time)
     {
         auto s = m_path.native();
-        m::dbg_format(L"directory_watcher::InvalidateWatcher() for path {}\n", s);
+        m::dbg_format(L"directory_watcher::invalidate_watcher() for path {}\n", s);
 
         for (auto&& e: m_registered_watches)
         {
-            e.m_change_notification->on_invalid();
+            e.m_change_notification->on_invalid(issue_time);
         }
 
         m_is_valid = false;
     }
 
     void
-    directory_watcher::enqueue_async_read_directory_changes()
+    directory_watcher::enqueue_async_read_directory_changes(std::chrono::utc_clock::time_point issue_time)
     {
         m_overlapped.hEvent       = nullptr;
         m_overlapped.Internal     = 0;
@@ -296,14 +300,14 @@ namespace m::filesystem_impl::platform_specific
 
         if (last_error == ERROR_NOTIFY_ENUM_DIR)
         {
-            recheck_watcher();
+            recheck_watcher(issue_time);
             return;
         }
 
         if (last_error == ERROR_ACCESS_DENIED)
         {
             // ERROR_ACCESS_DENIED happens when the directory is deleted.
-            invalidate_watcher();
+            invalidate_watcher(issue_time);
             return;
         }
 
@@ -352,9 +356,11 @@ namespace m::filesystem_impl::platform_specific
 
         auto l = std::unique_lock(m_mutex);
 
+        auto const issue_time = std::chrono::utc_clock::now();
+
         if (IoResult != ERROR_SUCCESS)
         {
-            invalidate_watcher();
+            invalidate_watcher(issue_time);
             return;
         }
 
@@ -395,12 +401,12 @@ namespace m::filesystem_impl::platform_specific
                                 case FILE_ACTION_ADDED:
                                 case FILE_ACTION_MODIFIED:
                                 case FILE_ACTION_RENAMED_NEW_NAME:
-                                    e.m_change_notification->on_file_changed(m_path, asPath);
+                                    e.m_change_notification->on_file_changed(issue_time, m_path, asPath);
                                     break;
 
                                 case FILE_ACTION_REMOVED:
                                 case FILE_ACTION_RENAMED_OLD_NAME:
-                                    e.m_change_notification->on_file_deleted(m_path, asPath);
+                                    e.m_change_notification->on_file_deleted(issue_time, m_path, asPath);
                                     break;
                             }
                         }
@@ -451,12 +457,12 @@ namespace m::filesystem_impl::platform_specific
                                 case FILE_ACTION_ADDED:
                                 case FILE_ACTION_MODIFIED:
                                 case FILE_ACTION_RENAMED_NEW_NAME:
-                                    e.m_change_notification->on_file_changed(m_path, asPath);
+                                    e.m_change_notification->on_file_changed(issue_time, m_path, asPath);
                                     break;
 
                                 case FILE_ACTION_REMOVED:
                                 case FILE_ACTION_RENAMED_OLD_NAME:
-                                    e.m_change_notification->on_file_deleted(m_path, asPath);
+                                    e.m_change_notification->on_file_deleted(issue_time, m_path, asPath);
                                     break;
                             }
                         }
@@ -473,7 +479,7 @@ namespace m::filesystem_impl::platform_specific
             }
         }
 
-        enqueue_async_read_directory_changes();
+        enqueue_async_read_directory_changes(issue_time);
     }
 
     registration_token::registration_token(uintmax_t key, m::not_null<directory_watcher*> ptr):

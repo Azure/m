@@ -41,7 +41,7 @@ if(M_BUILD_TESTS)
 
     enable_testing()
 
-    gtest_discover_tests(test_filesystem stress_monitor stress_load_store)
+    gtest_discover_tests(test_filesystem stress_monitor)
 
     list(APPEND m_installation_targets
     )

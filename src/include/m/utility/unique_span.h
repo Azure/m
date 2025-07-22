@@ -90,7 +90,7 @@ namespace m
         /// </summary>
         constexpr
             operator std::span<const_value_type>() const noexcept
-            requires !std::is_same_v<element_type, const_value_type>
+            requires (!std::is_same_v<element_type, const_value_type>)
         {
             return std::span<const_value_type, std::dynamic_extent>(
                 const_cast<const_value_type*>(m_span.data()), m_span.size());

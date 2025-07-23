@@ -29,7 +29,8 @@ namespace m
             {
                 using std::swap;
 
-                swap(l.m_process_id, r.m_process_id);
+                swap(l.m_os_process_id, r.m_os_process_id);
+                swap(l.m_os_thread_id, r.m_os_thread_id);
                 swap(l.m_thread_id, r.m_thread_id);
                 swap(l.m_time_point, r.m_time_point);
             }
@@ -38,9 +39,15 @@ namespace m
             current();
 
             constexpr uint64_t
-            process_id() const
+            os_process_id() const
             {
-                return m_process_id;
+                return m_os_process_id;
+            }
+
+            constexpr uint64_t
+            os_thread_id() const
+            {
+                return m_os_thread_id;
             }
 
             std::thread::id
@@ -53,8 +60,9 @@ namespace m
             }
 
         protected:
-            uint64_t        m_process_id;
             std::thread::id m_thread_id;
+            uint64_t        m_os_process_id;
+            uint64_t        m_os_thread_id;
             utc_time_point  m_time_point;
         };
 

@@ -61,8 +61,8 @@ namespace m::tracing
                     auto it = safe_array_iterator(buffer, 0);
                     auto itend = std::format_to(it,
                                                 L"[p({}) t({}) @ {}Z] {}\n",
-                                                msg->m_event_context.process_id(),
-                                                msg->m_event_context.thread_id(),
+                                                msg->m_event_context.os_process_id(),
+                                                msg->m_event_context.os_thread_id(),
                                                 msg->m_event_context.time_point(),
                                                 msg->view());
 

@@ -22,15 +22,15 @@
 
 #include <m/cast/try_cast.h>
 #include <m/strings/literal_string_view.h>
-
-#include "channel.h"
-#include "event_kind.h"
-#include "message.h"
-#include "message_queue.h"
-#include "multiplexor.h"
-#include "on_message_disposition.h"
-#include "safe_array_iterator.h"
-#include "sink.h"
+#include <m/tracing/channel.h>
+#include <m/tracing/event_kind.h>
+#include <m/tracing/message.h>
+#include <m/tracing/message_queue.h>
+#include <m/tracing/multiplexor.h>
+#include <m/tracing/on_message_disposition.h>
+#include <m/tracing/safe_array_iterator.h>
+#include <m/tracing/sink.h>
+#include <m/utility/pointers.h>
 
 using namespace m::string_view_literals;
 
@@ -40,7 +40,6 @@ namespace m
     {
         class channel;
         class monitor_class;
-        class multiplexor;
 
         class source
         {
@@ -142,6 +141,5 @@ namespace m
                          std::forward<decltype(fmt)>(fmt),
                          std::make_format_args(args...));
         }
-
     } // namespace tracing
 } // namespace m

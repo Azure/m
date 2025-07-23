@@ -21,19 +21,27 @@
 #include <vector>
 
 #include <m/strings/literal_string_view.h>
+#include <m/tracing/channel.h>
+#include <m/tracing/event_kind.h>
+#include <m/tracing/message_queue.h>
+#include <m/tracing/monitor_class.h>
+#include <m/tracing/monitor_class_var.h>
+#include <m/tracing/multiplexor.h>
+#include <m/tracing/on_message_disposition.h>
+#include <m/tracing/sink.h>
+#include <m/tracing/source.h>
 
-#include "channel.h"
-#include "event_kind.h"
-#include "message_queue.h"
-#include "monitor_class.h"
-#include "multiplexor.h"
-#include "on_message_disposition.h"
-#include "sink.h"
-#include "source.h"
+using namespace m::string_view_literals;
 
 namespace m::tracing
 {
     inline auto src = monitor.make_source();
+
+    inline constexpr auto diagnostic_channel_name = L"diagnostic"_sl;
+
+    inline auto diagnostic_channel = monitor.make_channel(diagnostic_channel_name);
+
+    // inline auto operational_channel = monitor.make_channel(L"operational"_sl);
 }
 
 namespace m
@@ -80,4 +88,4 @@ namespace m
         tracing::src->log(tracing::event_kind::error, fmt, std::forward<Types>(args)...);
     }
 
-}
+} // namespace m

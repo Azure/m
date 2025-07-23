@@ -23,6 +23,7 @@ using namespace std::chrono_literals;
 #include <m/strings/convert.h>
 #include <m/threadpool/threadpool.h>
 #include <m/tracing/tracing.h>
+#include <m/utility/chrono.h>
 #include <m/utility/pointers.h>
 
 #include "directory_watcher.h"
@@ -90,8 +91,8 @@ namespace m::filesystem_impl::platform_specific
     }
 
     directory_watcher::directory_watcher(std::filesystem::path const& path):
-        m_minimum_retry_delay(50ms),
         m_default_retry_delay(500ms),
+        m_minimum_retry_delay(50ms),
         m_path(path),
         m_overlapped{},
         m_information_class{},
@@ -253,7 +254,7 @@ namespace m::filesystem_impl::platform_specific
     }
 
     void
-    directory_watcher::recheck_watcher(std::chrono::utc_clock::time_point issue_time)
+    directory_watcher::recheck_watcher(utc_time_point issue_time)
     {
         auto&      s  = m_path.native();
         auto const sv = std::wstring_view(s);
@@ -266,7 +267,7 @@ namespace m::filesystem_impl::platform_specific
     }
 
     void
-    directory_watcher::invalidate_watcher(std::chrono::utc_clock::time_point issue_time)
+    directory_watcher::invalidate_watcher(utc_time_point issue_time)
     {
         for (auto&& e: m_registered_watches)
             e.m_change_notification->on_invalid(issue_time);
@@ -276,7 +277,7 @@ namespace m::filesystem_impl::platform_specific
 
     void
     directory_watcher::enqueue_async_read_directory_changes(
-        std::chrono::utc_clock::time_point issue_time)
+        utc_time_point issue_time)
     {
         m_overlapped.hEvent       = nullptr;
         m_overlapped.Internal     = 0;

@@ -103,7 +103,7 @@ namespace m
     public:
         not_implemented(std::string const& what_arg): m::runtime_error(what_arg) {}
         not_implemented(char const* what_arg): m::runtime_error(what_arg) {}
-        not_implemented(invalid_parameter const& other) noexcept: m::runtime_error(other) {}
+        not_implemented(not_implemented const& other) noexcept: m::runtime_error(other) {}
 
         not_implemented&
         operator=(not_implemented const& other)
@@ -118,7 +118,7 @@ namespace m
     public:
         not_supported(std::string const& what_arg): m::runtime_error(what_arg) {}
         not_supported(char const* what_arg): m::runtime_error(what_arg) {}
-        not_supported(invalid_parameter const& other) noexcept: m::runtime_error(other) {}
+        not_supported(not_supported const& other) noexcept: m::runtime_error(other) {}
 
         not_supported&
         operator=(not_supported const& other)
@@ -133,7 +133,7 @@ namespace m
     public:
         not_empty(std::string const& what_arg): m::runtime_error(what_arg) {}
         not_empty(char const* what_arg): m::runtime_error(what_arg) {}
-        not_empty(invalid_parameter const& other) noexcept: m::runtime_error(other) {}
+        not_empty(not_empty const& other) noexcept: m::runtime_error(other) {}
 
         not_empty&
         operator=(not_empty const& other)

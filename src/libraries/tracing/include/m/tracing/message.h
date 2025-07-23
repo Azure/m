@@ -22,9 +22,9 @@
 #include <m/cast/try_cast.h>
 #include <m/strings/literal_string_view.h>
 
-#include "event_context.h"
-#include "event_kind.h"
-#include "safe_array_iterator.h"
+#include <m/tracing/event_context.h>
+#include <m/tracing/event_kind.h>
+#include <m/tracing/safe_array_iterator.h>
 
 using namespace m::string_view_literals;
 

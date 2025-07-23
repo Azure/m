@@ -50,9 +50,11 @@ struct std::formatter<fmtHRESULT, CharT>
         // Macros are to be hated but they are to be tolerated here.
         //
 
+#pragma push_macro("X")
+
 #undef X
 #define X(p)                                                                                       \
-    case p:                                                                                        \
+    case static_cast<DWORD>(p):                                                                    \
     {                                                                                              \
         constexpr auto lit = #p##sv;                                                               \
         return std::ranges::copy(lit.begin(), lit.end(), out).out;                                 \
@@ -64,6 +66,8 @@ struct std::formatter<fmtHRESULT, CharT>
             X(S_FALSE)
             X(E_FAIL)
         }
+
+#pragma pop_macro("X")
 
         if constexpr (std::is_same_v<CharT, char>)
         {

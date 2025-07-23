@@ -11,6 +11,7 @@
 #include <m/debugging/dbg_format.h>
 #include <m/filesystem/filesystem.h>
 #include <m/googletest/temporary_directory.h>
+#include <m/utility/chrono.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_view_literals;
@@ -27,7 +28,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     std::atomic<uintmax_t> m_on_invalid_count{0};
 
     void
-    on_begin(std::chrono::utc_clock::time_point issue_time) override
+    on_begin(m::utc_time_point issue_time) override
     {
         m::dbg_format("Entering {} at {}", __func__, issue_time);
         m_on_begin_count.fetch_add(1, std::memory_order_relaxed);
@@ -35,7 +36,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     std::optional<requeue_directory_access_attempt>
-    on_directory_access_failure(std::chrono::utc_clock::time_point       issue_time,
+    on_directory_access_failure(m::utc_time_point       issue_time,
                                 std::filesystem::path const&             directory,
                                 std::filesystem::filesystem_error const& error) override
     {
@@ -48,7 +49,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     std::optional<requeue_file_access_attempt>
-    on_file_access_failure(std::chrono::utc_clock::time_point       issue_time,
+    on_file_access_failure(m::utc_time_point       issue_time,
                            std::filesystem::path const&             directory,
                            std::filesystem::path const&             file,
                            std::filesystem::filesystem_error const& error) override
@@ -63,7 +64,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_file_changed(std::chrono::utc_clock::time_point issue_time,
+    on_file_changed(m::utc_time_point issue_time,
                     std::filesystem::path const&,
                     std::filesystem::path const&) override
     {
@@ -74,7 +75,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_file_deleted(std::chrono::utc_clock::time_point issue_time,
+    on_file_deleted(m::utc_time_point issue_time,
                     std::filesystem::path const&,
                     std::filesystem::path const&) override
     {
@@ -85,7 +86,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_file_recheck_required(std::chrono::utc_clock::time_point issue_time,
+    on_file_recheck_required(m::utc_time_point issue_time,
                              std::filesystem::path const&,
                              std::filesystem::path const&) override
     {
@@ -96,7 +97,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_cancelled(std::chrono::utc_clock::time_point issue_time) override
+    on_cancelled(m::utc_time_point issue_time) override
     {
         m::dbg_format("Entering {}", __func__);
         std::ignore = issue_time;
@@ -105,7 +106,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_invalid(std::chrono::utc_clock::time_point issue_time) override
+    on_invalid(m::utc_time_point issue_time) override
     {
         m::dbg_format("Entering {}", __func__);
         std::ignore = issue_time;

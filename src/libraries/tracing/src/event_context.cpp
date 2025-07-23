@@ -18,16 +18,16 @@
 
 namespace m::tracing
 {
-    event_context::event_context(): m_process_id{}, m_thread_id{}, m_time_point{} {}
+    event_context::event_context() noexcept: m_process_id{}, m_thread_id{}, m_time_point{} {}
 
-    event_context::event_context(event_context const& other):
+    event_context::event_context(event_context const& other) noexcept:
         m_process_id(other.m_process_id),
         m_thread_id(other.m_thread_id),
         m_time_point(other.m_time_point)
     {}
 
     event_context&
-    event_context::operator=(event_context const& other)
+    event_context::operator=(event_context const& other) noexcept
     {
         m_process_id = other.m_process_id;
         m_thread_id  = other.m_thread_id;
@@ -35,14 +35,10 @@ namespace m::tracing
         return *this;
     }
 
-    constexpr void
-    swap(event_context& l, event_context& r) noexcept
+    std::thread::id
+    event_context::thread_id() const
     {
-        using std::swap;
-
-        swap(l.m_process_id, r.m_process_id);
-        swap(l.m_thread_id, r.m_thread_id);
-        swap(l.m_time_point, r.m_time_point);
+        return m_thread_id;
     }
 
     event_context

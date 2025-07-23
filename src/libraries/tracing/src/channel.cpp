@@ -3,7 +3,7 @@
 
 #include <mutex>
 
-#include <m/tracing/tracing.h>
+#include <m/tracing/channel.h>
 
 namespace m::tracing
 {

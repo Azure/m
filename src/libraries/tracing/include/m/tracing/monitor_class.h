@@ -20,17 +20,19 @@
 #include <utility>
 #include <vector>
 
-#include <m/strings/literal_string_view.h>
-#include <m/utility/locked.h>
+#include <m/tracing/envelope.h>
+#include <m/tracing/multiplexor.h>
+#include <m/tracing/sink.h>
+#include <m/tracing/source.h>
 
-#include "channel.h"
-#include "envelope.h"
-#include "event_kind.h"
-#include "message_queue.h"
-#include "on_message_disposition.h"
-#include "sink.h"
-#include "source.h"
-#include "topology_version.h"
+#include <m/tracing/channel.h>
+
+#include <m/strings/literal_string_view.h>
+#include <m/tracing/event_kind.h>
+#include <m/tracing/message_queue.h>
+#include <m/tracing/on_message_disposition.h>
+#include <m/tracing/topology_version.h>
+#include <m/utility/locked.h>
 
 using namespace m::string_view_literals;
 
@@ -38,7 +40,6 @@ namespace m
 {
     namespace tracing
     {
-        class monitor_class;
         class multiplexor;
 
         class monitor_class
@@ -53,11 +54,6 @@ namespace m
             std::shared_ptr<source>
             make_source(event_kind kind = event_kind::information);
 
-#if 0
-            std::shared_ptr<source>
-            make_source(event_kind kind, std::initializer_list<m::wliteral_string_view> channels);
-#endif
-
             void
             register_sink(std::shared_ptr<sink> snk);
 
@@ -71,7 +67,7 @@ namespace m
             void
             for_each_channel_sink(m::locked_t,
                                   std::wstring_view channel_name,
-                                  Callable          callable,
+                                  Callable&&        callable,
                                   Types&&... args)
             {
                 // Just grab this from the collection instead of
@@ -86,7 +82,7 @@ namespace m
                 // value and then the args.
                 while ((it != m_channel_sinks.end()) && !lt(it->first, channel_name))
                 {
-                    std::invoke(callable, it->second, std::forward<Types>(args)...);
+                    std::invoke(callable, it->second, args...);
                     it++;
                 }
             }
@@ -94,12 +90,11 @@ namespace m
             template <typename Callable, typename... Types>
             void
             for_each_channel_sink(std::wstring_view channel_name,
-                                  Callable          callable,
+                                  Callable&&        callable,
                                   Types&&... args)
             {
                 auto l = std::unique_lock(m_mutex);
-                for_each_channel_sink(
-                    m::locked, channel_name, callable, std::forward<Types>(args)...);
+                for_each_channel_sink(m::locked, channel_name, callable, args...);
             }
 
             std::shared_ptr<multiplexor>

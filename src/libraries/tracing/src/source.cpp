@@ -5,7 +5,8 @@
 #include <string_view>
 #include <utility>
 
-#include <m/tracing/tracing.h>
+#include <m/tracing/monitor_class.h>
+#include <m/tracing/source.h>
 
 namespace m::tracing
 {

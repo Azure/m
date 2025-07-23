@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "monitor_class.h"
+#include <m/tracing/monitor_class.h>
 
 namespace m
 {

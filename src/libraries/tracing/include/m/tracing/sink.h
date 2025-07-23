@@ -20,10 +20,8 @@
 #include <vector>
 
 #include <m/strings/literal_string_view.h>
-
-#include "envelope.h"
-#include "message_queue.h"
-#include "on_message_disposition.h"
+#include <m/tracing/envelope.h>
+#include <m/tracing/on_message_disposition.h>
 
 using namespace m::string_view_literals;
 
@@ -61,10 +59,10 @@ namespace m
             virtual void
             close() = 0;
 
-            std::mutex                    m_mutex;
-            std::wstring                  m_name;
+            std::mutex                  m_mutex;
+            std::wstring                m_name;
             m::not_null<monitor_class*> m_monitor;
-            bool                          m_closed;
+            bool                        m_closed;
 
             friend class monitor_class;
             friend class multiplexor;

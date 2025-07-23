@@ -20,16 +20,14 @@
 #include <vector>
 
 #include <m/strings/literal_string_view.h>
-
-#include "channel.h"
-#include "envelope.h"
-#include "event_kind.h"
-#include "message_queue.h"
-#include "monitor_class.h"
-#include "on_message_disposition.h"
-#include "sink.h"
-#include "source.h"
-#include "topology_version.h"
+#include <m/tracing/channel.h>
+#include <m/tracing/envelope.h>
+#include <m/tracing/event_kind.h>
+#include <m/tracing/message_queue.h>
+#include <m/tracing/on_message_disposition.h>
+#include <m/tracing/sink.h>
+#include <m/tracing/topology_version.h>
+#include <m/utility/pointers.h>
 
 using namespace m::string_view_literals;
 

@@ -3,6 +3,7 @@
 
 #include <memory>
 
+#include <m/tracing/monitor_class.h>
 #include <m/tracing/tracing.h>
 
 namespace m::tracing

@@ -21,11 +21,10 @@
 #include <vector>
 
 #include <m/strings/literal_string_view.h>
-
-#include "envelope.h"
-#include "message_queue.h"
-#include "sink.h"
-#include "tracing.h"
+#include <m/tracing/envelope.h>
+#include <m/tracing/message_queue.h>
+#include <m/tracing/sink.h>
+#include <m/tracing/tracing.h>
 
 using namespace m::string_view_literals;
 

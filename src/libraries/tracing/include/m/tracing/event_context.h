@@ -7,27 +7,56 @@
 #include <cstdint>
 #include <thread>
 
+#include <m/utility/chrono.h>
+
 namespace m
 {
     namespace tracing
     {
-        struct event_context
+        class event_context
         {
-            event_context();
-            event_context(event_context const&);
+        public:
+            event_context() noexcept;
+            event_context(event_context const& other) noexcept;
+
             ~event_context() = default;
+
             event_context&
-            operator=(event_context const&);
+            operator=(event_context const& other) noexcept;
+
+            friend constexpr void
+            swap(event_context& l, event_context& r) noexcept
+            {
+                using std::swap;
+
+                swap(l.m_process_id, r.m_process_id);
+                swap(l.m_thread_id, r.m_thread_id);
+                swap(l.m_time_point, r.m_time_point);
+            }
 
             static event_context
             current();
 
-            uint64_t                           m_process_id;
-            std::thread::id                    m_thread_id;
-            std::chrono::utc_clock::time_point m_time_point;
+            constexpr uint64_t
+            process_id() const
+            {
+                return m_process_id;
+            }
+
+            std::thread::id
+            thread_id() const;
+
+            constexpr utc_time_point
+            time_point() const
+            {
+                return m_time_point;
+            }
+
+        protected:
+            uint64_t        m_process_id;
+            std::thread::id m_thread_id;
+            utc_time_point  m_time_point;
         };
 
-        constexpr void
-        swap(event_context&, event_context&) noexcept;
     } // namespace tracing
 } // namespace m

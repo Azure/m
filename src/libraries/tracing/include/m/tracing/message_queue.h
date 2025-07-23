@@ -21,9 +21,9 @@
 
 #include <m/strings/literal_string_view.h>
 
-#include "envelope.h"
-#include "event_context.h"
-#include "event_kind.h"
+#include <m/tracing/envelope.h>
+//#include <m/tracing/event_context.h>
+#include <m/tracing/event_kind.h>
 
 using namespace m::string_view_literals;
 

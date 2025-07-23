@@ -61,9 +61,9 @@ namespace m::tracing
                     auto it = safe_array_iterator(buffer, 0);
                     auto itend = std::format_to(it,
                                                 L"[p({}) t({}) @ {}Z] {}\n",
-                                                msg->m_event_context.m_process_id,
-                                                msg->m_event_context.m_thread_id,
-                                                msg->m_event_context.m_time_point,
+                                                msg->m_event_context.process_id(),
+                                                msg->m_event_context.thread_id(),
+                                                msg->m_event_context.time_point(),
                                                 msg->view());
 
                     std::wcout << std::wstring_view(&*it, &*itend);

@@ -19,23 +19,10 @@
 #include <utility>
 #include <vector>
 
-#include <m/strings/literal_string_view.h>
-
-#include "event_kind.h"
-#include "message.h"
-#include "message_queue.h"
-#include "monitor_class.h"
-#include "monitor_class_var.h"
-#include "on_message_disposition.h"
-#include "sink.h"
-
-using namespace m::string_view_literals;
-
 namespace m
 {
     namespace tracing
     {
-        class monitor_class;
         class multiplexor;
 
         class channel
@@ -49,11 +36,5 @@ namespace m
 
             friend class multiplexor;
         };
-
-        inline constexpr auto diagnostic_channel_name = L"diagnostic"_sl;
-
-        inline auto diagnostic_channel = monitor.make_channel(diagnostic_channel_name);
-
-        // inline auto operational_channel = monitor.make_channel(L"operational"_sl);
     } // namespace tracing
 } // namespace m

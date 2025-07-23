@@ -4,7 +4,7 @@
 #include <condition_variable>
 #include <mutex>
 
-#include <m/tracing/tracing.h>
+#include <m/tracing/message_queue.h>
 
 namespace m::tracing
 {

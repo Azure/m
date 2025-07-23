@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include <m/tracing/tracing.h>
+#include <m/tracing/sink.h>
 
 namespace m::tracing
 {

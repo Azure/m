@@ -18,8 +18,9 @@
 #include <m/exception/exception.h>
 #include <m/filesystem/filesystem.h>
 #include <m/googletest/temporary_directory.h>
+#include <m/memory/memory.h>
+#include <m/random/random.h>
 #include <m/utility/algorithm.h>
-#include <m/utility/random.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;

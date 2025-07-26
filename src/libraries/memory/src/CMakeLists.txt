@@ -10,6 +10,7 @@ target_include_directories(m_memory PUBLIC
 
 target_link_libraries(m_memory PUBLIC
     m_block_buffer
+    m_byte_streams
     m_math
 )
 

@@ -11,7 +11,7 @@
 #include <span>
 #include <type_traits>
 
-#include <m/utility/unique_span.h>
+#include <m/memory/memory.h>
 
 namespace m::random
 {

@@ -36,6 +36,7 @@ if(M_BUILD_TESTS)
         m_debugging
         m_filesystem
         m_googletest
+        m_random
         GTest::gtest_main
     )
 

@@ -9,16 +9,361 @@
 #include <cstdint>
 #include <exception>
 #include <functional>
+#include <initializer_list>
 #include <limits>
+#include <malloc.h>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <new>
+#include <ranges>
+#include <span>
 #include <type_traits>
+#include <utility>
 
 #include <m/byte_streams/byte_streams.h>
 #include <m/math/math.h>
 
 namespace m
 {
+    template <typename T>
+    class raw_allocator
+    {
+        /// <summary>
+        /// Having more than max_count Ts specified will overflow size_t bytes.
+        /// </summary>
+        static inline constexpr auto max_count = (std::numeric_limits<size_t>::max)() / sizeof(T);
+
+    public:
+        using value_type      = std::decay_t<T>;
+        using pointer         = T*;
+        using reference       = T&;
+        using const_reference = T const&;
+        using size_type       = std::size_t;
+        using index_type      = std::size_t;
+
+        raw_allocator(): m_ptr{} {}
+
+        /// <summary>
+        /// Constructs a raw_allocator object with a given pointer.
+        ///
+        /// Used almost exclusively to get a memory allocation that had
+        /// previously been allocated via raw_allocator and then release()d
+        /// to be again brought under the purview of raw_allocator and
+        /// then deallocated.
+        /// </summary>
+        /// <param name="ptr">A pointer to the memory to be managed by the allocator.</param>
+        constexpr explicit raw_allocator(T* ptr, size_type size) noexcept: m_ptr(ptr), m_size(size)
+        {}
+
+        raw_allocator(std::size_t const count): m_ptr{}, m_size(count)
+        {
+            if (count > max_count)
+                throw std::bad_array_new_length();
+
+            auto const bytes = count * sizeof(T);
+
+#ifdef WIN32
+            m_ptr = reinterpret_cast<pointer>(_aligned_malloc(bytes, alignof(T)));
+#else
+            m_ptr = reinterpret_cast<pointer>(std::aligned_alloc(alignof(T), bytes));
+#endif
+
+            if (!m_ptr)
+                throw std::bad_alloc();
+        }
+
+        raw_allocator(raw_allocator const&) = delete;
+
+        raw_allocator(raw_allocator&& other): m_ptr{}
+        {
+            using std::swap;
+
+            swap(m_ptr, other.m_ptr);
+            swap(m_size, other.m_size);
+        }
+
+        ~raw_allocator()
+        {
+            if (auto const ptr =
+                    reinterpret_cast<void*>(const_cast<value_type*>(std::exchange(m_ptr, nullptr)));
+                ptr != nullptr)
+            {
+#ifdef WIN32
+                _aligned_free(ptr);
+#else
+                std::free(ptr);
+#endif
+            }
+        }
+
+        raw_allocator&
+        operator=(raw_allocator&& other) noexcept
+        {
+            using std::swap;
+
+            swap(m_ptr, other.m_ptr);
+            swap(m_size, other.m_size);
+
+            return *this;
+        }
+
+        reference
+        operator[](index_type i)
+        {
+            return m_ptr[i];
+        }
+
+        const_reference
+        operator[](index_type i) const
+        {
+            return m_ptr[i];
+        }
+
+        constexpr
+        operator pointer() const
+        {
+            return m_ptr;
+        }
+
+        constexpr pointer
+        get() const
+        {
+            return m_ptr;
+        }
+
+        pointer
+        release()
+        {
+            return std::exchange(m_ptr, nullptr);
+        }
+
+        std::span<T>
+        release_span()
+        {
+            return std::span(std::exchange(m_ptr, nullptr), std::exchange(m_size, 0));
+        }
+
+        void
+        operator=(raw_allocator const&) = delete;
+
+        constexpr size_type
+        size() const
+        {
+            return m_size;
+        }
+
+        T*
+        begin() const
+        {
+            return m_ptr;
+        }
+
+        T const*
+        cbegin() const
+        {
+            return m_ptr;
+        }
+
+        T*
+        end() const
+        {
+            return m_ptr + m_size;
+        }
+
+        T const*
+        cend() const
+        {
+            return m_ptr + m_size;
+        }
+
+    private:
+        pointer   m_ptr;
+        size_type m_size;
+    };
+
+    template <typename T>
+    class unique_span
+    {
+    public:
+        using element_type           = T;
+        using value_type             = std::remove_cvref_t<T>;
+        using const_value_type       = std::add_const_t<value_type>;
+        using size_type              = std::size_t;
+        using difference_type        = std::ptrdiff_t;
+        using pointer                = T*;
+        using const_pointer          = T const*;
+        using reference              = T&;
+        using const_reference        = T const&;
+        using span_type              = std::span<T, std::dynamic_extent>;
+        using iterator               = typename span_type::iterator;
+        using const_iterator         = typename span_type::const_iterator;
+        using reverse_iterator       = typename span_type::reverse_iterator;
+        using const_reverse_iterator = typename span_type::const_reverse_iterator;
+
+        constexpr unique_span() noexcept: m_span() {}
+
+        constexpr unique_span(unique_span&& other): m_span()
+        {
+            using std::swap;
+
+            swap(m_span, other.m_span);
+        }
+
+        unique_span(std::size_t n): m_span(new T[n], n) {}
+
+        template <typename Fn>
+        unique_span(std::size_t n, Fn&& fn): m_span()
+        {
+            m::raw_allocator<value_type> ra(n);
+
+            for (std::size_t i = 0; i < n; i++)
+                std::invoke(fn, i, ra[i]);
+
+            m_span = std::span<T, std::dynamic_extent>(ra.release(), n);
+        }
+
+        /// <summary>
+        /// Constructs the unique_span based on the std::initializer_list
+        /// passed in.
+        ///
+        /// NOTE: this implementation currently default-constructs the data
+        /// array, and then copies the data on top of it.
+        /// </summary>
+        /// <param name="il"></param>
+        unique_span(std::initializer_list<T> il): m_span()
+        {
+            m::raw_allocator<value_type> ra(il.size());
+
+            std::uninitialized_copy_n(il.begin(), il.size(), ra.get());
+
+            m_span = ra.release_span();
+        }
+
+        /// <summary>
+        /// Constructor that permits initialization from spans with static
+        /// extent as well as dynamic
+        ///
+        /// NOTE: this implementation currently default-constructs the data
+        /// array, and then copies the data on top of it.
+        /// </summary>
+        /// <typeparam name="N">Not used except to match the span `s`'s type.</typeparam>
+        /// <param name="s"></param>
+        template <std::size_t N>
+        unique_span(std::span<T, N> s): m_span()
+        {
+            m::raw_allocator<value_type> ra(s.size());
+
+            std::uninitialized_copy_n(s.begin(), s.size(), ra.get());
+
+            m_span = ra.release_span();
+        }
+
+        template <typename IteratorT>
+            requires(std::random_access_iterator<IteratorT>)
+        unique_span(IteratorT it, IteratorT end)
+        {
+            constexpr auto               size = std::distance(it, end);
+            m::raw_allocator<value_type> ra(size);
+            std::uninitialized_copy(it, end, ra.get());
+            m_span = ra.release_span();
+        }
+
+        template <typename RangeT>
+        unique_span(RangeT&& r)
+        {
+            auto                         size = static_cast<std::size_t>(std::ranges::size(r));
+            m::raw_allocator<value_type> ra(size);
+            std::ranges::uninitialized_copy(r, ra);
+            m_span = ra.release_span();
+        }
+
+        ~unique_span() { reset(); }
+
+        void
+        reset()
+        {
+            auto const s = std::exchange(m_span, std::span<T, std::dynamic_extent>());
+
+            auto ptr = s.data();
+            if (ptr != nullptr)
+            {
+                std::destroy(s.begin(), s.end());
+
+                // Have raw_allocator take control over the allocation again
+                // so that it can deallocate it, however it had allocated
+                // it.
+                raw_allocator ra(s.data(), s.size());
+            }
+        }
+
+        constexpr
+        operator std::span<T>() const noexcept
+        {
+            return m_span;
+        }
+
+        constexpr std::span<T>
+        span() const noexcept
+        {
+            return m_span;
+        }
+
+        /// <summary>
+        /// Introduce implicit conversion to std::span<T const> if
+        /// T was not const.
+        /// </summary>
+        constexpr
+        operator std::span<const_value_type>() const noexcept
+            requires(!std::is_same_v<element_type, const_value_type>)
+        {
+            return std::span<const_value_type, std::dynamic_extent>(
+                const_cast<const_value_type*>(m_span.data()), m_span.size());
+        }
+
+        constexpr T*
+        data() const noexcept
+        {
+            return m_span.data();
+        }
+
+        constexpr std::size_t
+        size() const noexcept
+        {
+            return m_span.size();
+        }
+
+        auto
+        cbegin() const
+        {
+            return m_span.cbegin();
+        }
+
+        auto
+        cend() const
+        {
+            return m_span.cend();
+        }
+
+        auto
+        begin() const
+        {
+            return m_span.cbegin();
+        }
+
+        auto
+        end() const
+        {
+            return m_span.cend();
+        }
+
+    private:
+        std::span<T> m_span;
+    };
+
+    template <typename T>
+    unique_span(T&&) -> unique_span<std::remove_reference_t<std::ranges::range_reference_t<T>>>;
+
     //
     // Really, the notion here of "Random access stream and a position"
     // should be somehow abstracted into a "loading context", and then
@@ -95,8 +440,7 @@ namespace m
     };
 
     template <typename S>
-    load_from_position_context(S, m::io::position_t, std::size_t)
-        -> load_from_position_context<S>;
+    load_from_position_context(S, m::io::position_t, std::size_t) -> load_from_position_context<S>;
 
     template <typename S>
     load_from_position_context(S, m::io::position_t) -> load_from_position_context<S>;
@@ -117,4 +461,3 @@ namespace m
     }
 
 } // namespace m
-

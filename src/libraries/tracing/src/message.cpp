@@ -11,6 +11,7 @@ namespace m::tracing
     void
     message::operator=(message const& other)
     {
+        m_event_kind = other.m_event_kind;
         std::copy_n(other.m_chars.begin(), other.m_length, m_chars.begin());
         m_length        = other.m_length;
         m_event_context = other.m_event_context;
@@ -20,6 +21,18 @@ namespace m::tracing
     message::view()
     {
         return std::wstring_view(m_chars.data(), m_length);
+    }
+
+    event_kind
+    message::kind() const
+    {
+        return m_event_kind;
+    }
+
+    void
+    message::kind(event_kind kind)
+    {
+        m_event_kind = kind;
     }
 
 } // namespace m::tracing

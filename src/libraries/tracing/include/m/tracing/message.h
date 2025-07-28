@@ -48,6 +48,9 @@ namespace m
             std::wstring_view
             view();
 
+            event_kind
+            kind() const;
+
             template <typename FormatStringT, typename FormatArgsT>
             void
             format_log(FormatStringT&& fmt, FormatArgsT&& format_args)
@@ -58,7 +61,11 @@ namespace m
                 m_length         = m::try_cast<std::size_t>(diff);
             }
 
+            void
+            kind(event_kind kind);
+
             // private:
+            event_kind                m_event_kind;
             std::size_t               m_length;
             std::array<wchar_t, 4096> m_chars;
             event_context             m_event_context;

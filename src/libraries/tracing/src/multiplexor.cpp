@@ -54,9 +54,9 @@ namespace m::tracing
     }
 
     envelope
-    multiplexor::reserve_message()
+    multiplexor::reserve_message(event_kind kind)
     {
-        return m_monitor->reserve_message();
+        return m_monitor->reserve_message(kind);
     }
 
 } // namespace m::tracing

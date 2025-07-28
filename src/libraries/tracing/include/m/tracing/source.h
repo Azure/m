@@ -95,7 +95,7 @@ namespace m
             {
                 if (!m_closed && do_test_kind(kind))
                 {
-                    auto qitem = m_multiplexor->reserve_message();
+                    auto qitem = m_multiplexor->reserve_message(kind);
                     qitem.get_message()->format_log(fmt, std::forward<FormatArgsT>(format_args));
                     qitem.get_message()->m_event_context = event_context::current();
                     std::ignore                          = m_multiplexor->on_message(qitem);

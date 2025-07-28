@@ -104,7 +104,7 @@ namespace m
             get_topology_version() const;
 
             envelope
-            reserve_message();
+            reserve_message(event_kind kind);
 
         private:
             std::atomic<topology_version>                                   m_topology_version;

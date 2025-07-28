@@ -61,8 +61,8 @@ namespace m
 
         protected:
             std::thread::id m_thread_id;
-            uint64_t        m_os_process_id;
-            uint64_t        m_os_thread_id;
+            uint32_t        m_os_process_id;
+            uint32_t        m_os_thread_id;
             utc_time_point  m_time_point;
         };
 

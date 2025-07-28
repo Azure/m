@@ -54,7 +54,7 @@ namespace m
 
             [[nodiscard]]
             envelope
-            reserve_message();
+            reserve_message(event_kind kind);
 
         private:
             // m_monitor and m_channel_names are not updated after construction

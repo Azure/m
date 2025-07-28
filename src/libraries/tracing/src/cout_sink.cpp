@@ -58,65 +58,67 @@ namespace m::tracing
 
                 if (msg != nullptr)
                 {
-                    auto it = safe_array_iterator(buffer, 0);
+                    auto it    = safe_array_iterator(buffer, 0);
                     auto itend = std::format_to(it,
-                                                L"[p({}) t({}) @ {}Z] {}\n",
+                                                L"[k{} p({}) t({}) @ {}Z] {}\n",
+                                                msg->kind(),
                                                 msg->m_event_context.os_process_id(),
                                                 msg->m_event_context.os_thread_id(),
                                                 msg->m_event_context.time_point(),
                                                 msg->view());
 
                     std::wcout << std::wstring_view(&*it, &*itend);
+                }
+            }
+
+            if (m_done)
+                break;
+
+            m_message_queue.wait();
+        }
+    }
+
+    bool
+    cout_sink::would_queue(envelope const&)
+    {
+        return true;
+    }
+
+    void
+    cout_sink::register_sink(m::not_null<monitor_class*> monitor)
+    {
+        std::shared_ptr<cout_sink> expected = ms_cout_sink.load(std::memory_order_acquire);
+
+        if (!expected)
+        {
+            for (;;)
+            {
+                auto desired = std::make_shared<cout_sink>(monitor);
+
+                if (ms_cout_sink.compare_exchange_strong(
+                        expected, desired, std::memory_order_acq_rel))
+                    break;
+            }
+
+            expected = ms_cout_sink.load(std::memory_order_acquire);
+        }
+
+        monitor->register_sink(expected);
+    }
+
+    void
+    cout_sink::close()
+    {
+        {
+            auto l = std::unique_lock(m_mutex);
+            if (!m_done)
+            {
+                m_done   = true;
+                m_closed = true;
+                m_message_queue.wake_waiters();
             }
         }
-
-        if (m_done)
-            break;
-
-        m_message_queue.wait();
+        m_thread.join();
     }
-}
-
-bool
-cout_sink::would_queue(envelope const&)
-{
-    return true;
-}
-
-void
-cout_sink::register_sink(m::not_null<monitor_class*> monitor)
-{
-    std::shared_ptr<cout_sink> expected = ms_cout_sink.load(std::memory_order_acquire);
-
-    if (!expected)
-    {
-        for (;;)
-        {
-            auto desired = std::make_shared<cout_sink>(monitor);
-
-            if (ms_cout_sink.compare_exchange_strong(expected, desired, std::memory_order_acq_rel))
-                break;
-        }
-
-        expected = ms_cout_sink.load(std::memory_order_acquire);
-    }
-
-    monitor->register_sink(expected);
-}
-
-void
-cout_sink::close()
-{
-    {
-        auto l = std::unique_lock(m_mutex);
-        if (!m_done)
-        {
-            m_done   = true;
-            m_closed = true;
-            m_message_queue.wake_waiters();
-        }
-    }
-    m_thread.join();
-}
 
 } // namespace m::tracing

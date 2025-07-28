@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdint>
+#include <format>
 
 namespace m
 {
@@ -19,3 +20,43 @@ namespace m
         };
     } // namespace tracing
 } // namespace m
+
+template <typename CharT>
+struct std::formatter<m::tracing::event_kind, CharT>
+{
+    template <typename ParseContext>
+    constexpr decltype(auto)
+    parse(ParseContext& ctx)
+    {
+        auto       it  = ctx.begin();
+        auto const end = ctx.end();
+
+        if (it != end && *it != '}')
+            throw std::format_error("Invalid format string");
+
+        return it;
+    }
+
+    template <typename FormatContext>
+    FormatContext::iterator
+    format(m::tracing::event_kind kind, FormatContext& ctx) const
+    {
+        auto out = ctx.out();
+
+        string_view kind_sv = "<unmapped>"sv;
+
+        switch (kind)
+        {
+            case m::tracing::event_kind::critical: kind_sv = "critical"sv; break;
+            case m::tracing::event_kind::error: kind_sv = "error"sv; break;
+            case m::tracing::event_kind::information: kind_sv = "information"sv; break;
+            case m::tracing::event_kind::tracing: kind_sv = "tracing"sv; break;
+            case m::tracing::event_kind::verbose: kind_sv = "verbose"sv; break;
+            default: kind_sv = "<unmapped>"sv; break;
+        }
+
+        out = std::format_to(out, "{{ m::tracing::event_kind::{} }}", kind_sv);
+
+        return out;
+    }
+};

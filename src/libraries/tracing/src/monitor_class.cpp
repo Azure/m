@@ -32,8 +32,7 @@ namespace m::tracing
         auto it = m_channels.find(name);
         if (it == m_channels.end())
         {
-            auto r = m_channels.emplace(
-                std::make_pair(name, std::make_unique<channel>(name)));
+            auto r = m_channels.emplace(std::make_pair(name, std::make_unique<channel>(name)));
             return r.first->second.get();
         }
 
@@ -67,10 +66,12 @@ namespace m::tracing
     }
 
     envelope
-    monitor_class::reserve_message()
+    monitor_class::reserve_message(event_kind kind)
     {
-        auto l = std::unique_lock(m_mutex);
-        return m_message_queue.dequeue();
+        auto l   = std::unique_lock(m_mutex);
+        auto env = m_message_queue.dequeue(); // don't make env const to allow rvo
+        env.get_message()->kind(kind);
+        return env;
     }
 
     envelope

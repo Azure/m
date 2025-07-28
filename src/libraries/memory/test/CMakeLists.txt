@@ -6,6 +6,7 @@ if(M_BUILD_TESTS)
 
     add_executable(test_memory
         test_memory_unique_span.cpp
+        test_raw_allocator.cpp
     )
 
     target_link_libraries(test_memory

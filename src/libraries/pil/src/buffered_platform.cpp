@@ -8,6 +8,7 @@
 #include <string_view>
 #include <tuple>
 
+#include <m/byte_streams/byte_streams.h>
 #include <m/pil/pil.h>
 #include <m/pil/platform.h>
 #include <m/pil/registry.h>
@@ -59,6 +60,19 @@ namespace m::pil::impl::buffered
 
         returned_registry = std::make_shared<registry>(m_underlying_platform->get_registry());
         return get_registry_disposition{};
+    }
+
+    void
+    platform::write_to_xml(std::filesystem::path const& path)
+    {
+        //
+    }
+
+    std::shared_ptr<iplatform>
+    platform::load_from_xml(std::shared_ptr<iplatform> const& underlying_platform,
+                            std::filesystem::path const&      path)
+    {
+        //
     }
 
 } // namespace m::pil::impl::buffered

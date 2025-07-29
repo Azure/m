@@ -20,6 +20,7 @@ target_sources(m_pil PRIVATE
 target_compile_definitions(m_pil PRIVATE _CRT_SECURE_NO_WARNINGS)
 
 target_link_libraries(m_pil PUBLIC
+    m_byte_streams
     m_cast
     m_error_handling
     m_math

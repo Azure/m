@@ -6,6 +6,7 @@
       "features": [ "cxx23" ]
     },
     "ms-gsl",
+    "pugixml",
     "wil"
   ]
 }

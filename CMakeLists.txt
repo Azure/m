@@ -112,6 +112,8 @@ include(FetchContent)
 if (M_VCPKG_MODE)
     include(FindGTest)
     find_package(GTest CONFIG REQUIRED)
+
+    find_package(pugixml CONFIG REQUIRED)
 else()
     if (M_BUILD_TESTS)
         FetchContent_Declare(

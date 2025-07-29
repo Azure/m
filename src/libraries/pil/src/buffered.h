@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -94,6 +95,13 @@ namespace m::pil::impl::buffered
             using std::swap;
             swap(l.m_underlying_platform, r.m_underlying_platform);
         }
+
+        void
+        write_to_xml(std::filesystem::path const& path);
+
+        static std::shared_ptr<iplatform>
+        load_from_xml(std::shared_ptr<iplatform> const& underlying_platform,
+                 std::filesystem::path const&      path);
 
         get_registry_disposition
         get_registry(get_registry_flags          flags,

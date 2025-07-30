@@ -143,11 +143,11 @@ endif()
 
 # Global include directories
 include_directories(
-    ${PROJECT_SOURCE_DIR}/src/include
+    ${PROJECT_SOURCE_DIR}/s/include
 )
 
 # Add project subdirectories
-add_subdirectory(src)
+add_subdirectory(s)
 
 add_subdirectory(docs)
 

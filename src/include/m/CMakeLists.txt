@@ -20,3 +20,6 @@ install(DIRECTORY utility
         DESTINATION ${M_INSTALL_INCLUDEDIR}
 )
 
+add_subdirectory(utility)
+
+set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

@@ -21,6 +21,7 @@
 #include <Windows.h>
 
 #include "code_page.h"
+#include "convert_acp.h"
 
 namespace m
 {

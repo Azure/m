@@ -21,6 +21,15 @@ namespace m
     // to maintain their adherence to the standard.
     //
 
+    /// <summary>
+    /// The `m::runtime_error` class is the specialization of `std::runtime_error`
+    /// for runtime errors thrown by the m library.
+    /// 
+    /// Semantics are essentially the same as for `std::runtime_error`:
+    /// 
+    /// https://en.cppreference.com/w/cpp/error/runtime_error.html
+    /// 
+    /// </summary>
     class runtime_error : public std::runtime_error
     {
     public:
@@ -38,6 +47,50 @@ namespace m
         }
     };
 
+    /// <summary>
+    /// The `m::not_found` class is thrown when a runtime case of an item not
+    /// found in a collection when it should be found.
+    /// 
+    /// Note that when working with, for example, classes that represent
+    /// collections in C++, this type should not, in general be thrown. During
+    /// normal operations, exceptions represent programming errors, not
+    /// conditions to run into and then handle after the fact.
+    /// 
+    /// This is why the C++ standard avoids defining such a type.
+    /// 
+    /// We only define it because of the interactions with the
+    /// underlying operating system platform. It was possibly to
+    /// be added to the m::filesystem namespace but that seemed
+    /// too narrow in scope since also the m::pil was going to use it for the
+    /// registry support.
+    /// 
+    /// For in-memory structures where atomicity can be managed by the code,
+    /// the "not found is a programming error" is a good design principle, but
+    /// when dealing with external stores which cannot be managed
+    /// transactionally with in-memory data, something must give. No matter
+    /// how many times code probes to see if a file already exists before
+    /// opening it, it may be deleted before the open is performed.
+    /// 
+    /// Rather than cluttering every code path with preamble code to try to
+    /// prevent "file not found" and then still having to deal with it, it is
+    /// better to simply deal with file not found.
+    /// 
+    /// As such, having a specific exception to catch makes this simpler. code
+    /// within m is responsible for throwing not_found if the item in question
+    /// was not present within the collection named.
+    /// 
+    /// A meta-question is whether the same exception is used when the named
+    /// collection (directory) is also not found, or in the case of a compound
+    /// address like an URL, the node name, or the protocol name. Windows
+    /// returns distinct error codes in each of these cases and we will throw
+    /// distinct exceptions in them also.
+    /// 
+    /// It's not even clear that "directory not found => file not found", since
+    /// "directory not found" may be because a volume failed to mount, which
+    /// certainly is a different category of problem from the user or sysadmin
+    /// had intentionally deleted or not created the directory.
+    /// 
+    /// </summary>
     class not_found : public m::runtime_error
     {
     public:
@@ -53,6 +106,15 @@ namespace m
         }
     };
 
+    /// <summary>
+    /// The `m::sharing_violation` class is thrown when a resource is accessed
+    /// but another entity is preventing access to it.
+    /// 
+    /// The canonical case of this is on Windows where when opening a file in
+    /// the filesystem, the caller specifies a mask of read / write / delete
+    /// sharing compatibility, and other openers that conflict in their access
+    /// mode fail with an explicit error code calling this out.
+    /// </summary>
     class sharing_violation : public m::runtime_error
     {
     public:

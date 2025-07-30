@@ -7,24 +7,48 @@
 #include <stdexcept>
 #include <type_traits>
 
+#include <m/exception/exception.h>
+
 namespace m
 {
     template <typename T>
         requires std::is_pointer_v<T>
-    struct not_null
+    class not_null
     {
+    public:
         not_null() = delete;
 
-        not_null(T v): m_v(v)
+        constexpr not_null(T v): m_v(v)
         {
             if (v == nullptr)
-                throw std::runtime_error("v");
+                throw m::invalid_parameter("v");
         }
 
-        not_null(not_null const& other) noexcept: m_v(other.m_v) {}
+        template <typename U>
+            requires(std::is_base_of_v<std::remove_pointer_t<T>, U>)
+        constexpr not_null(U* v): m_v(v)
+        {
+            if (v == nullptr)
+                throw m::invalid_parameter("v");
+        }
+
+        constexpr not_null(not_null const& other) noexcept: m_v(other.m_v) {}
+
+        template <typename U>
+            requires(std::is_base_of_v<std::remove_pointer_t<T>, U>)
+        constexpr not_null(not_null<U*> const& other) noexcept : m_v(other.m_v)
+        {}
 
         not_null&
         operator=(not_null const& other)
+        {
+            m_v = other.m_v;
+            return *this;
+        }
+
+        template <typename U>
+            requires(std::is_base_of_v<std::remove_pointer_t<T>, U>)
+        constexpr not_null& operator=(not_null<U*> const& other) noexcept
         {
             m_v = other.m_v;
             return *this;
@@ -50,6 +74,14 @@ namespace m
 
     private:
         T m_v;
+
+        template <typename U>
+            requires std::is_pointer_v<U>
+        friend class not_null;
     };
+
+    template <typename T>
+        requires std::is_pointer_v<T>
+    not_null(T) -> not_null<T>;
 
 } // namespace m

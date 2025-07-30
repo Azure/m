@@ -78,6 +78,18 @@ namespace m
     }
 
     void
+    to_u8string(m::czstring szstr, std::u8string& str)
+    {
+        to_u8string(std::string_view(szstr), str);
+    }
+
+    std::u8string
+    to_u8string(m::czstring szstr)
+    {
+        return to_u8string(std::string_view(szstr));
+    }
+
+    void
     to_u8string(std::string_view v, std::u8string& str)
     {
         acp_to_u8string(v, str);
@@ -87,6 +99,18 @@ namespace m
     to_u8string(std::string_view v)
     {
         return acp_to_u8string(v);
+    }
+
+    void
+    to_u16string(m::czstring szstr, std::u16string& str)
+    {
+        to_u16string(std::string_view(szstr), str);
+    }
+
+    std::u16string
+    to_u16string(m::czstring szstr)
+    {
+        return to_u16string(std::string_view(szstr));
     }
 
     void
@@ -102,6 +126,18 @@ namespace m
     }
 
     void
+    to_u32string(m::czstring szstr, std::u32string& str)
+    {
+        to_u32string(std::string_view(szstr), str);
+    }
+
+    std::u32string
+    to_u32string(m::czstring szstr)
+    {
+        return to_u32string(std::string_view(szstr));
+    }
+
+    void
     to_u32string(std::string_view v, std::u32string& str)
     {
         acp_to_u32string(v, str);
@@ -111,6 +147,18 @@ namespace m
     to_u32string(std::string_view v)
     {
         return acp_to_u32string(v);
+    }
+
+    void
+    to_wstring(m::czstring szstr, std::wstring& str)
+    {
+        to_wstring(std::string_view(szstr), str);
+    }
+
+    std::wstring
+    to_wstring(m::czstring szstr)
+    {
+        return to_wstring(std::string_view(szstr));
     }
 
     void
@@ -193,5 +241,4 @@ namespace m
         return std::nullopt;
     }
 
-    //
 } // namespace m

@@ -37,6 +37,8 @@ TEST(AcpAPIs, acp_2_wstring)
 
     auto s2 = m::acp_to_wstring(sv_t1);
     EXPECT_EQ(s2, ws_t1);
+
+    auto s3 = m::to_wstring(s_t1.c_str());
 }
 
 TEST(AcpAPIs, acp_2_u16string)
@@ -46,6 +48,20 @@ TEST(AcpAPIs, acp_2_u16string)
 
     auto s2 = m::acp_to_u16string(sv_t1);
     EXPECT_EQ(s2, u16sv_t1);
+
+    auto s3 = m::to_u16string(s_t1.c_str());
+}
+
+TEST(AcpAPIs, acp_2_u8string)
+{
+    auto s = m::to_u8string(s_t1.c_str());
+    //
+}
+
+TEST(AcpAPIs, acp_2_u32string)
+{
+    auto s = m::to_u32string(s_t1.c_str());
+    //
 }
 
 TEST(AcpAPIs, wstring_2_acp)

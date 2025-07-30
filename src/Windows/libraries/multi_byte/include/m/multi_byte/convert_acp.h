@@ -101,6 +101,13 @@ namespace m
     //
     // char -> wchar_t
     //
+
+    void
+    to_wstring(m::czstring szstr, std::wstring& str);
+
+    std::wstring
+    to_wstring(m::czstring szstr);
+
     void
     to_wstring(std::string_view v, std::wstring& str);
 
@@ -128,6 +135,12 @@ namespace m
     //
 
     void
+    to_u8string(m::czstring szstr, std::u8string& str);
+
+    std::u8string
+    to_u8string(m::czstring szstr);
+
+    void
     to_u8string(std::string_view v, std::u8string& str);
 
     std::u8string
@@ -140,6 +153,13 @@ namespace m
     //
     // char -> char16_t
     //
+
+    void
+    to_u16string(m::czstring szstr, std::u16string& str);
+
+    std::u16string
+    to_u16string(m::czstring szstr);
+
     void
     to_u16string(std::string_view v, std::u16string& str);
 
@@ -153,6 +173,13 @@ namespace m
     //
     // char -> char32_t
     //
+    void
+    to_u32string(m::czstring szstr, std::u32string& str);
+
+    std::u32string
+    to_u32string(m::czstring szstr);
+
+
     void
     to_u32string(std::string_view v, std::u32string& str);
 

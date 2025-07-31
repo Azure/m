@@ -95,17 +95,14 @@ namespace m
             {
                 if (!m_closed && do_test_kind(kind))
                 {
-                    message_allocator alloc(m_multiplexor, kind);
-                    alloc.env().get_message()->format_log(fmt, std::forward<FormatArgsT>(format_args));
-                    alloc.env().get_message()->m_event_context = event_context::current();
+                    message_allocator alloc(m_multiplexor.get(), kind);
+                    alloc.env().message()->format_log(fmt, std::forward<FormatArgsT>(format_args));
+                    alloc.env().message()->m_event_context = event_context::current();
                     auto result = m_multiplexor->on_message(alloc.env());
                     if (result == on_message_disposition::queued)
                     {
-                        //
-                    }
-                    else
-                    {
-                        //
+                        // If the message was enqueued on, we do not want to try to deallocate
+                        alloc.release();
                     }
                 }
             }

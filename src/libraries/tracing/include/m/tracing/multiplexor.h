@@ -37,6 +37,7 @@ namespace m
 {
     namespace tracing
     {
+        class message;
         class monitor_class;
         class multiplexor;
 
@@ -57,6 +58,9 @@ namespace m
             [[nodiscard]]
             envelope
             allocate_message(event_kind kind) override;
+
+            void
+            deallocate_message(m::not_null<tracing::message*> msg) noexcept override;
 
         private:
             // m_monitor and m_channel_names are not updated after construction

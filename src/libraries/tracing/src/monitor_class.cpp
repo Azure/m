@@ -17,7 +17,10 @@ namespace m::tracing
         m_raw_messages                          = std::make_unique<message[]>(raw_message_count);
 
         for (std::size_t i = 0; i < raw_message_count; i++)
-            m_message_queue.enqueue(m::not_null(&m_raw_messages[i], m::not_null(this)));
+        {
+            envelope item(m::not_null(this), &m_raw_messages[i]);
+            m_message_queue.enqueue(item);
+        }
     }
 
     monitor_class::~monitor_class()
@@ -77,17 +80,18 @@ namespace m::tracing
     }
 
     void
-        monitor_class::deallocate_message(m::not_null<message*> ptr)
+    monitor_class::deallocate_message(m::not_null<message*> ptr) noexcept
     {
         auto l = std::unique_lock(m_mutex);
-        m_message_queue.enqueue(e);
+        m_message_queue.enqueue(ptr);
     }
 
     envelope
     monitor_class::copy_message(locked_t, envelope const& item_in)
     {
         auto item_copy = m_message_queue.dequeue();
-        item_copy.reset(item_in, &m_message_queue);
+
+        *item_copy.message() = *item_in.message();
         return item_copy;
     }
 

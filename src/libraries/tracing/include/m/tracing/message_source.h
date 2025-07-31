@@ -21,7 +21,6 @@
 
 #include <m/tracing/envelope.h>
 #include <m/tracing/event_kind.h>
-#include <m/tracing/message.h>
 #include <m/utility/pointers.h>
 
 namespace m
@@ -36,7 +35,7 @@ namespace m
         class message_source
         {
         public:
-            [[nodiscard]] virtual envelope
+            [[nodiscard]] virtual tracing::envelope
             allocate_message(event_kind kind) = 0;
 
             virtual void
@@ -48,28 +47,17 @@ namespace m
         };
 
         void
-        return_to_sender(envelope& env, m::not_null<message_source*> source);
+        return_to_sender(tracing::envelope const& env);
 
         class message_allocator
         {
         public:
-            message_allocator(m::not_null<message_source*> source, event_kind kind):
-                m_source(source), m_envelope(source->allocate_message(kind)), m_armed(true)
-            {}
+            message_allocator(m::not_null<message_source*> source, event_kind kind);
 
-            ~message_allocator()
-            {
-                if (m_armed)
-                {
-                    return_to_sender(m_envelope, m_source);
-                }
-            }
+            ~message_allocator();
 
             envelope&
-            env()
-            {
-                return m_envelope;
-            }
+            env();
 
             /// <summary>
             /// Returns the allocated envelope. Once this member function is called,
@@ -77,14 +65,22 @@ namespace m
             /// </summary>
             /// <returns></returns>
             envelope&&
-            move_env()
-            {
-                m_armed = false;
-                return std::move(m_envelope);
-            }
+            move_env();
+
+            /// <summary>
+            /// The `release()` member function causes the `message_allocator` object
+            /// to not deallocate the allocated message, if there is an
+            /// allocated message.
+            /// 
+            /// The use case for this is when a message is queued and then the
+            /// recipient responded that they had forwarded the message on to
+            /// another recipient for processing, so that the original
+            /// sender no longer owned the message.
+            /// </summary>
+            void
+            release();
 
         private:
-            m::not_null<message_source*> m_source;
             envelope                     m_envelope;
             bool                         m_armed;
         };

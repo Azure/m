@@ -22,8 +22,9 @@
 #include <m/strings/literal_string_view.h>
 
 #include <m/tracing/envelope.h>
-//#include <m/tracing/event_context.h>
+// #include <m/tracing/event_context.h>
 #include <m/tracing/event_kind.h>
+#include <m/tracing/message_source.h>
 
 using namespace m::string_view_literals;
 
@@ -54,7 +55,7 @@ namespace m
         class message;
         class message_queue;
 
-        class message_queue
+        class message_queue : public message_source
         {
         public:
             message_queue();
@@ -65,33 +66,42 @@ namespace m
             operator=(message_queue const&) = delete;
 
             bool
-            empty() const;
+            empty() const noexcept;
 
             envelope
-            try_dequeue();
+            try_dequeue() noexcept;
 
             envelope
-            dequeue();
+            dequeue() noexcept;
 
-            envelope
-            wakeable_dequeue();
-
-            void
-            wake_waiters();
+            std::optional<envelope>
+            wakeable_dequeue() noexcept;
 
             void
-            wait();
+            wake_waiters() noexcept;
 
             void
-            enqueue(m::not_null<message*> msg);
+            wait() noexcept;
 
             void
-            enqueue(envelope& e);
+            enqueue(m::not_null<message*> msg) noexcept;
+
+            void
+            enqueue(envelope const& e) noexcept;
+
+        protected:
+            [[nodiscard]] envelope
+            allocate_message(event_kind kind) override;
+
+            void
+            deallocate_message(m::not_null<message*> msg) noexcept override;
+
+            void
+            wait_for_nonempty(std::unique_lock<std::mutex>& lock) noexcept;
 
         private:
             mutable std::mutex      m_mutex;
             std::condition_variable m_cv;
-            std::size_t             m_waiter_count;
             std::queue<envelope>    m_queue;
         };
     } // namespace tracing

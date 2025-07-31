@@ -18,72 +18,52 @@ using namespace std::chrono_literals;
 
 namespace
 {
-    class slow_sink : public m::tracing::sink
+    class fast_sink : public m::tracing::sink
     {
     public:
-        template <typename Rep, typename Period>
-        slow_sink(m::not_null<m::tracing::monitor_class*> monitor,
-                  std::chrono::duration<Rep, Period>      delay):
-            sink(L"cout_sink"_sl, monitor),
-            m_delay(std::chrono::duration_cast<std::chrono::milliseconds>(delay)),
-            m_unregistered{false}
+        fast_sink(m::not_null<m::tracing::monitor_class*> monitor):
+            sink(L"cout_sink"_sl, monitor)
         {}
 
-        virtual ~slow_sink() {}
+        virtual ~fast_sink() {}
 
         // Kind of hokey but who is responsible for registering the
         // cout based sink? This is how it's done I guess
-        template <typename Rep, typename Period>
         static std::unique_ptr<m::tracing::sink_registration>
-        register_sink(m::not_null<m::tracing::monitor_class*> monitor,
-                      std::chrono::duration<Rep, Period>      delay)
+        register_sink(m::not_null<m::tracing::monitor_class*> monitor)
         {
-            std::shared_ptr<slow_sink> expected = ms_slow_sink.load(std::memory_order_acquire);
+            std::shared_ptr<fast_sink> expected = ms_fast_sink.load(std::memory_order_acquire);
 
             if (!expected)
             {
                 for (;;)
                 {
-                    auto desired = std::make_shared<slow_sink>(monitor, delay);
+                    auto desired = std::make_shared<fast_sink>(monitor);
 
-                    if (ms_slow_sink.compare_exchange_strong(
+                    if (ms_fast_sink.compare_exchange_strong(
                             expected, desired, std::memory_order_acq_rel))
                         break;
                 }
 
-                expected = ms_slow_sink.load(std::memory_order_acquire);
+                expected = ms_fast_sink.load(std::memory_order_acquire);
             }
 
             return monitor->register_sink(expected);
-        }
-
-        void
-        mark_unregistered()
-        {
-            m_unregistered = true;
         }
 
     protected:
         m::tracing::on_message_disposition
         on_message(m::tracing::may_queue_option, m::tracing::envelope&) override
         {
-            EXPECT_EQ(false, m_unregistered);
-
-            auto l = std::unique_lock(m_mutex);
-
-            if (m_closed)
-                return m::tracing::on_message_disposition::completed;
-
-            // Literally, all we do is wait for the delay.
-            std::this_thread::sleep_for(m_delay);
-
             return m::tracing::on_message_disposition::completed;
         }
 
         bool
         would_queue(m::tracing::envelope const&) override
         {
-            return true;
+            // false means that we will not queue (meaning take ownership of)
+            // the messages during on_message().
+            return false;
         }
 
         void
@@ -96,87 +76,83 @@ namespace
         }
 
     private:
-        std::chrono::milliseconds                             m_delay;
-        bool                                                  m_unregistered;
-        static inline std::atomic<std::shared_ptr<slow_sink>> ms_slow_sink;
+        static inline std::atomic<std::shared_ptr<fast_sink>> ms_fast_sink;
     };
-
-    constexpr auto slow_sink_delay_1 = 10ms;
 } // namespace
 
-TEST(TestSlowSink, RegisterSink)
+TEST(TestFastSink, RegisterSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
 }
 
-TEST(TestSlowSink, LogAnEventNoFormattingWithConsoleSink)
+TEST(TestFastSink, LogAnEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
     src->log(m::tracing::event_kind::information, "Hello, tracing!");
 }
 
-TEST(TestSlowSink, LogATracingEventNoFormattingWithConsoleSink)
+TEST(TestFastSink, LogATracingEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
     src->log(m::tracing::event_kind::tracing, "Hello, tracing this should not show up!");
 }
 
-TEST(TestSlowSink, LogAErrorEventNoFormattingWithConsoleSink)
+TEST(TestFastSink, LogAErrorEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
     src->log(m::tracing::event_kind::error, "Hello, tracing this should definitely show up!");
 }
 
-TEST(TestSlowSink, WLogAnEventNoFormattingWithConsoleSink)
+TEST(TestFastSink, WLogAnEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
     src->wlog(m::tracing::event_kind::information, L"Hello, tracing!");
 }
 
-TEST(TestSlowSink, WLogATracingEventNoFormattingWithConsoleSink)
+TEST(TestFastSink, WLogATracingEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
     src->wlog(m::tracing::event_kind::tracing, L"Hello, tracing this should not show up!");
 }
 
-TEST(TestSlowSink, WLogAErrorEventNoFormattingWithConsoleSink)
+TEST(TestFastSink, WLogAErrorEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
     src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
-TEST(TestSlowSink, LogMessagesAfterClosingSink)
+TEST(TestFastSink, LogMessagesAfterClosingSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
     auto src      = m::tracing::monitor.make_source();
 
     src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
-    coutsink.reset();
+    fastsink.reset();
     src->wlog(m::tracing::event_kind::error,
               L"This is another event but after the sink was closed");
 }
 
-TEST(TestSlowSink, LotsOfMessages10)
+TEST(TestFastSink, LotsOfMessages10)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
     auto src      = m::tracing::monitor.make_source();
 
     constexpr auto message_count = 10;
@@ -185,9 +161,9 @@ TEST(TestSlowSink, LotsOfMessages10)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
-TEST(TestSlowSink, LotsOfMessages50)
+TEST(TestFastSink, LotsOfMessages50)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
     auto src      = m::tracing::monitor.make_source();
 
     constexpr auto message_count = 50;
@@ -196,9 +172,9 @@ TEST(TestSlowSink, LotsOfMessages50)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
-TEST(TestSlowSink, LotsOfMessages100)
+TEST(TestFastSink, LotsOfMessages100)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
     auto src      = m::tracing::monitor.make_source();
 
     constexpr auto message_count = 100;
@@ -207,9 +183,9 @@ TEST(TestSlowSink, LotsOfMessages100)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
-TEST(TestSlowSink, LotsOfMessages500)
+TEST(TestFastSink, LotsOfMessages500)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
     auto src      = m::tracing::monitor.make_source();
 
     constexpr auto message_count = 500;
@@ -218,12 +194,34 @@ TEST(TestSlowSink, LotsOfMessages500)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
-TEST(TestSlowSink, LotsOfMessages1000)
+TEST(TestFastSink, LotsOfMessages1000)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
     auto src      = m::tracing::monitor.make_source();
 
     constexpr auto message_count = 1000;
+
+    for (auto i = 0; i < message_count; i++)
+        src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
+}
+
+TEST(TestFastSink, LotsOfMessages10000)
+{
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
+    auto src      = m::tracing::monitor.make_source();
+
+    constexpr auto message_count = 10000;
+
+    for (auto i = 0; i < message_count; i++)
+        src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
+}
+
+TEST(TestFastSink, LotsOfMessages100000)
+{
+    auto fastsink = fast_sink::register_sink(&m::tracing::monitor);
+    auto src      = m::tracing::monitor.make_source();
+
+    constexpr auto message_count = 100000;
 
     for (auto i = 0; i < message_count; i++)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");

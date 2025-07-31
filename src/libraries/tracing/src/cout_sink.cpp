@@ -54,7 +54,7 @@ namespace m::tracing
             while (!m_message_queue.empty())
             {
                 auto env = m_message_queue.dequeue();
-                auto msg = env.get_message();
+                auto msg = env.message();
 
                 if (msg != nullptr)
                 {

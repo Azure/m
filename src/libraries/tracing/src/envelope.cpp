@@ -10,18 +10,16 @@
 
 namespace m::tracing
 {
-    envelope::envelope(m::not_null<tracing::message*> msg): m_message(msg), m_return_queue(nullptr) {}
-
-    envelope::envelope(m::not_null<tracing::message*> msg, m::not_null<tracing::message_queue*> return_queue):
-        m_message(msg), m_return_queue(return_queue)
+    envelope::envelope(m::not_null<tracing::message_source*> source, tracing::message* msg):
+        m_message_source(source), m_message(msg)
     {}
 
-    envelope::envelope(envelope&& other) noexcept: m_message{}, m_return_queue{}
+    envelope::envelope(envelope&& other) noexcept:
+        m_message_source{other.m_message_source}, m_message{}
     {
         using std::swap;
 
         swap(m_message, other.m_message);
-        swap(m_return_queue, other.m_return_queue);
     }
 
     void
@@ -30,7 +28,7 @@ namespace m::tracing
         using std::swap;
 
         swap(m_message, other.m_message);
-        swap(m_return_queue, other.m_return_queue);
+        swap(m_message_source, other.m_message_source);
     }
 
     void
@@ -39,47 +37,26 @@ namespace m::tracing
         using std::swap;
 
         swap(m_message, other.m_message);
-        swap(m_return_queue, other.m_return_queue);
+        swap(m_message_source, other.m_message_source);
     }
 
-    message*
+    tracing::message*
     envelope::message() const
     {
         return m_message;
     }
 
-    message_queue*
-    envelope::message_queue() const
+    tracing::message*
+    envelope::message(tracing::message* msg)
     {
-        return m_return_queue;
+        return std::exchange(m_message, msg);
     }
 
-    void
-    envelope::reset()
+    m::not_null<tracing::message_source*>
+    envelope::message_source() const
     {
-        if (m_return_queue != nullptr)
-        {
-            std::exchange(m_return_queue, nullptr)
-                ->enqueue(m::not_null<tracing::message*>(std::exchange(m_message, nullptr)));
-        }
+        return m_message_source;
     }
 
-    void
-    envelope::reset(envelope const& other, m::not_null<tracing::message_queue*> return_queue)
-    {
-        if (m_return_queue != nullptr)
-        {
-            std::exchange(m_return_queue, nullptr)
-                ->enqueue(m::not_null<tracing::message*>(std::exchange(m_message, nullptr)));
-        }
-
-        *m_message     = *other.m_message;
-        m_return_queue = return_queue;
-    }
-
-    envelope::~envelope()
-    {
-        if (m_return_queue != nullptr)
-            m_return_queue->enqueue(m::not_null(m_message));
-    }
+    envelope::~envelope() { m_message = nullptr; }
 } // namespace m::tracing

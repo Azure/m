@@ -4,27 +4,30 @@
 #include <condition_variable>
 #include <mutex>
 
+#include <m/tracing/message.h>
 #include <m/tracing/message_queue.h>
+#include <m/utility/compiler.h>
 
 namespace m::tracing
 {
-    message_queue::message_queue(): m_waiter_count{} {}
+    message_queue::message_queue() {}
 
     bool
-    message_queue::empty() const
+    message_queue::empty() const noexcept
     {
         auto l = std::unique_lock(m_mutex);
         return m_queue.empty();
     }
 
     envelope
-    message_queue::try_dequeue()
+    message_queue::try_dequeue() noexcept
     {
         auto l = std::unique_lock(m_mutex);
+
         if (m_queue.empty())
-            return envelope();
+            return envelope(this);
 
-        envelope   result;
+        envelope result(this);
         using std::swap;
         swap(result, m_queue.front());
         m_queue.pop();
@@ -32,26 +35,22 @@ namespace m::tracing
     }
 
     envelope
-    message_queue::dequeue()
+    message_queue::dequeue() noexcept
     {
         auto l = std::unique_lock(m_mutex);
 
-        while (m_queue.empty())
-        {
-            m_waiter_count++;
-            m_cv.wait(l);
-            m_waiter_count--;
-        }
+        if (m_queue.empty())
+            wait_for_nonempty(l);
 
-        envelope   result;
+        envelope result(this);
         using std::swap;
         swap(result, m_queue.front());
         m_queue.pop();
         return result;
     }
 
-    envelope
-    message_queue::wakeable_dequeue()
+    std::optional<envelope>
+    message_queue::wakeable_dequeue() noexcept
     {
         auto l = std::unique_lock(m_mutex);
 
@@ -59,38 +58,32 @@ namespace m::tracing
         // we only wait once.
         if (m_queue.empty())
         {
-            m_waiter_count++;
             m_cv.wait(l);
-            m_waiter_count--;
         }
 
         if (!m_queue.empty())
         {
-            envelope   result;
+            envelope result(this);
             using std::swap;
             swap(result, m_queue.front());
             m_queue.pop();
             return result;
         }
 
-        return envelope{};
+        return std::nullopt;
     }
 
     void
-        message_queue::wait()
+    message_queue::wait() noexcept
     {
         auto l = std::unique_lock(m_mutex);
 
         if (m_queue.empty())
-        {
-            m_waiter_count++;
             m_cv.wait(l);
-            m_waiter_count--;
-        }
     }
 
     void
-    message_queue::wake_waiters()
+    message_queue::wake_waiters() noexcept
     {
         // In some world, we might see if we need to wake anyone
         // but in fact, we can just tell the cv to wake anyone.
@@ -98,36 +91,41 @@ namespace m::tracing
     }
 
     void
-    message_queue::enqueue(m::not_null<message*> msg)
+    message_queue::enqueue(m::not_null<message*> msg) noexcept
     {
-        bool wake = false;
+        auto l = std::unique_lock(m_mutex);
+        m_queue.push(envelope(this, msg));
 
-        {
-            auto l = std::unique_lock(m_mutex);
-            m_queue.push(envelope(msg));
-            if (m_waiter_count != 0)
-                wake = true;
-        }
+        l.unlock();
 
-        if (wake)
-            m_cv.notify_all();
+        m_cv.notify_all();
     }
 
+    void
+    message_queue::enqueue(envelope const& e) noexcept
+    {
+        enqueue(e.message());
+    }
+
+    envelope
+    message_queue::allocate_message(event_kind kind)
+    {
+        envelope env = dequeue();
+        env.message()->kind(kind);
+        return env;
+    }
 
     void
-    message_queue::enqueue(envelope& e)
+    message_queue::deallocate_message(m::not_null<message*> msg) noexcept
     {
-        bool wake = false;
+        enqueue(msg);
+    }
 
-        {
-            auto l = std::unique_lock(m_mutex);
-            m_queue.push(std::move(e));
-            if (m_waiter_count != 0)
-                wake = true;
-        }
-
-        if (wake)
-            m_cv.notify_all();
+    M_NOINLINE void
+    message_queue::wait_for_nonempty(std::unique_lock<std::mutex>& lock) noexcept
+    {
+        while (m_queue.empty())
+            m_cv.wait(lock);
     }
 
 } // namespace m::tracing

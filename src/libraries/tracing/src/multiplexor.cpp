@@ -42,7 +42,9 @@ namespace m::tracing
             if (snk->would_queue(env))
             {
                 auto msg_copy = m_monitor->copy_message(m::locked, env);
-                std::ignore   = snk->on_message(may_queue_option::may_queue, msg_copy);
+                auto const disposition = snk->on_message(may_queue_option::may_queue, msg_copy);
+                if (disposition == on_message_disposition::completed)
+                    return_to_sender(msg_copy);
             }
             else
             {
@@ -57,6 +59,12 @@ namespace m::tracing
     multiplexor::allocate_message(event_kind kind)
     {
         return m_monitor->allocate_message(kind);
+    }
+
+    void
+    multiplexor::deallocate_message(m::not_null<tracing::message*> msg) noexcept
+    {
+        m_monitor->deallocate_message(msg);
     }
 
 } // namespace m::tracing

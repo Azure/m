@@ -110,7 +110,7 @@ namespace m
             allocate_message(event_kind kind) override;
 
             void
-            deallocate_message(m::not_null<tracing::message*> message) override;
+            deallocate_message(m::not_null<tracing::message*> message) noexcept override;
 
         private:
             using channel_map_type = std::map<std::wstring, std::unique_ptr<channel>, std::less<>>;

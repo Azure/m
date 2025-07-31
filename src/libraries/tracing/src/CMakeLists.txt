@@ -7,6 +7,7 @@ target_sources(m_tracing PRIVATE
     event_context.cpp
     message.cpp
     message_queue.cpp
+    message_source.cpp
     monitor_class.cpp
     multiplexor.cpp
     sink.cpp

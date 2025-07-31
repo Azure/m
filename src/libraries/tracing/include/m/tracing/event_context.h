@@ -31,7 +31,6 @@ namespace m
 
                 swap(l.m_os_process_id, r.m_os_process_id);
                 swap(l.m_os_thread_id, r.m_os_thread_id);
-                swap(l.m_thread_id, r.m_thread_id);
                 swap(l.m_time_point, r.m_time_point);
             }
 
@@ -50,9 +49,6 @@ namespace m
                 return m_os_thread_id;
             }
 
-            std::thread::id
-            thread_id() const;
-
             constexpr utc_time_point
             time_point() const
             {
@@ -60,7 +56,6 @@ namespace m
             }
 
         protected:
-            std::thread::id m_thread_id;
             uint32_t        m_os_process_id;
             uint32_t        m_os_thread_id;
             utc_time_point  m_time_point;

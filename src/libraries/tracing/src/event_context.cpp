@@ -18,12 +18,9 @@
 
 namespace m::tracing
 {
-    event_context::event_context() noexcept:
-        m_thread_id{}, m_os_process_id{}, m_os_thread_id{}, m_time_point{}
-    {}
+    event_context::event_context() noexcept: m_os_process_id{}, m_os_thread_id{}, m_time_point{} {}
 
     event_context::event_context(event_context const& other) noexcept:
-        m_thread_id(other.m_thread_id),
         m_os_process_id(other.m_os_process_id),
         m_os_thread_id(other.m_os_thread_id),
         m_time_point(other.m_time_point)
@@ -32,17 +29,10 @@ namespace m::tracing
     event_context&
     event_context::operator=(event_context const& other) noexcept
     {
-        m_thread_id     = other.m_thread_id;
         m_os_process_id = other.m_os_process_id;
         m_os_thread_id  = other.m_os_thread_id;
         m_time_point    = other.m_time_point;
         return *this;
-    }
-
-    std::thread::id
-    event_context::thread_id() const
-    {
-        return m_thread_id;
     }
 
     event_context
@@ -58,7 +48,6 @@ namespace m::tracing
         retval.m_os_thread_id  = gettid();
 #endif
 
-        retval.m_thread_id  = std::this_thread::get_id();
         retval.m_time_point = std::chrono::utc_clock::now();
         return retval;
     }

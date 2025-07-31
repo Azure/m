@@ -84,7 +84,7 @@ namespace m::tracing
         return true;
     }
 
-    void
+    std::unique_ptr<sink_registration>
     cout_sink::register_sink(m::not_null<monitor_class*> monitor)
     {
         std::shared_ptr<cout_sink> expected = ms_cout_sink.load(std::memory_order_acquire);
@@ -103,12 +103,14 @@ namespace m::tracing
             expected = ms_cout_sink.load(std::memory_order_acquire);
         }
 
-        monitor->register_sink(expected);
+        return monitor->register_sink(expected);
     }
 
     void
-    cout_sink::close()
+    cout_sink::close() noexcept
     {
+        std::thread t;
+
         {
             auto l = std::unique_lock(m_mutex);
             if (!m_done)
@@ -116,9 +118,14 @@ namespace m::tracing
                 m_done   = true;
                 m_closed = true;
                 m_message_queue.wake_waiters();
+
+                using std::swap;
+                swap(t, m_thread);
             }
         }
-        m_thread.join();
+
+        if (t.joinable())
+            t.join();
     }
 
 } // namespace m::tracing

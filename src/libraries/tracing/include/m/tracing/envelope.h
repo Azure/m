@@ -22,6 +22,7 @@
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/event_context.h>
 #include <m/tracing/event_kind.h>
+#include <m/tracing/message_source.h>
 #include <m/utility/pointers.h>
 
 using namespace m::string_view_literals;
@@ -37,11 +38,19 @@ namespace m
         {
         public:
             envelope() = default;
-            envelope(m::not_null<message*> msg);
-            envelope(m::not_null<message*> msg, m::not_null<message_queue*> return_queue);
+            envelope(m::not_null<message*> msg, m::not_null<message_source*> source);
+
+            envelope(envelope const& other) = delete;
             envelope(envelope&& other) noexcept;
+
+            void
+            operator=(envelope const& other) = delete;
+
             void
             operator=(envelope&& other) noexcept;
+
+            void
+            swap(envelope& other) noexcept;
 
             void
             reset();
@@ -50,16 +59,16 @@ namespace m
             reset(envelope const& other, m::not_null<message_queue*> return_queue);
 
             message*
-            get_message() const;
+            message() const;
 
             message_queue*
-            get_message_queue() const;
+            message_queue() const;
 
             ~envelope();
 
         private:
-            message*       m_message{};
-            message_queue* m_return_queue{}; // may be nullptr
+            tracing::message*            m_message{};
+            m::not_null<message_source*> m_message_source{};
         };
     } // namespace tracing
 } // namespace m

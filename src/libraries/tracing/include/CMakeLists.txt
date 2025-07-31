@@ -14,6 +14,9 @@ target_sources(m_tracing PUBLIC FILE_SET HEADERS FILES
     m/tracing/on_message_disposition.h 
     m/tracing/safe_array_iterator.h 
     m/tracing/sink.h 
+    m/tracing/sink_registration.h
+    m/tracing/sink_registration_impl.h
+    m/tracing/sink_shim.h
     m/tracing/source.h 
     m/tracing/topology_version.h 
     m/tracing/tracing.h 

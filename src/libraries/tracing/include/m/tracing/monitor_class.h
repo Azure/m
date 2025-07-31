@@ -29,8 +29,11 @@
 
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/event_kind.h>
+#include <m/tracing/may_queue_option.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/on_message_disposition.h>
+#include <m/tracing/sink.h>
+#include <m/tracing/sink_registration.h>
 #include <m/tracing/topology_version.h>
 #include <m/utility/locked.h>
 
@@ -42,7 +45,7 @@ namespace m
     {
         class multiplexor;
 
-        class monitor_class
+        class monitor_class : public message_source
         {
         public:
             monitor_class();
@@ -54,7 +57,7 @@ namespace m
             std::shared_ptr<source>
             make_source(event_kind kind = event_kind::information);
 
-            void
+            std::unique_ptr<sink_registration>
             register_sink(std::shared_ptr<sink> snk);
 
             envelope
@@ -73,14 +76,14 @@ namespace m
                 // Just grab this from the collection instead of
                 // referring to it by name so that if the collection
                 // changes, we adapt.
-                auto const lt = m_channel_sinks.key_comp();
+                auto const lt = m_channel_sink_shims.key_comp();
 
-                auto it = m_channel_sinks.lower_bound(channel_name);
+                auto it = m_channel_sink_shims.lower_bound(channel_name);
 
                 // Until we hit a key that's larger than the channel name,
                 // go through the list calling the callable passing the
                 // value and then the args.
-                while ((it != m_channel_sinks.end()) && !lt(it->first, channel_name))
+                while ((it != m_channel_sink_shims.end()) && !lt(it->first, channel_name))
                 {
                     std::invoke(callable, it->second, args...);
                     it++;
@@ -103,17 +106,24 @@ namespace m
             topology_version
             get_topology_version() const;
 
-            envelope
-            reserve_message(event_kind kind);
+            [[nodiscard]] envelope
+            allocate_message(event_kind kind) override;
+
+            void
+            deallocate_message(m::not_null<tracing::message*> message) override;
 
         private:
-            std::atomic<topology_version>                                   m_topology_version;
-            std::mutex                                                      m_mutex;
-            std::map<std::wstring, std::unique_ptr<channel>, std::less<>>   m_channels;
-            std::multimap<std::wstring, std::shared_ptr<sink>, std::less<>> m_channel_sinks;
-            std::vector<std::shared_ptr<sink>>                              m_sinks;
-            message_queue                                                   m_message_queue;
-            std::unique_ptr<message[]>                                      m_raw_messages;
+            using channel_map_type = std::map<std::wstring, std::unique_ptr<channel>, std::less<>>;
+            using channel_sink_shim_map_type =
+                std::multimap<std::wstring, std::shared_ptr<internal::sink_shim>, std::less<>>;
+
+            std::atomic<topology_version>                     m_topology_version;
+            std::mutex                                        m_mutex;
+            channel_map_type                                  m_channels;
+            channel_sink_shim_map_type                        m_channel_sink_shims;
+            std::vector<std::shared_ptr<internal::sink_shim>> m_sink_shims;
+            message_queue                                     m_message_queue;
+            std::unique_ptr<message[]>                        m_raw_messages;
 
             friend class multiplexor;
         };

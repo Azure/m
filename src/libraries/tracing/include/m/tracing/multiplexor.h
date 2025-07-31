@@ -24,8 +24,10 @@
 #include <m/tracing/envelope.h>
 #include <m/tracing/event_kind.h>
 #include <m/tracing/message_queue.h>
+#include <m/tracing/message_source.h>
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink.h>
+#include <m/tracing/sink_shim.h>
 #include <m/tracing/topology_version.h>
 #include <m/utility/pointers.h>
 
@@ -42,7 +44,7 @@ namespace m
         // A multiplexor ties some number of sources together with some number
         // of sinks.
         //
-        class multiplexor
+        class multiplexor : public message_source
         {
         public:
             multiplexor(m::not_null<monitor_class*>              monitor,
@@ -54,7 +56,7 @@ namespace m
 
             [[nodiscard]]
             envelope
-            reserve_message(event_kind kind);
+            allocate_message(event_kind kind) override;
 
         private:
             // m_monitor and m_channel_names are not updated after construction
@@ -69,7 +71,7 @@ namespace m
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
-            std::vector<std::shared_ptr<sink>> m_sinks;
+            std::vector<std::shared_ptr<internal::sink_shim>> m_sink_shims;
         };
     } // namespace tracing
 } // namespace m

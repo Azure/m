@@ -10,6 +10,8 @@ target_sources(m_tracing PRIVATE
     monitor_class.cpp
     multiplexor.cpp
     sink.cpp
+    sink_registration_impl.cpp
+    sink_shim.cpp
     source.cpp
   )
 

@@ -40,7 +40,7 @@ namespace m
 
             // Kind of hokey but who is responsible for registering the
             // cout based sink? This is how it's done I guess
-            static void
+            static std::unique_ptr<sink_registration>
             register_sink(m::not_null<monitor_class*> monitor);
 
         protected:
@@ -51,7 +51,7 @@ namespace m
             would_queue(envelope const&) override;
 
             void
-            close() override;
+            close() noexcept override;
 
         private:
             message_queue                                         m_message_queue;

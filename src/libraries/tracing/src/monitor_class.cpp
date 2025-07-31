@@ -4,7 +4,9 @@
 #include <memory>
 
 #include <m/tracing/monitor_class.h>
+#include <m/tracing/sink_registration_impl.h>
 #include <m/tracing/tracing.h>
+#include <m/utility/pointers.h>
 
 namespace m::tracing
 {
@@ -15,12 +17,12 @@ namespace m::tracing
         m_raw_messages                          = std::make_unique<message[]>(raw_message_count);
 
         for (std::size_t i = 0; i < raw_message_count; i++)
-            m_message_queue.enqueue(m::not_null<message*>(&m_raw_messages[i]));
+            m_message_queue.enqueue(m::not_null(&m_raw_messages[i], m::not_null(this)));
     }
 
     monitor_class::~monitor_class()
     {
-        for (auto&& s: m_sinks)
+        for (auto&& s: m_sink_shims)
             s->close();
     }
 
@@ -66,12 +68,19 @@ namespace m::tracing
     }
 
     envelope
-    monitor_class::reserve_message(event_kind kind)
+    monitor_class::allocate_message(event_kind kind)
     {
         auto l   = std::unique_lock(m_mutex);
         auto env = m_message_queue.dequeue(); // don't make env const to allow rvo
-        env.get_message()->kind(kind);
+        env.message()->kind(kind);
         return env;
+    }
+
+    void
+        monitor_class::deallocate_message(m::not_null<message*> ptr)
+    {
+        auto l = std::unique_lock(m_mutex);
+        m_message_queue.enqueue(e);
     }
 
     envelope
@@ -89,14 +98,17 @@ namespace m::tracing
         return copy_message(locked, item_in);
     }
 
-    void
+    std::unique_ptr<sink_registration>
     monitor_class::register_sink(std::shared_ptr<sink> snk)
     {
         // Let's initially just register whatever sinks we get with the
         // diagnostic channel to get things rolling
-        auto l = std::unique_lock(m_mutex);
-        m_channel_sinks.insert(std::make_pair(diagnostic_channel_name, snk));
-        m_sinks.push_back(snk);
+        auto l            = std::unique_lock(m_mutex);
+        auto shim         = std::make_shared<internal::sink_shim>(snk);
+        auto return_value = new internal::sink_registration_impl(shim);
+        m_channel_sink_shims.insert(std::make_pair(diagnostic_channel_name, shim));
+        m_sink_shims.push_back(shim);
+        return std::unique_ptr<sink_registration>(return_value);
     }
 
 } // namespace m::tracing

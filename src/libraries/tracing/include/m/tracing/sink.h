@@ -21,6 +21,7 @@
 
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/envelope.h>
+#include <m/tracing/may_queue_option.h>
 #include <m/tracing/on_message_disposition.h>
 
 using namespace m::string_view_literals;
@@ -31,6 +32,11 @@ namespace m
     {
         class monitor_class;
         class multiplexor;
+
+        namespace internal
+        {
+            class sink_shim;
+        }
 
         class sink
         {
@@ -47,17 +53,11 @@ namespace m
             virtual bool
             would_queue(envelope const& item) = 0;
 
-            enum class may_queue_option
-            {
-                may_queue,
-                may_not_queue,
-            };
-
             virtual on_message_disposition
             on_message(may_queue_option may_queue, envelope& item) = 0;
 
             virtual void
-            close() = 0;
+            close() noexcept = 0;
 
             std::mutex                  m_mutex;
             std::wstring                m_name;
@@ -66,6 +66,7 @@ namespace m
 
             friend class monitor_class;
             friend class multiplexor;
+            friend class internal::sink_shim;
         };
     } // namespace tracing
 } // namespace m

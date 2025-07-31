@@ -24,7 +24,7 @@ TEST(Tracing, CreateSource)
 
 TEST(Tracing, RegisterSink)
 {
-    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+    auto coutsink = m::tracing::cout_sink::register_sink(&m::tracing::monitor);
 }
 
 TEST(Tracing, LogAnEventNoFormattingNoSinks)
@@ -36,7 +36,7 @@ TEST(Tracing, LogAnEventNoFormattingNoSinks)
 
 TEST(Tracing, LogAnEventNoFormattingWithConsoleSink)
 {
-    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+    auto coutsink = m::tracing::cout_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
@@ -45,7 +45,7 @@ TEST(Tracing, LogAnEventNoFormattingWithConsoleSink)
 
 TEST(Tracing, LogATracingEventNoFormattingWithConsoleSink)
 {
-    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+    auto coutsink = m::tracing::cout_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
@@ -54,7 +54,7 @@ TEST(Tracing, LogATracingEventNoFormattingWithConsoleSink)
 
 TEST(Tracing, LogAErrorEventNoFormattingWithConsoleSink)
 {
-    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+    auto coutsink = m::tracing::cout_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
@@ -70,7 +70,7 @@ TEST(Tracing, WLogAnEventNoFormattingNoSinks)
 
 TEST(Tracing, WLogAnEventNoFormattingWithConsoleSink)
 {
-    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+    auto coutsink = m::tracing::cout_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
@@ -79,7 +79,7 @@ TEST(Tracing, WLogAnEventNoFormattingWithConsoleSink)
 
 TEST(Tracing, WLogATracingEventNoFormattingWithConsoleSink)
 {
-    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+    auto coutsink = m::tracing::cout_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
@@ -88,9 +88,22 @@ TEST(Tracing, WLogATracingEventNoFormattingWithConsoleSink)
 
 TEST(Tracing, WLogAErrorEventNoFormattingWithConsoleSink)
 {
-    m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+    auto coutsink = m::tracing::cout_sink::register_sink(&m::tracing::monitor);
 
     auto src = m::tracing::monitor.make_source();
 
     src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
+
+TEST(Tracing, LogMessagesAfterClosingSink)
+{
+    auto coutsink = m::tracing::cout_sink::register_sink(&m::tracing::monitor);
+    auto src = m::tracing::monitor.make_source();
+
+    src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
+    coutsink.reset();
+    src->wlog(m::tracing::event_kind::error,
+              L"This is another event but after the sink was closed");
+
+}
+

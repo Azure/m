@@ -6,6 +6,7 @@ if(M_BUILD_TESTS)
     add_executable(
       test_tracing
       exercise_tracing.cpp
+      test_slow_sink.cpp
     )
 
     target_link_libraries(
@@ -21,3 +22,5 @@ if(M_BUILD_TESTS)
 
     gtest_discover_tests(test_tracing)
 endif()
+
+set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

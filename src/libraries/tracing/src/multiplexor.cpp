@@ -17,7 +17,7 @@ namespace m::tracing
     {
         for (auto&& e: m_channel_names)
             m_monitor->for_each_channel_sink(
-                m::locked, e, [this](auto snk) { m_sinks.emplace_back(snk); });
+                m::locked, e, [this](auto snk) { m_sink_shims.emplace_back(snk); });
     }
 
     on_message_disposition
@@ -25,28 +25,28 @@ namespace m::tracing
     {
         auto l = std::unique_lock(m_mutex);
 
-        if (m_sinks.size() == 0)
+        if (m_sink_shims.size() == 0)
         {
             return on_message_disposition::completed;
         }
 
-        if (m_sinks.size() == 1)
+        if (m_sink_shims.size() == 1)
         {
-            return m_sinks[0]->on_message(sink::may_queue_option::may_queue, env);
+            return m_sink_shims[0]->on_message(may_queue_option::may_queue, env);
         }
 
-        for (auto&& snk: m_sinks)
+        for (auto&& snk: m_sink_shims)
         {
             // It would be a good optimization to avoid making a copy
             // if there was a single sink.
             if (snk->would_queue(env))
             {
                 auto msg_copy = m_monitor->copy_message(m::locked, env);
-                std::ignore   = snk->on_message(sink::may_queue_option::may_queue, msg_copy);
+                std::ignore   = snk->on_message(may_queue_option::may_queue, msg_copy);
             }
             else
             {
-                std::ignore = snk->on_message(sink::may_queue_option::may_not_queue, env);
+                std::ignore = snk->on_message(may_queue_option::may_not_queue, env);
             }
         }
 
@@ -54,9 +54,9 @@ namespace m::tracing
     }
 
     envelope
-    multiplexor::reserve_message(event_kind kind)
+    multiplexor::allocate_message(event_kind kind)
     {
-        return m_monitor->reserve_message(kind);
+        return m_monitor->allocate_message(kind);
     }
 
 } // namespace m::tracing

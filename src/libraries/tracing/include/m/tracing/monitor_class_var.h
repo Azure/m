@@ -3,12 +3,13 @@
 
 #pragma once
 
+#include <m/atomic/atomic.h>
 #include <m/tracing/monitor_class.h>
 
 namespace m
 {
     namespace tracing
     {
-        inline auto monitor = monitor_class{};
+        inline m::atomic_pointer_with_initializer<monitor_class*> monitor;
     } // namespace tracing
 } // namespace m

@@ -106,67 +106,67 @@ namespace
 
 TEST(TestSlowSink, RegisterSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
 }
 
 TEST(TestSlowSink, LogAnEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
 
-    auto src = m::tracing::monitor.make_source();
+    auto src = m::tracing::monitor->make_source();
 
     src->log(m::tracing::event_kind::information, "Hello, tracing!");
 }
 
 TEST(TestSlowSink, LogATracingEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
 
-    auto src = m::tracing::monitor.make_source();
+    auto src = m::tracing::monitor->make_source();
 
     src->log(m::tracing::event_kind::tracing, "Hello, tracing this should not show up!");
 }
 
 TEST(TestSlowSink, LogAErrorEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
 
-    auto src = m::tracing::monitor.make_source();
+    auto src = m::tracing::monitor->make_source();
 
     src->log(m::tracing::event_kind::error, "Hello, tracing this should definitely show up!");
 }
 
 TEST(TestSlowSink, WLogAnEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
 
-    auto src = m::tracing::monitor.make_source();
+    auto src = m::tracing::monitor->make_source();
 
     src->wlog(m::tracing::event_kind::information, L"Hello, tracing!");
 }
 
 TEST(TestSlowSink, WLogATracingEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
 
-    auto src = m::tracing::monitor.make_source();
+    auto src = m::tracing::monitor->make_source();
 
     src->wlog(m::tracing::event_kind::tracing, L"Hello, tracing this should not show up!");
 }
 
 TEST(TestSlowSink, WLogAErrorEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
 
-    auto src = m::tracing::monitor.make_source();
+    auto src = m::tracing::monitor->make_source();
 
     src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
 TEST(TestSlowSink, LogMessagesAfterClosingSink)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
-    auto src      = m::tracing::monitor.make_source();
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
+    auto src      = m::tracing::monitor->make_source();
 
     src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
     coutsink.reset();
@@ -176,8 +176,8 @@ TEST(TestSlowSink, LogMessagesAfterClosingSink)
 
 TEST(TestSlowSink, LotsOfMessages10)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
-    auto src      = m::tracing::monitor.make_source();
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
+    auto src      = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 10;
 
@@ -187,8 +187,8 @@ TEST(TestSlowSink, LotsOfMessages10)
 
 TEST(TestSlowSink, LotsOfMessages50)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
-    auto src      = m::tracing::monitor.make_source();
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
+    auto src      = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 50;
 
@@ -198,8 +198,8 @@ TEST(TestSlowSink, LotsOfMessages50)
 
 TEST(TestSlowSink, LotsOfMessages100)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
-    auto src      = m::tracing::monitor.make_source();
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
+    auto src      = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 100;
 
@@ -209,8 +209,8 @@ TEST(TestSlowSink, LotsOfMessages100)
 
 TEST(TestSlowSink, LotsOfMessages500)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
-    auto src      = m::tracing::monitor.make_source();
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
+    auto src      = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 500;
 
@@ -220,8 +220,8 @@ TEST(TestSlowSink, LotsOfMessages500)
 
 TEST(TestSlowSink, LotsOfMessages1000)
 {
-    auto coutsink = slow_sink::register_sink(&m::tracing::monitor, slow_sink_delay_1);
-    auto src      = m::tracing::monitor.make_source();
+    auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
+    auto src      = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 1000;
 

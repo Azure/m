@@ -35,13 +35,13 @@ using namespace m::string_view_literals;
 
 namespace m::tracing
 {
-    inline auto src = monitor.make_source();
+    inline auto src = monitor->make_source();
 
     inline constexpr auto diagnostic_channel_name = L"diagnostic"_sl;
 
-    inline auto diagnostic_channel = monitor.make_channel(diagnostic_channel_name);
+    inline auto diagnostic_channel = monitor->make_channel(diagnostic_channel_name);
 
-    // inline auto operational_channel = monitor.make_channel(L"operational"_sl);
+    // inline auto operational_channel = monitor->make_channel(L"operational"_sl);
 }
 
 namespace m

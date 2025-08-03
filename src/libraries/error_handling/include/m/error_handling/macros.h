@@ -76,6 +76,17 @@
         throw m::not_implemented(text);                                                            \
     } while (false)
 
+#define M_CHECK_OR_NOT_IMPLEMENTED(expr, text)                                                     \
+    do                                                                                             \
+    {                                                                                              \
+        auto const m_internal_value = !!(expr);                                                    \
+        if (!m_internal_value)                                                                     \
+        {                                                                                          \
+            m::trace_error("Test failed: {}; not implementetd. {}", #expr, text);                  \
+            throw m::not_implemented(text);                                                        \
+        }                                                                                          \
+    } while (false)
+
 #define M_VALIDATE_PARAMETER(pname, expr)                                                          \
     do                                                                                             \
     {                                                                                              \

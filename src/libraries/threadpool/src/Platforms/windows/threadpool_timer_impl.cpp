@@ -14,7 +14,7 @@ using namespace std::chrono_literals;
 
 namespace m::threadpool_impl
 {
-    timer::timer(timer::task_type&& task, std::wstring&& description):
+    timer::timer(timer::task_type&& task, std::wstring description):
         m_task(std::move(task)), m_description(std::move(description)), m_duration{}
     {
         m_timer = ::CreateThreadpoolTimer(tp_timer_callback, this, nullptr);

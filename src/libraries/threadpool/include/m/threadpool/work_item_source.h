@@ -23,7 +23,7 @@ namespace m
     class work_item_source
     {
     public:
-        virtual std::optional<std::shared_ptr<work_item>>
+        virtual std::optional<std::shared_ptr<m::work_item>>
         try_get_next_work_item() = 0;
     };
 } // namespace m

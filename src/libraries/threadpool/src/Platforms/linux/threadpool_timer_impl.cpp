@@ -6,7 +6,7 @@
 #include "threadpool_timer_impl.h"
 
 m::threadpool_impl::timer::timer(m::threadpool_impl::timer::task_type&& task,
-                                 std::wstring&&                         description):
+                                 std::wstring                           description):
     m_task(std::move(task)), m_description(std::move(description))
 {
     //

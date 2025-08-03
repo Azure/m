@@ -6,6 +6,7 @@ if(M_BUILD_TESTS)
 
     add_executable(test_threadpool
         test_timer.cpp
+        test_work_queue.cpp
     )
 
     target_compile_features(test_threadpool PUBLIC cxx_std_23)

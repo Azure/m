@@ -72,6 +72,7 @@
 #define M_NOT_IMPLEMENTED(text)                                                                    \
     do                                                                                             \
     {                                                                                              \
+        m::trace_error("Not implemented: '{}'", text);                                             \
         throw m::not_implemented(text);                                                            \
     } while (false)
 

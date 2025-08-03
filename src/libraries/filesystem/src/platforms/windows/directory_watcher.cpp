@@ -254,7 +254,7 @@ namespace m::filesystem_impl::platform_specific
     }
 
     void
-    directory_watcher::recheck_watcher(utc_time_point issue_time)
+    directory_watcher::recheck_watcher(time_point issue_time)
     {
         auto&      s  = m_path.native();
         auto const sv = std::wstring_view(s);
@@ -267,7 +267,7 @@ namespace m::filesystem_impl::platform_specific
     }
 
     void
-    directory_watcher::invalidate_watcher(utc_time_point issue_time)
+    directory_watcher::invalidate_watcher(time_point issue_time)
     {
         for (auto&& e: m_registered_watches)
             e.m_change_notification->on_invalid(issue_time);

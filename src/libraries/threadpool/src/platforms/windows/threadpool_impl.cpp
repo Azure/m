@@ -8,24 +8,59 @@
 #include "threadpool_impl.h"
 #include "threadpool_timer_impl.h"
 
-std::shared_ptr<m::timer>
-m::threadpool_impl::threadpool::do_create_timer(
-    std::packaged_task<timer_cancellable_callable>&& task,
-    std::wstring&&                                   description)
+namespace m::threadpool_impl
 {
-    return std::make_shared<m::threadpool_impl::timer>(
-        m::threadpool_impl::timer::task_type(std::move(task)),
-        std::forward<std::wstring>(description));
-}
+    threadpool::threadpool(threadpool&& other) noexcept
+    {
+        using std::swap;
 
-std::shared_ptr<m::timer>
-m::threadpool_impl::threadpool::do_create_timer(std::packaged_task<timer_callable>&& task,
-                                                std::wstring&&                       description)
-{
-    return std::make_shared<m::threadpool_impl::timer>(
-        m::threadpool_impl::timer::task_type(std::move(task)),
-        std::forward<std::wstring>(description));
-}
+        // no state to move!
+        std::ignore = other;
+    }
+
+    threadpool&
+    threadpool::operator=(threadpool&& other) noexcept
+    {
+        using std::swap;
+
+        // no state to move!
+        std::ignore = other;
+
+        return *this;
+    }
+
+    void
+    threadpool::swap(threadpool& other) noexcept
+    {
+        using std::swap;
+
+        // no state to move!
+        std::ignore = other;
+    }
+
+    std::shared_ptr<m::timer>
+    threadpool::do_create_timer(std::packaged_task<timer_cancellable_callable>&& task,
+                                std::wstring&&                                   description)
+    {
+        return std::make_shared<m::threadpool_impl::timer>(
+            m::threadpool_impl::timer::task_type(std::move(task)), std::move(description));
+    }
+
+    std::shared_ptr<m::timer>
+    threadpool::do_create_timer(std::packaged_task<timer_callable>&& task,
+                                std::wstring&&                       description)
+    {
+        return std::make_shared<m::threadpool_impl::timer>(
+            m::threadpool_impl::timer::task_type(std::move(task)), std::move(description));
+    }
+
+    std::shared_ptr<m::work_queue>
+    threadpool::do_create_work_queue(m::work_queue_execution_policy wqep,
+                                     std::wstring&&                 description)
+    {
+        return std::make_shared<threadpool_impl::work_queue>(wqep, std::move(description));
+    }
+} // namespace m::threadpool_impl
 
 std::shared_ptr<m::threadpool_class>
 m::make_platform_default_threadpool()

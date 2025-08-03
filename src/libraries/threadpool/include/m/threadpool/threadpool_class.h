@@ -9,6 +9,7 @@
 #include <future>
 #include <memory>
 
+#include <m/threadpool/timer.h>
 #include <m/threadpool/types.h>
 #include <m/threadpool/work_queue.h>
 #include <m/threadpool/work_queue_execution_policy.h>
@@ -45,7 +46,8 @@ namespace m
         }
 
         std::shared_ptr<work_queue>
-        create_work_queue(work_queue_execution_policy wqep)
+        create_work_queue(
+            work_queue_execution_policy wqep = m::work_queue_execution_policy::parallel)
         {
             return do_create_work_queue(wqep, L"");
         }
@@ -64,13 +66,13 @@ namespace m
         virtual ~threadpool_class() = default;
 
         virtual std::shared_ptr<timer>
-        do_create_timer(std::packaged_task<timer_callable>&& task, std::wstring&& description) = 0;
+        do_create_timer(std::packaged_task<timer_callable>&& task, std::wstring description) = 0;
 
         virtual std::shared_ptr<timer>
-        do_create_timer(std::packaged_task<timer_cancellable_callable>&& task, std::wstring&& description) = 0;
+        do_create_timer(std::packaged_task<timer_cancellable_callable>&& task, std::wstring description) = 0;
 
         virtual std::shared_ptr<work_queue>
-        do_create_work_queue(work_queue_execution_policy wqep, std::wstring&& description) = 0;
+        do_create_work_queue(work_queue_execution_policy wqep, std::wstring description) = 0;
 
         friend class timer;
     };

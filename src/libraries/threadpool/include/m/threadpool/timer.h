@@ -54,9 +54,10 @@ namespace m
             do_set(std::chrono::duration_cast<timer_duration>(dur));
         }
 
-    private:
+    protected:
         virtual ~timer() {}
 
+    private:
         virtual bool
         do_cancel_requested() = 0;
 

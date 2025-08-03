@@ -3,9 +3,16 @@ cmake_minimum_required(VERSION 3.23)
 target_sources(m_threadpool PRIVATE
     threadpool_impl.cpp
     threadpool_timer_impl.cpp
+    tp_work.cpp
+    windows_work_queue_impl.cpp
 )
 
 target_link_libraries(m_threadpool PUBLIC
+    m_debugging
+    m_errors
+    m_error_handling
+    m_formatters
+    m_windows_chrono
 )
 
 target_include_directories(m_threadpool PUBLIC

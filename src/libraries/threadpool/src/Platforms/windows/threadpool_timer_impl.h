@@ -84,7 +84,7 @@ namespace m::threadpool_impl
             }
         };
 
-        timer(task_type&& task, std::wstring&& description);
+        timer(task_type&& task, std::wstring description);
         timer(m::threadpool_impl::timer&& other) = delete;
         timer(m::threadpool_impl::timer const&)  = delete;
         ~timer();

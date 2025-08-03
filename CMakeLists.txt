@@ -25,7 +25,7 @@ if (MSVC)
     add_compile_options(/W4 /WX)
     add_compile_options(/wd4459)        # declaration of 'foo' hides global declaration
 
-    string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+#    string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
     if(disable_native_wchar_t)
         add_compile_options("/Zc:wchar_t-")

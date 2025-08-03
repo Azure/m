@@ -4,6 +4,7 @@
 #pragma once
 
 #include <compare>
+#include <source_location>
 #include <type_traits>
 #include <utility>
 
@@ -13,6 +14,7 @@
 #define M_FAIL_FAST_NO_TEXT()                                                                      \
     do                                                                                             \
     {                                                                                              \
+        m::tracing::monitor->close(m::tracing::close_flush_option::expedite);                      \
         std::abort();                                                                              \
     } while (false)
 
@@ -32,7 +34,10 @@
     {                                                                                              \
         bool const m_internal_v = !!(e);                                                           \
         if (!m_internal_v)                                                                         \
+        {                                                                                          \
+            m::trace_internal_error_check_failure(std::source_location::current(), #e);            \
             M_FAIL_FAST_NO_TEXT();                                                                 \
+        }                                                                                          \
     } while (false)
 
 //
@@ -61,7 +66,7 @@
 #define M_UNREACHABLE_CODE()                                                                       \
     do                                                                                             \
     {                                                                                              \
-        M_FAIL_FAST_NO_TEXT();                                                                     \
+        M_INTERNAL_ERROR_CHECK(!"this code should not be reachable");                              \
     } while (false)
 
 #define M_NOT_IMPLEMENTED(text)                                                                    \
@@ -92,4 +97,3 @@
             throw m::invalid_parameter(api "." #p);                                                \
         }                                                                                          \
     } while (false)
-

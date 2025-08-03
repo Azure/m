@@ -26,7 +26,7 @@ namespace m
         template <typename T>
         struct safe_array_iterator
         {
-            using iterator_category = std::output_iterator_tag;
+            using iterator_category = std::contiguous_iterator_tag;
             using value_type        = typename T::value_type;
             using difference_type   = ptrdiff_t;
             using pointer           = void;
@@ -48,6 +48,24 @@ namespace m
 
                 m_index = other.m_index;
                 return *this;
+            }
+
+            friend difference_type
+            operator-(safe_array_iterator<T> const& l, safe_array_iterator<T> const& r)
+            {
+                if (&l.m_array != &r.m_array)
+                    throw std::runtime_error("can't difference between these two iterators");
+
+                return l.m_index - r.m_index;
+            }
+
+            safe_array_iterator
+            operator+(difference_type n)
+            {
+                safe_array_iterator it = *this;
+                it.m_index += n;
+
+                return it;
             }
 
             value_type&

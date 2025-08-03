@@ -12,6 +12,7 @@
 #include <string_view>
 #include <thread>
 
+#include <m/tracing/close_flush_option.h>
 #include <m/tracing/tracing.h>
 
 using namespace std::chrono_literals;
@@ -67,7 +68,7 @@ namespace
         }
 
         void
-        close() noexcept override
+        close(m::tracing::close_flush_option) noexcept override
         {
             {
                 auto l = std::unique_lock(m_mutex);

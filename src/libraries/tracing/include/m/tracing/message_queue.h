@@ -68,6 +68,9 @@ namespace m
             bool
             empty() const noexcept;
 
+            std::size_t
+            size() const noexcept;
+
             envelope
             try_dequeue() noexcept;
 

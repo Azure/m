@@ -20,8 +20,10 @@
 #include <vector>
 
 #include <m/strings/literal_string_view.h>
+#include <m/tracing/close_flush_option.h>
 #include <m/tracing/envelope.h>
 #include <m/tracing/may_queue_option.h>
+#include <m/tracing/message_processor.h>
 #include <m/tracing/on_message_disposition.h>
 
 using namespace m::string_view_literals;
@@ -38,7 +40,7 @@ namespace m
             class sink_shim;
         }
 
-        class sink
+        class sink : public message_processor
         {
         public:
             std::wstring
@@ -57,7 +59,7 @@ namespace m
             on_message(may_queue_option may_queue, envelope& item) = 0;
 
             virtual void
-            close() noexcept = 0;
+            close(close_flush_option cfo) noexcept = 0;
 
             std::mutex                  m_mutex;
             std::wstring                m_name;

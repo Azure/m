@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <memory>
+#include <print>
 #include <string_view>
 
 #include <m/strings/literal_string_view.h>
@@ -41,37 +42,42 @@ namespace m::tracing
         }
     }
 
+    void
+    cout_sink::process_message(message* msg)
+    {
+        std::array<wchar_t, 16384> buffer;
+
+        if (msg != nullptr)
+        {
+            auto it    = safe_array_iterator(buffer, 0);
+            auto itend = std::format_to(it,
+                                        L"[k{} p({}) t({}) @ {}Z] {}\n",
+                                        msg->kind(),
+                                        msg->m_event_context.os_process_id(),
+                                        msg->m_event_context.os_thread_id(),
+                                        msg->m_event_context.time_point(),
+                                        msg->view());
+
+            std::wcout << std::wstring_view(&*it, &*itend);
+        }
+    }
+
     // For the console output, just sit in a loop, dequeueing messages. As long
     // as they come back not null, print them and return the buffers to their
     // owners.
     void
     cout_sink::sink_thread()
     {
-        std::array<wchar_t, 16384> buffer;
-
-        for (;;)
+        while (!m_stop.load(std::memory_order_acquire))
         {
-            while (!m_message_queue.empty())
+            while (!m_stop.load(std::memory_order_acquire) && !m_message_queue.empty())
             {
                 auto env = m_message_queue.dequeue();
-                auto msg = env.message();
-
-                if (msg != nullptr)
-                {
-                    auto it    = safe_array_iterator(buffer, 0);
-                    auto itend = std::format_to(it,
-                                                L"[k{} p({}) t({}) @ {}Z] {}\n",
-                                                msg->kind(),
-                                                msg->m_event_context.os_process_id(),
-                                                msg->m_event_context.os_thread_id(),
-                                                msg->m_event_context.time_point(),
-                                                msg->view());
-
-                    std::wcout << std::wstring_view(&*it, &*itend);
-                }
+                process_message(env.message());
             }
 
-            if (m_done)
+            // m_done should be set before setting m_stop but no harm checking.
+            if (m_done.load(std::memory_order_acquire) || m_stop.load(std::memory_order_acquire))
                 break;
 
             m_message_queue.wait();
@@ -107,17 +113,59 @@ namespace m::tracing
     }
 
     void
-    cout_sink::close() noexcept
+    cout_sink::close(close_flush_option cfo) noexcept
     {
         std::thread t;
 
         {
             auto l = std::unique_lock(m_mutex);
-            if (!m_done)
+            if (!m_done.load(std::memory_order_acquire))
             {
-                m_done   = true;
+                m_done.store(true, std::memory_order_release);
                 m_closed = true;
-                m_message_queue.wake_waiters();
+
+                switch (cfo)
+                {
+                    case close_flush_option::abandon:
+                    {
+                        m_stop.store(true, std::memory_order_release);
+                        m_message_queue.wake_waiters();
+
+                        auto queue_size = m_message_queue.size();
+                        if (queue_size != 0)
+                            std::wcout << L"[Abandoning " << queue_size
+                                       << L" items in the stdout queue]\n";
+
+                        break;
+                    }
+
+                    case close_flush_option::expedite:
+                    {
+                        // Tell the thread to stop processing and terminate if
+                        // possible.
+
+                        m_stop.store(true, std::memory_order_release);
+                        m_message_queue.wake_waiters();
+
+                        // But we will complete the queue, not subject
+                        // to the vagaries of how the other thread may be
+                        // scheduled.
+                        while (!m_message_queue.empty())
+                        {
+                            auto env = m_message_queue.dequeue();
+                            process_message(env.message());
+                        }
+
+                        break;
+                    }
+
+                    case close_flush_option::normal:
+                    {
+                        // wake the thread and let it shut down. Nothing more drastic to do.
+                        m_message_queue.wake_waiters();
+                        break;
+                    }
+                }
 
                 using std::swap;
                 swap(t, m_thread);
@@ -126,6 +174,8 @@ namespace m::tracing
 
         if (t.joinable())
             t.join();
+
+        std::cout.flush();
     }
 
 } // namespace m::tracing

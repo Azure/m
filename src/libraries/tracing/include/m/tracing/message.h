@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <format>
 #include <initializer_list>
+#include <iterator>
 #include <map>
 #include <mutex>
 #include <queue>
@@ -19,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#include <m/cast/try_cast.h>
+#include <m/cast/to.h>
 #include <m/strings/literal_string_view.h>
 
 #include <m/tracing/event_context.h>
@@ -56,12 +57,12 @@ namespace m
 
             template <typename FormatStringT, typename FormatArgsT>
             void
-            format_log(FormatStringT&& fmt, FormatArgsT&& format_args)
+            vformat(FormatStringT&& fmt, FormatArgsT&& format_args)
             {
-                auto       it    = safe_array_iterator(m_chars, 0);
-                auto       endit = std::vformat_to(it, fmt.get(), std::forward<FormatArgsT>(format_args));
-                auto const diff  = &*endit - &*it;
-                m_length         = m::try_cast<std::size_t>(diff);
+                auto it    = safe_array_iterator(m_chars, 0);
+                auto endit = std::vformat_to(it, fmt.get(), std::forward<FormatArgsT>(format_args));
+                auto const diff = std::distance(it, endit);
+                m_length        = m::to<std::size_t>(diff);
             }
 
             // private:

@@ -20,8 +20,10 @@
 #include <vector>
 
 #include <m/strings/literal_string_view.h>
+#include <m/tracing/close_flush_option.h>
 #include <m/tracing/envelope.h>
 #include <m/tracing/may_queue_option.h>
+#include <m/tracing/message_processor.h>
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink.h>
 
@@ -50,7 +52,7 @@ namespace m::tracing::internal
     /// The shim's `close()` member function is called when the
     /// `sink_registration_impl` object's destructor runs.
     /// </summary>
-    class sink_shim
+    class sink_shim : public message_processor
     {
     public:
         sink_shim();
@@ -62,14 +64,14 @@ namespace m::tracing::internal
         sink_shim&
         operator=(sink_shim&& other) noexcept;
 
-        bool
-        would_queue(envelope const& item);
+        void
+        close(close_flush_option cfo) noexcept override;
 
         on_message_disposition
-        on_message(may_queue_option may_queue, envelope& item);
+        on_message(may_queue_option may_queue, envelope& item) override;
 
-        void
-        close() noexcept;
+        bool
+        would_queue(envelope const& item) override;
 
     private:
         std::mutex            m_mutex;

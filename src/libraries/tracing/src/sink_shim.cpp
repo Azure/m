@@ -50,14 +50,14 @@ namespace m::tracing::internal
     }
 
     void
-    sink_shim::close() noexcept
+    sink_shim::close(close_flush_option cfo) noexcept
     {
         auto l = std::unique_lock(m_mutex);
 
         if (m_closed || !m_sink)
             return;
 
-        m_sink->close();
+        m_sink->close(cfo);
         m_sink.reset();
 
         m_closed = true;

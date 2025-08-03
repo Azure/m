@@ -25,6 +25,7 @@
 #include <m/tracing/channel.h>
 #include <m/tracing/event_kind.h>
 #include <m/tracing/message.h>
+#include <m/tracing/message_allocator.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/multiplexor.h>
 #include <m/tracing/on_message_disposition.h>
@@ -96,14 +97,9 @@ namespace m
                 if (!m_closed && do_test_kind(kind))
                 {
                     message_allocator alloc(m_multiplexor.get(), kind);
-                    alloc.env().message()->format_log(fmt, std::forward<FormatArgsT>(format_args));
+                    alloc.env().message()->vformat(std::forward<FormatStringT>(fmt), std::forward<FormatArgsT>(format_args));
                     alloc.env().message()->m_event_context = event_context::current();
-                    auto result = m_multiplexor->on_message(alloc.env());
-                    if (result == on_message_disposition::queued)
-                    {
-                        // If the message was enqueued on, we do not want to try to deallocate
-                        alloc.release();
-                    }
+                    alloc.send_message(m_multiplexor.get());
                 }
             }
 

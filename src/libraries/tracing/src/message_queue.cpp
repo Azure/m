@@ -19,6 +19,13 @@ namespace m::tracing
         return m_queue.empty();
     }
 
+    std::size_t
+    message_queue::size() const noexcept
+    {
+        auto l = std::unique_lock(m_mutex);
+        return m_queue.size();
+    }
+
     envelope
     message_queue::try_dequeue() noexcept
     {

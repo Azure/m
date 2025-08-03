@@ -13,6 +13,7 @@
 #include <mutex>
 #include <print>
 #include <queue>
+#include <source_location>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -22,6 +23,7 @@
 
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/channel.h>
+#include <m/tracing/close_flush_option.h>
 #include <m/tracing/event_kind.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/monitor_class.h>
@@ -30,6 +32,8 @@
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink.h>
 #include <m/tracing/source.h>
+#include <m/utility/pointers.h>
+#include <m/utility/zstring.h>
 
 using namespace m::string_view_literals;
 
@@ -87,5 +91,8 @@ namespace m
     {
         tracing::src->log(tracing::event_kind::error, fmt, std::forward<Types>(args)...);
     }
+
+    void
+    trace_internal_error_check_failure(std::source_location const& srcloc, m::czstring expression);
 
 } // namespace m

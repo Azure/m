@@ -26,7 +26,7 @@ namespace m::tracing
     monitor_class::~monitor_class()
     {
         for (auto&& s: m_sink_shims)
-            s->close();
+            s->close(close_flush_option::normal);
     }
 
     m::not_null<channel*>
@@ -48,6 +48,15 @@ namespace m::tracing
     monitor_class::make_source(event_kind kind)
     {
         return std::make_shared<source>(this, kind, diagnostic_channel_name);
+    }
+
+    void
+    monitor_class::close(close_flush_option cfo)
+    {
+        auto l = std::unique_lock(m_mutex);
+
+        for (auto&& s: m_sink_shims)
+            s->close(cfo);
     }
 
     std::shared_ptr<multiplexor>
@@ -107,7 +116,16 @@ namespace m::tracing
     {
         // Let's initially just register whatever sinks we get with the
         // diagnostic channel to get things rolling
-        auto l            = std::unique_lock(m_mutex);
+        auto l = std::unique_lock(m_mutex);
+
+        // Elaborate increment of the topology version since we're changing the shape
+        // of the graph. If another thread reads this, they will block on the mutex
+        // to read and rebuild the actual new topology.
+        m_topology_version.store(
+            topology_version{
+                std::to_underlying(m_topology_version.load(std::memory_order_relaxed)) + 1},
+            std::memory_order_relaxed);
+
         auto shim         = std::make_shared<internal::sink_shim>(snk);
         auto return_value = new internal::sink_registration_impl(shim);
         m_channel_sink_shims.insert(std::make_pair(diagnostic_channel_name, shim));

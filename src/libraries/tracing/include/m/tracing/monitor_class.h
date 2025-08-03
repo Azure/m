@@ -28,6 +28,7 @@
 #include <m/tracing/channel.h>
 
 #include <m/strings/literal_string_view.h>
+#include <m/tracing/close_flush_option.h>
 #include <m/tracing/event_kind.h>
 #include <m/tracing/may_queue_option.h>
 #include <m/tracing/message_queue.h>
@@ -59,6 +60,22 @@ namespace m
 
             std::unique_ptr<sink_registration>
             register_sink(std::shared_ptr<sink> snk);
+
+            /// <summary>
+            /// The `close` with `emergency_stop` == `true` member function
+            /// should be called
+            /// very judiciously when a client needs to shut down the
+            /// tracing system because `std::abort()` or similar is
+            /// about to be invoked.
+            /// 
+            /// Usually `close()` should never be called. It should proably
+            /// never be used outside of the `emergency_stop == true` case.
+            /// </summary>
+            /// <param name="emergency_stop">Pass `true` to request all queues
+            /// to flush immediately on the foreground, `false` to allow operations
+            /// to proceed with less haste.</param>
+            void
+            close(close_flush_option cfo);
 
             envelope
             copy_message(m::locked_t, envelope const& item);

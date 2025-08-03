@@ -21,6 +21,7 @@
 #include <vector>
 
 #include <m/strings/literal_string_view.h>
+#include <m/tracing/close_flush_option.h>
 #include <m/tracing/envelope.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/sink.h>
@@ -51,13 +52,17 @@ namespace m
             would_queue(envelope const&) override;
 
             void
-            close() noexcept override;
+            close(close_flush_option cfo) noexcept override;
 
         private:
             message_queue                                         m_message_queue;
-            bool                                                  m_done;
+            std::atomic<bool>                                     m_done;
+            std::atomic<bool>                                     m_stop;
             std::thread                                           m_thread;
             static inline std::atomic<std::shared_ptr<cout_sink>> ms_cout_sink;
+
+            void
+            process_message(message* msg);
 
             void
             sink_thread();

@@ -23,6 +23,7 @@
 #include <m/tracing/channel.h>
 #include <m/tracing/envelope.h>
 #include <m/tracing/event_kind.h>
+#include <m/tracing/message_processor.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/message_source.h>
 #include <m/tracing/on_message_disposition.h>
@@ -45,15 +46,21 @@ namespace m
         // A multiplexor ties some number of sources together with some number
         // of sinks.
         //
-        class multiplexor : public message_source
+        class multiplexor : public message_source, public message_processor
         {
         public:
             multiplexor(m::not_null<monitor_class*>              monitor,
                         topology_version                         topver,
                         std::initializer_list<std::wstring_view> channels);
 
+            void
+            close(close_flush_option cfo) override;
+
             [[nodiscard]] on_message_disposition
-            on_message(envelope& item);
+            on_message(may_queue_option may_queue, envelope& item) override;
+
+            [[nodiscard]] bool
+            would_queue(envelope const& item) override;
 
             [[nodiscard]]
             envelope
@@ -63,6 +70,9 @@ namespace m
             deallocate_message(m::not_null<tracing::message*> msg) noexcept override;
 
         private:
+            void
+            rebuild_topology_from_monitor() noexcept;
+
             // m_monitor and m_channel_names are not updated after construction
             m::not_null<monitor_class*> m_monitor;
             std::vector<std::wstring>   m_channel_names;

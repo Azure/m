@@ -5,7 +5,9 @@ target_sources(m_tracing PRIVATE
     cout_sink.cpp
     envelope.cpp
     event_context.cpp
+    helper_functions.cpp
     message.cpp
+    message_allocator.cpp
     message_queue.cpp
     message_source.cpp
     monitor_class.cpp

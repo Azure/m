@@ -12,7 +12,17 @@ if(M_BUILD_TESTS)
         GTest::gtest_main
     )
 
+    add_executable(test_internal_error_check
+        test_internal_error_check.cpp
+    )
+
+    target_link_libraries(test_internal_error_check
+        m_error_handling
+        GTest::gtest_main
+    )
+
     enable_testing()
 
+    # do NOT add test_internal_error_check to the tests to discover! it fails (obviously!)
     gtest_discover_tests(test_error_handling)
 endif()

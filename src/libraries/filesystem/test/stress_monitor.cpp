@@ -34,7 +34,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     std::atomic<uintmax_t> m_on_invalid_count{0};
 
     void
-    on_begin(m::utc_time_point issue_time) override
+    on_begin(m::time_point issue_time) override
     {
         m::dbg_format("Entering {} at {}", __func__, issue_time);
         m_on_begin_count.fetch_add(1, std::memory_order_relaxed);
@@ -70,7 +70,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_file_changed(m::utc_time_point issue_time,
+    on_file_changed(m::time_point issue_time,
                     std::filesystem::path const&,
                     std::filesystem::path const&) override
     {
@@ -81,7 +81,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_file_deleted(m::utc_time_point issue_time,
+    on_file_deleted(m::time_point issue_time,
                     std::filesystem::path const&,
                     std::filesystem::path const&) override
     {
@@ -92,7 +92,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_file_recheck_required(m::utc_time_point issue_time,
+    on_file_recheck_required(m::time_point issue_time,
                              std::filesystem::path const&,
                              std::filesystem::path const&) override
     {
@@ -103,7 +103,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_cancelled(m::utc_time_point issue_time) override
+    on_cancelled(m::time_point issue_time) override
     {
         m::dbg_format("Entering {}", __func__);
         std::ignore = issue_time;
@@ -112,7 +112,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     void
-    on_invalid(m::utc_time_point issue_time) override
+    on_invalid(m::time_point issue_time) override
     {
         m::dbg_format("Entering {}", __func__);
         std::ignore = issue_time;

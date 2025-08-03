@@ -88,7 +88,7 @@ namespace m
             /// monitor prior to any other notifications.
             /// </summary>
             virtual void
-            on_begin(utc_time_point issue_time) = 0;
+            on_begin(time_point issue_time) = 0;
 
             /// <summary>
             /// The `requeue_directory_access_attempt` struct encapsulates the data to
@@ -274,13 +274,13 @@ namespace m
             /// on_cancelled() has been called.
             /// </summary>
             virtual void
-            on_cancelled(utc_time_point issue_time) = 0;
+            on_cancelled(time_point issue_time) = 0;
 
             /// <summary>
             /// ???
             /// </summary>
             virtual void
-            on_invalid(utc_time_point issue_time) = 0;
+            on_invalid(time_point issue_time) = 0;
 
             //
             // Un-block-comment these after copy/paste for your derived

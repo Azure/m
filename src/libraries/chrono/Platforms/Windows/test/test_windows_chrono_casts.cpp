@@ -22,11 +22,11 @@ using namespace std::string_literals;
 using namespace std::string_view_literals;
 
 using utc_clock      = std::chrono::utc_clock;
-using utc_time_point = utc_clock::time_point;
+using time_point = utc_clock::time_point;
 
 TEST(WindowsChronoCasts, SimpleTest1)
 {
-    auto const utctime1 = utc_time_point(); // Notes
+    auto const utctime1 = time_point(); // Notes
     // The official UTC epoch is 1 January 1972. utc_clock uses 1 January 1970 instead to be
     // consistent with std::chrono::system_clock.
     //
@@ -45,7 +45,7 @@ TEST(WindowsChronoCasts, SimpleTest1)
 
 TEST(WindowsChronoCasts, SimpleTest2)
 {
-    utc_time_point utctime;
+    time_point utctime;
 
     auto time_string = "7/22/1998 3:15:42"s;
     auto stream      = std::istringstream(time_string);

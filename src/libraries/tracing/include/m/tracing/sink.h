@@ -53,13 +53,13 @@ namespace m
             // caller knows whether to make a copy of the message if
             // there is more than one sink
             virtual bool
-            would_queue(envelope const& item) = 0;
+            would_queue(envelope const& item) override = 0;
 
             virtual on_message_disposition
-            on_message(may_queue_option may_queue, envelope& item) = 0;
+            on_message(may_queue_option may_queue, envelope& item) override = 0;
 
             virtual void
-            close(close_flush_option cfo) noexcept = 0;
+            close(close_flush_option cfo) noexcept override = 0;
 
             std::mutex                  m_mutex;
             std::wstring                m_name;

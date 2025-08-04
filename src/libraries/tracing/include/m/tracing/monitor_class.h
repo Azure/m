@@ -30,7 +30,7 @@
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/close_flush_option.h>
 #include <m/tracing/event_kind.h>
-#include <m/tracing/may_queue_option.h>
+#include <m/tracing/may_forward_message_option.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink.h>
@@ -49,17 +49,16 @@ namespace m
         class monitor_class : public message_source
         {
         public:
-            monitor_class();
-            ~monitor_class();
+            virtual ~monitor_class() = default;
 
-            m::not_null<channel*>
-            make_channel(m::wliteral_string_view name);
+            virtual m::not_null<channel*>
+            make_channel(m::wliteral_string_view name) = 0;
 
-            std::shared_ptr<source>
-            make_source(event_kind kind = event_kind::information);
+            virtual std::shared_ptr<source>
+            make_source(event_kind kind = event_kind::information) = 0;
 
-            std::unique_ptr<sink_registration>
-            register_sink(std::shared_ptr<sink> snk);
+            virtual std::unique_ptr<sink_registration>
+            register_sink(std::wstring_view channel_name, std::shared_ptr<sink> snk) = 0;
 
             /// <summary>
             /// The `close` with `emergency_stop` == `true` member function
@@ -67,82 +66,37 @@ namespace m
             /// very judiciously when a client needs to shut down the
             /// tracing system because `std::abort()` or similar is
             /// about to be invoked.
-            /// 
+            ///
             /// Usually `close()` should never be called. It should proably
             /// never be used outside of the `emergency_stop == true` case.
             /// </summary>
             /// <param name="emergency_stop">Pass `true` to request all queues
             /// to flush immediately on the foreground, `false` to allow operations
             /// to proceed with less haste.</param>
-            void
-            close(close_flush_option cfo);
+            virtual void
+            close(close_flush_option cfo) noexcept = 0;
 
-            envelope
-            copy_message(m::locked_t, envelope const& item);
+            virtual envelope
+            duplicate_message(envelope const& item) = 0;
 
-            envelope
-            copy_message(envelope const& item);
+            virtual std::shared_ptr<multiplexor>
+            get_multiplexor(std::initializer_list<std::wstring_view> channel_names) = 0;
 
-            template <typename Callable, typename... Types>
-            void
-            for_each_channel_sink(m::locked_t,
-                                  std::wstring_view channel_name,
-                                  Callable&&        callable,
-                                  Types&&... args)
-            {
-                // Just grab this from the collection instead of
-                // referring to it by name so that if the collection
-                // changes, we adapt.
-                auto const lt = m_channel_sink_shims.key_comp();
+            virtual topology_version
+            get_topology_version() const = 0;
 
-                auto it = m_channel_sink_shims.lower_bound(channel_name);
+            [[nodiscard]] virtual envelope
+            allocate_message(event_kind kind) override = 0;
 
-                // Until we hit a key that's larger than the channel name,
-                // go through the list calling the callable passing the
-                // value and then the args.
-                while ((it != m_channel_sink_shims.end()) && !lt(it->first, channel_name))
-                {
-                    std::invoke(callable, it->second, args...);
-                    it++;
-                }
-            }
-
-            template <typename Callable, typename... Types>
-            void
-            for_each_channel_sink(std::wstring_view channel_name,
-                                  Callable&&        callable,
-                                  Types&&... args)
-            {
-                auto l = std::unique_lock(m_mutex);
-                for_each_channel_sink(m::locked, channel_name, callable, args...);
-            }
-
-            std::shared_ptr<multiplexor>
-            get_multiplexor(std::initializer_list<std::wstring_view> sink_names);
-
-            topology_version
-            get_topology_version() const;
-
-            [[nodiscard]] envelope
-            allocate_message(event_kind kind) override;
-
-            void
-            deallocate_message(m::not_null<tracing::message*> message) noexcept override;
-
-        private:
-            using channel_map_type = std::map<std::wstring, std::unique_ptr<channel>, std::less<>>;
-            using channel_sink_shim_map_type =
-                std::multimap<std::wstring, std::shared_ptr<internal::sink_shim>, std::less<>>;
-
-            std::atomic<topology_version>                     m_topology_version;
-            std::mutex                                        m_mutex;
-            channel_map_type                                  m_channels;
-            channel_sink_shim_map_type                        m_channel_sink_shims;
-            std::vector<std::shared_ptr<internal::sink_shim>> m_sink_shims;
-            message_queue                                     m_message_queue;
-            std::unique_ptr<message[]>                        m_raw_messages;
-
-            friend class multiplexor;
+            virtual void
+            deallocate_message(m::not_null<tracing::message*> message) noexcept override = 0;
         };
+
+        /// <summary>
+        /// Allocates a new monitor class instance.
+        /// </summary>
+        /// <returns></returns>
+        m::not_null<monitor_class*>
+        make_monitor_class();
     } // namespace tracing
 } // namespace m

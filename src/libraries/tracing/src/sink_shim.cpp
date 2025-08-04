@@ -1,19 +1,18 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-#include <m/tracing/sink_shim.h>
+#include "sink_shim.h"
 
-namespace m::tracing::internal
+namespace m::tracing_impl
 {
-    sink_shim::sink_shim(): m_closed(true) {}
-    sink_shim::sink_shim(std::shared_ptr<sink> const& s): m_sink(s), m_closed{!m_sink} {}
+    sink_shim::sink_shim() {}
+    sink_shim::sink_shim(std::shared_ptr<m::tracing::sink> const& s): m_sink(s) {}
 
-    sink_shim::sink_shim(sink_shim&& other) noexcept: m_closed(true)
+    sink_shim::sink_shim(sink_shim&& other) noexcept
     {
         using std::swap;
 
         swap(m_sink, other.m_sink);
-        swap(m_closed, other.m_closed);
     }
 
     sink_shim&
@@ -22,45 +21,49 @@ namespace m::tracing::internal
         using std::swap;
 
         swap(m_sink, other.m_sink);
-        swap(m_closed, other.m_closed);
 
         return *this;
     }
 
     bool
-    sink_shim::would_queue(envelope const& item)
+    sink_shim::could_forward_message(m::tracing::envelope const& item)
     {
         auto l = std::unique_lock(m_mutex);
 
-        if (m_closed || !m_sink)
+        if (!m_sink)
             return false;
 
-        return m_sink->would_queue(item);
+        return m_sink->could_forward_message(item);
     }
 
-    on_message_disposition
-    sink_shim::on_message(may_queue_option may_queue, envelope& item)
+    m::tracing::on_message_disposition
+    sink_shim::on_message(m::tracing::may_forward_message_option may_forward_message,
+                          m::tracing::envelope&                  item)
     {
         auto l = std::unique_lock(m_mutex);
 
-        if (m_closed || !m_sink)
-            return on_message_disposition::completed;
+        if (!m_sink)
+            return m::tracing::on_message_disposition::message_processed;
 
-        return m_sink->on_message(may_queue, item);
+        return m_sink->on_message(may_forward_message, item);
     }
 
     void
-    sink_shim::close(close_flush_option cfo) noexcept
+    sink_shim::close(m::tracing::close_flush_option cfo) noexcept
     {
         auto l = std::unique_lock(m_mutex);
 
-        if (m_closed || !m_sink)
+        if (!m_sink)
             return;
 
         m_sink->close(cfo);
         m_sink.reset();
-
-        m_closed = true;
     }
 
-} // namespace m::tracing::internal
+    bool
+    sink_shim::closed() noexcept
+    {
+        return m_sink.get() == nullptr;
+    }
+
+} // namespace m::tracing_impl

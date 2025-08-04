@@ -42,14 +42,14 @@ namespace m
             // Kind of hokey but who is responsible for registering the
             // cout based sink? This is how it's done I guess
             static std::unique_ptr<sink_registration>
-            register_sink(m::not_null<monitor_class*> monitor);
+            register_sink(std::wstring_view channel_name, m::not_null<monitor_class*> monitor);
 
         protected:
             on_message_disposition
-            on_message(may_queue_option may_queue, envelope& env) override;
+            on_message(may_forward_message_option may_forward_message, envelope& env) override;
 
             bool
-            would_queue(envelope const&) override;
+            could_forward_message(envelope const&) override;
 
             void
             close(close_flush_option cfo) noexcept override;

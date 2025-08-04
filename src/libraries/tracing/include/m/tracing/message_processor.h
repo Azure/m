@@ -20,7 +20,7 @@
 #include <vector>
 
 #include <m/tracing/envelope.h>
-#include <m/tracing/may_queue_option.h>
+#include <m/tracing/may_forward_message_option.h>
 #include <m/tracing/close_flush_option.h>
 #include <m/tracing/on_message_disposition.h>
 
@@ -33,8 +33,8 @@ namespace m
         /// member functions.
         /// 
         /// Implementors of the class handle tracing messages either by
-        /// performing work on them immediately, returning a completed status,
-        /// or by further enqueuing them, returning a queued status.
+        /// performing work on them immediately, returning a message_processed status,
+        /// or by further enqueuing them, returning a message_forwarded status.
         /// </summary>
         class message_processor
         {
@@ -45,10 +45,10 @@ namespace m
             close(close_flush_option cfo) = 0;
 
             [[nodiscard]] virtual on_message_disposition
-            on_message(may_queue_option may_queue, envelope& env) = 0;
+            on_message(may_forward_message_option may_forward_message, envelope& env) = 0;
 
             [[nodiscard]] virtual bool
-            would_queue(envelope const& env) = 0;
+            could_forward_message(envelope const& env) = 0;
         };
 
     } // namespace tracing

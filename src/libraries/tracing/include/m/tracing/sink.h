@@ -22,7 +22,7 @@
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/close_flush_option.h>
 #include <m/tracing/envelope.h>
-#include <m/tracing/may_queue_option.h>
+#include <m/tracing/may_forward_message_option.h>
 #include <m/tracing/message_processor.h>
 #include <m/tracing/on_message_disposition.h>
 
@@ -35,31 +35,27 @@ namespace m
         class monitor_class;
         class multiplexor;
 
-        namespace internal
-        {
-            class sink_shim;
-        }
-
         class sink : public message_processor
         {
         public:
             std::wstring
             name() const;
 
-        protected:
-            sink(std::wstring_view name, m::not_null<monitor_class*> monitor);
-
-            // Determine if the call to on_message would copy so that
-            // caller knows whether to make a copy of the message if
-            // there is more than one sink
+            // Determine if the call to on_message could copy so that
+            // caller can make educated sense about order of calling
+            // sinks. (Only one sink can forward so put the one that
+            // could forward last.)
             virtual bool
-            would_queue(envelope const& item) override = 0;
+            could_forward_message(envelope const& item) override = 0;
 
             virtual on_message_disposition
-            on_message(may_queue_option may_queue, envelope& item) override = 0;
+            on_message(may_forward_message_option may_forward_message, envelope& item) override = 0;
 
             virtual void
             close(close_flush_option cfo) noexcept override = 0;
+
+        protected:
+            sink(std::wstring_view name, m::not_null<monitor_class*> monitor);
 
             std::mutex                  m_mutex;
             std::wstring                m_name;
@@ -68,7 +64,6 @@ namespace m
 
             friend class monitor_class;
             friend class multiplexor;
-            friend class internal::sink_shim;
         };
     } // namespace tracing
 } // namespace m

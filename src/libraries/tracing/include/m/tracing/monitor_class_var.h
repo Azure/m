@@ -10,6 +10,7 @@ namespace m
 {
     namespace tracing
     {
-        inline m::atomic_pointer_with_initializer<monitor_class*> monitor;
+        inline m::atomic_pointer_with_initializer<monitor_class*, [] { return static_cast<monitor_class*>(make_monitor_class()); }>
+            monitor;
     } // namespace tracing
 } // namespace m

@@ -22,23 +22,23 @@ namespace m::tracing
     // the return queue for the message. The sink thread will output and return the
     // message to the original correct queue.
     on_message_disposition
-    cout_sink::on_message(may_queue_option may_queue, envelope& env)
+    cout_sink::on_message(may_forward_message_option may_forward_message, envelope& env)
     {
         auto l = std::unique_lock(m_mutex);
 
         if (m_closed)
-            return on_message_disposition::completed;
+            return on_message_disposition::message_processed;
 
-        if (may_queue == may_queue_option::may_queue)
+        if (may_forward_message == may_forward_message_option::may_forward_message)
         {
             m_message_queue.enqueue(env);
-            return on_message_disposition::queued;
+            return on_message_disposition::message_forwarded;
         }
         else
         {
-            auto msg_copy = m_monitor->copy_message(env);
+            auto msg_copy = m_monitor->duplicate_message(env);
             m_message_queue.enqueue(msg_copy);
-            return on_message_disposition::completed;
+            return on_message_disposition::message_processed;
         }
     }
 
@@ -85,13 +85,13 @@ namespace m::tracing
     }
 
     bool
-    cout_sink::would_queue(envelope const&)
+    cout_sink::could_forward_message(envelope const&)
     {
         return true;
     }
 
     std::unique_ptr<sink_registration>
-    cout_sink::register_sink(m::not_null<monitor_class*> monitor)
+    cout_sink::register_sink(std::wstring_view channel_name, m::not_null<monitor_class*> monitor)
     {
         std::shared_ptr<cout_sink> expected = ms_cout_sink.load(std::memory_order_acquire);
 
@@ -109,7 +109,7 @@ namespace m::tracing
             expected = ms_cout_sink.load(std::memory_order_acquire);
         }
 
-        return monitor->register_sink(expected);
+        return monitor->register_sink(channel_name, expected);
     }
 
     void

@@ -10,8 +10,8 @@ target_sources(m_tracing PRIVATE
     message_allocator.cpp
     message_queue.cpp
     message_source.cpp
-    monitor_class.cpp
-    multiplexor.cpp
+    monitor_class_impl.cpp
+    multiplexor_impl.cpp
     sink.cpp
     sink_registration_impl.cpp
     sink_shim.cpp
@@ -24,6 +24,7 @@ target_include_directories(m_tracing PUBLIC
 
 target_link_libraries(m_tracing PUBLIC
     m_atomic
+    m_error_handling
     m_math
     m_strings
     m_utf

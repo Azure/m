@@ -55,7 +55,7 @@ namespace
                 expected = ms_slow_sink.load(std::memory_order_acquire);
             }
 
-            return monitor->register_sink(expected);
+            return monitor->register_sink(m::tracing::diagnostic_channel_name, expected);
         }
 
         void
@@ -66,23 +66,23 @@ namespace
 
     protected:
         m::tracing::on_message_disposition
-        on_message(m::tracing::may_queue_option, m::tracing::envelope&) override
+        on_message(m::tracing::may_forward_message_option, m::tracing::envelope&) override
         {
             EXPECT_EQ(false, m_unregistered);
 
             auto l = std::unique_lock(m_mutex);
 
             if (m_closed)
-                return m::tracing::on_message_disposition::completed;
+                return m::tracing::on_message_disposition::message_processed;
 
             // Literally, all we do is wait for the delay.
             std::this_thread::sleep_for(m_delay);
 
-            return m::tracing::on_message_disposition::completed;
+            return m::tracing::on_message_disposition::message_processed;
         }
 
         bool
-        would_queue(m::tracing::envelope const&) override
+        could_forward_message(m::tracing::envelope const&) override
         {
             return true;
         }

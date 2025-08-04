@@ -20,7 +20,7 @@ using namespace std::chrono_literals;
 
 TEST(InternalErrorCheck, First) 
 { 
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
 
     m::trace("Here's some tracing output!");
 

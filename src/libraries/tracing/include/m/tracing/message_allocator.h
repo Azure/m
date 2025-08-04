@@ -51,7 +51,8 @@ namespace m
             move_env();
 
             /// <summary>
-            /// Sends the message. If the message operation is completed, will return the
+            /// Sends the message. If the message operation is
+            /// completed, will return the
             /// it to its source.
             /// </summary>
             void
@@ -62,7 +63,7 @@ namespace m
             /// to not deallocate the allocated message, if there is an
             /// allocated message.
             /// 
-            /// The use case for this is when a message is queued and then the
+            /// The use case for this is when a message is forwarded and then the
             /// recipient responded that they had forwarded the message on to
             /// another recipient for processing, so that the original
             /// sender no longer owned the message.

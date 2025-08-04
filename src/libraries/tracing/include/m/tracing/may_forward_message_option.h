@@ -10,16 +10,16 @@ namespace m
 {
     namespace tracing
     {
-        enum class may_queue_option
+        enum class may_forward_message_option
         {
-            may_queue,
-            may_not_queue,
+            may_forward_message,
+            may_not_forward_message,
         };
     } // namespace tracing
 } // namespace m
 
 template <typename CharT>
-struct std::formatter<m::tracing::may_queue_option, CharT>
+struct std::formatter<m::tracing::may_forward_message_option, CharT>
 {
     template <typename ParseContext>
     constexpr decltype(auto)
@@ -36,7 +36,7 @@ struct std::formatter<m::tracing::may_queue_option, CharT>
 
     template <typename FormatContext>
     FormatContext::iterator
-    format(m::tracing::may_queue_option mqo, FormatContext& ctx) const
+    format(m::tracing::may_forward_message_option mqo, FormatContext& ctx) const
     {
         auto out = ctx.out();
 
@@ -44,13 +44,14 @@ struct std::formatter<m::tracing::may_queue_option, CharT>
 
         switch (mqo)
         {
-            case m::tracing::may_queue_option::may_queue: option_sv = "may_queue"sv; break;
-            case m::tracing::may_queue_option::may_not_queue: option_sv = "may_not_queue"sv; break;
+            case m::tracing::may_forward_message_option::may_forward_message: option_sv = "may_forward_message"sv; break;
+            case m::tracing::may_forward_message_option::may_not_forward_message: option_sv = "may_not_forward_message"sv; break;
             default: option_sv = "<unmapped>"sv; break;
         }
 
-        out = std::format_to(out, "{{ m::tracing::may_queue_option::{} }}", option_sv);
+        out = std::format_to(out, "{{ m::tracing::may_forward_message_option::{} }}", option_sv);
 
         return out;
     }
 };
+

@@ -7,7 +7,7 @@ target_sources(m_tracing PUBLIC FILE_SET HEADERS FILES
     m/tracing/envelope.h 
     m/tracing/event_context.h 
     m/tracing/event_kind.h
-    m/tracing/may_queue_option.h
+    m/tracing/may_forward_message_option.h
     m/tracing/message.h
     m/tracing/message_allocator.h
     m/tracing/message_queue.h 
@@ -20,8 +20,6 @@ target_sources(m_tracing PUBLIC FILE_SET HEADERS FILES
     m/tracing/safe_array_iterator.h 
     m/tracing/sink.h 
     m/tracing/sink_registration.h
-    m/tracing/sink_registration_impl.h
-    m/tracing/sink_shim.h
     m/tracing/source.h 
     m/tracing/topology_version.h 
     m/tracing/tracing.h 

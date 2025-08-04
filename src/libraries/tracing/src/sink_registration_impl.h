@@ -21,19 +21,16 @@
 
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/envelope.h>
-#include <m/tracing/may_queue_option.h>
+#include <m/tracing/may_forward_message_option.h>
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink_registration.h>
-#include <m/tracing/sink_shim.h>
+#include "sink_shim.h"
 
 using namespace m::string_view_literals;
 
-namespace m::tracing::internal
+namespace m::tracing_impl
 {
-    class monitor_class;
-    class multiplexor;
-
-    struct sink_registration_impl final : sink_registration
+    struct sink_registration_impl final : m::tracing::sink_registration
     {
         sink_registration_impl(std::shared_ptr<sink_shim> const& shim);
         sink_registration_impl(sink_registration_impl&& other);

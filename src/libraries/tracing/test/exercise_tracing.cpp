@@ -24,7 +24,7 @@ TEST(Tracing, CreateSource)
 
 TEST(Tracing, RegisterSink)
 {
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
 }
 
 TEST(Tracing, LogAnEventNoFormattingNoSinks)
@@ -36,7 +36,8 @@ TEST(Tracing, LogAnEventNoFormattingNoSinks)
 
 TEST(Tracing, LogAnEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
+                                                         m::tracing::monitor.get());
 
     auto src = m::tracing::monitor->make_source();
 
@@ -45,7 +46,8 @@ TEST(Tracing, LogAnEventNoFormattingWithConsoleSink)
 
 TEST(Tracing, LogATracingEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
+                                                         m::tracing::monitor.get());
 
     auto src = m::tracing::monitor->make_source();
 
@@ -54,7 +56,8 @@ TEST(Tracing, LogATracingEventNoFormattingWithConsoleSink)
 
 TEST(Tracing, LogAErrorEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
+                                                         m::tracing::monitor.get());
 
     auto src = m::tracing::monitor->make_source();
 
@@ -70,7 +73,8 @@ TEST(Tracing, WLogAnEventNoFormattingNoSinks)
 
 TEST(Tracing, WLogAnEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
+                                                         m::tracing::monitor.get());
 
     auto src = m::tracing::monitor->make_source();
 
@@ -79,7 +83,8 @@ TEST(Tracing, WLogAnEventNoFormattingWithConsoleSink)
 
 TEST(Tracing, WLogATracingEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
+                                                         m::tracing::monitor.get());
 
     auto src = m::tracing::monitor->make_source();
 
@@ -88,7 +93,8 @@ TEST(Tracing, WLogATracingEventNoFormattingWithConsoleSink)
 
 TEST(Tracing, WLogAErrorEventNoFormattingWithConsoleSink)
 {
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
+                                                         m::tracing::monitor.get());
 
     auto src = m::tracing::monitor->make_source();
 
@@ -97,7 +103,8 @@ TEST(Tracing, WLogAErrorEventNoFormattingWithConsoleSink)
 
 TEST(Tracing, LogMessagesAfterClosingSink)
 {
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
+                                                         m::tracing::monitor.get());
     auto src = m::tracing::monitor->make_source();
 
     src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");

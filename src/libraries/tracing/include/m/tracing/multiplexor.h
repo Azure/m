@@ -28,64 +28,39 @@
 #include <m/tracing/message_source.h>
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink.h>
-#include <m/tracing/sink_shim.h>
 #include <m/tracing/topology_version.h>
 #include <m/utility/pointers.h>
 
 using namespace m::string_view_literals;
 
-namespace m
+namespace m::tracing
 {
-    namespace tracing
+    class message;
+    class monitor_class;
+    class multiplexor;
+
+    //
+    // A multiplexor ties some number of sources together with some number
+    // of sinks.
+    //
+    class multiplexor : public message_source, public message_processor
     {
-        class message;
-        class monitor_class;
-        class multiplexor;
+    public:
+        virtual ~multiplexor() = default;
 
-        //
-        // A multiplexor ties some number of sources together with some number
-        // of sinks.
-        //
-        class multiplexor : public message_source, public message_processor
-        {
-        public:
-            multiplexor(m::not_null<monitor_class*>              monitor,
-                        topology_version                         topver,
-                        std::initializer_list<std::wstring_view> channels);
+        virtual void
+        close(close_flush_option cfo) noexcept override = 0;
 
-            void
-            close(close_flush_option cfo) override;
+        [[nodiscard]] virtual on_message_disposition
+        on_message(may_forward_message_option may_forward_message, envelope& item) override = 0;
 
-            [[nodiscard]] on_message_disposition
-            on_message(may_queue_option may_queue, envelope& item) override;
+        [[nodiscard]] virtual bool
+        could_forward_message(envelope const& item) override = 0;
 
-            [[nodiscard]] bool
-            would_queue(envelope const& item) override;
+        [[nodiscard]] virtual envelope
+        allocate_message(event_kind kind) override = 0;
 
-            [[nodiscard]]
-            envelope
-            allocate_message(event_kind kind) override;
-
-            void
-            deallocate_message(m::not_null<tracing::message*> msg) noexcept override;
-
-        private:
-            void
-            rebuild_topology_from_monitor() noexcept;
-
-            // m_monitor and m_channel_names are not updated after construction
-            m::not_null<monitor_class*> m_monitor;
-            std::vector<std::wstring>   m_channel_names;
-            std::mutex                  m_mutex;
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-private-field"
-#endif
-            topology_version m_topology_version;
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-            std::vector<std::shared_ptr<internal::sink_shim>> m_sink_shims;
-        };
-    } // namespace tracing
-} // namespace m
+        virtual void
+        deallocate_message(m::not_null<tracing::message*> msg) noexcept override = 0;
+    };
+} // namespace m::tracing

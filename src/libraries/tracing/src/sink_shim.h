@@ -22,16 +22,15 @@
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/close_flush_option.h>
 #include <m/tracing/envelope.h>
-#include <m/tracing/may_queue_option.h>
+#include <m/tracing/may_forward_message_option.h>
 #include <m/tracing/message_processor.h>
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink.h>
 
 using namespace m::string_view_literals;
 
-namespace m::tracing::internal
+namespace m::tracing_impl
 {
-    class monitor_class;
     class multiplexor;
 
     /// <summary>
@@ -50,13 +49,13 @@ namespace m::tracing::internal
     /// and then the infrastructure is done with it.
     ///
     /// The shim's `close()` member function is called when the
-    /// `sink_registration_impl` object's destructor runs.
+    /// `sink_registration` object's destructor runs.
     /// </summary>
-    class sink_shim : public message_processor
+    class sink_shim : public m::tracing::message_processor
     {
     public:
         sink_shim();
-        sink_shim(std::shared_ptr<sink> const& s);
+        sink_shim(std::shared_ptr<m::tracing::sink> const& s);
         sink_shim(sink_shim&& other) noexcept;
         ~sink_shim() = default;
         sink_shim&
@@ -65,17 +64,22 @@ namespace m::tracing::internal
         operator=(sink_shim&& other) noexcept;
 
         void
-        close(close_flush_option cfo) noexcept override;
+        close(m::tracing::close_flush_option cfo) noexcept override;
 
-        on_message_disposition
-        on_message(may_queue_option may_queue, envelope& item) override;
+        m::tracing::on_message_disposition
+        on_message(m::tracing::may_forward_message_option may_forward_message,
+                   m::tracing::envelope&                  item) override;
 
         bool
-        would_queue(envelope const& item) override;
+        could_forward_message(m::tracing::envelope const& item) override;
+
+        bool
+        closed() noexcept;
 
     private:
-        std::mutex            m_mutex;
-        std::shared_ptr<sink> m_sink;
-        bool                  m_closed; // debate between using !m_sink as closed vs. separate bool
+        std::mutex                        m_mutex;
+        std::shared_ptr<m::tracing::sink> m_sink;
+
+        friend class multiplexor;
     };
-} // namespace m::tracing::internal
+} // namespace m::tracing_impl

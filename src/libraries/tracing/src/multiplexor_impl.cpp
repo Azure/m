@@ -207,7 +207,7 @@ namespace m::tracing_impl
         struct my_eq
         {
             bool
-            operator()(std::shared_ptr<sink_shim> const& l, std::shared_ptr<sink_shim>& r)
+            operator()(std::shared_ptr<sink_shim> const& l, std::shared_ptr<sink_shim> const& r)
             {
                 auto inner_l = l->m_sink;
                 auto inner_r = r->m_sink;

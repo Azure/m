@@ -81,10 +81,7 @@ namespace m
             requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
                      m::is_integral_non_bool_v<ResultT> && std::is_unsigned_v<LeftT> &&
                      std::is_unsigned_v<RightT> && std::is_unsigned_v<ResultT>
-        struct safe_math_helper<
-            LeftT,
-            RightT,
-            ResultT>
+        struct safe_math_helper<LeftT, RightT, ResultT>
         {
             static constexpr ResultT
             add(LeftT l, RightT r)
@@ -120,13 +117,10 @@ namespace m
         // Handle (unsigned [op] unsigned) -> signed
         //
         template <typename LeftT, typename RightT, typename ResultT>
-        requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
+            requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
                      m::is_integral_non_bool_v<ResultT> && std::is_unsigned_v<LeftT> &&
                      std::is_unsigned_v<RightT> && std::is_signed_v<ResultT>
-        struct safe_math_helper<
-            LeftT,
-            RightT,
-            ResultT>
+        struct safe_math_helper<LeftT, RightT, ResultT>
         {
             using ResultTAsUnsigned = std::make_unsigned_t<ResultT>;
 
@@ -207,13 +201,10 @@ namespace m
         // Handle (unsigned [op] signed) -> unsigned
         //
         template <typename LeftT, typename RightT, typename ResultT>
-        requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
+            requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
                      m::is_integral_non_bool_v<ResultT> && std::is_unsigned_v<LeftT> &&
                      std::is_signed_v<RightT> && std::is_unsigned_v<ResultT>
-        struct safe_math_helper<
-            LeftT,
-            RightT,
-            ResultT>
+        struct safe_math_helper<LeftT, RightT, ResultT>
         {
             static constexpr ResultT
             add(LeftT l, RightT r)
@@ -270,7 +261,9 @@ namespace m
                 while (promoted_r < -(std::numeric_limits<intmax_t>::max)())
                 {
                     // We're adding a negative, thus it's a subtrahend
-                    constexpr uintmax_t subtrahend = (std::numeric_limits<intmax_t>::max)();
+
+                    constexpr uintmax_t subtrahend =
+                        static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)());
                     if (subtrahend > promoted_l)
                         throw std::overflow_error("integer overflow");
 
@@ -330,13 +323,10 @@ namespace m
         // Handle (signed [op] unsigned) -> signed
         //
         template <typename LeftT, typename RightT, typename ResultT>
-        requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
+            requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
                      m::is_integral_non_bool_v<ResultT> && std::is_signed_v<LeftT> &&
                      std::is_unsigned_v<RightT> && std::is_signed_v<ResultT>
-        struct safe_math_helper<
-            LeftT,
-            RightT,
-            ResultT>
+        struct safe_math_helper<LeftT, RightT, ResultT>
         {
             static constexpr ResultT
             add(LeftT l, RightT r)
@@ -424,13 +414,10 @@ namespace m
         // Handle (unsigned [op] signed) -> signed
         //
         template <typename LeftT, typename RightT, typename ResultT>
-        requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
+            requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
                      m::is_integral_non_bool_v<ResultT> && std::is_unsigned_v<LeftT> &&
                      std::is_signed_v<RightT> && std::is_signed_v<ResultT>
-        struct safe_math_helper<
-            LeftT,
-            RightT,
-            ResultT>
+        struct safe_math_helper<LeftT, RightT, ResultT>
         {
             static constexpr ResultT
             add(LeftT l, RightT r)
@@ -536,13 +523,10 @@ namespace m
         // Handle (signed [op] unsigned) -> unsigned
         //
         template <typename LeftT, typename RightT, typename ResultT>
-        requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
+            requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
                      m::is_integral_non_bool_v<ResultT> && std::is_signed_v<LeftT> &&
                      std::is_unsigned_v<RightT> && std::is_unsigned_v<ResultT>
-        struct safe_math_helper<
-            LeftT,
-            RightT,
-            ResultT>
+        struct safe_math_helper<LeftT, RightT, ResultT>
         {
             using common_type_t = std::common_type_t<LeftT, RightT>;
 
@@ -581,13 +565,10 @@ namespace m
         // Handle (signed [op] signed) -> signed
         //
         template <typename LeftT, typename RightT, typename ResultT>
-        requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
+            requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
                      m::is_integral_non_bool_v<ResultT> && std::is_signed_v<LeftT> &&
                      std::is_signed_v<RightT> && std::is_signed_v<ResultT>
-        struct safe_math_helper<
-            LeftT,
-            RightT,
-            ResultT>
+        struct safe_math_helper<LeftT, RightT, ResultT>
         {
             using common_type_t = std::common_type_t<LeftT, RightT>;
 
@@ -627,11 +608,9 @@ namespace m
 
         // Unary ops, signed -> signed
         template <typename InputT, typename ResultT>
-        requires m::is_integral_non_bool_v<InputT> && m::is_integral_non_bool_v<ResultT> &&
+            requires m::is_integral_non_bool_v<InputT> && m::is_integral_non_bool_v<ResultT> &&
                      std::is_signed_v<InputT> && std::is_signed_v<ResultT>
-        struct unary_safe_math_helper<
-            InputT,
-            ResultT>
+        struct unary_safe_math_helper<InputT, ResultT>
         {
             static constexpr ResultT
             negate(InputT v)
@@ -652,11 +631,9 @@ namespace m
 
         // Unary ops, signed -> unsigned
         template <typename InputT, typename ResultT>
-        requires m::is_integral_non_bool_v<InputT> && m::is_integral_non_bool_v<ResultT> &&
+            requires m::is_integral_non_bool_v<InputT> && m::is_integral_non_bool_v<ResultT> &&
                      std::is_signed_v<InputT> && std::is_unsigned_v<ResultT>
-        struct unary_safe_math_helper<
-            InputT,
-            ResultT>
+        struct unary_safe_math_helper<InputT, ResultT>
         {
             static constexpr ResultT
             negate(InputT v)
@@ -678,11 +655,9 @@ namespace m
 
         // Unary ops, unsigned -> signed
         template <typename InputT, typename ResultT>
-        requires m::is_integral_non_bool_v<InputT> && m::is_integral_non_bool_v<ResultT> &&
+            requires m::is_integral_non_bool_v<InputT> && m::is_integral_non_bool_v<ResultT> &&
                      std::is_unsigned_v<InputT> && std::is_signed_v<ResultT>
-        struct unary_safe_math_helper<
-            InputT,
-            ResultT>
+        struct unary_safe_math_helper<InputT, ResultT>
         {
             static constexpr ResultT
             negate(InputT v)
@@ -706,11 +681,9 @@ namespace m
 
         // Unary ops, unsigned -> unsigned
         template <typename InputT, typename ResultT>
-        requires m::is_integral_non_bool_v<InputT> && m::is_integral_non_bool_v<ResultT> &&
+            requires m::is_integral_non_bool_v<InputT> && m::is_integral_non_bool_v<ResultT> &&
                      std::is_unsigned_v<InputT> && std::is_unsigned_v<ResultT>
-        struct unary_safe_math_helper<
-            InputT,
-            ResultT>
+        struct unary_safe_math_helper<InputT, ResultT>
         {
             static constexpr ResultT
             negate(InputT v)

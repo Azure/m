@@ -25,7 +25,16 @@ option(disable_native_wchar_t "Disable the use of wchar_t as a native distinct t
 
 if (MSVC)
     add_compile_options(/W4 /WX)
+#     add_compile_options(/Wall)
     add_compile_options(/wd4459)        # declaration of 'foo' hides global declaration
+    add_compile_options(/wd4820)        # 'n' bytes padding added after data member 'foo'
+    add_compile_options(/wd4514)        # 'x': unreferenced inline function has been removed
+    add_compile_options(/wd5039)        # 'x': pointer or reference to potentially throwing function passed to 'extern "C"'
+    add_compile_options(/wd4625)        # 'x': copy constructor was implicitly defined as deleted
+    add_compile_options(/wd5026)        # 'x': move constrcutor was implicitly defined as deleted
+    add_compile_options(/wd4626)        # 'x': assignment operator was implicitly defined as deleted
+    add_compile_options(/wd5027)        # 'x': move assignment operator was implicitly defined as deleted
+    add_compile_options(/wd4710)        # 'x': function not inlined
 
 #    string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
@@ -37,7 +46,7 @@ if (MSVC)
     set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT Embedded)
 
 else()
-    add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas)
+    add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas -Wno-sign-compare)
 endif()
 
 include(GNUInstallDirs)

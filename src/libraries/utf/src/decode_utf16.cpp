@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <limits>
 
+#include <m/cast/to.h>
 #include <m/utf/decode.h>
 #include <m/utf/decode_result.h>
 
@@ -16,7 +17,8 @@ namespace
     {
         auto const b1 = input[offset++];
         auto const b2 = input[offset++];
-        return std::to_integer<char16_t>(b1) | (std::to_integer<char16_t>(b2) << CHAR_BIT);
+        return static_cast<char16_t>(std::to_integer<char16_t>(b1) | std::to_integer<char16_t>(b2)
+                                                                         << CHAR_BIT);
     }
 
     constexpr char16_t
@@ -24,7 +26,8 @@ namespace
     {
         auto const b1 = input[offset++];
         auto const b2 = input[offset++];
-        return std::to_integer<char16_t>(b2) | (std::to_integer<char16_t>(b1) << CHAR_BIT);
+        return static_cast<char16_t>(std::to_integer<char16_t>(b2) | std::to_integer<char16_t>(b1)
+                                                                         << CHAR_BIT);
     }
 
 } // namespace
@@ -65,7 +68,8 @@ namespace m
                 if ((ch2 < 0xdc00) || (ch2 > 0xdfff))
                     return rv;
 
-                rv.m_char = ((((ch1 - 0xd800) * 1024) + (ch2 - 0xdc00)) + 0x10000);
+                rv.m_char =
+                    ((((ch1 - 0xd800) * char32_t{1024}) + (ch2 - 0xdc00)) + char32_t{0x10000});
             }
             else if (ch1 <= 0xdfff)
             {
@@ -108,7 +112,8 @@ namespace m
                 if ((ch2 < 0xdc00) || (ch2 > 0xdfff))
                     return rv;
 
-                rv.m_char = ((((ch1 - 0xd800) * 1024) + (ch2 - 0xdc00)) + 0x10000);
+                rv.m_char =
+                    ((((ch1 - 0xd800) * char32_t{1024}) + (ch2 - 0xdc00)) + char32_t{0x10000});
             }
             else if (ch1 <= 0xdfff)
             {
@@ -124,4 +129,3 @@ namespace m
 
     } // namespace utf
 } // namespace m
-

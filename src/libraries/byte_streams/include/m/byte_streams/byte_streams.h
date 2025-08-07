@@ -58,6 +58,8 @@ namespace m
             }
 
         protected:
+            virtual ~seq_in() = default;
+
             virtual size_t
             do_read(std::span<std::byte>& span) = 0;
         };
@@ -94,6 +96,8 @@ namespace m
             }
 
         protected:
+            virtual ~ra_in() = default;
+
             virtual size_t
             do_read(position_t position, std::span<std::byte>& s) = 0;
         };
@@ -123,6 +127,8 @@ namespace m
             }
 
         protected:
+            virtual ~seekable() = default;
+
             virtual void
             do_seek(position_t p) = 0;
 
@@ -152,6 +158,8 @@ namespace m
             }
 
         protected:
+            virtual ~ra_out() = default;
+
             virtual void
             do_write(position_t position, std::span<std::byte const> s) = 0;
         };
@@ -172,7 +180,9 @@ namespace m
                 write(std::as_bytes(std::span<T>(&v, 1)));
             }
 
-        private:
+        protected:
+            virtual ~seq_out() = default;
+
             virtual void
             do_write(std::span<std::byte const> s) = 0;
         };

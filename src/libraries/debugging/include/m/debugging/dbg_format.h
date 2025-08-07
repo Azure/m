@@ -86,7 +86,7 @@ namespace m
         template <typename CharT, size_t length>
         class output_debug_string_iter
         {
-            static constexpr inline std::array<CharT, 4> long_line_chars = {'.', '.', '.', '\n'};
+            static constexpr inline std::array<CharT, 4> long_line_chars{{'.', '.', '.', '\n'}};
 
             static constexpr inline std::basic_string_view<CharT> long_line_suffix =
                 std::basic_string_view<CharT>(long_line_chars.data(), long_line_chars.size());

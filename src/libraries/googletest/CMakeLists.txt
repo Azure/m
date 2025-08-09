@@ -4,6 +4,8 @@ include(GoogleTest)
 
 add_library(m_googletest STATIC)
 
+target_compile_features(m_googletest PUBLIC cxx_std_23)
+
 add_subdirectory(include)
 add_subdirectory(src)
 add_subdirectory(test)

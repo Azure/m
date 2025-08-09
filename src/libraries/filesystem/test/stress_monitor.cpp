@@ -12,11 +12,11 @@
 #include <string_view>
 #include <vector>
 
+#include <m/chrono/chrono.h>
 #include <m/debugging/dbg_format.h>
 #include <m/filesystem/filesystem.h>
 #include <m/googletest/temporary_directory.h>
 #include <m/threadpool/threadpool.h>
-#include <m/utility/chrono.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
@@ -42,7 +42,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     std::optional<requeue_directory_access_attempt>
-    on_directory_access_failure(m::utc_time_point       issue_time,
+    on_directory_access_failure(m::utc_time_point                        issue_time,
                                 std::filesystem::path const&             directory,
                                 std::filesystem::filesystem_error const& error) override
     {
@@ -55,7 +55,7 @@ struct change_notification_sink : public m::filesystem::change_notification
     }
 
     std::optional<requeue_file_access_attempt>
-    on_file_access_failure(m::utc_time_point       issue_time,
+    on_file_access_failure(m::utc_time_point                        issue_time,
                            std::filesystem::path const&             directory,
                            std::filesystem::path const&             file,
                            std::filesystem::filesystem_error const& error) override

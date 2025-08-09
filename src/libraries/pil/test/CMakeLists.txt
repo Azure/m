@@ -7,6 +7,8 @@ if(M_BUILD_TESTS)
         test_pil_registry.cpp
     )
 
+    target_compile_features(test_pil_registry PUBLIC cxx_std_23)
+
     target_link_libraries(test_pil_registry
         m_filesystem
         m_math

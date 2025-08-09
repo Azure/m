@@ -8,9 +8,11 @@ if(M_BUILD_TESTS)
       test_windows_chrono_casts.cpp
     )
 
-    target_link_libraries(
-      test_windows_chrono_casts
+    target_compile_features(test_windows_chrono_casts PUBLIC cxx_std_23)
+
+    target_link_libraries(test_windows_chrono_casts
       m_chrono
+      m_formatters
       GTest::gtest_main
     )
 

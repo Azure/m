@@ -10,15 +10,22 @@ if(M_BUILD_TESTS)
         exercise_store.cpp
     )
 
+    target_compile_features(test_filesystem PUBLIC cxx_std_23)
+
     add_executable(stress_monitor
         stress_monitor.cpp
     )
+
+    target_compile_features(stress_monitor PUBLIC cxx_std_23)
 
     add_executable(stress_load_store
         stress_load_store.cpp
     )
 
+    target_compile_features(stress_load_store PUBLIC cxx_std_23)
+
     target_link_libraries(test_filesystem
+        m_chrono
         m_debugging
         m_filesystem
         m_googletest
@@ -26,6 +33,7 @@ if(M_BUILD_TESTS)
     )
 
     target_link_libraries(stress_monitor
+        m_chrono
         m_debugging
         m_filesystem
         m_googletest
@@ -33,6 +41,7 @@ if(M_BUILD_TESTS)
     )
 
     target_link_libraries(stress_load_store
+        m_chrono
         m_debugging
         m_filesystem
         m_googletest

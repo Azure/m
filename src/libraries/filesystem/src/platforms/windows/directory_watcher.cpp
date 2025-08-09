@@ -14,6 +14,7 @@ using namespace std::chrono_literals;
 #include <Windows.h>
 #include <bcrypt.h>
 
+#include <m/chrono/chrono.h>
 #include <m/debugging/dbg_format.h>
 #include <m/errors/errors.h>
 #include <m/formatters/FILE_NOTIFY_EXTENDED_INFORMATION.h>
@@ -23,7 +24,6 @@ using namespace std::chrono_literals;
 #include <m/strings/convert.h>
 #include <m/threadpool/threadpool.h>
 #include <m/tracing/tracing.h>
-#include <m/utility/chrono.h>
 #include <m/utility/pointers.h>
 
 #include "directory_watcher.h"
@@ -276,8 +276,7 @@ namespace m::filesystem_impl::platform_specific
     }
 
     void
-    directory_watcher::enqueue_async_read_directory_changes(
-        utc_time_point issue_time)
+    directory_watcher::enqueue_async_read_directory_changes(utc_time_point issue_time)
     {
         m_overlapped.hEvent       = nullptr;
         m_overlapped.Internal     = 0;

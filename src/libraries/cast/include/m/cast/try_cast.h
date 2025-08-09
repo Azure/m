@@ -28,15 +28,16 @@
 
 //
 // future work:
-// 
+//
 // Add try_cast() variant that can take a lambda that is std::invoke()d when
 // the cast would not succeed; then rephrase the normal try_cast() in terms
 // of the extensible.
-// 
+//
 // This is essentially to allow for custom exceptions to be thrown on overflow
 // situations.
 //
 
+#include <concepts>
 #include <exception>
 #include <limits>
 #include <stdexcept>
@@ -56,12 +57,8 @@ namespace m
 
     // Signed -> Signed
     template <typename FromType, typename ToType>
-    struct try_cast_helper<
-        FromType,
-        ToType,
-        std::enable_if_t<std::is_integral_v<FromType> && std::is_integral_v<ToType> &&
-                         !std::is_same_v<FromType, bool> && !std::is_same_v<ToType, bool> &&
-                         std::is_signed_v<FromType> && std::is_signed_v<ToType>>>
+        requires(std::signed_integral<FromType> && std::signed_integral<ToType>)
+    struct try_cast_helper<FromType, ToType, void>
     {
         static constexpr decltype(auto)
         do_cast(FromType v)
@@ -70,14 +67,18 @@ namespace m
                           std::numeric_limits<FromType>::digits)
             {
                 if (v < (std::numeric_limits<ToType>::min)())
+                {
                     throw std::overflow_error("v");
+                }
             }
 
             if constexpr (std::numeric_limits<ToType>::digits <
                           std::numeric_limits<FromType>::digits)
             {
                 if (v > (std::numeric_limits<ToType>::max)())
+                {
                     throw std::overflow_error("v");
+                }
             }
 
             return static_cast<ToType>(v);
@@ -86,12 +87,8 @@ namespace m
 
     // Unsigned -> Signed
     template <typename FromType, typename ToType>
-    struct try_cast_helper<
-        FromType,
-        ToType,
-        std::enable_if_t<std::is_integral_v<FromType> && std::is_integral_v<ToType> &&
-                         !std::is_same_v<FromType, bool> && !std::is_same_v<ToType, bool> &&
-                         !std::is_signed_v<FromType> && std::is_signed_v<ToType>>>
+        requires(std::unsigned_integral<FromType> && std::signed_integral<ToType>)
+    struct try_cast_helper<FromType, ToType, void>
     {
         static constexpr decltype(auto)
         do_cast(FromType v)
@@ -103,7 +100,9 @@ namespace m
                 // its max value is representable in FromType, which is
                 // unsigned.
                 if (v > static_cast<FromType>((std::numeric_limits<ToType>::max)()))
+                {
                     throw std::overflow_error("v");
+                }
 
                 // Otherwise there is no opportunity for overflow
             }
@@ -114,24 +113,24 @@ namespace m
 
     // Signed -> Unsigned
     template <typename FromType, typename ToType>
-    struct try_cast_helper<
-        FromType,
-        ToType,
-        std::enable_if_t<std::is_integral_v<FromType> && std::is_integral_v<ToType> &&
-                         !std::is_same_v<FromType, bool> && !std::is_same_v<ToType, bool> &&
-                         std::is_signed_v<FromType> && !std::is_signed_v<ToType>>>
+        requires(std::signed_integral<FromType> && std::unsigned_integral<ToType>)
+    struct try_cast_helper<FromType, ToType, void>
     {
         static constexpr decltype(auto)
         do_cast(FromType v)
         {
             if (v < 0)
+            {
                 throw std::overflow_error("v");
+            }
 
             if constexpr (std::numeric_limits<ToType>::digits <
                           std::numeric_limits<FromType>::digits)
             {
                 if (v > (std::numeric_limits<ToType>::max)())
+                {
                     throw std::overflow_error("v");
+                }
             }
 
             return static_cast<ToType>(v);
@@ -140,12 +139,8 @@ namespace m
 
     // Unsigned -> Unsigned
     template <typename FromType, typename ToType>
-    struct try_cast_helper<
-        FromType,
-        ToType,
-        std::enable_if_t<std::is_integral_v<FromType> && std::is_integral_v<ToType> &&
-                         !std::is_same_v<FromType, bool> && !std::is_same_v<ToType, bool> &&
-                         !std::is_signed_v<FromType> && !std::is_signed_v<ToType>>>
+        requires(std::unsigned_integral<FromType> && std::unsigned_integral<ToType>)
+    struct try_cast_helper<FromType, ToType, void>
     {
         static constexpr decltype(auto)
         do_cast(FromType v)
@@ -154,16 +149,29 @@ namespace m
                           std::numeric_limits<FromType>::digits)
             {
                 if (v > (std::numeric_limits<ToType>::max)())
+                {
                     throw std::overflow_error("v");
+                }
             }
 
             return static_cast<ToType>(v);
         }
     };
 
+    // Enable casting from std::chrono::duration
+    template <typename Rep, typename Period, typename ToType>
+        requires(std::integral<Rep>)
+    struct try_cast_helper<std::chrono::duration<Rep, Period>, ToType, void>;
+
+    // Enable casting from std::chrono::time_point
+    template <typename Clock, typename Duration, typename ToType>
+    struct try_cast_helper<std::chrono::time_point<Clock, Duration>, ToType, void>;
+
     // Base type -> derived type
     template <typename FromType, typename ToType>
-    struct try_cast_helper<FromType *, ToType *, std::enable_if_t<std::is_base_of_v<FromType, ToType>>>
+    struct try_cast_helper<FromType*,
+                           ToType*,
+                           std::enable_if_t<std::is_base_of_v<FromType, ToType>>>
     {
         static constexpr ToType*
         do_cast(FromType* v)
@@ -176,6 +184,7 @@ namespace m
     };
 
     template <typename ToType, typename FromType>
+        requires(std::copyable<ToType> && std::copyable<FromType>)
     constexpr decltype(auto)
     try_cast(FromType const& from)
     {

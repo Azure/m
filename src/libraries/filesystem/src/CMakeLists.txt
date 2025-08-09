@@ -16,6 +16,7 @@ target_link_libraries(m_filesystem PUBLIC
     m_block_buffer
     m_byte_streams
     m_cast
+    m_chrono
     m_math
     m_memory
     m_strings

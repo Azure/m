@@ -4,5 +4,6 @@ add_subdirectory(errors)
 add_subdirectory(formatters)
 add_subdirectory(multi_byte)
 add_subdirectory(windows_strings)
+add_subdirectory(windows_wrappers)
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

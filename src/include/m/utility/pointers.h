@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <m/utility/compiler.h>
+
 #include <exception>
 #include <stdexcept>
 #include <type_traits>

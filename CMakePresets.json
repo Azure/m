@@ -104,6 +104,7 @@
       "inherits": "x64-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_STANDARD": "23",
         "CMAKE_BUILD_TESTS": true
       }
     },

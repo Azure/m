@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.23)
 
+if(CMAKE_CXX_STANDARD LESS 23)
+    message(FATAL_ERROR "The M project requires C++23 or later")
+endif()
+
 # de-duplicate linker inputs
 # cmake_policy(SET CMP0156 NEW)
 
@@ -86,7 +90,6 @@ set(M_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 # Add custom CMake module
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-set(CMAKE_CXX_STANDARD "23")
 
 # Include common settings
 include(Common)
@@ -149,7 +152,7 @@ include_directories(
 # Add project subdirectories
 add_subdirectory(src)
 
-add_subdirectory(docs)
+# add_subdirectory(docs)
 
 list(APPEND m_installation_targets
     pe2csv

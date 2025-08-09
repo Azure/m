@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <thread>
 
-#include <m/utility/chrono.h>
+#include <m/chrono/chrono.h>
 
 namespace m
 {

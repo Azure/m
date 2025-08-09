@@ -3,11 +3,13 @@
 
 #pragma once
 
+#include <chrono>
+#include <concepts>
 #include <type_traits>
 #include <utility>
 
-#include "cast.h"
-#include "try_cast.h"
+#include <m/cast/cast.h>
+#include <m/cast/try_cast.h>
 
 //
 // Standard metaphor across the m codebase
@@ -83,7 +85,7 @@
 namespace m
 {
     template <typename TTo, typename TFrom>
-        requires std::is_integral_v<TFrom>
+        requires (std::copyable<TTo> && std::integral<TFrom>)
     TTo
     to(TFrom v)
     {
@@ -96,6 +98,20 @@ namespace m
     to(TFrom const& v)
     {
         return m::try_cast<TTo>(std::to_underlying(v));
+    }
+
+    template <typename TTo, typename Rep, typename Period>
+    TTo
+    to(std::chrono::duration<Rep, Period> const& d)
+    {
+        return m::try_cast<TTo>(d);
+    }
+
+    template <typename TTo, typename Clock, typename Duration>
+    TTo
+    to(std::chrono::time_point<Clock, Duration> const& tp)
+    {
+        return m::try_cast<TTo>(tp);
     }
 
 } // namespace m

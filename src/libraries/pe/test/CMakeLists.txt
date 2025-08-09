@@ -8,6 +8,8 @@ if(M_BUILD_TESTS)
       test_pe.cpp
     )
 
+    target_compile_features(test_pe PUBLIC cxx_std_23)
+
     target_link_libraries(
       test_pe
       m_byte_streams

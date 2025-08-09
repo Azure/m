@@ -10,4 +10,6 @@ target_include_directories(m_chrono PUBLIC
 
 target_link_libraries(m_chrono PUBLIC
     m_cast
+    m_tracing
+    m_windows_wrappers
 )

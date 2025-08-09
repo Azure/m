@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <m/utility/compiler.h>
+
 #include <atomic>
 #include <compare>
 #include <functional>

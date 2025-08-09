@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <m/utility/compiler.h>
+
 #include <cstdint>
 #include <initializer_list>
 #include <limits>

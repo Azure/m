@@ -7,6 +7,8 @@ if(M_BUILD_TESTS)
         test_error_handling.cpp
     )
 
+    target_compile_features(test_error_handling PUBLIC cxx_std_23)
+
     target_link_libraries(test_error_handling
         m_error_handling
         GTest::gtest_main
@@ -15,6 +17,8 @@ if(M_BUILD_TESTS)
     add_executable(test_internal_error_check
         test_internal_error_check.cpp
     )
+
+    target_compile_features(test_internal_error_check PUBLIC cxx_std_23)
 
     target_link_libraries(test_internal_error_check
         m_error_handling

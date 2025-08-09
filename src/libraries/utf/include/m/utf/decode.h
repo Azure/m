@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <tuple>
 
+#include <m/utility/compiler.h>
+
 #include "decode_result.h"
 #include "exceptions.h"
 

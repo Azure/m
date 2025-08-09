@@ -24,6 +24,7 @@ add_subdirectory(thread_description)
 add_subdirectory(threadpool)
 add_subdirectory(tracing)
 add_subdirectory(utf)
+add_subdirectory(wrappers)
 
 # this is by itself because it's a group of libraries
 # not a single library. no good cause.

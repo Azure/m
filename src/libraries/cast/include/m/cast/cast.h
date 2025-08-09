@@ -5,6 +5,7 @@
 
 #include <array>
 #include <climits>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -60,12 +61,9 @@ namespace m
     // negative consequences and it seems like a good idea.
     //
     template <typename FromType, typename ToType>
-    struct cast_helper<FromType,
-                       ToType,
-                       std::enable_if_t<m::are_integral_non_bool_types_v<FromType, ToType> &&
-                                        (std::is_signed_v<FromType> == std::is_signed_v<ToType>) &&
-                                        (std::numeric_limits<ToType>::digits >=
-                                         std::numeric_limits<FromType>::digits)>>
+        requires((std::signed_integral<FromType> == std::signed_integral<ToType>) &&
+                 (std::numeric_limits<ToType>::digits >= std::numeric_limits<FromType>::digits))
+    struct cast_helper<FromType, ToType, void>
     {
         constexpr static inline bool is_castable = true;
 
@@ -84,7 +82,9 @@ namespace m
     };
 
     template <typename ToType, typename FromType>
-    struct is_castable<ToType, FromType, std::enable_if_t<cast_helper<FromType, ToType>::is_castable>>
+    struct is_castable<ToType,
+                       FromType,
+                       std::enable_if_t<cast_helper<FromType, ToType>::is_castable>>
     {
         static inline constexpr bool value = true;
     };

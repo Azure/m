@@ -8,6 +8,8 @@ if(M_BUILD_TESTS)
         test_timer.cpp
     )
 
+    target_compile_features(test_threadpool PUBLIC cxx_std_23)
+
     target_link_libraries(
         test_threadpool
         m_threadpool

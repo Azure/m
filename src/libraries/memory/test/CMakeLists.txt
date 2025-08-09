@@ -9,6 +9,8 @@ if(M_BUILD_TESTS)
         test_raw_allocator.cpp
     )
 
+    target_compile_features(test_memory PUBLIC cxx_std_23)
+
     target_link_libraries(test_memory
         m_memory
         GTest::gtest_main

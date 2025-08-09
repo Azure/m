@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.23)
 
 add_library(m_error_handling STATIC)
 
+target_compile_features(m_error_handling PUBLIC cxx_std_23)
+
 add_subdirectory(include)
 add_subdirectory(src)
 add_subdirectory(test)

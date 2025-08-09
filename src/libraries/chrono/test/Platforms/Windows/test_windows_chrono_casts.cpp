@@ -8,13 +8,16 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <print>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 
 #include <m/chrono/windows_chrono_casts.h>
+#include <m/formatters/FILETIME.h>
 
+using namespace std::chrono_literals;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
@@ -64,4 +67,19 @@ TEST(WindowsChronoCasts, SimpleTest2)
     EXPECT_EQ(systime.wMinute, 15);
     EXPECT_EQ(systime.wSecond, 42);
     EXPECT_EQ(systime.wMilliseconds, 0);
+}
+
+TEST(WindowsChronoCasts, DwordAsMsTestWithTo)
+{
+    auto const d = 100ms;
+    auto       x = m::to<m::win32_dword_ms>(d);
+    EXPECT_EQ(static_cast<DWORD>(x), 100);
+
+}
+
+TEST(WindowsChronoCasts, FILETIMECasting)
+{ auto const d = 100ms;
+    auto       x = m::to<FILETIME>(d);
+
+    std::println("Result conversion {} -> {}", d, fmtFILETIME{x});
 }

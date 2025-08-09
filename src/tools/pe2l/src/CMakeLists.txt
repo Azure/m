@@ -5,6 +5,8 @@ add_executable(pe2l
     traverse.cpp
 )
 
+target_compile_features(pe2l PUBLIC cxx_std_23)
+
 target_compile_definitions(pe2l PUBLIC _CRT_SECURE_NO_WARNINGS)
 
 target_link_libraries(pe2l PUBLIC

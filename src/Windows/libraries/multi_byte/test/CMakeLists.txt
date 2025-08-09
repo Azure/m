@@ -4,10 +4,13 @@ if(M_BUILD_TESTS)
     include(GoogleTest)
 
     add_executable(test_multi_byte
-      "test_multi_byte_to_utf16.cpp"
-      "test_utf16_to_multi_byte.cpp" "test_acp_apis.cpp"
+      test_multi_byte_to_utf16.cpp
+      test_utf16_to_multi_byte.cpp
+      test_acp_apis.cpp
       wchar_decoder.cpp
     )
+
+    target_compile_features(test_multi_byte PUBLIC cxx_std_23)
 
     target_link_libraries(
       test_multi_byte

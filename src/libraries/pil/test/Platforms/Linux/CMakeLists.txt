@@ -8,6 +8,8 @@ if(M_BUILD_TESTS)
       test_linux_registry.cpp
     )
 
+    target_compile_features(test_linux_registry PUBLIC cxx_std_23)
+
     target_link_libraries(
       test_linux_registry
       m_filesystem

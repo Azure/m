@@ -8,6 +8,8 @@ if (WIN32)
             test_thread_description.cpp
         )
 
+        target_compile_features(test_thread_description PUBLIC cxx_std_23)
+
         target_link_libraries(
             test_thread_description
             m_thread_description

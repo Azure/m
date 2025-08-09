@@ -9,6 +9,8 @@ set(APP_NAME bin2cpp)
 
 add_executable(${APP_NAME})
 
+target_compile_features(${APP_NAME} PUBLIC cxx_std_23)
+
 target_sources(${APP_NAME} PRIVATE ${APP_SOURCES})
 
 target_compile_definitions(${APP_NAME} PUBLIC _CRT_SECURE_NO_WARNINGS)

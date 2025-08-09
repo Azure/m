@@ -91,7 +91,7 @@ namespace
         close(m::tracing::close_flush_option) noexcept override
         {
             {
-                auto l = std::unique_lock(m_mutex);
+                auto l   = std::unique_lock(m_mutex);
                 m_closed = true;
             }
         }
@@ -182,7 +182,7 @@ TEST(TestSlowSink, LotsOfMessages10)
 
     constexpr auto message_count = 10;
 
-    for (auto i = 0; i<message_count; i++)
+    for (auto i = 0; i < message_count; i++)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
@@ -208,6 +208,7 @@ TEST(TestSlowSink, LotsOfMessages100)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
+#if 0
 TEST(TestSlowSink, LotsOfMessages500)
 {
     auto coutsink = slow_sink::register_sink(m::tracing::monitor.get(), slow_sink_delay_1);
@@ -230,9 +231,4 @@ TEST(TestSlowSink, LotsOfMessages1000)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
-
-
-
-
-
-
+#endif

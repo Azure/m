@@ -8,6 +8,8 @@ if(M_BUILD_TESTS)
         test_direct_registry.cpp
     )
 
+    target_compile_features(test_win32_registry PUBLIC cxx_std_23)
+
     target_link_libraries(test_win32_registry
         m_filesystem
         m_math

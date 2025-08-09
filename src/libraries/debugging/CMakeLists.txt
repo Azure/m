@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.23)
 
 add_library(m_debugging STATIC)
 
+target_compile_features(m_debugging PUBLIC cxx_std_23)
+
 add_subdirectory(include)
 add_subdirectory(src)
 

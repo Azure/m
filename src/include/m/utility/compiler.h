@@ -22,7 +22,7 @@
 
 #define M_NOINLINE __declspec(noinline)
 
-#if _MSVC_LANG >= 202302L
+#if _MSVC_LANG >= 202004L
 #define M_HAS_CXX23
 #endif
 

@@ -12,4 +12,6 @@ list(APPEND m_installation_targets
     m_chrono
 )
 
+add_subdirectory(Platforms)
+
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

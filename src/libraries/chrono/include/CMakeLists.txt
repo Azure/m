@@ -3,3 +3,7 @@ cmake_minimum_required(VERSION 3.23)
 target_sources(m_chrono PUBLIC FILE_SET HEADERS FILES 
     m/chrono/chrono.h
 )
+
+add_subdirectory(Platforms)
+
+set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.23)
+
+
+if(M_BUILD_TESTS)
+    include(GoogleTest)
+
+    add_executable(test_mc
+        test_queue.cpp
+    )
+
+    target_compile_features(test_mc PUBLIC cxx_std_23)
+
+    target_link_libraries(test_mc
+        m_mc
+        GTest::gtest_main
+    )
+
+    enable_testing()
+
+    gtest_discover_tests(test_mc)
+
+    list(APPEND m_installation_targets
+    )
+
+    set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)
+
+endif()
+

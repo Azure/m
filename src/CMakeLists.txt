@@ -12,6 +12,8 @@ if(LINUX)
     add_subdirectory(Linux)
 endif()
 
+add_subdirectory(mc)
+
 add_subdirectory(tools)
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

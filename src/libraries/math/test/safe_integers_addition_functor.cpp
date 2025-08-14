@@ -14,6 +14,7 @@
 #include <m/cast/to.h>
 #include <m/math/math.h>
 #include <m/math/integer_functor_macros.h>
+#include <m/utility/to_underlying.h>
 
 namespace T
 {
@@ -44,17 +45,17 @@ TEST(SafeIntFunctorAdd, U8pU8toU8)
     auto v3 = T::U8{255};
 
     auto sum = (v1 + v2).to<T::U8>();
-    EXPECT_EQ(std::to_underlying(sum), 30);
+    EXPECT_EQ(m::to_underlying(sum), 30);
 
     auto sum1 = m::to<T::U8>(v1 + v2);
-    EXPECT_EQ(std::to_underlying(sum1), 30);
+    EXPECT_EQ(m::to_underlying(sum1), 30);
 
     // The sum does not throw because we haven't constrained the addition
     // to some particular result space yet
     auto sum2 = v2 + v3;
 
     // The sum fits in a 16 bit integer so there is no exception
-    EXPECT_EQ(std::to_underlying(sum2.to<T::U16>()), 275);
+    EXPECT_EQ(m::to_underlying(sum2.to<T::U16>()), 275);
 
     EXPECT_THROW(sum2.to<T::U8>(), std::overflow_error);
 }

@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include <m/cast/to.h>
+#include <m/utility/to_underlying.h>
 
 TEST(ToTests, UnScopedEnumTo)
 {
@@ -24,5 +25,5 @@ TEST(ToTests, UnScopedEnumTo)
 
     auto i1 = m::to<int>(v1);
 
-    EXPECT_EQ(std::to_underlying(e1), i1);
+    EXPECT_EQ(m::to_underlying(e1), i1);
 }

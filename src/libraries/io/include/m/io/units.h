@@ -13,6 +13,7 @@
 
 #include <m/math/math.h>
 #include <m/utility/utility.h>
+#include <m/utility/to_underlying.h>
 
 namespace m
 {
@@ -49,7 +50,7 @@ constexpr auto
 operator/(m::io::offset_t l, std::size_t r)
 {
     return m::io::offset_t{
-        m::try_cast<std::underlying_type_t<m::io::offset_t>>(std::to_underlying(l) / r)};
+        m::try_cast<std::underlying_type_t<m::io::offset_t>>(m::to_underlying(l) / r)};
 }
 
 //
@@ -79,7 +80,7 @@ struct std::formatter<m::io::offset_t, wchar_t>
     FormatContext::iterator
     format(offset_t p, FormatContext& ctx) const
     {
-        return std::format_to(ctx.out(), L"^{:#x}", std::to_underlying(p));
+        return std::format_to(ctx.out(), L"^{:#x}", m::to_underlying(p));
     }
 };
 
@@ -103,6 +104,6 @@ struct std::formatter<m::io::position_t, wchar_t>
     FormatContext::iterator
     format(m::io::position_t p, FormatContext& ctx) const
     {
-        return std::format_to(ctx.out(), L"@{:#x}", std::to_underlying(p));
+        return std::format_to(ctx.out(), L"@{:#x}", m::to_underlying(p));
     }
 };

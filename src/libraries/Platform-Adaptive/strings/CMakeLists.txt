@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 add_library(m_platform_adaptive_strings STATIC)
 
-target_compile_features(m_platform_adaptive_strings PUBLIC cxx_std_23)
+target_compile_features(m_platform_adaptive_strings PUBLIC ${M_CXX_STD})
 
 add_subdirectory(include)
 add_subdirectory(src)

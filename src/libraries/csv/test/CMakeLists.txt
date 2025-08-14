@@ -9,7 +9,7 @@ if(M_BUILD_TESTS)
       test_field_quoter.cpp 
       test_row_writer.cpp)
 
-    target_compile_features(test_csv PUBLIC cxx_std_23)
+    target_compile_features(test_csv PUBLIC ${M_CXX_STD})
 
     target_link_libraries(
       test_csv

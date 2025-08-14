@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 add_library(m_windows_chrono STATIC)
 
-target_compile_features(m_windows_chrono PUBLIC cxx_std_23)
+target_compile_features(m_windows_chrono PUBLIC ${M_CXX_STD})
 
 add_subdirectory(include)
 add_subdirectory(src)

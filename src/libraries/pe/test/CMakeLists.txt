@@ -8,7 +8,7 @@ if(M_BUILD_TESTS)
       test_pe.cpp
     )
 
-    target_compile_features(test_pe PUBLIC cxx_std_23)
+    target_compile_features(test_pe PUBLIC ${M_CXX_STD})
 
     target_link_libraries(
       test_pe

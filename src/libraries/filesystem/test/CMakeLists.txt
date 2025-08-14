@@ -10,19 +10,19 @@ if(M_BUILD_TESTS)
         exercise_store.cpp
     )
 
-    target_compile_features(test_filesystem PUBLIC cxx_std_23)
+    target_compile_features(test_filesystem PUBLIC ${M_CXX_STD})
 
     add_executable(stress_monitor
         stress_monitor.cpp
     )
 
-    target_compile_features(stress_monitor PUBLIC cxx_std_23)
+    target_compile_features(stress_monitor PUBLIC ${M_CXX_STD})
 
     add_executable(stress_load_store
         stress_load_store.cpp
     )
 
-    target_compile_features(stress_load_store PUBLIC cxx_std_23)
+    target_compile_features(stress_load_store PUBLIC ${M_CXX_STD})
 
     target_link_libraries(test_filesystem
         m_chrono

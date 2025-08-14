@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.23)
 
-if(CMAKE_CXX_STANDARD LESS 23)
-    message(FATAL_ERROR "The M project requires C++23 or later")
+set(M_CXX_STD cxx_std_20)
+
+if(CMAKE_CXX_STANDARD LESS 20)
+    message(FATAL_ERROR "The M project requires C++20 or later")
 endif()
 
 # de-duplicate linker inputs

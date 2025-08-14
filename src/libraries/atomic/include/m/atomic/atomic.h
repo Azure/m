@@ -16,6 +16,7 @@
 
 namespace m
 {
+#ifdef M_HAS_CXX23
     template <typename T, typename Fn>
         requires(std::is_pointer_v<T>)
     T
@@ -39,6 +40,7 @@ namespace m
 
         return x.load(std::memory_order_acquire);
     }
+#endif // M_HAS_CXX23
 
     template <typename T,
               T f() = []() -> T {

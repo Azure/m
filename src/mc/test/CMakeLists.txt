@@ -8,7 +8,7 @@ if(M_BUILD_TESTS)
         test_queue.cpp
     )
 
-    target_compile_features(test_mc PUBLIC cxx_std_23)
+    target_compile_features(test_mc PUBLIC ${M_CXX_STD})
 
     target_link_libraries(test_mc
         m_mc

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <array>
 #include <cstdint>
 #include <format>
 #include <ios>
@@ -183,7 +184,7 @@ namespace m
             friend class output_debug_string_buffer<CharT, length>;
         };
 
-        template <typename CharT, size_t length>
+        template <typename CharT, std::size_t length>
         class output_debug_string_buffer
         {
             static_assert(length > 10);

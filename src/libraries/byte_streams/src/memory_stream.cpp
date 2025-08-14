@@ -7,6 +7,7 @@
 
 #include <m/cast/to.h>
 #include <m/math/math.h>
+#include <m/utility/to_underlying.h>
 
 #include "memory_stream.h"
 
@@ -26,17 +27,17 @@ m::byte_streams_impl::memory_ro_ra_seq::do_read(std::span<std::byte>& span)
     // We are assuming that m_current_position <= m_span.size()
 
     io::position_t start = m_current_position;
-    io::position_t end = start + span.size();
+    io::position_t end   = start + span.size();
 
     if (end > m_span.size())
         end = m::io::position_t{m_span.size()};
 
     io::offset_t diff = end - start;
 
-    auto const size = m::to<std::size_t>(std::to_underlying(diff));
+    auto const size = m::to<std::size_t>(m::to_underlying(diff));
 
-    std::copy_n(m_span.subspan(std::to_underlying(start), size).begin(),
-                std::to_underlying(diff),
+    std::copy_n(m_span.subspan(m::to_underlying(start), size).begin(),
+                m::to_underlying(diff),
                 span.begin());
     span = span.subspan(0, size);
 
@@ -65,10 +66,10 @@ m::byte_streams_impl::memory_ro_ra_seq::do_read(io::position_t p, std::span<std:
 
     io::offset_t diff = end - start;
 
-    auto const size = m::to<std::size_t>(std::to_underlying(diff));
+    auto const size = m::to<std::size_t>(m::to_underlying(diff));
 
-    std::copy_n(m_span.subspan(std::to_underlying(start), size).begin(),
-                std::to_underlying(diff),
+    std::copy_n(m_span.subspan(m::to_underlying(start), size).begin(),
+                m::to_underlying(diff),
                 span.begin());
     span = span.subspan(0, size);
 

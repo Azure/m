@@ -9,7 +9,7 @@ set(APP_NAME bin2cpp)
 
 add_executable(${APP_NAME})
 
-target_compile_features(${APP_NAME} PUBLIC cxx_std_23)
+target_compile_features(${APP_NAME} PUBLIC ${M_CXX_STD})
 
 target_sources(${APP_NAME} PRIVATE ${APP_SOURCES})
 

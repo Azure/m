@@ -3,16 +3,15 @@
 
 #pragma once
 
+#include <m/utility/compiler.h>
+
 #include <chrono>
+
+#include <m/utility/quantum_types.h>
 
 namespace m
 {
-    namespace threadpool_types
-    {
-        using duration = std::chrono::microseconds;
-    }
-
-    using timer_callable             = void();
+    using timer_normal_callable      = void();
     using timer_cancellable_callable = void(std::atomic<bool>&);
     using work_item_callable         = void();
 

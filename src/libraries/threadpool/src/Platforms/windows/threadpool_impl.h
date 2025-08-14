@@ -7,14 +7,6 @@
 
 namespace m::threadpool_impl
 {
-    //
-    // Windows FILETIME represents 10ns units
-    //
-    // using filetime_ratio = std::ratio<1, 100000000>;
-    using filetime_ratio = std::ratio<1, 10000000>;
-
-    using file_time = std::chrono::duration<long long, filetime_ratio>;
-
     class threadpool : public m::threadpool_class
     {
     public:
@@ -32,15 +24,28 @@ namespace m::threadpool_impl
 
     protected:
         std::shared_ptr<m::timer>
-        do_create_timer(std::packaged_task<timer_cancellable_callable>&& task,
-                        std::wstring                                   description) override;
+        do_create_timer(std::packaged_task<timer_normal_callable>&& task) override;
 
         std::shared_ptr<m::timer>
-        do_create_timer(std::packaged_task<timer_callable>&& task,
-                        std::wstring                       description) override;
+        do_create_timer(std::packaged_task<timer_normal_callable>&& task,
+                        std::wstring                                description) override;
+
+        std::shared_ptr<m::timer>
+        do_create_cancellable_timer(std::packaged_task<timer_cancellable_callable>&& task) override;
+
+        std::shared_ptr<m::timer>
+        do_create_cancellable_timer(std::packaged_task<timer_cancellable_callable>&& task,
+                                    std::wstring description) override;
+
+        std::shared_ptr<m::periodic_timer>
+        do_create_periodic_timer(std::packaged_task<timer_normal_callable>&& task) override;
+
+        std::shared_ptr<m::periodic_timer>
+        do_create_periodic_timer(std::packaged_task<timer_normal_callable>&& task,
+                                 std::wstring                                description) override;
 
         std::shared_ptr<m::work_queue>
         do_create_work_queue(m::work_queue_execution_policy wqep,
-                             std::wstring                 description) override;
+                             std::wstring                   description) override;
     };
 } // namespace m::threadpool_impl

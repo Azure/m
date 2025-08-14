@@ -14,4 +14,4 @@
 #include <m/threadpool/types.h>
 #include <m/threadpool/work_queue.h>
 #include <m/utility/pointers.h>
-
+#include <m/utility/quantum_types.h>

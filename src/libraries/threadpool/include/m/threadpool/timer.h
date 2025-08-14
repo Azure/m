@@ -16,8 +16,6 @@ namespace m
 {
     class timer
     {
-        using timer_duration = typename threadpool_types::duration;
-
     public:
         bool
         cancel_requested()
@@ -51,7 +49,7 @@ namespace m
         void
         set(std::chrono::duration<Rep, Period> dur)
         {
-            do_set(std::chrono::duration_cast<timer_duration>(dur));
+            do_set(std::chrono::duration_cast<duration>(dur));
         }
 
     protected:
@@ -68,7 +66,7 @@ namespace m
         do_try_cancel() = 0;
 
         virtual void
-        do_set(timer_duration dur) = 0;
+        do_set(duration dur) = 0;
     };
 
 } // namespace m

@@ -5,6 +5,7 @@ if(M_BUILD_TESTS)
     include(GoogleTest)
 
     add_executable(test_threadpool
+        test_periodic_timer.cpp
         test_timer.cpp
         test_work_queue.cpp
     )

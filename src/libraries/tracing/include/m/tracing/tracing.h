@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <m/utility/compiler.h>
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -11,7 +13,11 @@
 #include <initializer_list>
 #include <map>
 #include <mutex>
+
+#ifdef M_HAS_CXX23
 #include <print>
+#endif
+
 #include <queue>
 #include <source_location>
 #include <string>

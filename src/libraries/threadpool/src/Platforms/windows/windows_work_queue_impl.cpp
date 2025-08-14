@@ -72,16 +72,8 @@ namespace m::windows_threadpool_impl
         m_cv.notify_all();
 
         {
-            auto const desc = wi->description();
-
-            if (desc.size() != 0)
-            {
-                m::thread_description td(desc);
-
-                wi->work();
-            }
-            else
-                wi->work();
+            m::thread_description td(wi->description());
+            wi->work();
         }
 
         l.lock();

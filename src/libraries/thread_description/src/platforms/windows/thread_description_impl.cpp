@@ -113,23 +113,27 @@ m::thread_description_impl::set_thread_description(
 {
     saved_state[0] = nullptr;
 
-    HRESULT hr{};
-    PWSTR   pwsz{};
-
-    if (!SUCCEEDED(hr = functors::get_thread_description(::GetCurrentThread(), &pwsz)))
+    if (description.size() != 0)
     {
-        // There's no point in failing per se, we just will not set the thread description.
-        m::dbg_format("Ignoring failed call to ::GetThreadDescription; hr = {}", fmtHRESULT(hr));
-        return;
+        HRESULT hr{};
+        PWSTR   pwsz{};
+
+        if (!SUCCEEDED(hr = functors::get_thread_description(::GetCurrentThread(), &pwsz)))
+        {
+            // There's no point in failing per se, we just will not set the thread description.
+            m::dbg_format("Ignoring failed call to ::GetThreadDescription; hr = {}",
+                          fmtHRESULT(hr));
+            return;
+        }
+
+        // The API needs a null terminated string, so ...
+        auto const str   = std::wstring(description);
+        auto const c_str = str.c_str();
+
+        functors::set_thread_description(::GetCurrentThread(), c_str);
+
+        saved_state[0] = (void*)pwsz;
     }
-
-    // The API needs a null terminated string, so ...
-    auto const str   = std::wstring(description);
-    auto const c_str = str.c_str();
-
-    functors::set_thread_description(::GetCurrentThread(), c_str);
-
-    saved_state[0] = (void*)pwsz;
 }
 
 void

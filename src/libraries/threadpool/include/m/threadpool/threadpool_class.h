@@ -9,6 +9,7 @@
 #include <future>
 #include <memory>
 
+#include <m/threadpool/periodic_timer.h>
 #include <m/threadpool/timer.h>
 #include <m/threadpool/types.h>
 #include <m/threadpool/work_queue.h>
@@ -24,7 +25,7 @@ namespace m
         std::shared_ptr<timer>
         create_timer(F&& f)
         {
-            return do_create_timer(std::packaged_task<timer_callable>(std::forward<F>(f)), L"");
+            return do_create_timer(std::packaged_task<timer_normal_callable>(std::forward<F>(f)));
         }
 
         template <typename F, typename... Args>
@@ -33,7 +34,7 @@ namespace m
         {
             auto description = std::format(std::forward<std::wformat_string<Args...>>(fmt),
                                            std::forward<Args>(args)...);
-            return do_create_timer(std::packaged_task<timer_callable>(std::forward<F>(f)),
+            return do_create_timer(std::packaged_task<timer_normal_callable>(std::forward<F>(f)),
                                    std::move(description));
         }
 
@@ -41,8 +42,38 @@ namespace m
         std::shared_ptr<timer>
         create_cancellable_timer(F&& f)
         {
-            return do_create_timer(
-                std::packaged_task<timer_cancellable_callable>(std::forward<F>(f)), L"");
+            return do_create_cancellable_timer(
+                std::packaged_task<timer_cancellable_callable>(std::forward<F>(f)));
+        }
+
+        template <typename F, typename... Args>
+        std::shared_ptr<timer>
+        create_cancellable_timer(F&& f, std::wformat_string<Args...>&& fmt, Args&&... args)
+        {
+            auto description = std::format(std::forward<std::wformat_string<Args...>>(fmt),
+                                           std::forward<Args>(args)...);
+            return do_create_cancellable_timer(
+                std::packaged_task<timer_cancellable_callable>(std::forward<F>(f)),
+                std::move(description));
+        }
+
+        template <typename F>
+        std::shared_ptr<periodic_timer>
+        create_periodic_timer(F&& f)
+        {
+            return do_create_periodic_timer(
+                std::packaged_task<timer_normal_callable>(std::forward<F>(f)));
+        }
+
+        template <typename F, typename... Args>
+        std::shared_ptr<periodic_timer>
+        create_periodic_timer(F&& f, std::wformat_string<Args...>&& fmt, Args&&... args)
+        {
+            auto description = std::format(std::forward<std::wformat_string<Args...>>(fmt),
+                                           std::forward<Args>(args)...);
+            return do_create_periodic_timer(
+                std::packaged_task<timer_normal_callable>(std::forward<F>(f)),
+                std::move(description));
         }
 
         std::shared_ptr<work_queue>
@@ -54,7 +85,9 @@ namespace m
 
         template <typename... Args>
         std::shared_ptr<work_queue>
-        create_work_queue(work_queue_execution_policy wqep, std::wformat_string<Args...>&& fmt, Args&&... args)
+        create_work_queue(work_queue_execution_policy    wqep,
+                          std::wformat_string<Args...>&& fmt,
+                          Args&&... args)
         {
             auto description = std::format(std::forward<std::wformat_string<Args...>>(fmt),
                                            std::forward<Args>(args)...);
@@ -66,10 +99,25 @@ namespace m
         virtual ~threadpool_class() = default;
 
         virtual std::shared_ptr<timer>
-        do_create_timer(std::packaged_task<timer_callable>&& task, std::wstring description) = 0;
+        do_create_timer(std::packaged_task<timer_normal_callable>&& task) = 0;
 
         virtual std::shared_ptr<timer>
-        do_create_timer(std::packaged_task<timer_cancellable_callable>&& task, std::wstring description) = 0;
+        do_create_timer(std::packaged_task<timer_normal_callable>&& task,
+                        std::wstring                                description) = 0;
+
+        virtual std::shared_ptr<timer>
+        do_create_cancellable_timer(std::packaged_task<timer_cancellable_callable>&& task) = 0;
+
+        virtual std::shared_ptr<timer>
+        do_create_cancellable_timer(std::packaged_task<timer_cancellable_callable>&& task,
+                                    std::wstring description) = 0;
+
+        virtual std::shared_ptr<periodic_timer>
+        do_create_periodic_timer(std::packaged_task<timer_normal_callable>&& task) = 0;
+
+        virtual std::shared_ptr<periodic_timer>
+        do_create_periodic_timer(std::packaged_task<timer_normal_callable>&& task,
+                                 std::wstring                                description) = 0;
 
         virtual std::shared_ptr<work_queue>
         do_create_work_queue(work_queue_execution_policy wqep, std::wstring description) = 0;

@@ -68,4 +68,4 @@ namespace m::linux_threadpool_impl
         void
         on_new_work_item(std::shared_ptr<m::work_queue_impl::work_item> const& wi) override;
     };
-} // namespace m::windows_threadpool_impl
+} // namespace m::linux_threadpool_impl

@@ -205,4 +205,19 @@ namespace m
         }
     };
 
+    class precondition_not_met : public m::runtime_error
+    {
+    public:
+        precondition_not_met(std::string const& what_arg): m::runtime_error(what_arg) {}
+        precondition_not_met(char const* what_arg): m::runtime_error(what_arg) {}
+        precondition_not_met(precondition_not_met const& other) noexcept: m::runtime_error(other) {}
+
+        precondition_not_met&
+        operator=(precondition_not_met const& other)
+        {
+            m::runtime_error::operator=(other);
+            return *this;
+        }
+    };
+
 } // namespace m

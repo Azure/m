@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include <m/cast/try_cast.h>
+#include <m/utility/to_underlying.h>
 
 template <typename T>
 void
@@ -108,7 +109,7 @@ TEST(TryCast, SignedUnsignedMismatch1)
     // constexpr auto operator/(m::io::offset_t l, std::size_t r)
     //{
     //    return m::io::offset_t{
-    //        m::try_cast<std::underlying_type_t<m::io::offset_t>>(std::to_underlying(l) / r)};
+    //        m::try_cast<std::underlying_type_t<m::io::offset_t>>(m::to_underlying(l) / r)};
     //}
 
     enum class T1 : int64_t;
@@ -116,7 +117,7 @@ TEST(TryCast, SignedUnsignedMismatch1)
     T1               v1{42};
     constexpr size_t v2{2};
 
-    auto v3 = T1{m::try_cast<std::underlying_type_t<T1>>(std::to_underlying(v1) / v2)};
+    auto v3 = T1{m::try_cast<std::underlying_type_t<T1>>(m::to_underlying(v1) / v2)};
 
     EXPECT_EQ(v3, T1{21});
 }
@@ -128,7 +129,7 @@ TEST(TryCast, SignedUnsignedMismatch2)
     // constexpr auto operator/(m::io::offset_t l, std::size_t r)
     //{
     //    return m::io::offset_t{
-    //        m::try_cast<std::underlying_type_t<m::io::offset_t>>(std::to_underlying(l) / r)};
+    //        m::try_cast<std::underlying_type_t<m::io::offset_t>>(m::to_underlying(l) / r)};
     //}
 
     enum class T1 : int64_t;
@@ -136,7 +137,7 @@ TEST(TryCast, SignedUnsignedMismatch2)
     T1               v1{42};
     constexpr size_t v2{2};
 
-    auto v3 {std::to_underlying(v1) / v2};
+    auto v3 {m::to_underlying(v1) / v2};
     auto v4 {m::try_cast<std::underlying_type_t<T1>>(v3)};
     T1   v5{v4};
 

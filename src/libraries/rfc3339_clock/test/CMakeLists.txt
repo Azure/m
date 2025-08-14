@@ -8,7 +8,7 @@ if(M_BUILD_TESTS)
         exercise_clock.cpp
     )
 
-    target_compile_features(test_rfc3339_clock PUBLIC cxx_std_23)
+    target_compile_features(test_rfc3339_clock PUBLIC ${M_CXX_STD})
 
     target_link_libraries(
         test_rfc3339_clock

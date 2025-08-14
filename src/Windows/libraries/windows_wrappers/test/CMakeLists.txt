@@ -7,7 +7,7 @@ if(M_BUILD_TESTS)
         test_win32_dword_ms.cpp
     )
 
-    target_compile_features(test_windows_wrappers PUBLIC cxx_std_23)
+    target_compile_features(test_windows_wrappers PUBLIC ${M_CXX_STD})
 
     target_link_libraries(
         test_windows_wrappers

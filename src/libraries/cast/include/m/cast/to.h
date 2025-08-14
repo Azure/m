@@ -10,6 +10,7 @@
 
 #include <m/cast/cast.h>
 #include <m/cast/try_cast.h>
+#include <m/utility/to_underlying.h>
 
 //
 // Standard metaphor across the m codebase
@@ -97,7 +98,7 @@ namespace m
     TTo
     to(TFrom const& v)
     {
-        return m::try_cast<TTo>(std::to_underlying(v));
+        return m::try_cast<TTo>(to_underlying(v));
     }
 
     template <typename TTo, typename Rep, typename Period>

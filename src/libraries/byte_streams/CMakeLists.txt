@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.23)
 
 add_library(m_byte_streams STATIC)
 
-target_compile_features(m_byte_streams PUBLIC cxx_std_23)
+target_compile_features(m_byte_streams PUBLIC ${M_CXX_STD})
 
 add_subdirectory(include)
 add_subdirectory(src)

@@ -265,9 +265,12 @@ namespace m
         using const_reference        = T const&;
         using span_type              = std::span<T, std::dynamic_extent>;
         using iterator               = typename span_type::iterator;
-        using const_iterator         = typename span_type::const_iterator;
         using reverse_iterator       = typename span_type::reverse_iterator;
+
+        #ifdef M_HAS_CXX23
+        using const_iterator         = typename span_type::const_iterator;
         using const_reverse_iterator = typename span_type::const_reverse_iterator;
+        #endif
 
         constexpr unique_span() noexcept: m_span() {}
 

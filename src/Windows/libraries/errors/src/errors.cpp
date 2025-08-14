@@ -9,6 +9,7 @@
 #include <m/errors/errors.h>
 #include <m/errors/hresult.h>
 #include <m/exception/exception.h>
+#include <m/utility/to_underlying.h>
 #include <m/utility/zstring.h>
 
 #include <Windows.h>
@@ -63,13 +64,13 @@ m::throw_win32_error_code(DWORD error_code, m::zstring what)
 void
 m::throw_error(windows::win32_error_code error_code)
 {
-    throw_win32_error_code(std::to_underlying(error_code));
+    throw_win32_error_code(to_underlying(error_code));
 }
 
 void
 m::throw_error(windows::win32_error_code error_code, m::zstring what)
 {
-    throw_win32_error_code(std::to_underlying(error_code), what);
+    throw_win32_error_code(to_underlying(error_code), what);
 }
 
 void

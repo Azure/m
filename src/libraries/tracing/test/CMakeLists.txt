@@ -9,7 +9,7 @@ if(M_BUILD_TESTS)
         test_slow_sink.cpp
     )
 
-    target_compile_features(test_tracing PUBLIC cxx_std_23)
+    target_compile_features(test_tracing PUBLIC ${M_CXX_STD})
 
     target_link_libraries(test_tracing
         m_cast

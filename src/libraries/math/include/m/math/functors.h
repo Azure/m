@@ -10,6 +10,7 @@
 
 #include <m/cast/to.h>
 #include <m/type_traits/type_traits.h>
+#include <m/utility/to_underlying.h>
 
 #include "math.h"
 
@@ -87,7 +88,7 @@ namespace m
     {
         using value_t = std::underlying_type_t<T>;
 
-        constexpr negation_functor(T v) noexcept: m_v(std::to_underlying(v)) {}
+        constexpr negation_functor(T v) noexcept: m_v(m::to_underlying(v)) {}
 
         template <typename ResultType>
         constexpr ResultType
@@ -109,7 +110,7 @@ namespace m
         using right_value_t = std::underlying_type_t<RightT>;
 
         constexpr addition_functor(LeftT l, RightT r) noexcept:
-            m_l(std::to_underlying(l)), m_r(std::to_underlying(r))
+            m_l(m::to_underlying(l)), m_r(m::to_underlying(r))
         {}
 
         template <typename SumType>
@@ -133,7 +134,7 @@ namespace m
         using right_value_t = std::underlying_type_t<RightT>;
 
         constexpr subtraction_functor(LeftT l, RightT r) noexcept:
-            m_l(std::to_underlying(l)), m_r(std::to_underlying(r))
+            m_l(m::to_underlying(l)), m_r(m::to_underlying(r))
         {}
 
         template <typename DifferenceType>
@@ -158,7 +159,7 @@ namespace m
         using right_value_t = std::underlying_type_t<RightT>;
 
         constexpr multiplication_functor(LeftT l, RightT r) noexcept:
-            m_l(std::to_underlying(l)), m_r(std::to_underlying(r))
+            m_l(m::to_underlying(l)), m_r(m::to_underlying(r))
         {}
 
         template <typename ProductType>
@@ -182,7 +183,7 @@ namespace m
         using right_value_t = std::underlying_type_t<RightT>;
 
         constexpr division_functor(LeftT l, RightT r) noexcept:
-            m_l(std::to_underlying(l)), m_r(std::to_underlying(r))
+            m_l(m::to_underlying(l)), m_r(m::to_underlying(r))
         {}
 
         template <typename QuotientType>

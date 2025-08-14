@@ -17,7 +17,7 @@ if(M_BUILD_TESTS)
       utf8_typed_decoder.cpp
     )
 
-    target_compile_features(test_utf PUBLIC cxx_std_23)
+    target_compile_features(test_utf PUBLIC ${M_CXX_STD})
 
     target_link_libraries(test_utf
       m_cast

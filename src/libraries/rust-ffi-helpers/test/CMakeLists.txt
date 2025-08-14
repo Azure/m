@@ -7,7 +7,7 @@ if(M_BUILD_TESTS)
         test_arc_ptr.cpp
         test_string_in.cpp)
 
-    target_compile_features(test_rust_ffi_helpers PUBLIC cxx_std_23)
+    target_compile_features(test_rust_ffi_helpers PUBLIC ${M_CXX_STD})
 
     target_link_libraries(
       test_rust_ffi_helpers

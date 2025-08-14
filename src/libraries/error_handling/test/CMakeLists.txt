@@ -7,7 +7,7 @@ if(M_BUILD_TESTS)
         test_error_handling.cpp
     )
 
-    target_compile_features(test_error_handling PUBLIC cxx_std_23)
+    target_compile_features(test_error_handling PUBLIC ${M_CXX_STD})
 
     target_link_libraries(test_error_handling
         m_error_handling
@@ -18,7 +18,7 @@ if(M_BUILD_TESTS)
         test_internal_error_check.cpp
     )
 
-    target_compile_features(test_internal_error_check PUBLIC cxx_std_23)
+    target_compile_features(test_internal_error_check PUBLIC ${M_CXX_STD})
 
     target_link_libraries(test_internal_error_check
         m_error_handling

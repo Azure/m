@@ -7,7 +7,7 @@ if(M_BUILD_TESTS)
     add_executable(test_windows_strings
     )
 
-    target_compile_features(test_windows_strings PUBLIC cxx_std_23)
+    target_compile_features(test_windows_strings PUBLIC ${M_CXX_STD})
 
     target_link_libraries(test_windows_strings
         m_windows_strings        

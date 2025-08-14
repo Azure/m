@@ -10,7 +10,7 @@ if(M_BUILD_TESTS)
       to.cpp
     )
 
-    target_compile_features(test_cast PUBLIC cxx_std_23)
+    target_compile_features(test_cast PUBLIC ${M_CXX_STD})
 
     target_link_libraries(
       test_cast

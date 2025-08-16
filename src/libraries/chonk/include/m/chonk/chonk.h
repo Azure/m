@@ -72,7 +72,7 @@ namespace m
     namespace chonk_impl
     {
         template <typename T, std::size_t N>
-            requires(N <= most_ts<T>())
+            requires(std::semiregular<std::remove_const_t<T>> && N <= most_ts<T>())
         class iterator
         {
         public:
@@ -198,7 +198,7 @@ namespace m
             }
 
         private:
-            using chonk_type = chonk<T, N>;
+            using chonk_type = chonk<std::remove_const_t<T>, N>;
             using size_type  = std::size_t;
 
             constexpr iterator(chonk_type const* chonk_ptr, size_type initial_index = 0) noexcept:
@@ -218,7 +218,7 @@ namespace m
             pointer
             ptr() const
             {
-                return m_chonk_ptr->ptr() + m_index;
+                return m_chonk_ptr->ptr(m_index);
             }
 
             size_type
@@ -504,13 +504,54 @@ namespace m
             return pos;
         }
 
-#if 0
-        iterator
-        erase(iterator begin, iterator end)
+        constexpr iterator
+        erase(const_iterator first,
+              const_iterator last) noexcept(std::is_nothrow_move_assignable_v<value_type>)
         {
-            //
+            using vector_type = std::vector<T>;
+
+            M_INTERNAL_ERROR_CHECK(is_valid_iterator(first));
+            M_INTERNAL_ERROR_CHECK(is_valid_iterator(last));
+
+            pointer const firstptr = first.ptr();
+            pointer const lastptr  = last.ptr();
+            pointer const oldlast  = ptr(m_size);
+
+            auto const first_index = first.index();
+
+            if (firstptr != lastptr)
+            {
+                pointer const newlast = move_unchecked_internal(lastptr, oldlast, firstptr);
+                std::destroy(newlast, oldlast);
+                m_size = newlast - firstptr;
+            }
+
+            return iterator(this, first_index);
         }
-#endif
+
+        constexpr iterator
+        erase(iterator first, iterator last) noexcept(std::is_nothrow_move_assignable_v<value_type>)
+        {
+            using vector_type = std::vector<T>;
+
+            M_INTERNAL_ERROR_CHECK(is_valid_iterator(first));
+            M_INTERNAL_ERROR_CHECK(is_valid_iterator(last));
+
+            pointer const firstptr = first.ptr();
+            pointer const lastptr  = last.ptr();
+            pointer const oldlast  = ptr(m_size);
+
+            auto const first_index = first.index();
+
+            if (firstptr != lastptr)
+            {
+                pointer const newlast = move_unchecked_internal(lastptr, oldlast, firstptr);
+                std::destroy(newlast, oldlast);
+                m_size = newlast - ptr();
+            }
+
+            return iterator(this, first_index);
+        }
 
 #if 0
         iterator
@@ -564,6 +605,25 @@ namespace m
 #endif
 
         constexpr void
+        push_back(value_type const& value)
+        {
+            internal_emplace_at_back(value);
+        }
+
+        constexpr void
+        push_back(value_type&& value)
+        {
+            internal_emplace_at_back(std::move(value));
+        }
+
+        template <typename... Args>
+        constexpr reference
+        emplace_back(Args&&... args)
+        {
+            return internal_emplace_at_back(std::forward<Args>(args)...);
+        }
+
+        constexpr void
         pop_back()
         {
             // Cannot call this on empty chonk
@@ -610,13 +670,35 @@ namespace m
         }
 
     private:
-        alignas(T) std::array<std::byte, sizeof(T) * N> m_bytes;
+        template <typename... Args>
+        constexpr reference
+        internal_emplace_at_back(Args&&... args)
+        {
+            if (m_size == N)
+            {
+                throw std::bad_alloc();
+            }
 
-        stored_size_type m_size{};
+            if (std::is_constant_evaluated())
+            {
+                std::construct_at(std::addressof(*ptr(m_size)), std::forward<Args>(args)...);
+            }
+            else
+            {
+                ::new (static_cast<void*>(std::addressof(*ptr(m_size))))
+                    value_type(std::forward<Args>(args)...);
+            }
+
+            auto const result = ptr(m_size);
+            m_size++;
+            return *result;
+        }
 
         template <typename InIt, typename OutIt>
-        constexpr OutIt
-        move_unchecked_internal(InIt first, InIt last, OutIt dest)
+        static constexpr OutIt
+        move_unchecked_internal(InIt  first,
+                                InIt  last,
+                                OutIt dest) noexcept(std::is_nothrow_move_assignable_v<value_type>)
         {
             // the MSVC stl has logic here to test if the type is
             // memcpy assignable. Great idea for the future.
@@ -677,6 +759,10 @@ namespace m
         {
             return it.base_ptr() == ptr() && ptr_in_iter_range(it.ptr());
         }
+
+        alignas(T) std::array<std::byte, sizeof(T) * N> m_bytes;
+
+        stored_size_type m_size{};
 
         friend iterator;
     };

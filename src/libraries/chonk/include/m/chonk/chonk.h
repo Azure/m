@@ -508,7 +508,6 @@ namespace m
         erase(const_iterator first,
               const_iterator last) noexcept(std::is_nothrow_move_assignable_v<value_type>)
         {
-            using vector_type = std::vector<T>;
             M_INTERNAL_ERROR_CHECK(is_valid_iterator(first));
             M_INTERNAL_ERROR_CHECK(is_valid_iterator(last));
 
@@ -531,7 +530,6 @@ namespace m
         constexpr iterator
         erase(iterator first, iterator last) noexcept(std::is_nothrow_move_assignable_v<value_type>)
         {
-            using vector_type = std::vector<T>;
             M_INTERNAL_ERROR_CHECK(is_valid_iterator(first));
             M_INTERNAL_ERROR_CHECK(is_valid_iterator(last));
 

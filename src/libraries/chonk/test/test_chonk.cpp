@@ -212,6 +212,8 @@ TEST(Chonk, EraseIterator)
     EXPECT_EQ(ch.size(), 24);
     EXPECT_EQ(ch[4], "Golf"s);
     EXPECT_EQ(ch[23], "Zulu"s);
+
+    EXPECT_NE(it3, ch.end());
 }
 
 TEST(Chonk, CountMoves)

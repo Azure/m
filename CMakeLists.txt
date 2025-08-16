@@ -46,7 +46,9 @@ if (MSVC)
     set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT Embedded)
 
 else()
-    add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas -Wno-sign-compare)
+    add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas)
+    add_compile_options(-Wno-sign-compare)
+    add_compile_options(-wno-unused-local-typedef)          # error : unused type alias 'x'
 endif()
 
 include(GNUInstallDirs)

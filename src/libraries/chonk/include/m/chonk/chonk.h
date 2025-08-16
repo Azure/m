@@ -523,7 +523,7 @@ namespace m
             {
                 pointer const newlast = move_unchecked_internal(lastptr, oldlast, firstptr);
                 std::destroy(newlast, oldlast);
-                m_size = newlast - firstptr;
+                m_size = (newlast - ptr()) + first_index;
             }
 
             return iterator(this, first_index);

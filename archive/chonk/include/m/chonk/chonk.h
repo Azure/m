@@ -557,13 +557,90 @@ namespace m
         }
 #endif
 
-#if 0
+        /// <summary>
+        /// If `pos` is a valid position in `*this`, shifts elements after
+        /// `pos` down and inserts `value` in that position.
+        ///
+        /// If this would move an element off the end of the chonk, invokes
+        /// fn(std::move(value)).
+        /// </summary>
+        /// <typeparam name="Fn"></typeparam>
+        /// <param name="pos"></param>
+        /// <param name="fn"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        template <typename Fn>
+            requires(std::invocable<Fn, value_type &&>)
         iterator
-        insert(const_iterator pos, T&& value)
+        insert(const_iterator pos, Fn&& fn, value_type const& value)
         {
-            //
+            M_INTERNAL_ERROR_CHECK(is_valid_iterator(pos));
+
+            M_INTERNAL_ERROR_CHECK(m_size <= N);
+
+            if (m_size == N)
+            {
+                if (pos.index() == m_size)
+                {
+                    // kind of weird when the pos is at the end and the chonk
+                    // is full, but there's a reasonable approach to handling
+                    // it: pass the value along as the overflow. To do that
+                    // we have to construct an instance.
+                    value_type v{value};
+                    std::invoke(std::forward<Fn>(fn), std::move(v));
+                    return iterator(this, N);
+                }
+
+                std::invoke(std::forward<Fn>(fn), std::move(*ptr(m_size - 1)));
+            }
+
+            auto pos_ptr = pos.ptr();
+            move_unchecked_internal(pos_ptr, ptr(m_size), pos_ptr + 1);
+            *pos_ptr = value;
+            if (m_size != N)
+                m_size++;
+            return iterator(this, pos.index());
         }
-#endif
+
+        /// <summary>
+        /// If `pos` is a valid position in `*this`, shifts elements after
+        /// `pos` down and inserts `value` in that position.
+        ///
+        /// If this would move an element off the end of the chonk, invokes
+        /// fn(std::move(value)).
+        /// </summary>
+        /// <typeparam name="Fn"></typeparam>
+        /// <param name="pos"></param>
+        /// <param name="fn"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        template <typename Fn>
+            requires(std::invocable<Fn, value_type &&>)
+        iterator
+        insert(const_iterator pos, Fn&& fn, value_type&& value)
+        {
+            M_INTERNAL_ERROR_CHECK(is_valid_iterator(pos));
+
+            M_INTERNAL_ERROR_CHECK(m_size <= N);
+
+            if (m_size == N)
+            {
+                if (pos.index() == m_size)
+                {
+                    std::invoke(std::forward<Fn>(fn), std::move(value));
+                    return iterator(this, N);
+                }
+
+                std::invoke(std::forward<Fn>(fn), std::move(*ptr(m_size - 1)));
+            }
+
+            auto pos_ptr = pos.ptr();
+            move_unchecked_internal(pos_ptr, ptr(m_size), pos_ptr + 1);
+            *pos_ptr = std::move(value);
+            if (m_size != N)
+                m_size++;
+            return iterator(this, pos.index());
+        }
 
 #if 0
         iterator
@@ -575,7 +652,7 @@ namespace m
 
 #if 0
         template <typename InputIt, typename SentinelT>
-            requires(std::sentinel_for<SentinelT, InputIt>)
+            requires(std::sized_sentinel_for<SentinelT, InputIt>)
         iterator
         insert(const_iterator pos, InputIt first, SentinelT last)
         {

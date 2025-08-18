@@ -91,8 +91,7 @@ namespace m
     // Private utilites
     namespace inplace_vector_impl
     {
-
-        template <class = void>
+        template <typename = void>
         [[noreturn]]
         static constexpr void
         assert_failure(char const* file, int line, char const* msg)
@@ -133,7 +132,7 @@ namespace m
         }
 
         // http://eel.is/c++draft/container.requirements.general#container.intro.reqmts-2
-        template <class RangeT, class T>
+        template <typename  RangeT, typename T>
         concept container_compatible_range =
             std::ranges::input_range<RangeT> &&
             std::convertible_to<std::ranges::range_reference_t<RangeT>, T>;
@@ -149,7 +148,7 @@ namespace m
     namespace inplace_vector_impl::storage
     {
         // TODO: flesh out
-        template <class T, std::size_t N>
+        template <typename T, std::size_t N>
         struct aligned_storage2
         {
             alignas(T) std::byte m_data[sizeof(T) * N];
@@ -168,7 +167,7 @@ namespace m
         };
 
         // Storage for zero elements.
-        template <class T>
+        template <typename T>
         struct zero_sized
         {
         protected:
@@ -202,7 +201,7 @@ namespace m
         };
 
         // Storage for trivial types.
-        template <class T, std::size_t N>
+        template <typename T, std::size_t N>
         struct trivial
         {
             static_assert(std::is_trivial_v<T>, "storage::trivial<T, C> requires Trivial<T>");
@@ -257,7 +256,7 @@ namespace m
         };
 
         /// Storage for non-trivial elements.
-        template <class T, std::size_t N>
+        template <typename T, std::size_t N>
         struct non_trivial
         {
             static_assert(!std::is_trivial_v<T>, "use storage::trivial for Trivial<T> elements");
@@ -308,7 +307,7 @@ namespace m
         };
 
         // Selects the vector storage.
-        template <class T, std::size_t N>
+        template <typename T, std::size_t N>
         using storage_t = std::conditional_t<
             N == 0,
             zero_sized<T>,
@@ -317,7 +316,7 @@ namespace m
     } // namespace inplace_vector_impl::storage
 
     /// Dynamically-resizable fixed-N vector with inplace storage.
-    template <class T, std::size_t N>
+    template <typename T, std::size_t N>
     struct inplace_vector : private inplace_vector_impl::storage::storage_t<T, N>
     {
     private:
@@ -345,7 +344,7 @@ namespace m
         constexpr inplace_vector() noexcept { unsafe_set_size(0); }
         // constexpr explicit inplace_vector(size_type n);
         // constexpr inplace_vector(size_type n, const T& value);
-        // template <class InputIt>  // BUGBUG: why not model input_iterator?
+        // template <typename InputIt>  // BUGBUG: why not model input_iterator?
         //   constexpr inplace_vector(InputIt first, InputIt last);
         // template <inplace_vector_impl::container_compatible_range<T> RangeT>
         //  constexpr inplace_vector(from_range_t, RangeT&& rnge);
@@ -364,7 +363,7 @@ namespace m
         // is_trivially_copy_assignable_v<T>
         //   constexpr inplace_vector& operator=(inplace_vector&& __other) noexcept(N == 0 ||
         //   is_nothrow_move_assignable_v<T>);
-        // template <class InputIt> // BUGBUG: why not model input_iterator
+        // template <typename InputIt> // BUGBUG: why not model input_iterator
         //  constexpr void assign(InputIt first, InputIt l__ast);
         // template<inplace_vector_impl::container_compatible_range<T> RangeT>
         //  constexpr void assign_range(RangeT&& rnge);
@@ -519,7 +518,7 @@ namespace m
         }
 
         // [containers.sequences.inplace_vector.modifiers], modifiers
-        // template <class... Args>
+        // template <typename... Args>
         //  constexpr T& emplace_back(Args&&... args);
         // constexpr T& push_back(const T& x);
         // constexpr T& push_back(T&& x);
@@ -527,22 +526,22 @@ namespace m
         //  constexpr void append_range(RangeT&& rnge);
         // constexpr void pop_back();
 
-        // template<class... Args>
+        // template<typename... Args>
         //  constexpr T* try_emplace_back(Args&&... args);
         // constexpr T* try_push_back(const T& value);
         // constexpr T* try_push_back(T&& value);
 
-        // template<class... Args>
+        // template<typename... Args>
         //  constexpr T& unchecked_emplace_back(Args&&... args);
         // constexpr T& unchecked_push_back(const T& value);
         // constexpr T& unchecked_push_back(T&& value);
 
-        // template <class... Args>
+        // template <typename... Args>
         //  constexpr iterator emplace(const_iterator pos, Args&&... args);
         // constexpr iterator insert(const_iterator pos, const T& x);
         // constexpr iterator insert(const_iterator pos, T&& x);
         // constexpr iterator insert(const_iterator pos, size_type n, const T& x);
-        // template <class InputIt>
+        // template <typename InputIt>
         //  constexpr iterator insert(const_iterator pos, InputIt first,
         //  InputIt last);
         // template<inplace_vector_impl::container_compatible_range<T> RangeT>
@@ -799,7 +798,7 @@ namespace m
                 emplace_back(T{});
         }
 
-        template <class InputIt> // BUGBUG: why not ranges::input_iterator?
+        template <typename InputIt> // BUGBUG: why not ranges::input_iterator?
         constexpr inplace_vector(InputIt first, InputIt last)
             requires(std::constructible_from<T, std::iter_reference_t<InputIt>> && std::movable<T>)
         {
@@ -944,7 +943,7 @@ namespace m
             (*this)  = std::move(tmp);
         }
 
-        template <class InputIt>
+        template <typename InputIt>
         constexpr void
         assign(InputIt first, InputIt last)
             requires(std::constructible_from<T, std::iter_reference_t<InputIt>> && std::movable<T>)

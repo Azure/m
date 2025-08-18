@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_threadpool PUBLIC FILE_SET HEADERS FILES
+    m/threadpool/periodic_timer.h
     m/threadpool/threadpool.h
     m/threadpool/threadpool_class.h
     m/threadpool/timer.h

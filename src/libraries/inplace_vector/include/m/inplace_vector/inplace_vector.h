@@ -3,6 +3,14 @@
 
 #pragma once
 
+#include <m/utility/compiler.h>
+
+#ifndef M_HAS_CXX23
+
+#error The inplace_vector.h header requires the C++23 standard or later
+
+#endif
+
 #include <algorithm> // for rotate, equals, move_backwards, ...
 #include <array>
 #include <compare>

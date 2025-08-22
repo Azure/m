@@ -9,5 +9,6 @@ target_sources(m_pil PUBLIC FILE_SET HEADERS FILES
     m/pil/registry.h
     m/pil/registry_base_types.h
     m/pil/registry_interfaces.h
+    m/pil/registry_path.h
     m/pil/security_attributes.h
 )

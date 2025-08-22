@@ -16,6 +16,7 @@
 #include <m/utf/encode.h>
 #include <m/utf/transcode.h>
 #include <m/utility/make_span.h>
+#include <m/utility/pointers.h>
 
 namespace m
 {
@@ -137,6 +138,21 @@ namespace m
         std::wstring str;
         to_wstring(view, str);
         return str;
+    }
+
+    constexpr std::optional<std::wstring>
+    to_wstring(char16_t const* ptr)
+    {
+        if (ptr != nullptr)
+            return to_wstring(std::u16string_view(ptr));
+
+        return std::nullopt;
+    }
+
+    constexpr std::wstring
+    to_wstring(m::not_null<char16_t const*> ptr)
+    {
+        return to_wstring(std::u16string_view(ptr));
     }
 
     constexpr void

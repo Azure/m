@@ -32,9 +32,17 @@ namespace m::pil
 
     platform::platform(std::shared_ptr<iplatform>&& sp) noexcept : m_platform(std::move(sp)){}
 
-    registry platform::get_registry()
+    void
+    platform::swap(platform& other) noexcept
     {
-        return registry(m_platform->get_registry());
+        using std::swap;
+        swap(m_platform, other.m_platform);
+    }
+
+
+    registry_class platform::get_registry()
+    {
+        return registry_class(m_platform->get_registry());
     }
 
 

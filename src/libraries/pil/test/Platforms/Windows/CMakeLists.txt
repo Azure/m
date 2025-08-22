@@ -6,6 +6,7 @@ if(M_BUILD_TESTS)
     add_executable(test_win32_registry
         test_buffered_over_direct_registry.cpp
         test_direct_registry.cpp
+        test_registry_monitoring.cpp
     )
 
     target_compile_features(test_win32_registry PUBLIC ${M_CXX_STD})

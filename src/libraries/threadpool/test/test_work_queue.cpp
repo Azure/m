@@ -7,11 +7,11 @@
 #include <chrono>
 #include <filesystem>
 #include <latch>
-#include <print>
 #include <span>
 #include <string_view>
 
 #include <m/debugging/dbg_format.h>
+#include <m/print/print.h>
 #include <m/threadpool/threadpool.h>
 #include <m/threadpool/work_queue.h>
 
@@ -28,7 +28,7 @@ TEST(WorkQueue, BasicCreation)
 TEST(WorkQueue, Queue1)
 {
     auto q  = m::threadpool->create_work_queue();
-    auto wi = q->enqueue<void>([] { std::println("Hello, world!"); });
+    auto wi = q->enqueue<void>([] { m::println("Hello, world!"); });
     q->wait_for(5s);
 }
 
@@ -40,7 +40,7 @@ TEST(WorkQueue, QueueN20)
 
     for (std::size_t i = 0; i < n; i++)
     {
-        work_items[i] = q->enqueue<void>([x = i] { std::println("Hello there number {}", x); });
+        work_items[i] = q->enqueue<void>([x = i] { m::println("Hello there number {}", x); });
     }
 
     q->wait_for(5s);
@@ -68,7 +68,7 @@ TEST(WorkQueue, QueueNBig)
     constexpr auto d = 250ms;
 
     while (!q->wait_for(d))
-        std::println("After {}, {} queue items still running", d, q->running());
+        m::println("After {}, {} queue items still running", d, q->running());
 
     auto const after_wait = m::clock::now();
 
@@ -78,7 +78,7 @@ TEST(WorkQueue, QueueNBig)
     for (std::size_t i = 0; i < n; i++)
         EXPECT_EQ(flags[i], 1);
 
-    std::println("It took {} to queue, and then {} for the work to finish",
+    m::println("It took {} to queue, and then {} for the work to finish",
                  after_queue - before_queue,
                  after_wait - after_queue);
 }

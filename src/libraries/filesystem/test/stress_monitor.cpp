@@ -1,11 +1,12 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <m/utility/compiler.h>
+
 #include <gtest/gtest.h>
 
 #include <chrono>
 #include <filesystem>
-#include <print>
 #include <random>
 #include <span>
 #include <string>
@@ -16,6 +17,7 @@
 #include <m/debugging/dbg_format.h>
 #include <m/filesystem/filesystem.h>
 #include <m/googletest/temporary_directory.h>
+#include <m/print/print.h>
 #include <m/threadpool/threadpool.h>
 
 using namespace std::chrono_literals;
@@ -705,7 +707,7 @@ TEST(StressMonitor, test)
         auto delta1    = end1 - start1;
         auto delta1_ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta1);
 
-        std::println(
+        m::println(
             "After {}ms\n"
             "   Contents 1: {}\n"
             "   Contents 2: {}\n"

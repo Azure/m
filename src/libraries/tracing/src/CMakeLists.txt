@@ -25,8 +25,10 @@ target_include_directories(m_tracing PUBLIC
 target_link_libraries(m_tracing PUBLIC
     m_atomic
     m_chrono
+    m_debugging
     m_error_handling
     m_math
+    m_print
     m_strings
     m_utf
 )

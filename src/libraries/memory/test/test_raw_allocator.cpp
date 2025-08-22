@@ -5,11 +5,11 @@
 
 #include <atomic>
 #include <filesystem>
-#include <print>
 #include <span>
 #include <string_view>
 
 #include <m/memory/memory.h>
+#include <m/print/print.h>
 
 using namespace std::string_view_literals;
 
@@ -187,7 +187,7 @@ TEST(MemoryRawAllocator, CountOpsUnconstructed)
     //
     auto const diff1 = stats2 - stats1;
 
-    std::println("diff1: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
+    m::println("diff1: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
                  diff1.m_dccnt_delta,
                  diff1.m_bccnt_delta,
                  diff1.m_cccnt_delta,
@@ -222,7 +222,7 @@ TEST(MemoryRawAllocator, CountOpsConstructed)
     //
     auto const diff1 = stats2 - stats1;
 
-    std::println("diff1: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
+    m::println("diff1: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
                  diff1.m_dccnt_delta,
                  diff1.m_bccnt_delta,
                  diff1.m_cccnt_delta,
@@ -241,7 +241,7 @@ TEST(MemoryRawAllocator, CountOpsConstructed)
 
     auto const diff2 = stats3 - stats2;
 
-    std::println("diff2: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
+    m::println("diff2: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
                  diff2.m_dccnt_delta,
                  diff2.m_bccnt_delta,
                  diff2.m_cccnt_delta,
@@ -260,7 +260,7 @@ TEST(MemoryRawAllocator, CountOpsConstructed)
 
     auto const diff3 = stats4 - stats3;
 
-    std::println("diff3: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
+    m::println("diff3: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
                  diff3.m_dccnt_delta,
                  diff3.m_bccnt_delta,
                  diff3.m_cccnt_delta,

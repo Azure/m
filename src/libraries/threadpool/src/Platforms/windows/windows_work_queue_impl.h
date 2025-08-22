@@ -12,6 +12,7 @@
 #include <m/threadpool/work_item_source.h>
 #include <m/threadpool/work_queue.h>
 #include <m/threadpool/work_queue_execution_policy.h>
+#include <m/win32/threadpool.h>
 
 #undef NOMINMAX
 #define NOMINMAX
@@ -19,7 +20,6 @@
 #include <Windows.h>
 
 #include "../../work_queue_impl.h"
-#include "tp_work.h"
 
 namespace m::windows_threadpool_impl
 {
@@ -87,7 +87,7 @@ namespace m::windows_threadpool_impl
         void
         tp_work_callback() noexcept;
 
-        tp_work                           m_tp_work;
-        std::unique_ptr<callback_context> m_callback_context;
+        win32::threadpool::tp_work m_tp_work;
+        std::unique_ptr<callback_context>         m_callback_context;
     };
 } // namespace m::windows_threadpool_impl

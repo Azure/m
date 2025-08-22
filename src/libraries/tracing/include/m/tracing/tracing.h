@@ -14,10 +14,6 @@
 #include <map>
 #include <mutex>
 
-#ifdef M_HAS_CXX23
-#include <print>
-#endif
-
 #include <queue>
 #include <source_location>
 #include <string>
@@ -27,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include <m/print/print.h>
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/channel.h>
 #include <m/tracing/close_flush_option.h>

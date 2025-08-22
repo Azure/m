@@ -1,13 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <m/utility/compiler.h>
+
 #include <gtest/gtest.h>
 
 #include <atomic>
 #include <barrier>
 #include <chrono>
 #include <filesystem>
-#include <print>
 #include <random>
 #include <span>
 #include <string>
@@ -19,6 +20,7 @@
 #include <m/filesystem/filesystem.h>
 #include <m/googletest/temporary_directory.h>
 #include <m/memory/memory.h>
+#include <m/print/print.h>
 #include <m/random/random.h>
 #include <m/utility/algorithm.h>
 

@@ -14,8 +14,15 @@
 #include <type_traits>
 #include <vector>
 
+#include <m/chrono/chrono.h>
 #include <m/error_handling/macros.h>
+#include <m/pil/common.h>
+#include <m/pil/disposition.h>
+#include <m/pil/registry_base_types.h>
+#include <m/pil/registry_path.h>
+#include <m/pil/security_attributes.h>
 #include <m/strings/convert.h>
+#include <m/utility/enum_operations.h.h>
 #include <m/utility/utility.h>
 
 #ifdef WIN32
@@ -23,12 +30,6 @@
 #else
 #include <m/linux_strings/convert.h>
 #endif
-
-#include "common.h"
-#include "disposition.h"
-#include "security_attributes.h"
-
-#include "registry_base_types.h"
 
 //
 // Note that the registry values are "binary" here.
@@ -89,18 +90,18 @@ namespace m::pil
 
         virtual create_key_disposition
         create_key(create_key_flags                   flags,
-                   key_name_view_type                 key_name,
+                   registry::path const&              path,
                    sam                                sam_desired,
                    std::optional<security_attributes> sa,
                    std::shared_ptr<ikey>&             returned_key) = 0;
 
         std::shared_ptr<ikey>
-        create_key(key_name_view_type                 key_name,
+        create_key(registry::path const&              path,
                    sam                                sam_desired,
                    std::optional<security_attributes> sa)
         {
             std::shared_ptr<ikey> returned_key;
-            auto const d = create_key(create_key_flags{}, key_name, sam_desired, sa, returned_key);
+            auto const d = create_key(create_key_flags{}, path, sam_desired, sa, returned_key);
             M_INTERNAL_ERROR_CHECK(!d);
             return returned_key;
         }
@@ -124,12 +125,12 @@ namespace m::pil
         using delete_key_disposition = disposition<delete_key_result_code, delete_key_result_flags>;
 
         virtual delete_key_disposition
-        delete_key(delete_key_flags flags, key_name_view_type key_name, sam sam_desired) = 0;
+        delete_key(delete_key_flags flags, registry::path const& path, sam sam_desired) = 0;
 
         void
-        delete_key(key_name_view_type key_name)
+        delete_key(registry::path const& path)
         {
-            auto const d = delete_key(delete_key_flags{}, key_name, sam::default_delete_key);
+            auto const d = delete_key(delete_key_flags{}, path, sam::default_delete_key);
             M_INTERNAL_ERROR_CHECK(!d);
         }
 
@@ -153,10 +154,10 @@ namespace m::pil
             disposition<delete_tree_result_code, delete_tree_result_flags>;
 
         virtual delete_tree_disposition
-        delete_tree(delete_tree_flags flags, std::optional<key_name_view_type> key_name) = 0;
+        delete_tree(delete_tree_flags flags, std::optional<registry::path> const& key_name) = 0;
 
         void
-        delete_tree(std::optional<key_name_view_type> key_name)
+        delete_tree(std::optional<key_name_view_type> const& key_name)
         {
             auto const d = delete_tree(delete_tree_flags{}, key_name);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -192,15 +193,15 @@ namespace m::pil
         /// <param name="key_name"></param>
         /// <returns></returns>
         virtual enumerate_keys_disposition
-        enumerate_keys(enumerate_keys_flags                           flags,
-                       std::size_t                                    starting_index,
-                       std::span<key_name_type, std::dynamic_extent>& key_names) = 0;
+        enumerate_keys(enumerate_keys_flags                            flags,
+                       std::size_t                                     starting_index,
+                       std::span<registry::path, std::dynamic_extent>& key_names) = 0;
 
-        std::optional<key_name_type>
+        std::optional<registry::path>
         enumerate_keys(std::size_t index)
         {
-            key_name_type key_name;
-            auto          s = std::span<key_name_type, std::dynamic_extent>(&key_name, 1);
+            registry::path key_name;
+            auto           s = std::span<registry::path, std::dynamic_extent>(&key_name, 1);
 
             auto const d = enumerate_keys(enumerate_keys_flags{}, index, s);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -259,24 +260,24 @@ namespace m::pil
         using open_key_disposition = disposition<open_key_result_code, open_key_result_flags>;
 
         virtual open_key_disposition
-        open_key(open_key_flags                    flags,
-                 std::optional<key_name_view_type> key_name,
-                 sam                               sam_desired,
-                 std::shared_ptr<ikey>&            returned_key) = 0;
+        open_key(open_key_flags                       flags,
+                 std::optional<registry::path> const& path,
+                 sam                                  sam_desired,
+                 std::shared_ptr<ikey>&               returned_key) = 0;
 
         std::shared_ptr<ikey>
-        open_key(std::optional<key_name_view_type> key_name, sam sam_desired)
+        open_key(std::optional<registry::path> const& path, sam sam_desired)
         {
             std::shared_ptr<ikey> returned_key;
-            auto const d = open_key(open_key_flags{}, key_name, sam_desired, returned_key);
+            auto const            d = open_key(open_key_flags{}, path, sam_desired, returned_key);
             M_INTERNAL_ERROR_CHECK(!d);
             return returned_key;
         }
 
         std::shared_ptr<ikey>
-        open_key(std::optional<key_name_view_type> key_name)
+        open_key(std::optional<registry::path> const& path)
         {
-            return open_key(key_name, sam::default_open_key);
+            return open_key(path, sam::default_open_key);
         }
 
         //
@@ -340,12 +341,13 @@ namespace m::pil
         using rename_key_disposition = disposition<rename_key_result_code, rename_key_result_flags>;
 
         virtual rename_key_disposition
-        rename_key(rename_key_flags                  flags,
-                   std::optional<key_name_view_type> old_key_name,
-                   key_name_view_type                new_key_name) = 0;
+        rename_key(rename_key_flags                     flags,
+                   std::optional<registry::path> const& old_key_name,
+                   registry::path const&                new_key_name) = 0;
 
         void
-        rename_key(std::optional<key_name_view_type> old_key_name, key_name_view_type new_key_name)
+        rename_key(std::optional<registry::path> const& old_key_name,
+                   registry::path const&                new_key_name)
         {
             auto const d = rename_key(rename_key_flags{}, old_key_name, new_key_name);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -392,12 +394,13 @@ namespace m::pil
         {
         };
 
-        enum class enumerate_values_result_flags : uint32_t
+        enum class enumerate_value_names_and_types_result_flags : uint32_t
         {
         };
 
         using enumerate_value_names_and_types_disposition =
-            disposition<enumerate_value_names_and_types_result_code, enumerate_values_result_flags>;
+            disposition<enumerate_value_names_and_types_result_code,
+                        enumerate_value_names_and_types_result_flags>;
 
         struct enumerate_value_names_and_types_value
         {
@@ -455,7 +458,7 @@ namespace m::pil
             }
 
             value_name_type m_value_name;
-            reg_value_type  m_reg_value_type;
+            reg_value_type  m_reg_value_type{reg_value_type::none};
         };
 
         virtual enumerate_value_names_and_types_disposition
@@ -629,7 +632,175 @@ namespace m::pil
                   value_name_view_type       value_name,
                   reg_value_type             type,
                   std::span<std::byte const> value) = 0;
+
+        //
+        // get_path
+        //
+
+        enum class get_path_flags : uint64_t
+        {
+        };
+
+        enum class get_path_result_code : uint32_t
+        {
+        };
+
+        enum class get_path_result_flags : uint32_t
+        {
+        };
+
+        using get_path_disposition = disposition<get_path_result_code, get_value_result_flags>;
+
+        virtual get_path_disposition
+        get_path(get_path_flags flags, pil::registry::path& path) = 0;
+
+        pil::registry::path
+        get_path()
+        {
+            pil::registry::path p;
+            auto                d = get_path(get_path_flags{}, p);
+            M_INTERNAL_ERROR_CHECK(!d);
+            return p;
+        }
     };
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::create_key_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::create_key_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::delete_key_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::delete_key_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::delete_tree_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::delete_tree_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::enumerate_keys_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::enumerate_keys_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::flush_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::flush_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::open_key_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::open_key_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::query_information_key_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::query_information_key_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::rename_key_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::rename_key_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::delete_value_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::delete_value_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::enumerate_value_names_and_types_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::enumerate_value_names_and_types_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::get_value_size_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::get_value_size_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::get_value_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::get_value_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::set_value_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::set_value_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::get_path_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(ikey::get_path_result_flags);
+
+    struct iregistry_monitor_change_notification
+    {
+        virtual void
+        on_begin(utc_time_point when) = 0;
+
+        struct requeue_key_access_attempt
+        {
+            std::chrono::milliseconds m_milliseconds;
+        };
+
+        virtual std::optional<requeue_key_access_attempt>
+        on_key_access_failure(utc_time_point           when,
+                              registry::path const&    key,
+                              std::system_error const& ec) = 0;
+
+        struct requeue_change_notification_attempt
+        {
+            std::chrono::milliseconds m_milliseconds;
+        };
+
+        virtual std::optional<requeue_change_notification_attempt>
+        on_change_notification_attempt_failure(utc_time_point           when,
+                                               registry::path const&    key,
+                                               std::system_error const& ec) = 0;
+
+        virtual void
+        on_change(utc_time_point when, registry::path const& key) = 0;
+
+        virtual void
+        on_cancelled(utc_time_point when) = 0;
+
+    protected:
+        virtual ~iregistry_monitor_change_notification() {}
+    };
+
+    struct iregistry_monitor_token
+    {
+        virtual ~iregistry_monitor_token() {}
+    };
+
+    struct iregistry_monitor
+    {
+        virtual ~iregistry_monitor() {}
+
+        enum class register_watch_flags : uint64_t
+        {
+            watch_subtree     = 1ull << 0,
+            key_changes       = 1ull << 1,
+            attribute_changes = 1ull << 2,
+            value_changes     = 1ull << 3,
+            security_changes  = 1ull << 4,
+        };
+
+        enum class register_watch_result_code : uint32_t
+        {
+        };
+
+        enum class register_watch_result_flags : uint32_t
+        {
+        };
+
+        using register_watch_disposition =
+            disposition<register_watch_result_code, register_watch_result_flags>;
+
+        virtual register_watch_disposition
+        register_watch(register_watch_flags                                flags,
+                       pil::registry::path const&                          path,
+                       m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
+                       std::unique_ptr<iregistry_monitor_token>&           returned_ptr) = 0;
+
+        std::unique_ptr<iregistry_monitor_token>
+        register_watch(pil::registry::path const&                          path,
+                       m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
+        {
+            std::unique_ptr<iregistry_monitor_token> returned_ptr;
+            auto const                               d =
+                register_watch(register_watch_flags{}, path, change_notification_ptr, returned_ptr);
+            M_INTERNAL_ERROR_CHECK(!d);
+            return returned_ptr;
+        }
+
+        std::unique_ptr<iregistry_monitor_token>
+        register_watch(register_watch_flags                                flags,
+                       pil::registry::path const&                          path,
+                       m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
+        {
+            std::unique_ptr<iregistry_monitor_token> returned_ptr;
+            auto const d = register_watch(flags, path, change_notification_ptr, returned_ptr);
+            M_INTERNAL_ERROR_CHECK(!d);
+            return returned_ptr;
+        }
+    };
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iregistry_monitor::register_watch_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iregistry_monitor::register_watch_result_flags);
 
     struct iregistry
     {
@@ -661,9 +832,7 @@ namespace m::pil
                             std::shared_ptr<m::pil::ikey>& returned_key) = 0;
 
         std::shared_ptr<m::pil::ikey>
-        open_predefined_key(predefined_key pk
-
-        )
+        open_predefined_key(predefined_key pk)
         {
             std::shared_ptr<m::pil::ikey> returned_key;
             auto const                    d = open_predefined_key(
@@ -671,7 +840,44 @@ namespace m::pil
             M_INTERNAL_ERROR_CHECK(!d);
             return returned_key;
         }
+
+        //
+        //  monitor
+        //
+
+        enum class monitor_flags : uint64_t
+        {
+        };
+
+        enum class monitor_result_code : uint32_t
+        {
+        };
+
+        enum class monitor_result_flags : uint32_t
+        {
+        };
+
+        using monitor_disposition = disposition<monitor_result_code, monitor_result_flags>;
+
+        virtual monitor_disposition
+        monitor(monitor_flags                               flags,
+                std::shared_ptr<m::pil::iregistry_monitor>& returned_registry_monitor) = 0;
+
+        std::shared_ptr<m::pil::iregistry_monitor>
+        monitor()
+        {
+            std::shared_ptr<m::pil::iregistry_monitor> returned_monitor;
+            auto const d = monitor(monitor_flags{}, returned_monitor);
+            M_INTERNAL_ERROR_CHECK(!d);
+            return returned_monitor;
+        }
     };
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iregistry::open_predefined_key_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iregistry::open_predefined_key_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iregistry::monitor_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iregistry::monitor_result_flags);
 
     struct hive
     {};

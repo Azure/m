@@ -5,11 +5,11 @@
 
 #include <atomic>
 #include <filesystem>
-#include <print>
 #include <span>
 #include <string_view>
 
 #include <m/memory/memory.h>
+#include <m/print/print.h>
 
 using namespace std::string_view_literals;
 
@@ -181,7 +181,7 @@ TEST(MemoryUniqueSpan, CountOps1)
 
     diff1 = stats2 - stats1;
 
-    std::println("diff1: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
+    m::println("diff1: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
                  diff1.m_dccnt_delta,
                  diff1.m_cccnt_delta,
                  diff1.m_mvccnt_delta,
@@ -198,7 +198,7 @@ TEST(MemoryUniqueSpan, CountOps1)
 
     diff2 = stats3 - stats2;
 
-    std::println("diff2: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
+    m::println("diff2: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
                  diff2.m_dccnt_delta,
                  diff2.m_cccnt_delta,
                  diff2.m_mvccnt_delta,
@@ -215,7 +215,7 @@ TEST(MemoryUniqueSpan, CountOps1)
 
     diff3 = stats4 - stats3;
 
-    std::println("diff3: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
+    m::println("diff3: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
                  diff3.m_dccnt_delta,
                  diff3.m_cccnt_delta,
                  diff3.m_mvccnt_delta,
@@ -235,7 +235,7 @@ TEST(MemoryUniqueSpan, CountOps1)
     owc_stats stats5;
     diff4 = stats5 - stats4;
 
-    std::println("diff4: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
+    m::println("diff4: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
                  diff4.m_dccnt_delta,
                  diff4.m_cccnt_delta,
                  diff4.m_mvccnt_delta,

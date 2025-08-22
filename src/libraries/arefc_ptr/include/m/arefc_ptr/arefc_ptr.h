@@ -80,44 +80,89 @@ namespace m
 
             control_area*
             get_control_area() const;
- 
+
             static void
             destroyer(void* ptr)
             {
                 std::destroy_n(reinterpret_cast<T*>(ptr), 1);
             }
 
-            inline static std::span<std::byte>
-                allocate(std::size_t bytes)
+            struct allocate_helper
+            {
+                allocate_helper() = default;
+
+                allocate_helper(std::span<std::byte> s): m_span(s) {}
+
+                // no copy operations to avoid possible multiple ownership
+                allocate_helper(allocate_helper&& other)
+                {
+                    using std::swap;
+                    swap(m_span, other.m_span);
+                }
+
+                allocate_helper&
+                operator=(allocate_helper&& other)
+                {
+                    using std::swap;
+                    swap(m_span, other.m_span);
+                }
+
+                ~allocate_helper()
+                {
+                    if (auto const s = std::exchange(m_span, std::span<std::byte>{}); s.size() != 0)
+                        aggregate::deallocate(s);
+                }
+
+                aggregate*
+                operator->() const
+                {
+                    return reinterpret_cast<aggregate*>(m_span.data());
+                }
+
+                operator aggregate*() const { return reinterpret_cast<aggregate*>(m_span.data()); }
+
+                void
+                release()
+                {
+                    m_span = std::span<std::byte>{};
+                }
+
+                std::span<std::byte> m_span{};
+            };
+
+            inline static allocate_helper
+            allocate(std::size_t bytes)
             {
                 if constexpr (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)
                 {
-                    return std::span(new std::byte[bytes], bytes);
+                    return allocate_helper{std::span(new std::byte[bytes], bytes)};
                 }
                 else
                 {
-                    return m::aligned_alloc(std::align_val_t{alignof(T)}, bytes);
+                    return allocate_helper{m::aligned_alloc(std::align_val_t{alignof(T)}, bytes)};
                 }
             }
 
             inline static void
-                deallocate(std::span<std::byte> s)
+            deallocate(std::span<std::byte> s)
             {
+                auto const agg_ptr = s.data() - offsetof(aggregate, m_object);
+                // Depending on whether T is aligned greater than the default
+                // alignment or not, use the default deallocation strategy or not.
                 if constexpr (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)
                 {
-                    delete[] s.data();
+                    delete[] agg_ptr;
                 }
                 else
                 {
-                    m::aligned_free(s);
+                    m::aligned_free(std::span(agg_ptr, sizeof(aggregate)));
                 }
-
             }
         };
 
         /// <summary>
         /// Returns a pointer to the control area for *this.
-        /// 
+        ///
         /// Depending on alignof(T), may not be at offsetof(aggregate, m_control_area).
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -145,7 +190,7 @@ namespace m
         }
         /// <summary>
         /// Returns the control_area* for any given pointer.
-        /// 
+        ///
         /// Note that it is unnecessary to use the aggregate to
         /// find the control area. The control area is always immediately
         /// before the object.
@@ -164,18 +209,23 @@ namespace m
 
     } // namespace arefc_ptr_impl
 
+    constexpr std::size_t arefc_max_alignment = 512; // __STDCPP_DEFAULT_NEW_ALIGNMENT__??
+
     template <typename T>
-        requires(std::is_standard_layout_v<T>)
+    concept arefc_ptr_requirements =
+        (std::is_standard_layout_v<T> && (alignof(T) <= arefc_max_alignment));
+
+    template <typename T>
+        requires(arefc_ptr_requirements<T>)
     class arefc_ptr;
 
     template <typename T, typename... Args>
-        requires(std::is_standard_layout_v<T>)
+        requires(arefc_ptr_requirements<T>)
     arefc_ptr<T>
     mmake_arefc(Args&&... args);
 
     template <typename T, typename Fn, typename... Args>
-        requires(std::is_standard_layout_v<T> &&
-                 std::invocable<Fn, std::span<std::byte>, Args && ...>)
+        requires(arefc_ptr_requirements<T> && std::invocable<Fn, std::span<std::byte>, Args && ...>)
     arefc_ptr<T>
     mmake_arefc_ex(std::size_t  extra_bytes_required,
                    destroyer_fn destroyer,
@@ -196,7 +246,7 @@ namespace m
     /// </summary>
     /// <typeparam name="T"></typeparam>
     template <typename T>
-        requires(std::is_standard_layout_v<T>)
+        requires(arefc_ptr_requirements<T>)
     class arefc_ptr // ala shared_ptr
     {
     public:
@@ -205,7 +255,7 @@ namespace m
         arefc_ptr(arefc_ptr const& other): m_ptr{other.addref()} {}
 
         template <typename U>
-            requires(std::is_standard_layout_v<U> && std::convertible_to<U*, T*>)
+            requires(arefc_ptr_requirements<U> && std::convertible_to<U*, T*>)
         arefc_ptr(arefc_ptr<U> const& other): m_ptr{other.addref()}
         {}
 
@@ -232,7 +282,7 @@ namespace m
         }
 
         template <typename U>
-            requires(std::is_standard_layout_v<U> && std::convertible_to<U*, T*>)
+            requires(arefc_ptr_requirements<U> && std::convertible_to<U*, T*>)
         arefc_ptr&
         operator=(arefc_ptr<U> const& other)
         {
@@ -292,8 +342,15 @@ namespace m
             return m_ptr.load(std::memory_order_acquire);
         }
 
+        /// <summary>
+        /// Converts the current arefc_ptr to an arefc_ptr of type U, if U is a standard layout type
+        /// and convertible from T.
+        /// </summary>
+        /// <typeparam name="U">The target type to convert the arefc_ptr to. Must be a standard
+        /// layout type and convertible from T*.</typeparam> <returns>An arefc_ptr<U> instance
+        /// converted from the current arefc_ptr.</returns>
         template <typename U>
-            requires(std::is_standard_layout_v<U> && std::convertible_to<T*, U*>)
+            requires(arefc_ptr_requirements<U> && std::convertible_to<T*, U*>)
         arefc_ptr<U>
         to() const
         {
@@ -315,31 +372,20 @@ namespace m
 
             T* old_e = e; // save a copy so we don't have to re-load
 
+            increment_ref(d);
+
             if (m_ptr.compare_exchange_strong(e, d, std::memory_order_acq_rel))
             {
-                // the swap succeeded. this means that the arefc_ptr that d refers
-                // to needs to be addref'd, the one that e refers to needs
-                // to be released.
-                if (d != e)
-                {
-                    increment_ref(d);
-                    decrement_ref(e);
-                }
+                M_INTERNAL_ERROR_CHECK(e == old_e);
 
-                expected.put(d);
-
+                // Account for the fact that m_ptr no longer refers to `e`
+                decrement_ref(e);
                 return true;
             }
 
-            // In the other case, `e` now has the value that was actually in m_ptr
-            // so we will increment it, while we decrement the value of expected that
-            // came in which we stashed in old_e.
-            if (e != old_e)
-            {
-                increment_ref(e);
-                decrement_ref(old_e);
-                expected.put(e);
-            }
+            // The compare_exchange "failed", so now we need to update
+            // "expected" to the new value.
+            expected.reset(e);
 
             return false;
         }
@@ -412,7 +458,8 @@ namespace m
                     (destroyer)(objptr);
                 }
 
-                std::unique_ptr<std::byte[]> uniqptr(reinterpret_cast<std::byte*>(ca));
+                arefc_ptr_impl::aggregate<T>::deallocate(
+                    std::span(reinterpret_cast<std::byte*>(ptr), sizeof(T)));
             }
         }
 
@@ -429,12 +476,12 @@ namespace m
         std::atomic<T*> m_ptr{};
 
         template <typename T1, typename... Args>
-            requires(std::is_standard_layout_v<T1>)
+            requires(arefc_ptr_requirements<T1>)
         friend arefc_ptr<T1>
         mmake_arefc(Args&&... args);
 
         template <typename T1, typename Fn, typename... Args>
-            requires(std::is_standard_layout_v<T1> &&
+            requires(arefc_ptr_requirements<T1> &&
                      std::invocable<Fn, std::span<std::byte>, Args && ...>)
         friend arefc_ptr<T1>
         mmake_arefc_ex(std::size_t  extra_bytes_required,
@@ -444,8 +491,7 @@ namespace m
     };
 
     template <typename T, typename Fn, typename... Args>
-        requires(std::is_standard_layout_v<T> &&
-                 std::invocable<Fn, std::span<std::byte>, Args && ...>)
+        requires(arefc_ptr_requirements<T> && std::invocable<Fn, std::span<std::byte>, Args && ...>)
     arefc_ptr<T>
     mmake_arefc_ex(std::size_t  extra_bytes_required,
                    destroyer_fn destroyer,
@@ -457,23 +503,22 @@ namespace m
         auto const bytes_required =
             m::math::add(offsetof(aggregate_type, m_object), extra_bytes_required, std::size_t{});
 
-        auto       uniqptr = std::make_unique<std::byte[]>(bytes_required);
-        auto const aggptr  = reinterpret_cast<aggregate_type*>(uniqptr.get());
-        aggptr->m_control_area.m_refcount.store(1, std::memory_order_relaxed);
-        aggptr->m_control_area.m_destroyer = destroyer;
+        auto a = aggregate_type::allocate(bytes_required);
+        a->m_control_area.m_refcount.store(1, std::memory_order_relaxed);
+        a->m_control_area.m_destroyer = destroyer;
 
         auto const ptr = std::invoke<Fn, std::span<std::byte>, Args...>(
             std::forward<Fn>(fn),
-            std::span(reinterpret_cast<std::byte*>(&aggptr->m_object), extra_bytes_required),
+            std::span(reinterpret_cast<std::byte*>(&a->m_object), extra_bytes_required),
             std::forward<Args>(args)...);
 
-        uniqptr.release();
+        a.release();
         arefc_ptr<T> retval(ptr);
         return retval;
     }
 
     template <typename T, typename... Args>
-        requires(std::is_standard_layout_v<T>)
+        requires(arefc_ptr_requirements<T>)
     arefc_ptr<T>
     mmake_arefc(Args&&... args)
     {

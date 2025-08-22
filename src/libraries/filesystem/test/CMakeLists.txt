@@ -29,6 +29,7 @@ if(M_BUILD_TESTS)
         m_debugging
         m_filesystem
         m_googletest
+        m_print
         GTest::gtest_main
     )
 
@@ -37,6 +38,7 @@ if(M_BUILD_TESTS)
         m_debugging
         m_filesystem
         m_googletest
+        m_print
         GTest::gtest_main
     )
 

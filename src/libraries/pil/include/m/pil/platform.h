@@ -20,19 +20,11 @@
 #include <m/pil/registry.h>
 #include <m/strings/convert.h>
 #include <m/utility/utility.h>
-
-#ifdef WIN32
-#include <m/windows_strings/convert.h>
-#else
-#include <m/linux_strings/convert.h>
-#endif
-
-#include "common.h"
-#include "disposition.h"
-#include "security_attributes.h"
-
-#include "registry_base_types.h"
-#include "registry_interfaces.h"
+#include <m/pil/common.h>
+#include <m/pil/disposition.h>
+#include <m/pil/security_attributes.h>
+#include <m/pil/registry_base_types.h>
+#include <m/pil/registry_interfaces.h>
 
 namespace m::pil
 {
@@ -46,18 +38,14 @@ namespace m::pil
         ~platform() = default;
 
         platform&
-        operator=(platform&& other);
+        operator=(platform&& other) noexcept;
         platform&
         operator=(platform const& other);
 
-        friend void
-        swap(platform& l, platform& r) noexcept
-        {
-            using std::swap;
-            swap(l.m_platform, r.m_platform);
-        }
+        void
+        swap(platform& other) noexcept;
 
-        registry
+        registry_class
         get_registry();
 
     private:

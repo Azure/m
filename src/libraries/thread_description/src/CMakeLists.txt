@@ -14,6 +14,6 @@ list(APPEND m_installation_targets
     m_thread_description
 )
 
-add_subdirectory(platforms)
+add_subdirectory(Plats)
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

@@ -3,6 +3,7 @@
 
 #include <memory>
 
+#include <m/debugging/dbg_format.h>
 #include <m/tracing/monitor_class.h>
 #include <m/tracing/multiplexor.h>
 #include <m/tracing/tracing.h>
@@ -18,6 +19,7 @@ namespace m::tracing_impl
     //
     monitor::monitor(): m_closed_sinks{false}
     {
+        m::dbg_format("Constructing monitor at {}", reinterpret_cast<uintptr_t>(this));
         constexpr std::size_t raw_message_count = 64;
         m_raw_messages = std::make_unique<m::tracing::message[]>(raw_message_count);
 

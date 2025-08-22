@@ -8,6 +8,9 @@
 #include <string_view>
 #include <utility>
 
+#include <m/pil/registry_base_types.h>
+#include <m/pil/registry_path.h>
+
 namespace m::pil::impl
 {
     class pcwstr
@@ -15,11 +18,18 @@ namespace m::pil::impl
     public:
         pcwstr() = default;
         pcwstr(std::wstring_view v);
+        pcwstr(std::wstring const& v);
         pcwstr(std::u16string_view v);
+
+        pcwstr(std::optional<pil::registry::path> const& v);
+        pcwstr(pil::registry::path const& v);
+
         pcwstr(std::optional<std::wstring_view> v);
         pcwstr(std::optional<std::u16string_view> v);
         pcwstr(pcwstr&& other) noexcept;
         pcwstr(pcwstr const& other);
+        pcwstr(char16_t const* ptr) noexcept;
+        pcwstr(wchar_t const* ptr) noexcept;
         ~pcwstr() = default;
 
         pcwstr&
@@ -27,22 +37,24 @@ namespace m::pil::impl
         pcwstr&
         operator=(pcwstr&& other) noexcept;
 
-        friend void
-        swap(pcwstr& l, pcwstr& r) noexcept
+        void
+        swap(pcwstr& other) noexcept
         {
             using std::swap;
 
-            swap(l.m_value, r.m_value);
+            swap(m_value, other.m_value);
+            swap(m_c_str, other.m_c_str);
         }
 
-        constexpr operator wchar_t const*() const noexcept
+        constexpr
+        operator wchar_t const*() const noexcept
         {
-            return (m_value.size() > 0) ? m_value.data() : nullptr;
+            return m_c_str;
         }
-
 
     private:
-        std::wstring m_value;
+        wchar_t const* m_c_str{};
+        std::wstring   m_value;
     };
 
 } // namespace m::pil::impl

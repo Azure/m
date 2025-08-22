@@ -6,12 +6,12 @@
 #include <iostream>
 #include <format>
 #include <memory>
-#include <print>
 #include <string>
 #include <string_view>
 
 #include <m/pil/pil.h>
 #include <m/pil/registry.h>
+#include <m/print/print.h>
 
 using namespace std::string_view_literals;
 
@@ -27,14 +27,14 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoft)
 
     for (auto&& e: keys)
     {
-        std::println("key: {}", m::to_string(e));
+        m::println("key: {}", m::to_string(e.native().view()));
     }
 
     auto values = k2.list_value_names_and_types();
 
     for (auto&& e: values)
     {
-        std::println("value: {{ name: {}, type: {} }}",
+        m::println("value: {{ name: {}, type: {} }}",
                      m::to_string(e.m_value_name),
                      std::to_underlying(e.m_reg_value_type));
     }
@@ -55,14 +55,14 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoftWindiff)
 
         for (auto&& e: keys)
         {
-            std::println("key: {}", m::to_string(e));
+            m::println("key: {}", m::to_string(e.native().view()));
         }
 
         auto values = k2.list_value_names_and_types();
 
         for (auto&& e: values)
         {
-            std::println("value: {{ name: {}, type: {} }}",
+            m::println("value: {{ name: {}, type: {} }}",
                          m::to_string(e.m_value_name),
                          std::to_underlying(e.m_reg_value_type));
         }
@@ -88,7 +88,7 @@ TEST(BufferedOverDirectRegistry, TrySettingStringValue)
 
     auto v = k2.get_string_value(L"Value1"sv);
 
-    std::println("Value was: {}", m::to_string(v));
+    m::println("Value was: {}", m::to_string(v));
 
     EXPECT_EQ(1, 1);
 }
@@ -107,7 +107,7 @@ TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint)
 
     auto v = k2.get_string_value(L"Cherry"sv);
 
-    std::println("Value was: {}", m::to_string(v));
+    m::println("Value was: {}", m::to_string(v));
 
     EXPECT_EQ(1, 1);
 }
@@ -129,7 +129,7 @@ TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint2)
 
     auto v = k2.get_string_value(L"Cherry"sv);
 
-    std::println("Value was: {}", m::to_string(v));
+    m::println("Value was: {}", m::to_string(v));
 
     EXPECT_EQ(1, 1);
 }

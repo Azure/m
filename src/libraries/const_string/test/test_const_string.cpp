@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <m/utility/compiler.h>
+
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -8,12 +10,12 @@
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <print>
 #include <string>
 #include <string_view>
 #include <thread>
 
 #include <m/const_string/const_string.h>
+#include <m/print/print.h>
 #include <m/test_data/test_data.h>
 
 using namespace std::chrono_literals;
@@ -37,7 +39,7 @@ TEST(TestConstString, TryInitializerListAndPrint)
     auto y = m::make_const_string("bar"sv);
     auto z = m::make_const_string({"foo"sv, "bar"sv, "baz"sv});
 
-    std::println(
+    m::println(
         "After all that, x = \"{}\", y = \"{}\", and z = \"{}\"", x->view(), y->view(), z->view());
 }
 
@@ -51,6 +53,5 @@ TEST(TestConstString, TestAddWithNatoLetters1)
         // x = *x + *t;
     }
 
-    std::println("{}", x->view());
+    m::println("{}", x->view());
 }
-

@@ -8,7 +8,6 @@
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <print>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -16,6 +15,7 @@
 
 #include <m/windows_chrono/windows_chrono_casts.h>
 #include <m/formatters/FILETIME.h>
+#include <m/print/print.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
@@ -81,5 +81,5 @@ TEST(WindowsChronoCasts, FILETIMECasting)
 { auto const d = 100ms;
     auto       x = m::to<FILETIME>(d);
 
-    std::println("Result conversion {} -> {}", d, fmtFILETIME{x});
+    m::println("Result conversion {} -> {}", d, fmtFILETIME{x});
 }

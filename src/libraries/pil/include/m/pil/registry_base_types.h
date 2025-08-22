@@ -14,6 +14,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <m/sstring/sstring.h>
 #include <m/strings/convert.h>
 #include <m/utility/utility.h>
 
@@ -97,8 +98,8 @@ namespace m::pil
 
     template <typename CharT>
     void
-    to_null_terminated_registry_storage_string(std::basic_string_view<CharT> const&    view,
-                                               registry_storage_string_type& value)
+    to_null_terminated_registry_storage_string(std::basic_string_view<CharT> const& view,
+                                               registry_storage_string_type&        value)
     {
         using namespace std::string_view_literals;
 
@@ -119,19 +120,6 @@ namespace m::pil
 
     registry_storage_string_type
     to_double_null_terminated_registry_storage_string(std::vector<registry_string_type> const& v);
-
-    enum class predefined_key : uint32_t
-    {
-        classes_root                = 0x80000000ul, // HKEY_CLASSES_ROOT
-        current_user                = 0x80000001ul, // HKEY_CURRENT_USER
-        local_machine               = 0x80000002ul, // HKEY_LOCAL_MACHINE
-        users                       = 0x80000003ul, // HKEY_USERS
-        performance_data            = 0x80000004ul, // HKEY_PERFORMANCE_DATA
-        current_config              = 0x80000005ul, // HKEY_CURRENT_CONFIG
-        current_user_local_settings = 0x80000007ul, // HKEY_CURRENT_USER_LOCAL_SETTINGS
-        performance_text            = 0x80000050ul, // HKEY_PERFORMANCE_TEXT
-        performance_nlstext         = 0x80000060ul, // HKEY_PERFORMANCE_NLSTEXT
-    };
 
     enum class reg_value_type : uint32_t
     {
@@ -158,4 +146,5 @@ namespace m::pil
         default_delete_key = maximum_allowed, // default access mask for delete_key
         default_open_key   = maximum_allowed, // default access mask for open_key
     };
+
 } // namespace m::pil

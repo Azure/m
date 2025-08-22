@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include <m/utf/transcode.h>
+#include <m/utility/pointers.h>
 
 #include "convert.h"
 
@@ -74,6 +75,21 @@ namespace m
     }
 
     constexpr std::wstring
+    to_wstring(m::not_null<char8_t const*> ptr)
+    {
+        return to_wstring(std::u8string_view(ptr));
+    }
+
+    constexpr std::optional<std::wstring>
+    to_wstring(char8_t const* ptr)
+    {
+        if (ptr)
+            return to_wstring(m::not_null<char8_t const*>(ptr));
+
+        return std::nullopt;
+    }
+
+    constexpr std::wstring
     to_wstring(std::u16string_view v)
     {
         std::wstring str;
@@ -125,6 +141,21 @@ namespace m
     to_wstring(std::u16string const& s, std::wstring& str)
     {
         utf::transcode(std::u16string_view{s}, str);
+    }
+
+    constexpr std::wstring
+    to_wstring(m::not_null<char16_t const*> ptr)
+    {
+        return to_wstring(std::u16string_view(ptr));
+    }
+
+    constexpr std::optional<std::wstring>
+    to_wstring(char16_t const* ptr)
+    {
+        if (ptr)
+            return to_wstring(m::not_null<char16_t const*>(ptr));
+
+        return std::nullopt;
     }
 
     constexpr std::wstring
@@ -181,6 +212,21 @@ namespace m
         utf::transcode(std::u32string_view{s}, str);
     }
 
+    constexpr std::wstring
+    to_wstring(m::not_null<char32_t const*> ptr)
+    {
+        return to_wstring(std::u32string_view(ptr));
+    }
+
+    constexpr std::optional<std::wstring>
+    to_wstring(char32_t const* ptr)
+    {
+        if (ptr)
+            return to_wstring(m::not_null<char32_t const*>(ptr));
+
+        return std::nullopt;
+    }
+
     constexpr void
     to_u8string(std::wstring_view v, std::u8string& str)
     {
@@ -195,6 +241,21 @@ namespace m
         return str;
     }
 
+    constexpr std::u8string
+    to_u8string(m::not_null<wchar_t const*> ptr)
+    {
+        return to_u8string(std::wstring_view(ptr));
+    }
+
+    constexpr std::optional<std::u8string>
+    to_u8string(wchar_t const* ptr)
+    {
+        if (ptr)
+            return to_u8string(m::not_null<wchar_t const*>(ptr));
+
+        return std::nullopt;
+    }
+
     constexpr void
     to_u16string(std::wstring_view v, std::u16string& str)
     {
@@ -207,6 +268,21 @@ namespace m
         std::u16string str;
         utf::transcode(v, str);
         return str;
+    }
+
+    constexpr std::u16string
+    to_u16string(m::not_null<wchar_t const*> ptr)
+    {
+        return to_u16string(std::wstring_view(ptr));
+    }
+
+    constexpr std::optional<std::u16string>
+    to_u16string(wchar_t const* ptr)
+    {
+        if (ptr)
+            return to_u16string(m::not_null<wchar_t const*>(ptr));
+
+        return std::nullopt;
     }
 
     //
@@ -224,6 +300,21 @@ namespace m
         std::u32string str;
         to_u32string(view, str);
         return str;
+    }
+
+    constexpr std::u32string
+    to_u32string(m::not_null<wchar_t const*> ptr)
+    {
+        return to_u32string(std::wstring_view(ptr));
+    }
+
+    constexpr std::optional<std::u32string>
+    to_u32string(wchar_t const* ptr)
+    {
+        if (ptr)
+            return to_u32string(m::not_null<wchar_t const*>(ptr));
+
+        return std::nullopt;
     }
 
 } // namespace m

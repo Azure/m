@@ -66,9 +66,9 @@ namespace m
 
         ~not_null() = default;
 
-        operator T() const noexcept { return m_v; }
+        constexpr operator T() const noexcept { return m_v; }
 
-        T
+        constexpr T
         operator->() const noexcept
         {
             return m_v;

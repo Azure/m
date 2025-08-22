@@ -12,6 +12,7 @@ if(M_BUILD_TESTS)
 
     target_link_libraries(test_mc
         m_mc
+        m_print
         GTest::gtest_main
     )
 

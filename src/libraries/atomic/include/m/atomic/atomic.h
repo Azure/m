@@ -27,8 +27,8 @@ namespace m
         if (retval)
             return retval;
 
-        auto newval =
-            std::unique_ptr<std::remove_pointer_t<T>>(std::invoke_r<T, Fn>(std::forward<Fn>(fn)));
+        auto newval = std::unique_ptr<std::remove_pointer_t<T>>(
+            static_cast<T>(std::invoke_r<T, Fn>(std::forward<Fn>(fn))));
 
         while (retval == nullptr)
         {
@@ -43,10 +43,11 @@ namespace m
 #endif // M_HAS_CXX23
 
     template <typename T,
-              T f() = []() -> T {
-                  using X = std::remove_pointer_t<T>;
-                  return new X;
-              },
+              T f() =
+                  []() {
+                      using X = std::remove_pointer_t<T>;
+                      return new X;
+                  },
               void g(T) = [](T ptr) { delete ptr; }>
         requires(std::is_pointer_v<T>)
     class atomic_pointer_with_initializer

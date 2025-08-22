@@ -11,6 +11,7 @@ if(M_BUILD_TESTS)
 
     target_link_libraries(test_arc_ptr
         m_arefc_ptr
+        m_print
         GTest::gtest_main
     )
 

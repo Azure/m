@@ -8,6 +8,7 @@
 #include <tuple>
 
 #include <m/error_handling/macros.h>
+#include <m/optional/optional.h>
 #include <m/pil/registry.h>
 #include <m/strings/convert.h>
 #include <m/strings/split.h>
@@ -41,7 +42,7 @@ namespace m::pil
     }
 
     key
-    key::do_create_key(std::u16string_view key_name)
+    key::do_create_key(pil::registry::path const& key_name)
     {
         std::shared_ptr<ikey> return_value;
 
@@ -55,15 +56,15 @@ namespace m::pil
         return key(std::move(return_value));
     }
 
-    std::vector<registry_string_type>
+    std::vector<registry::path>
     key::list_subkey_names()
     {
-        std::vector<registry_string_type> result;
+        std::vector<registry::path> result;
 
         std::size_t index{};
 
-        std::array<std::u16string, 32> key_names;
-        auto key_names_span = std::span<std::u16string, std::dynamic_extent>(key_names);
+        std::array<registry::path, 32> key_names;
+        auto key_names_span = std::span<registry::path, std::dynamic_extent>(key_names);
 
         for (;;)
         {
@@ -72,7 +73,7 @@ namespace m::pil
             M_INTERNAL_ERROR_CHECK(!d); // no flags in, no disposition out
 
             for (auto&& key_name: key_names_span)
-                result.emplace_back(to_registry_string(key_name));
+                result.emplace_back(key_name);
 
             // If the batch was short, we're done
             if (key_names_span.size() != key_names.size())
@@ -146,7 +147,7 @@ namespace m::pil
     }
 
     void
-    key::do_delete_key(std::u16string_view key_name)
+    key::do_delete_key(pil::registry::path const& key_name)
     {
         auto const d =
             m_key->delete_key(ikey::delete_key_flags{}, key_name, sam::default_delete_key);
@@ -154,50 +155,47 @@ namespace m::pil
     }
 
     void
-    key::do_delete_tree(std::optional<std::u16string_view> key_name)
+    key::do_delete_tree(std::optional<pil::registry::path> const& key_name)
     {
         auto const d = m_key->delete_tree(ikey::delete_tree_flags{}, key_name);
         M_INTERNAL_ERROR_CHECK(!d);
     }
 
     key
-    key::do_open_key(std::optional<std::u16string_view> key_name)
+    key::do_open_key(std::optional<pil::registry::path> const& key_name)
     {
-        std::shared_ptr<ikey> key_interface;
+        if (!key_name.has_value())
+            return *this;
 
-        if (key_name)
-        {
-            key_interface            = m_key;
-            std::u16string_view name = key_name.value();
+        key  result{*this};
+        auto name = static_cast<typename pil::registry::path::string_type>(key_name.value());
 
-            for (;;)
-            {
-                auto r        = m::split_basic_string(name, uregistry_delimiter);
-                key_interface = key_interface->open_key(r.item);
-                if (r.remainder.has_value())
-                    name = r.remainder.value();
-                else
-                    break;
-            }
-        }
-        else
+        for (;;)
         {
-            auto const d = m_key->open_key(
-                ikey::open_key_flags{}, key_name, sam::default_open_key, key_interface);
-            M_INTERNAL_ERROR_CHECK(!d);
+            auto [left, right] = name.split_at(uregistry_delimiter);
+
+            if (!left.empty())
+                result = key(result.m_key->open_key(pil::registry::path(left)));
+
+            if (right.empty())
+                break;
+
+            name = right;
         }
-        return key(std::move(key_interface));
+
+        return result;
     }
 
     void
-    key::do_rename_key(std::u16string_view old_key_name, std::u16string_view new_key_name)
+    key::do_rename_key(pil::registry::path const& old_key_name,
+                       pil::registry::path const& new_key_name)
     {
         auto const d = m_key->rename_key(ikey::rename_key_flags{}, old_key_name, new_key_name);
         M_INTERNAL_ERROR_CHECK(!d);
     }
 
     void
-    key::do_rename_key(std::u16string_view new_key_name)
+    key::do_rename_key(pil::registry::path const& new_key_name)
     {
         auto const d = m_key->rename_key(ikey::rename_key_flags{}, std::nullopt, new_key_name);
         M_INTERNAL_ERROR_CHECK(!d);
@@ -428,7 +426,7 @@ namespace m::pil
     {
         for (;;)
         {
-            std::span<std::byte>       s = m::make_span(&bytes[0], bytes.size());
+            std::span<std::byte>       s = m::make_span(bytes.data(), bytes.size());
             std::optional<std::size_t> new_bytes_required{std::nullopt};
             reg_value_type             type{};
 
@@ -485,6 +483,12 @@ namespace m::pil
         }
 
         return std::u16string_view(p, char_count);
+    }
+
+    m::pil::key::path_type
+    key::do_get_path()
+    {
+        return m_key->get_path();
     }
 
 } // namespace m::pil

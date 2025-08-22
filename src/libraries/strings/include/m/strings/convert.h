@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include <m/strings/tstring.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 #include <m/utf/transcode.h>

@@ -21,6 +21,7 @@
 #include <m/pil/registry_interfaces.h>
 #include <m/pil/security_attributes.h>
 #include <m/strings/convert.h>
+#include <m/utility/enum_operations.h.h>
 #include <m/utility/utility.h>
 
 #ifdef WIN32
@@ -76,4 +77,8 @@ namespace m::pil
 
         //
     };
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iplatform::get_registry_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iplatform::get_registry_result_flags);
+
 } // namespace m::pil

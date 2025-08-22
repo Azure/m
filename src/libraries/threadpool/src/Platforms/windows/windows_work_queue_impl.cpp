@@ -23,7 +23,7 @@ namespace m::windows_threadpool_impl
     void
     work_queue::on_new_work_item(std::shared_ptr<m::work_queue_impl::work_item> const&)
     {
-        ::SubmitThreadpoolWork(m_tp_work);
+        m_tp_work.submit();
     }
 
     void
@@ -32,8 +32,8 @@ namespace m::windows_threadpool_impl
         auto callback_context_ptr          = std::make_unique<callback_context>();
         callback_context_ptr->m_work_queue = weak_from_this();
 
-        auto wrk =
-            tp_work(&work_queue::static_tp_work_callback, callback_context_ptr.get(), nullptr);
+        auto wrk = win32::threadpool::tp_work(
+            &work_queue::static_tp_work_callback, callback_context_ptr.get(), nullptr);
 
         using std::swap;
 

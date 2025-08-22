@@ -32,8 +32,8 @@
 #define M_INTERNAL_ERROR_CHECK(e)                                                                  \
     do                                                                                             \
     {                                                                                              \
-        bool const m_internal_v = !!(e);                                                           \
-        if (!m_internal_v)                                                                         \
+        bool const m_m_internal_v = !!(e);                                                         \
+        if (!m_m_internal_v)                                                                       \
         {                                                                                          \
             m::trace_internal_error_check_failure(std::source_location::current(), #e);            \
             M_FAIL_FAST_NO_TEXT();                                                                 \
@@ -79,8 +79,8 @@
 #define M_CHECK_OR_NOT_IMPLEMENTED(expr, text)                                                     \
     do                                                                                             \
     {                                                                                              \
-        auto const m_internal_value = !!(expr);                                                    \
-        if (!m_internal_value)                                                                     \
+        auto const m_m_internal_value = !!(expr);                                                  \
+        if (!m_m_internal_value)                                                                   \
         {                                                                                          \
             m::trace_error("Test failed: {}; not implementetd. {}", #expr, text);                  \
             throw m::not_implemented(text);                                                        \
@@ -90,10 +90,54 @@
 #define M_VALIDATE_PARAMETER(pname, expr)                                                          \
     do                                                                                             \
     {                                                                                              \
-        auto const m_internal_value = !!(expr);                                                    \
-        if (!m_internal_value)                                                                     \
+        auto const m_m_internal_value = !!(expr);                                                  \
+        if (!m_m_internal_value)                                                                   \
         {                                                                                          \
             m::trace_error("Parameter '{}' failed validation expression: '{}'", #pname, #expr);    \
+            throw m::invalid_parameter(#pname);                                                    \
+        }                                                                                          \
+    } while (false)
+
+#define M_VALIDATE_PARAMETER_NOT_NULLPTR(pname)                                                    \
+    do                                                                                             \
+    {                                                                                              \
+        auto const m_m_internal_value = (pname);                                                   \
+        if (pname == nullptr)                                                                      \
+        {                                                                                          \
+            m::trace_error("Parameter '{}' failed validation. Must not be nullptr.", #pname);      \
+            throw m::invalid_parameter(#pname);                                                    \
+        }                                                                                          \
+    } while (false)
+
+namespace m::macros_impl
+{
+    /// <summary>
+    /// m::macros_impl::integral_type_for_t<T> yields either the underlying type for the
+    /// enumeration type T, or T if it is an integral type.
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    template <typename T>
+        requires(std::integral<T> || std::is_enum_v<T>)
+    using integral_type_for_t = std::conditional_t<std::is_enum_v<T>, std::underlying_type_t<T>, T>;
+} // namespace m::macros_impl
+
+#define M_VALIDATE_FLAGS_PARAMETER(pname, valid_flags)                                             \
+    do                                                                                             \
+    {                                                                                              \
+        auto m_m_internal_value       = (pname);                                                   \
+        using m_m_internal_value_type = decltype(m_m_internal_value);                              \
+        using m_m_integral_type =                                                                  \
+            m::macros_impl::integral_type_for_t<decltype(m_m_internal_value)>;                     \
+        static_assert(std::integral<m_m_internal_value_type> ||                                    \
+                      std::is_enum_v<m_m_internal_value_type>);                                    \
+        m_m_internal_value_type m_m_internal_valid_flags = (valid_flags);                          \
+        m_m_internal_value_type m_m_internal_excess_flags =                                        \
+            m_m_internal_value & ~m_m_internal_valid_flags;                                        \
+        if (static_cast<bool>(m_m_internal_excess_flags))                                          \
+        {                                                                                          \
+            m::trace_error("Flags parameter '{}' has excess flags set: {:#x}",                     \
+                           #pname,                                                                 \
+                           static_cast<m_m_integral_type>(m_m_internal_excess_flags));             \
             throw m::invalid_parameter(#pname);                                                    \
         }                                                                                          \
     } while (false)
@@ -101,9 +145,10 @@
 #define M_API_PARAMETER_MUST_BE_ZERO(api, p)                                                       \
     do                                                                                             \
     {                                                                                              \
-        auto const m_internal_parameter_value           = (p);                                     \
-        auto const m_internal_parameter_reference_value = decltype(m_internal_parameter_value){};  \
-        if (m_internal_parameter_value != m_internal_parameter_reference_value)                    \
+        auto const m_m_internal_parameter_value = (p);                                             \
+        auto const m_m_internal_parameter_reference_value =                                        \
+            decltype(m_m_internal_parameter_value){};                                              \
+        if (m_m_internal_parameter_value != m_m_internal_parameter_reference_value)                \
         {                                                                                          \
             m::trace_error("Parameter '{}' failed MBZ validation in api '{}'", #p, #api);          \
             throw m::invalid_parameter(api "." #p);                                                \

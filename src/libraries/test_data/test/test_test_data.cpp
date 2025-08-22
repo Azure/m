@@ -8,12 +8,12 @@
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <print>
 #include <string>
 #include <string_view>
 #include <thread>
 
 #include <m/test_data/test_data.h>
+#include <m/print/print.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;

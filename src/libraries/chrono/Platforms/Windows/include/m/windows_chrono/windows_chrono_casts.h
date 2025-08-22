@@ -117,7 +117,7 @@ namespace m
             if (duration.count() < 0)
             {
                 trace_error("Programming error: invalid duration passed in; count < 0: {}",
-                                   duration.count());
+                            duration.count());
                 throw m::invalid_parameter("duration");
             }
 
@@ -140,7 +140,7 @@ namespace m
             // Durations in FILETIME are negative.
             //
             count = -count;
-            
+
             return std::bit_cast<FILETIME>(count);
         }
 
@@ -148,6 +148,44 @@ namespace m
         do_cast(std::chrono::duration<Rep, Period> const& d)
         {
             return DurationToFILETIME(d);
+        }
+    };
+
+    template <typename Clock, typename Duration>
+    struct try_cast_helper<std::chrono::time_point<Clock, Duration>, FILETIME, void>
+    {
+        static FILETIME
+        TimePointToFILETIME(utc_time_point utc_tp)
+        {
+            auto const duration = utc_tp.time_since_epoch();
+
+            //
+            // FILETIME is 100ns units, so for the ratio
+            // have the denominator be 1 billion divided by
+            // 100.
+            //
+            using FiletimeRatio    = std::ratio<1, 1'000'000'000 / 100>;
+            using FiletimeDuration = std::chrono::duration<int64_t, FiletimeRatio>;
+
+            auto const as_filetime_duration =
+                std::chrono::duration_cast<FiletimeDuration>(duration);
+
+            static_assert(std::numeric_limits<int64_t>::digits ==
+                          std::numeric_limits<typename FiletimeDuration::rep>::digits);
+
+            int64_t count = as_filetime_duration.count();
+
+            // Durations in FILETIME are negative.
+            //
+            count = -count;
+
+            return std::bit_cast<FILETIME>(count);
+        }
+
+        static constexpr decltype(auto)
+        do_cast(std::chrono::time_point<Clock, Duration> const& tp)
+        {
+            return TimePointToFILETIME(tp);
         }
     };
 

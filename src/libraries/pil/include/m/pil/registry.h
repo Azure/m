@@ -15,33 +15,32 @@
 #include <variant>
 #include <vector>
 
-#include <m/strings/convert.h>
-#include <m/utility/utility.h>
-
 #ifdef WIN32
 #include <m/windows_strings/convert.h>
 #else
 #include <m/linux_strings/convert.h>
 #endif
 
+#include <m/pil/registry_base_types.h>
+#include <m/pil/registry_interfaces.h>
+#include <m/pil/registry_path.h>
+#include <m/strings/convert.h>
+#include <m/utility/enum_operations.h.h>
+#include <m/utility/utility.h>
+
 #include "common.h"
 #include "disposition.h"
 #include "security_attributes.h"
 
-#include "registry_base_types.h"
-#include "registry_interfaces.h"
-
 namespace m::pil
 {
-    constexpr auto registry_delimiter   = '\\';   // char (MBCS Windows, UTF-8 Linux)
-    constexpr auto wregistry_delimiter  = L'\\';  // wchar_t (UTF-16 Windows, UTF-32 Linux)
-    constexpr auto u8registry_delimiter = u8'\\'; // char8_t (UTF-8)
-    constexpr auto uregistry_delimiter  = u'\\';  // char16_t (UTF-16)
-    constexpr auto Uregistry_delimiter  = U'\\';  // char32_t (UTF-32)
+    class registry_class;
 
     class key
     {
     public:
+        using path_type = m::pil::registry::path;
+
         key() = default;
         key(key const& other);
         key(key&& other) noexcept;
@@ -62,24 +61,42 @@ namespace m::pil
         key
         create_key(std::basic_string_view<CharT> key_name)
         {
-            return do_create_key(m::to_u16string(key_name));
+            return create_key(path_type(key_name));
+        }
+
+        key
+        create_key(path_type const& key_name)
+        {
+            return do_create_key(key_name);
         }
 
         template <typename CharT>
         void
         delete_key(std::basic_string_view<CharT> key_name)
         {
-            do_delete_key(m::to_u16string(key_name));
+            delete_key(path_type(key_name));
+        }
+
+        void
+        delete_key(path_type const& key_name)
+        {
+            do_delete_key(key_name);
         }
 
         template <typename CharT>
         void
         delete_tree(std::basic_string_view<CharT> key_name)
         {
-            do_delete_tree(m::to_u16string(key_name));
+            delete_tree(path_type(key_name));
         }
 
-        std::vector<registry_string_type>
+        void
+        delete_tree(path_type const& key_name)
+        {
+            do_delete_tree(key_name);
+        }
+
+        std::vector<path_type>
         list_subkey_names();
 
         void
@@ -89,7 +106,13 @@ namespace m::pil
         key
         open_key(std::basic_string_view<CharT> key_name)
         {
-            return do_open_key(m::to_u16string(key_name));
+            return do_open_key(path_type(key_name));
+        }
+
+        key
+        open_key(path_type const& key_name)
+        {
+            return do_open_key(key_name);
         }
 
         time_point
@@ -119,8 +142,8 @@ namespace m::pil
 
         struct value_name_and_type
         {
-            registry_string_type m_value_name;
-            reg_value_type       m_reg_value_type;
+            registry_string_type m_value_name{};
+            reg_value_type       m_reg_value_type{};
         };
 
         std::vector<value_name_and_type>
@@ -254,27 +277,33 @@ namespace m::pil
             do_set_value(to_u16string(value_name), uint32_value{value});
         }
 
+        path_type
+        get_path()
+        {
+            return do_get_path();
+        }
+
         key(std::shared_ptr<ikey>&& key) noexcept;
         key(std::shared_ptr<ikey> const& key);
 
     private:
         key
-        do_create_key(std::u16string_view key_name);
+        do_create_key(path_type const& key_name);
 
         void
-        do_delete_key(std::u16string_view key_name);
+        do_delete_key(path_type const& key_name);
 
         void
-        do_delete_tree(std::optional<std::u16string_view> key_name);
+        do_delete_tree(std::optional<path_type> const& key_name);
 
         key
-        do_open_key(std::optional<std::u16string_view> key_name);
+        do_open_key(std::optional<path_type> const& key_name);
 
         void
-        do_rename_key(std::u16string_view old_key_name, std::u16string_view new_key_name);
+        do_rename_key(path_type const& old_key_name, path_type const& new_key_name);
 
         void
-        do_rename_key(std::u16string_view new_key_name);
+        do_rename_key(path_type const& new_key_name);
 
         void
         do_delete_value(std::u16string_view value_name);
@@ -296,6 +325,9 @@ namespace m::pil
 
         registry_value
         do_get_value(std::u16string_view value_name);
+
+        path_type
+        do_get_path();
 
         //
         // For the storage views, we require that the callers have placed a
@@ -380,30 +412,91 @@ namespace m::pil
         std::shared_ptr<ikey> m_key;
     };
 
-    class registry
+    class registry_monitor
     {
     public:
-        registry() = default;
-        registry(registry const& other);
-        registry(registry&& other) noexcept;
-        registry(std::shared_ptr<iregistry>&&) noexcept;
-        ~registry() = default;
-        registry&
-        operator=(registry const& other);
-        registry&
-        operator=(registry&&);
+        registry_monitor() = default;
 
-        friend void
-        swap(registry& l, registry& r) noexcept
+        registry_monitor(registry_monitor const& other) = delete;
+        registry_monitor(registry_monitor&& other)      = delete;
+
+        registry_monitor&
+        operator=(registry_monitor const& other) = delete;
+
+        registry_monitor&
+        operator=(registry_monitor&& other) = delete;
+
+        void
+        swap(registry_monitor& other) = delete;
+
+        /// <summary>
+        /// Defines flags for monitoring changes to a registry key.
+        ///
+        /// Note that when `watch_subtree` is selected, the notification received does not
+        /// indicate which key is modified, only that some key is modified.
+        /// </summary>
+        enum class register_watch_flags
         {
-            using std::swap;
-            swap(l.m_registry, r.m_registry);
+            watch_subtree     = 1 << 0,
+            key_changes       = 1 << 1,
+            attribute_changes = 1 << 2,
+            value_changes     = 1 << 3,
+            security_changes  = 1 << 4,
+        };
+
+        std::unique_ptr<iregistry_monitor_token>
+        register_watch(register_watch_flags                                flags,
+                       pil::registry::path const&                          key_path,
+                       m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
+        {
+            return do_register_watch(flags, key_path, change_notification_ptr);
         }
 
+    protected:
+        registry_monitor(std::shared_ptr<pil::iregistry_monitor> sp):
+            m_iregistry_monitor(std::move(sp))
+        {}
+
+        std::unique_ptr<iregistry_monitor_token>
+        do_register_watch(
+            register_watch_flags                                flags,
+            pil::registry::path const&                          key_path,
+            m::not_null<iregistry_monitor_change_notification*> change_notification_ptr);
+
+        std::mutex                              m_mutex;
+        std::shared_ptr<pil::iregistry_monitor> m_iregistry_monitor;
+
+        friend class registry_class;
+    };
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(registry_monitor::register_watch_flags);
+
+    class registry_class
+    {
+    public:
+        registry_class() = default;
+        registry_class(registry_class const& other);
+        registry_class(registry_class&& other) noexcept;
+        registry_class(std::shared_ptr<iregistry>&&) noexcept;
+        ~registry_class() = default;
+        registry_class&
+        operator=(registry_class const& other);
+        registry_class&
+        operator=(registry_class&&) noexcept;
+
+        void
+        swap(registry_class& other) noexcept;
+
+        registry_monitor
+        monitor() const;
+
         key
-        open_predefined_key(predefined_key pk);
+        open_predefined_key(predefined_key pk) const;
 
     private:
+        std::shared_ptr<iregistry>
+                                   get_registry() const;
+        mutable std::mutex         m_mutex;
         std::shared_ptr<iregistry> m_registry;
     };
 

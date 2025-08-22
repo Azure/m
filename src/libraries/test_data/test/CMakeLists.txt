@@ -10,6 +10,7 @@ if(M_BUILD_TESTS)
     target_compile_features(test_test_data PUBLIC cxx_std_23)
 
     target_link_libraries(test_test_data
+        m_print
         m_test_data
         GTest::gtest_main
     )

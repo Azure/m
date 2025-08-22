@@ -29,6 +29,8 @@
 #include <m/const_string/const_string.h>
 #include <m/error_handling/macros.h>
 #include <m/math/math.h>
+#include <m/strings/compare.h>
+#include <m/strings/convert.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
 
@@ -45,38 +47,57 @@ namespace m
         using value_type = CharT;
         using view_type  = std::basic_string_view<char_type>;
 
+        static inline constexpr auto npos = view_type::npos;
+
         basic_sstring() = default;
         basic_sstring(std::initializer_list<view_type> il)
         {
-            m_v    = make_basic_const_string<char_type>(il);
-            m_view = m_v->view();
+            m_arefc = make_basic_const_string<char_type>(il);
+            m_view  = m_arefc->view();
             // Since we know that the string is null-terminated,
             // just populate the c_str now to avoid any of the
             // fuss later.
-            m_c_str_v = m_v;
+            m_c_str_v = m_arefc;
             m_c_str.store(m_view.data(), std::memory_order_release);
         }
 
         basic_sstring(view_type v)
         {
-            m_v    = make_basic_const_string<char_type>(v);
-            m_view = m_v->view();
+            m_arefc = make_basic_const_string<char_type>(v);
+            m_view  = m_arefc->view();
             // Since we know that the string is null-terminated,
             // just populate the c_str now to avoid any of the
             // fuss later.
-            m_c_str_v = m_v;
+            m_c_str_v = m_arefc;
             m_c_str.store(m_view.data(), std::memory_order_release);
         }
 
-        basic_sstring(basic_sstring const& other): m_v{other.m_v}, m_view{other.m_view}
+        basic_sstring(basic_sstring const& other): m_arefc{other.m_arefc}, m_view{other.m_view}
         {
             copy_c_str_state_from_other(other);
         }
 
+        /// <summary>
+        /// Constructs a basic_sstring by converting from another basic_sstring with a different
+        /// character type.
+        ///
+        /// The value must be convertible to something we can construct from via
+        /// to_view_string_t<char_type>().
+        /// </summary>
+        /// <typeparam name="OtherCharT">The character type of the source basic_sstring. Must
+        /// satisfy the character concept and must not be the same as char_type.</typeparam> <param
+        /// name="other">A reference to a basic_sstring instance with a different character type to
+        /// convert from.</param>
+        template <typename OtherCharT>
+            requires(character<OtherCharT> && !std::is_same_v<OtherCharT, char_type>)
+        basic_sstring(basic_sstring<OtherCharT> const& other):
+            basic_sstring(to_string_view_t<char_type>(other.view()))
+        {}
+
         basic_sstring(basic_sstring&& other) noexcept
         {
             using std::swap;
-            swap(m_v, other.m_v);
+            swap(m_arefc, other.m_arefc);
             swap(m_view, other.m_view);
             swap(m_c_str_v, other.m_c_str_v);
         }
@@ -92,7 +113,7 @@ namespace m
             //
             m_view = view_type{};
             m_c_str.store(nullptr, std::memory_order_relaxed);
-            m_v.reset();
+            m_arefc.reset();
             m_c_str_v.reset();
         }
 
@@ -115,8 +136,8 @@ namespace m
                 // The m_v and m_view members are immutable past construction
                 // and so we don't have to worry about how to read them from
                 // `other`.
-                m_v    = other.m_v;
-                m_view = other.m_view;
+                m_arefc = other.m_arefc;
+                m_view  = other.m_view;
                 m_c_str.store(nullptr, std::memory_order_release);
                 m_c_str_v.reset();
                 copy_c_str_state_from_other(other);
@@ -129,9 +150,10 @@ namespace m
         operator=(basic_sstring&& other) noexcept
         {
             using std::swap;
-            swap(m_v, other.m_v);
+            swap(m_arefc, other.m_arefc);
             swap(m_view, other.m_view);
             swap(m_c_str_v, other.m_c_str_v);
+            m_c_str.store(nullptr, std::memory_order_release);
 
             return *this;
         }
@@ -146,7 +168,7 @@ namespace m
         }
 
         view_type
-        view() const
+        view() const noexcept
         {
             return m_view;
         }
@@ -160,7 +182,7 @@ namespace m
             if (local_c_str_ptr)
                 return local_c_str_ptr;
 
-            if (!m_v)
+            if (!m_arefc)
                 return nullptr;
 
             arefc_ptr<basic_const_string<char_type>> expected; // for the compare-exchange
@@ -233,7 +255,7 @@ namespace m
             if (length == 0)
                 return basic_sstring{};
 
-            return basic_sstring{m_v, view_type(v.data() + start, length)};
+            return basic_sstring{m_arefc, view_type(v.data() + start, length)};
         }
 
         basic_sstring
@@ -242,7 +264,7 @@ namespace m
             auto const v = view();
             if (count > v.size())
                 count = v.size();
-            return basic_sstring(m_v, view_type(v.data(), count));
+            return basic_sstring(m_arefc, view_type(v.data(), count));
         }
 
         basic_sstring
@@ -252,7 +274,7 @@ namespace m
             if (count > v.size())
                 count = v.size();
             auto const offset = v.size() - count;
-            return basic_sstring(m_v, view_type(v.data() + offset, count));
+            return basic_sstring(m_arefc, view_type(v.data() + offset, count));
         }
 
         std::pair<basic_sstring, basic_sstring>
@@ -293,6 +315,42 @@ namespace m
         }
 
         bool
+        contains(char_type ch) const
+        {
+            return view().find(ch) != view_type::npos;
+        }
+
+        std::size_t
+        find_first_of(char_type ch) const
+        {
+            return view().find_first_of(ch);
+        }
+
+        std::size_t
+        find_last_of(char_type ch) const
+        {
+            return view().find_last_of(ch);
+        }
+
+        std::optional<std::size_t>
+        try_find_first_of(char_type ch) const
+        {
+            if (auto const i = find_first_of(ch); i != view_type::npos)
+                return i;
+
+            return std::nullopt;
+        }
+
+        std::optional<std::size_t>
+        try_find_last_of(char_type ch) const
+        {
+            if (auto const i = find_last_of(ch); i != view_type::npos)
+                return i;
+
+            return std::nullopt;
+        }
+
+        bool
         operator==(basic_sstring const& other) const
         {
             return view() == other.view();
@@ -310,6 +368,33 @@ namespace m
             return l == r.view();
         }
 
+        bool
+        empty() const
+        {
+            return view().size() == 0;
+        }
+
+        char_type
+        operator[](std::size_t index) const
+        {
+            M_INTERNAL_ERROR_CHECK(index < m_view.size());
+            return m_view.data()[index];
+        }
+
+        char_type
+        first() const
+        {
+            M_INTERNAL_ERROR_CHECK(m_view.size() > 0);
+            return m_view.data()[0];
+        }
+
+        char_type
+        last() const
+        {
+            M_INTERNAL_ERROR_CHECK(m_view.size() > 0);
+            return m_view.data()[m_view.size() - 1];
+        }
+
     private:
         void
         copy_c_str_state_from_other(basic_sstring const& other)
@@ -325,8 +410,7 @@ namespace m
         std::pair<arefc_ptr<basic_const_string<char_type>>, char_type const*>
         make_c_str() const
         {
-            //
-            auto const v_view = m_v->view();
+            auto const v_view = m_arefc->view();
 
             // If the end of `this`'s view coincides with the end of m_v's
             // view, then we don't need to allocate a new basic_const_string<>.
@@ -334,7 +418,7 @@ namespace m
 
             if (v_view.data() + v_view.size() == m_view.data() + m_view.size())
             {
-                return std::make_pair(m_v, m_view.data());
+                return std::make_pair(m_arefc, m_view.data());
             }
 
             // We must allocate a new basic_const_string<>
@@ -344,14 +428,14 @@ namespace m
             return std::make_pair(new_string, new_string->view().data());
         }
 
-        basic_sstring(arefc_ptr<basic_const_string<char_type>> const& aptr, view_type view):
-            m_v(aptr), m_view(view)
+        basic_sstring(arefc_ptr<basic_const_string<char_type>> const& arefc, view_type view):
+            m_arefc(arefc), m_view(view)
         {
             // Populate c_str() if possible
             // c_str();
         }
 
-        arefc_ptr<basic_const_string<char_type>>         m_v;
+        arefc_ptr<basic_const_string<char_type>>         m_arefc;
         std::basic_string_view<char_type>                m_view;
         mutable arefc_ptr<basic_const_string<char_type>> m_c_str_v;
         mutable std::atomic<char_type const*>            m_c_str;
@@ -362,5 +446,17 @@ namespace m
     using u8sstring  = basic_sstring<char8_t>;
     using u16sstring = basic_sstring<char16_t>;
     using u32sstring = basic_sstring<char32_t>;
+
+    static_assert(has_view<sstring, char>);
+    static_assert(has_view<wsstring, wchar_t>);
+    static_assert(has_view<u8sstring, char8_t>);
+    static_assert(has_view<u16sstring, char16_t>);
+    static_assert(has_view<u32sstring, char32_t>);
+
+    static_assert(has_some_view<sstring>);
+    static_assert(has_some_view<wsstring>);
+    static_assert(has_some_view<u8sstring>);
+    static_assert(has_some_view<u16sstring>);
+    static_assert(has_some_view<u32sstring>);
 
 } // namespace m

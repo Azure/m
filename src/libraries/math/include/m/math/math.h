@@ -111,6 +111,40 @@ namespace m
 
                 return m::try_cast<ResultT>(rv);
             }
+
+            // There are obvious optimizations for multiplications of smaller
+            // domains to larger codomains (e.g. uint8 x uint8 -> uint32 which
+            // cannot overflow) but these do not seem common enough to code
+            // for at least in the initial implementations. Nothing wrong with
+            // providing them over time.
+            static constexpr ResultT
+            multiply(LeftT l, RightT r)
+            {
+                // There is certainly a better implementation?
+
+                // Are these micro-optimizations worth it? I would think so
+                // given the checks after but who knows.
+                if (r == 0 || l == 0)
+                    return 0;
+
+                if (l == 1)
+                    return m::to<ResultT>(r);
+
+                if (r == 1)
+                    return m::to<ResultT>(l);
+
+                auto lmax = uintmax_t{l};
+                auto rmax = uintmax_t{r};
+
+                auto prod = lmax * rmax;
+
+                if ((prod / lmax) != r || (prod / rmax) != l)
+                {
+                    throw std::overflow_error("integer overflow from multiplication");
+                }
+
+                return m::to<ResultT>(prod);
+            }
         };
 
         //

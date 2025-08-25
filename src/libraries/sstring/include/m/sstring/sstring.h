@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include <m/const_string/const_string.h>
 #include <m/error_handling/macros.h>
 #include <m/math/math.h>
 #include <m/utility/pointers.h>

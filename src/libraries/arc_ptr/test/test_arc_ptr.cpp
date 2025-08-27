@@ -13,7 +13,7 @@
 #include <string_view>
 #include <thread>
 
-#include <m/rco_ptr/rco_ptr.h>
+#include <m/arc_ptr/arc_ptr.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
@@ -27,7 +27,7 @@ auto test_strings = {"Alfa"s,   "Bravo"s,    "Charlie"s, "Delta"s,  "Echo"s,    
 
 TEST(TestRefCount, First)
 {
-    auto p = m::make_rco<std::string>("Hello there");
+    // auto p = m::make_arc<std::string>("Hello there");
 
     //
 

@@ -1,0 +1,20 @@
+cmake_minimum_required(VERSION 3.23)
+
+if(M_BUILD_TESTS)
+    include(GoogleTest)
+
+    add_executable(test_arc_ptr
+        test_arc_ptr.cpp
+    )
+
+    target_compile_features(test_arc_ptr PUBLIC ${M_CXX_STD})
+
+    target_link_libraries(test_arc_ptr
+        m_arc_ptr
+        GTest::gtest_main
+    )
+
+    enable_testing()
+
+    gtest_discover_tests(test_arc_ptr)
+endif()

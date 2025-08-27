@@ -12,10 +12,11 @@
 #include <string_view>
 
 #include <m/strings/convert.h>
+#include <m/test_data/test_data.h>
 #include <m/utf/exceptions.h>
 #include <m/utf/decode.h>
 
-#include "test_data.h"
+// #include "test_data.h"
 
 using namespace std::string_literals;
 using namespace std::string_view_literals;
@@ -40,8 +41,14 @@ namespace
     }
 } // namespace
 
-TEST(ValidateNonShortestUtf8Handling, Invalid2ByteSequence_1) { test_decode(utf8_nonshortest_2b_1); }
+TEST(ValidateNonShortestUtf8Handling, Invalid2ByteSequence_1) { test_decode(m::test_data::utf_data::utf8_nonshortest_2b_1); }
 
-TEST(ValidateNonShortestUtf8Handling, Invalid3ByteSequence_1) { test_decode(utf8_nonshortest_3b_1); }
+TEST(ValidateNonShortestUtf8Handling, Invalid3ByteSequence_1)
+{
+    test_decode(m::test_data::utf_data::utf8_nonshortest_3b_1);
+}
 
-TEST(ValidateNonShortestUtf8Handling, Invalid4ByteSequence_1) { test_decode(utf8_nonshortest_4b_1); }
+TEST(ValidateNonShortestUtf8Handling, Invalid4ByteSequence_1)
+{
+    test_decode(m::test_data::utf_data::utf8_nonshortest_4b_1);
+}

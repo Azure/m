@@ -19,12 +19,6 @@ using namespace std::chrono_literals;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-auto test_strings = {"Alfa"s,   "Bravo"s,    "Charlie"s, "Delta"s,  "Echo"s,    "Foxtrot"s,
-                     "Golf"s,   "Hotel"s,    "India"s,   "Juliet"s, "Kilo"s,    "Lima"s,
-                     "Mike"s,   "November"s, "Oscar"s,   "Papa"s,   "Quebec"s,  "Romeo"s,
-                     "Sierra"s, "Tango"s,    "Uniform"s, "Victor"s, "Whiskey"s, "X-Ray"s,
-                     "Yankee"s, "Zulu"s};
-
 TEST(TestRefCount, First)
 {
     // auto p = m::make_arc<std::string>("Hello there");

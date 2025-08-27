@@ -5,12 +5,12 @@
 
 #include <m/utility/compiler.h>
 
-#include <algorithm> // for rotate, equals, move_backwards, ...
+#include <algorithm>
 #include <array>
 #include <compare>
-#include <concepts> // for lots...
-#include <cstddef>  // for size_t
-#include <cstdint>  // for fixed-width integer types
+#include <concepts>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <limits>
@@ -19,7 +19,6 @@
 #include <optional>
 #include <ranges>
 #include <stdexcept>
-#include <stdio.h> // for assertion diagnostics
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -39,6 +38,8 @@ namespace m
         requires(character<CharT>)
     class basic_sstring
     {
+        inline static constexpr auto max_size_t = (std::numeric_limits<std::size_t>::max)();
+
     public:
         using char_type  = CharT;
         using value_type = CharT;
@@ -55,6 +56,7 @@ namespace m
             m_c_str_v = m_v;
             m_c_str.store(m_view.data(), std::memory_order_release);
         }
+
         basic_sstring(view_type v)
         {
             m_v    = make_basic_const_string<char_type>(v);
@@ -65,9 +67,12 @@ namespace m
             m_c_str_v = m_v;
             m_c_str.store(m_view.data(), std::memory_order_release);
         }
-        basic_sstring(basic_sstring const& other):
-            m_v{other.m_v}, m_view{other.m_view}, m_c_str_v{other.m_c_str_v}
-        {}
+
+        basic_sstring(basic_sstring const& other): m_v{other.m_v}, m_view{other.m_view}
+        {
+            copy_c_str_state_from_other(other);
+        }
+
         basic_sstring(basic_sstring&& other) noexcept
         {
             using std::swap;
@@ -75,7 +80,70 @@ namespace m
             swap(m_view, other.m_view);
             swap(m_c_str_v, other.m_c_str_v);
         }
-        ~basic_sstring() = default;
+
+        ~basic_sstring()
+        {
+            // Strictly speaking, the default destructor is sufficient.
+            //
+            // However, there's a lot to be said for razing your state as
+            // you destroy. Perhaps in the future this could be some kind
+            // of compile time option or such, but at this time, it's
+            // just done.
+            //
+            m_view = view_type{};
+            m_c_str.store(nullptr, std::memory_order_relaxed);
+            m_v.reset();
+            m_c_str_v.reset();
+        }
+
+        basic_sstring&
+        operator=(basic_sstring const& other)
+        {
+            // We take great care with the atomicity around the `.c_str()`
+            // member function's mutation of state because it is intended
+            // to be an observer, so callers have no expectation that they
+            // will synchronize access to the basic_sstring object.
+            //
+            // However, at the same time, for assignment, the caller is
+            // mutating the basic_sstring, so there is no need to be so
+            // concerned with the state of `this`. On the other hand,
+            // the state of `other` is of concern, so we need to take care
+            // as we did in the copy constructor.
+
+            if (this != &other)
+            {
+                // The m_v and m_view members are immutable past construction
+                // and so we don't have to worry about how to read them from
+                // `other`.
+                m_v    = other.m_v;
+                m_view = other.m_view;
+                m_c_str.store(nullptr, std::memory_order_release);
+                m_c_str_v.reset();
+                copy_c_str_state_from_other(other);
+            }
+
+            return *this;
+        }
+
+        basic_sstring&
+        operator=(basic_sstring&& other) noexcept
+        {
+            using std::swap;
+            swap(m_v, other.m_v);
+            swap(m_view, other.m_view);
+            swap(m_c_str_v, other.m_c_str_v);
+
+            return *this;
+        }
+
+        basic_sstring&
+        operator+=(basic_sstring const& other)
+        {
+            basic_sstring temp = *this + other;
+            using std::swap;
+            swap(temp, *this);
+            return *this;
+        }
 
         view_type
         view() const
@@ -83,10 +151,12 @@ namespace m
             return m_view;
         }
 
+        operator view_type() const { return view(); }
+
         char_type const*
         c_str() const
         {
-            auto local_c_str_ptr = m_c_str.load(std::memory_order_relaxed);
+            auto local_c_str_ptr = m_c_str.load(std::memory_order_acquire);
             if (local_c_str_ptr)
                 return local_c_str_ptr;
 
@@ -104,17 +174,17 @@ namespace m
             // when new_const_str goes out of scope.
             if (m_c_str_v.compare_exchange_strong(expected, new_const_str))
             {
-                m_c_str.store(new_c_str_ptr, std::memory_order_relaxed);
+                m_c_str.store(new_c_str_ptr, std::memory_order_release);
                 m_c_str.notify_all();
             }
             else
             {
                 // We were not the thread that made the exchange.
                 // Wait for the other thread to put the pointer in place.
-                m_c_str.wait(nullptr, std::memory_order_relaxed);
+                m_c_str.wait(nullptr, std::memory_order_release);
             }
 
-            local_c_str_ptr = m_c_str.load(std::memory_order_relaxed);
+            local_c_str_ptr = m_c_str.load(std::memory_order_acquire);
 
             M_INTERNAL_ERROR_CHECK(local_c_str_ptr != nullptr);
             return local_c_str_ptr;
@@ -132,13 +202,126 @@ namespace m
             return basic_sstring({m_view, other.view()});
         }
 
+        template <typename StringishT>
+        basic_sstring
+        operator+(StringishT&& other) const
+        {
+            auto const rhs = view_type(std::forward<StringishT>(other));
+
+            if (view().size() == 0)
+                return basic_sstring(rhs);
+
+            if (rhs.size() == 0)
+                return *this;
+
+            return basic_sstring({m_view, rhs});
+        }
+
+        basic_sstring
+        substr(std::size_t start, std::size_t length = max_size_t) const
+        {
+            auto const v = view();
+            if (start > v.size())
+            {
+                throw std::out_of_range("start");
+            }
+
+            auto const max_len = v.size() - start;
+            if (length > max_len)
+                length = max_len;
+
+            if (length == 0)
+                return basic_sstring{};
+
+            return basic_sstring{m_v, view_type(v.data() + start, length)};
+        }
+
+        basic_sstring
+        left(std::size_t count) const
+        {
+            auto const v = view();
+            if (count > v.size())
+                count = v.size();
+            return basic_sstring(m_v, view_type(v.data(), count));
+        }
+
+        basic_sstring
+        right(std::size_t count) const
+        {
+            auto const v = view();
+            if (count > v.size())
+                count = v.size();
+            auto const offset = v.size() - count;
+            return basic_sstring(m_v, view_type(v.data() + offset, count));
+        }
+
+        std::pair<basic_sstring, basic_sstring>
+        split_at(char_type ch) const
+        {
+            auto const v           = view();
+            auto const split_point = v.find(ch);
+
+            if (split_point == view_type::npos)
+                return std::make_pair(*this, basic_sstring{});
+
+            return std::make_pair(substr(0, split_point), substr(split_point + 1));
+        }
+
+        std::pair<basic_sstring, basic_sstring>
+        split_at(view_type view_to_find) const
+        {
+            auto const v           = view();
+            auto const split_point = v.find(view_to_find);
+
+            if (split_point == view_type::npos)
+                return std::make_pair(*this, basic_sstring{});
+
+            return std::make_pair(substr(0, split_point),
+                                  substr(split_point + view_to_find.size()));
+        }
+
+        std::pair<basic_sstring, basic_sstring>
+        split_at_first_of(view_type view_to_find) const
+        {
+            auto const v           = view();
+            auto const split_point = v.find_first_of(view_to_find);
+
+            if (split_point == view_type::npos)
+                return std::make_pair(*this, basic_sstring{});
+
+            return std::make_pair(substr(0, split_point), substr(split_point + 1));
+        }
+
         bool
         operator==(basic_sstring const& other) const
         {
             return view() == other.view();
         }
 
+        bool
+        operator==(view_type other) const
+        {
+            return view() == other;
+        }
+
+        friend bool
+        operator==(view_type l, basic_sstring const& r)
+        {
+            return l == r.view();
+        }
+
     private:
+        void
+        copy_c_str_state_from_other(basic_sstring const& other)
+        {
+            if (auto const other_ptr = other.m_c_str.load(std::memory_order_acquire);
+                other_ptr != nullptr)
+            {
+                m_c_str_v = other.m_c_str_v;
+                m_c_str.store(other_ptr, std::memory_order_release);
+            }
+        }
+
         std::pair<arc_ptr<basic_const_string<char_type>>, char_type const*>
         make_c_str() const
         {
@@ -159,6 +342,13 @@ namespace m
 
             auto new_string = make_basic_const_string<char_type>(m_view);
             return std::make_pair(new_string, new_string->view().data());
+        }
+
+        basic_sstring(arc_ptr<basic_const_string<char_type>> const& aptr, view_type view):
+            m_v(aptr), m_view(view)
+        {
+            // Populate c_str() if possible
+            // c_str();
         }
 
         arc_ptr<basic_const_string<char_type>>         m_v;

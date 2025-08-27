@@ -13,26 +13,63 @@
 #include <thread>
 
 #include <m/sstring/sstring.h>
+#include <m/test_data/test_data.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-
-auto test_strings = {"Alfa"s,   "Bravo"s,    "Charlie"s, "Delta"s,  "Echo"s,    "Foxtrot"s,
-                     "Golf"s,   "Hotel"s,    "India"s,   "Juliet"s, "Kilo"s,    "Lima"s,
-                     "Mike"s,   "November"s, "Oscar"s,   "Papa"s,   "Quebec"s,  "Romeo"s,
-                     "Sierra"s, "Tango"s,    "Uniform"s, "Victor"s, "Whiskey"s, "X-Ray"s,
-                     "Yankee"s, "Zulu"s};
-
 TEST(TestSString, SimpleAssign) { m::wsstring x{L"foo"}; }
 
 TEST(TestSString, TryConcat)
-{ 
+{
     m::wsstring x{L"foo"};
     m::wsstring y{L"bar"};
     auto        z = x + y;
     m::wsstring e(L"foobar");
 
     EXPECT_EQ(z, e);
+}
+
+TEST(TestSString, TestAddWithNatoLetters1)
+{
+    auto x = m::sstring("foo"sv);
+
+    for (auto const& e: m::test_data::nato_alphabet_sv)
+    {
+        // auto t = m::make_const_string(e);
+        x = x + e;
+    }
+
+    EXPECT_EQ(
+        x,
+        "fooAlfaBravoCharlieDeltaEchoFoxtrotGolfHotelIndiaJuliettKiloLimaMikeNovemberOscarPapaQuebecRomeoSierraTangoUniformVictorWhiskeyXrayYankeeZulu");
+}
+
+TEST(TestSString, TestSubstr)
+{
+    auto x = m::sstring("foo"sv);
+
+    for (auto const& e: m::test_data::nato_alphabet_sv)
+    {
+        // auto t = m::make_const_string(e);
+        x = x + e;
+    }
+
+    auto y = x.substr(20, 5);
+    EXPECT_EQ(y, "eltaE");
+}
+
+TEST(TestSString, TestLeft)
+{
+    auto x = m::sstring(m::test_data::alpha_num_sv);
+    auto y = x.left(5);
+    EXPECT_EQ(y, "abcde");
+}
+
+TEST(TestSString, TestRight)
+{
+    auto x = m::sstring(m::test_data::alpha_num_sv);
+    auto y = x.right(7);
+    EXPECT_EQ(y, "3456789");
 }

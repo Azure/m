@@ -6,6 +6,7 @@ target_sources(m_filesystem PRIVATE
 )
 
 target_link_libraries(m_filesystem PUBLIC
+    m_linux_strings
     m_threadpool
 )
 

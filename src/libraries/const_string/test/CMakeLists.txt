@@ -11,6 +11,7 @@ if(M_BUILD_TESTS)
 
     target_link_libraries(test_const_string
         m_const_string
+        m_test_data
         GTest::gtest_main
     )
 

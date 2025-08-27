@@ -44,6 +44,12 @@ namespace m
     {
         struct control_area
         {
+            void
+            increment_ref();
+
+            bool
+            decrement_ref();
+
             std::atomic<uint64_t> m_refcount;
             destroyer_fn          m_destroyer;
         };
@@ -114,7 +120,13 @@ namespace m
         arc_ptr(arc_ptr<U> const& other): m_ptr{other.addref()}
         {}
 
-        arc_ptr(arc_ptr&& other) { m_ptr.exchange(other.m_ptr, std::memory_order_acq_rel); }
+        arc_ptr(arc_ptr&& other) noexcept
+        {
+            auto const thisptr  = get();
+            auto const otherptr = other.get();
+            put(otherptr);
+            other.put(thisptr);
+        }
 
         ~arc_ptr() { reset(); }
 
@@ -124,7 +136,7 @@ namespace m
             if (this != &other)
             {
                 reset();
-                m_ptr.store(other.addref(), std::memory_order_release);
+                put(other.addref());
             }
 
             return *this;
@@ -138,7 +150,7 @@ namespace m
             if (this != &other)
             {
                 reset();
-                m_ptr.store(other.addref(), std::memory_order_release);
+                put(other.addref());
             }
 
             return *this;
@@ -147,48 +159,48 @@ namespace m
         arc_ptr&
         operator=(arc_ptr&& other) noexcept
         {
-            auto thisvalue = m_ptr.load(std::memory_order_acquire);
-            auto othervalue = other.m_ptr.load(std::memory_order_acquire);
-            m_ptr.store(othervalue, std::memory_order_release);
-            other.m_ptr.store(thisvalue, std::memory_order_release);
+            auto thisvalue  = get();
+            auto othervalue = other.get();
+            put(othervalue);
+            other.put(thisvalue);
             return *this;
         }
 
         explicit
         operator bool() const
         {
-            return m_ptr.load(std::memory_order_acquire) != nullptr;
+            return get() != nullptr;
         }
 
         bool
         operator!() const
         {
-            return m_ptr.load(std::memory_order_acquire) == nullptr;
+            return get() == nullptr;
         }
 
         void
-        reset()
+        reset(T* ptr_in = nullptr)
         {
-            auto const ptr = m_ptr.exchange(nullptr, std::memory_order_acq_rel);
+            auto const ptr = m_ptr.exchange(increment_ref(ptr_in), std::memory_order_acq_rel);
             decrement_ref(ptr);
         }
 
         T&
         operator*() const
         {
-            return *m_ptr;
+            return *get();
         }
 
         T*
         operator->() const
         {
-            return m_ptr;
+            return get();
         }
 
         T*
         get() const
         {
-            return m_ptr;
+            return m_ptr.load(std::memory_order_acquire);
         }
 
         template <typename U>
@@ -209,8 +221,8 @@ namespace m
             // only part of the story.
             //
 
-            T* e = expected.m_ptr.load(std::memory_order_acquire);
-            T* d = desired.m_ptr.load(std::memory_order_acquire);
+            T* e = expected.get();
+            T* d = desired.get();
 
             T* old_e = e; // save a copy so we don't have to re-load
 
@@ -225,7 +237,7 @@ namespace m
                     decrement_ref(e);
                 }
 
-                expected.m_ptr.store(d, std::memory_order_release);
+                expected.put(d);
 
                 return true;
             }
@@ -237,7 +249,7 @@ namespace m
             {
                 increment_ref(e);
                 decrement_ref(old_e);
-                expected.m_ptr.store(e, std::memory_order_release);
+                expected.put(e);
             }
 
             return false;
@@ -252,8 +264,8 @@ namespace m
         refcount_impl::control_area*
         get_control_area() const
         {
-            auto const ptr = m_ptr.load(std::memory_order_acquire);
-            if (!ptr)
+            auto const ptr = get();
+            if (ptr == nullptr)
                 return nullptr;
 
             return get_control_area(ptr);
@@ -270,19 +282,24 @@ namespace m
         T*
         addref() const
         {
-            auto const ptr = m_ptr.load(std::memory_order_acquire);
-            increment_ref(ptr);
-            return ptr;
+            return increment_ref(get());
         }
 
-        static void
+        /// <summary>
+        /// Increments the reference count associated with the object
+        /// passed in `ptr`, if not nullptr. If nullptr, takes no action.
+        ///
+        /// In either case, returns `ptr`.
+        /// </summary>
+        /// <param name="ptr"></param>
+        /// <returns></returns>
+        static T*
         increment_ref(T* ptr)
         {
-            if (ptr == nullptr)
-                return;
+            if (ptr != nullptr)
+                get_control_area(ptr)->increment_ref();
 
-            auto const ca = get_control_area(ptr);
-            ca->m_refcount.fetch_add(1, std::memory_order_relaxed);
+            return ptr;
         }
 
         static void
@@ -291,8 +308,7 @@ namespace m
             if (ptr == nullptr)
                 return;
 
-            auto const ca = get_control_area(ptr);
-            if (ca->m_refcount.fetch_sub(1, std::memory_order_relaxed) == 1)
+            if (auto const ca = get_control_area(ptr); ca->decrement_ref())
             {
                 std::atomic_thread_fence(std::memory_order_acquire);
 
@@ -311,23 +327,27 @@ namespace m
             }
         }
 
+        /// <summary>
+        /// Internal use only! Puts a value directly into m_ptr to avoid typing and
+        /// re-typing `.store(<x>, std::memory_order_release)`.
+        /// </summary>
+        void
+        put(T* ptr)
+        {
+            m_ptr.store(ptr, std::memory_order_release);
+        }
+
         std::atomic<T*> m_ptr{};
 
-#if 0
-        template <typename U>
-            requires(std::is_standard_layout_v<U>)
-        friend class arc_ptr<U>;
-#endif // 0
-
-        template <typename T, typename... Args>
-            requires(std::is_standard_layout_v<T>)
-        friend arc_ptr<T>
+        template <typename T1, typename... Args>
+            requires(std::is_standard_layout_v<T1>)
+        friend arc_ptr<T1>
         make_arc(Args&&... args);
 
-        template <typename T, typename Fn, typename... Args>
-            requires(std::is_standard_layout_v<T> &&
+        template <typename T1, typename Fn, typename... Args>
+            requires(std::is_standard_layout_v<T1> &&
                      std::invocable<Fn, std::span<std::byte>, Args && ...>)
-        friend arc_ptr<T>
+        friend arc_ptr<T1>
         make_arc_ex(std::size_t  extra_bytes_required,
                     destroyer_fn destroyer,
                     Fn&&         fn,
@@ -360,27 +380,8 @@ namespace m
         return retval;
     }
 
-#if 0
     template <typename T, typename... Args>
-    arc_ptr<T>
-    make_arc(Args&&... args)
-    {
-        using aggregate_type = refcount_impl::aggregate<T>;
-
-        auto const                   bytes_required = sizeof(aggregate_type);
-        std::unique_ptr<std::byte[]> uniqptr        = std::make_unique<std::byte[]>(bytes_required);
-        auto const                   aggptr = reinterpret_cast<aggregate_type*>(uniqptr.get());
-        aggptr->m_control_area.m_refcount.store(1, std::memory_order_relaxed);
-        aggptr->m_control_area.m_destroyer = &aggregate_type::destroyer;
-
-        auto const ptr = ::new (&aggptr->m_object) T(std::forward<Args>(args)...);
-        uniqptr.release();
-        arc_ptr<T> retval(ptr);
-        return retval;
-    }
-#else
-
-    template <typename T, typename... Args>
+        requires(std::is_standard_layout_v<T>)
     arc_ptr<T>
     make_arc(Args&&... args)
     {
@@ -393,6 +394,4 @@ namespace m
             },
             std::forward<Args>(args)...);
     }
-#endif
-
 } // namespace m

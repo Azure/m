@@ -89,6 +89,17 @@ namespace m::test_data
         U"Sierra"sv, U"Tango"sv,    U"Uniform"sv, U"Victor"sv,  U"Whiskey"sv, U"Xray"sv,
         U"Yankee"sv, U"Zulu"sv};
 
+    auto alpha_num_s     = "abcdefghijklmnopqrstuvwxyz0123456789"s;
+    auto alpha_num_sv    = "abcdefghijklmnopqrstuvwxyz0123456789"sv;
+    auto alpha_num_ws    = L"abcdefghijklmnopqrstuvwxyz0123456789"s;
+    auto alpha_num_wsv   = L"abcdefghijklmnopqrstuvwxyz0123456789"sv;
+    auto alpha_num_u8s   = u8"abcdefghijklmnopqrstuvwxyz0123456789"s;
+    auto alpha_num_u8sv  = u8"abcdefghijklmnopqrstuvwxyz0123456789"sv;
+    auto alpha_num_u16s  = u"abcdefghijklmnopqrstuvwxyz0123456789"s;
+    auto alpha_num_u16sv = u"abcdefghijklmnopqrstuvwxyz0123456789"sv;
+    auto alpha_num_u32s  = U"abcdefghijklmnopqrstuvwxyz0123456789"s;
+    auto alpha_num_u32sv = U"abcdefghijklmnopqrstuvwxyz0123456789"sv;
+
     namespace utf_data
     {
         struct data_set

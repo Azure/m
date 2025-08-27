@@ -158,7 +158,7 @@ namespace m
             //
 
             auto new_string = make_basic_const_string<char_type>(m_view);
-            return std::make_pair<new_string, new_string->view().data()>;
+            return std::make_pair(new_string, new_string->view().data());
         }
 
         arc_ptr<basic_const_string<char_type>>         m_v;

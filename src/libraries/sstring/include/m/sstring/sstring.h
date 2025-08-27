@@ -26,246 +26,145 @@
 #include <utility>
 #include <vector>
 
+#include <m/arc_ptr/arc_ptr.h>
 #include <m/const_string/const_string.h>
 #include <m/error_handling/macros.h>
 #include <m/math/math.h>
+#include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
 
 namespace m
 {
-    namespace sstring_impl
-    {
-        template <typename CharT>
-        class ssv
-        {
-        public:
-            using char_type    = CharT;
-            using view_type    = std::basic_string_view<char_type>;
-            using string_type  = std::basic_string<char_type>;
-            using counted_type = std::shared_ptr<string_type>;
-
-            ssv() = default;
-
-            ssv(view_type v): m_sp{}
-            {
-                if (v.size() != 0)
-                {
-                    string_type s;
-                    s.resize_and_overwrite(v.size() + 1,
-                                           [v](char_type* p, std::size_t cnt) noexcept {
-                                               M_INTERNAL_ERROR_CHECK(cnt >= (v.size() + 1));
-                                               std::copy_n(v.begin(), v.size(), p);
-                                               p[v.size()] = 0;
-                                               return v.size() + 1;
-                                           });
-                    m_v  = view_type(s.data(), s.size() - 1);
-                    m_sp = std::make_shared<string_type>(std::move(s));
-                }
-            }
-
-            ssv(ssv const& other): m_sp(other.m_sp), m_v{}
-            {
-                if (m_sp)
-                {
-                    m_v = view_type(m_sp->data(), m_sp->size() - 1);
-                }
-            }
-
-            ssv(ssv&& other) noexcept: m_v{}
-            {
-                using std::swap;
-                swap(m_sp, other.m_sp);
-                swap(m_v, other.m_v);
-            }
-
-            ~ssv() = default;
-
-            ssv&
-            operator=(ssv const& other)
-            {
-                if (this != &other)
-                {
-                    m_sp = other.m_sp;
-                    m_v  = other.m_v;
-                }
-                return *this;
-            }
-
-            ssv&
-            operator=(ssv&& other)
-            {
-                if (this != &other)
-                {
-                    using std::swap;
-                    swap(m_sp, other.m_sp);
-                    swap(m_v, other.m_v);
-                }
-
-                return *this;
-            }
-
-            bool
-            operator==(ssv const& other) const
-            {
-                return m_v == other.m_v;
-            }
-
-            void
-            swap(ssv& other) noexcept
-            {
-                using std::swap;
-                swap(m_sp, other.m_sp);
-                swap(m_v, other.m_v);
-            }
-
-            explicit
-            operator bool() const
-            {
-                return static_cast<bool>(m_sp);
-            }
-
-            bool
-            operator!() const
-            {
-                return !static_cast<bool>(*this);
-            }
-
-            view_type
-            view() const noexcept
-            {
-                return m_v;
-            }
-
-            char_type const*
-            c_str() const
-            {
-                // THIS IS WRONG! c_str() may force a relocation to a new string
-                // if the current view is not the end of the current string.
-                char_type const* return_value{};
-
-                if (m_sp)
-                    return_value = m_sp->c_str();
-
-                return return_value;
-            }
-
-            static ssv
-            concatenate(std::initializer_list<ssv> il)
-            {
-                return ssv(il);
-            }
-
-        private:
-            ssv(string_type&& str, view_type v):
-                m_sp(std::make_shared<string_type>(std::move(str))), m_v(v)
-            {
-                // This constructor is private because we assume our caller
-                // knows what they are doing, e.g. they have constructed
-                // a large string, with a trailing null intentionally.
-                //
-                // We require them to pass in the view mostly as a formality
-                // for them to prove that they know what they are doing and
-                // we can validate that fact here.
-                //
-                M_INTERNAL_ERROR_CHECK(v.data() == m_sp->data());
-                M_INTERNAL_ERROR_CHECK(v.size() == m_sp->size() - 1);
-            }
-
-            ssv(std::initializer_list<ssv> const& il)
-            {
-                std::size_t len{};
-
-                for (auto const& e: il)
-                    len = m::math::add(len, e.view().size(), std::size_t{});
-
-                len = m::math::add(len, 1, std::size_t{});
-
-                m_sp = std::make_shared<string_type>();
-
-                m_sp->resize_and_overwrite(len, [&](char_type* ptr, std::size_t buflen) {
-                    M_INTERNAL_ERROR_CHECK(buflen >= len);
-                    char_type* c = ptr; // "c" for "cursor"
-                    for (auto const& e: il)
-                    {
-                        std::copy_n(e.view().data(), e.view().size(), c);
-                        c += e.view().size();
-                    }
-                    *c++ = 0;
-                    return c - ptr;
-                });
-
-                // We don't know what really came in to the concatenate, but
-                // we MUST have allocated space for the trailing null.
-                M_INTERNAL_ERROR_CHECK(m_sp->size() > 0);
-
-                m_v = view_type(m_sp->data(), m_sp->size() - 1);
-            }
-
-            // Remember that the value stored is always one
-            // more character in length than the actual value.
-            // The empty string is represented by an empty
-            // counted type.
-            counted_type m_sp;
-            view_type    m_v;
-        };
-    } // namespace sstring_impl
-
     template <typename CharT>
+        requires(character<CharT>)
     class basic_sstring
     {
     public:
-        using char_type = CharT;
-        using view_type = std::basic_string_view<char_type>;
+        using char_type  = CharT;
+        using value_type = CharT;
+        using view_type  = std::basic_string_view<char_type>;
 
         basic_sstring() = default;
-        basic_sstring(view_type v): m_v(v) {}
-        basic_sstring(basic_sstring const& other): m_v(other.m_v) {}
+        basic_sstring(std::initializer_list<view_type> il)
+        {
+            m_v    = make_basic_const_string<char_type>(il);
+            m_view = m_v->view();
+            // Since we know that the string is null-terminated,
+            // just populate the c_str now to avoid any of the
+            // fuss later.
+            m_c_str_v = m_v;
+            m_c_str.store(m_view.data(), std::memory_order_release);
+        }
+        basic_sstring(view_type v)
+        {
+            m_v    = make_basic_const_string<char_type>(v);
+            m_view = m_v->view();
+            // Since we know that the string is null-terminated,
+            // just populate the c_str now to avoid any of the
+            // fuss later.
+            m_c_str_v = m_v;
+            m_c_str.store(m_view.data(), std::memory_order_release);
+        }
+        basic_sstring(basic_sstring const& other):
+            m_v{other.m_v}, m_view{other.m_view}, m_c_str_v{other.m_c_str_v}
+        {}
         basic_sstring(basic_sstring&& other) noexcept
         {
             using std::swap;
             swap(m_v, other.m_v);
+            swap(m_view, other.m_view);
+            swap(m_c_str_v, other.m_c_str_v);
         }
         ~basic_sstring() = default;
 
         view_type
         view() const
         {
-            return m_v.view();
+            return m_view;
         }
 
         char_type const*
         c_str() const
         {
-            // THIS IS WRONG - c_str() may need to switch to a new
-            // string if m_v()'s view is not at the end of the string.
-            // (and thus would not be null terminated)
-            return m_v.c_str();
+            auto local_c_str_ptr = m_c_str.load(std::memory_order_relaxed);
+            if (local_c_str_ptr)
+                return local_c_str_ptr;
+
+            if (!m_v)
+                return nullptr;
+
+            arc_ptr<basic_const_string<char_type>> expected; // for the compare-exchange
+
+            // We didn't have one. Make one.
+            auto [new_const_str, new_c_str_ptr] = make_c_str();
+
+            // Attempt to swap the (possibly newly created) null terminated constant
+            // string into place, with allowance for another thread racing against
+            // us. If we "lose" the race, the one we had created will be deallocated
+            // when new_const_str goes out of scope.
+            if (m_c_str_v.compare_exchange_strong(expected, new_const_str))
+            {
+                m_c_str.store(new_c_str_ptr, std::memory_order_relaxed);
+                m_c_str.notify_all();
+            }
+            else
+            {
+                // We were not the thread that made the exchange.
+                // Wait for the other thread to put the pointer in place.
+                m_c_str.wait(nullptr, std::memory_order_relaxed);
+            }
+
+            local_c_str_ptr = m_c_str.load(std::memory_order_relaxed);
+
+            M_INTERNAL_ERROR_CHECK(local_c_str_ptr != nullptr);
+            return local_c_str_ptr;
         }
 
         basic_sstring
         operator+(basic_sstring const& other) const
         {
-            if (!m_v)
-                return other.m_v;
+            if (view().size() == 0)
+                return other;
 
-            if (!other.m_v)
-                return m_v;
+            if (other.view().size() == 0)
+                return *this;
 
-            return basic_sstring(value_type::concatenate({m_v, other.m_v}));
+            return basic_sstring({m_view, other.view()});
         }
 
         bool
         operator==(basic_sstring const& other) const
         {
-            return m_v == other.m_v;
+            return view() == other.view();
         }
 
     private:
-        using value_type = sstring_impl::ssv<char_type>;
+        std::pair<arc_ptr<basic_const_string<char_type>>, char_type const*>
+        make_c_str() const
+        {
+            //
+            auto const v_view = m_v->view();
 
-        basic_sstring(value_type value): m_v(std::move(value)) {}
+            // If the end of `this`'s view coincides with the end of m_v's
+            // view, then we don't need to allocate a new basic_const_string<>.
+            //
 
-        value_type m_v;
+            if (v_view.data() + v_view.size() == m_view.data() + m_view.size())
+            {
+                return std::make_pair(m_v, m_view.data());
+            }
+
+            // We must allocate a new basic_const_string<>
+            //
+
+            auto new_string = make_basic_const_string<char_type>(m_view);
+            return std::make_pair<new_string, new_string->view().data()>;
+        }
+
+        arc_ptr<basic_const_string<char_type>>         m_v;
+        std::basic_string_view<char_type>              m_view;
+        mutable arc_ptr<basic_const_string<char_type>> m_c_str_v;
+        mutable std::atomic<char_type const*>          m_c_str;
     };
 
     using sstring    = basic_sstring<char>;

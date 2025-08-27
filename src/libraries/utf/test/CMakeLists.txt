@@ -23,6 +23,7 @@ if(M_BUILD_TESTS)
       m_cast
       m_strings
       m_math
+      m_test_data
       GTest::gtest_main
     )
 

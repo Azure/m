@@ -26,29 +26,24 @@
 
 #include <m/error_handling/macros.h>
 #include <m/math/math.h>
-#include <m/arc_ptr/arc_ptr.h>
+#include <m/arefc_ptr/arefc_ptr.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
 
 namespace m
 {
-    namespace basic_const_string_impl
-    {
-        //
-    } // namespace basic_const_string_impl
-
     template <typename CharT>
         requires(m::character<CharT>)
     class basic_const_string;
 
     template <typename CharT, typename StringishT>
         requires(m::character<CharT>)
-    m::arc_ptr<basic_const_string<CharT>>
+    m::arefc_ptr<basic_const_string<CharT>>
     make_basic_const_string(StringishT&& s);
 
     template <typename CharT, typename StringishT>
         requires(m::character<CharT>)
-    m::arc_ptr<basic_const_string<CharT>>
+    m::arefc_ptr<basic_const_string<CharT>>
     make_basic_const_string(std::initializer_list<StringishT> il);
 
     template <typename CharT>
@@ -156,18 +151,18 @@ namespace m
         //
         template <typename U, typename S>
             requires(m::character<U>)
-        friend m::arc_ptr<basic_const_string<U>>
+        friend m::arefc_ptr<basic_const_string<U>>
         make_basic_const_string(S&& s);
 
         template <typename U, typename S>
             requires(m::character<U>)
-        friend m::arc_ptr<basic_const_string<U>>
+        friend m::arefc_ptr<basic_const_string<U>>
         make_basic_const_string(std::initializer_list<S> il);
     };
 
     template <typename CharT, typename StringishT>
         requires(m::character<CharT>)
-    m::arc_ptr<basic_const_string<CharT>>
+    m::arefc_ptr<basic_const_string<CharT>>
     make_basic_const_string(StringishT&& str)
     {
         // We received "s" by rvalue-reference, but we cannot
@@ -184,7 +179,7 @@ namespace m
         auto const bytes_needed =
             m::math::add(str_bytes_needed, sizeof(basic_const_string<CharT>), std::size_t{});
 
-        return m::make_arc_ex<basic_const_string<CharT>>(
+        return m::mmake_arefc_ex<basic_const_string<CharT>>(
             bytes_needed,
             nullptr,
             [](std::span<std::byte> s, StringishT const& str2) {
@@ -195,7 +190,7 @@ namespace m
 
     template <typename CharT, typename StringishT>
         requires(m::character<CharT>)
-    m::arc_ptr<basic_const_string<CharT>>
+    m::arefc_ptr<basic_const_string<CharT>>
     make_basic_const_string(std::initializer_list<StringishT> il)
     {
         std::size_t chars_needed{};
@@ -214,7 +209,7 @@ namespace m
         auto const bytes_needed =
             m::math::add(str_bytes_needed, sizeof(basic_const_string<CharT>), std::size_t{});
 
-        return m::make_arc_ex<basic_const_string<CharT>>(
+        return m::mmake_arefc_ex<basic_const_string<CharT>>(
             bytes_needed,
             nullptr,
             [](std::span<std::byte> s, std::initializer_list<StringishT> il2) {
@@ -230,28 +225,28 @@ namespace m
     using u32const_string = basic_const_string<char32_t>;
 
     template <typename StringishT>
-    m::arc_ptr<const_string>
+    m::arefc_ptr<const_string>
     make_const_string(StringishT&& str)
     {
         return make_basic_const_string<char>(std::forward<StringishT>(str));
     }
 
     template <typename StringishT>
-    m::arc_ptr<const_string>
+    m::arefc_ptr<const_string>
     make_const_string(std::initializer_list<StringishT> il)
     {
         return make_basic_const_string<char>(il);
     }
 
     template <typename StringishT>
-    m::arc_ptr<wconst_string>
+    m::arefc_ptr<wconst_string>
     make_wconst_string(StringishT&& str)
     {
         return make_basic_const_string<wchar_t>(std::forward<StringishT>(str));
     }
 
     template <typename StringishT>
-    m::arc_ptr<wconst_string>
+    m::arefc_ptr<wconst_string>
     make_wconst_string(std::initializer_list<StringishT> il)
     {
         return make_basic_const_string<wchar_t>(il);

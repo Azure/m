@@ -13,7 +13,7 @@
 #include <string_view>
 #include <thread>
 
-#include <m/arc_ptr/arc_ptr.h>
+#include <m/arefc_ptr/arefc_ptr.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
@@ -21,9 +21,7 @@ using namespace std::string_view_literals;
 
 TEST(TestRefCount, First)
 {
-    // auto p = m::make_arc<std::string>("Hello there");
+    // auto p = m::mmake_arefc<std::string>("Hello there");
 
     //
-
 }
-

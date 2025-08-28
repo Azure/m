@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <m/utility/compiler.h>
+
 #include <algorithm>
 #include <array>
 #include <climits>
@@ -17,18 +19,26 @@
 #include <memory>
 #include <mutex>
 #include <new>
+#include <random>
 #include <ranges>
 #include <span>
 #include <type_traits>
 #include <utility>
 
 #include <m/byte_streams/byte_streams.h>
+#include <m/error_handling/macros.h>
 #include <m/math/math.h>
 
 namespace m
 {
+    std::span<std::byte>
+    aligned_alloc(std::align_val_t alignment, std::size_t bytes);
+
+    void
+    aligned_free(std::span<std::byte> s);
+
     template <typename T>
-    class raw_allocator
+    class raw_array_allocator
     {
         /// <summary>
         /// Having more than max_count Ts specified will overflow std::size_t bytes.
@@ -54,82 +64,70 @@ namespace m
         using const_reference = T const&;
         using size_type       = std::size_t;
         using index_type      = std::size_t;
+        using span_type       = std::span<value_type>;
 
-        raw_allocator(): m_ptr{}, m_size{}, m_constructed{} {}
+        raw_array_allocator(): m_span{}, m_constructed{} {}
 
         /// <summary>
-        /// Constructs a raw_allocator object with a given pointer.
+        /// Constructs a raw_array_allocator object with a given pointer.
         ///
         /// Used almost exclusively to get a memory allocation that had
-        /// previously been allocated via raw_allocator and then release()d
-        /// to be again brought under the purview of raw_allocator and
+        /// previously been allocated via raw_array_allocator and then release()d
+        /// to be again brought under the purview of raw_array_allocator and
         /// then deallocated.
         /// </summary>
         /// <param name="ptr">A pointer to the memory to be managed by the allocator.</param>
-        constexpr explicit raw_allocator(T*        ptr,
-                                         size_type size,
-                                         size_type constructed = size_type{}) noexcept:
-            m_ptr(ptr), m_size(size), m_constructed(constructed)
+        constexpr explicit raw_array_allocator(T*        ptr,
+                                               size_type size,
+                                               size_type constructed = size_type{}) noexcept:
+            m_span(ptr, size), m_constructed(constructed)
         {}
 
-        raw_allocator(std::size_t const count): m_ptr{}, m_size(count), m_constructed{}
+        raw_array_allocator(std::size_t const count): m_span{}, m_constructed{}
         {
             if (count > max_count)
                 throw std::bad_array_new_length();
 
             auto const bytes = count * sizeof(T);
 
-#ifdef WIN32
-            m_ptr = reinterpret_cast<pointer>(_aligned_malloc(bytes, alignof(T)));
-#else
-            m_ptr = reinterpret_cast<pointer>(std::aligned_alloc(alignof(T), bytes));
-#endif
-
-            if (!m_ptr)
-                throw std::bad_alloc();
+            auto const allocated_span = aligned_alloc(std::align_val_t{alignof(T)}, bytes);
+            auto const data_as_t      = reinterpret_cast<value_type*>(allocated_span.data());
+            m_span                    = span_type(data_as_t, count);
         }
 
-        raw_allocator(raw_allocator const&) = delete;
+        raw_array_allocator(raw_array_allocator const&) = delete;
 
-        raw_allocator(raw_allocator&& other): m_ptr{}, m_size{}, m_constructed{}
+        raw_array_allocator(raw_array_allocator&& other): m_span{}, m_constructed{}
         {
             using std::swap;
 
-            swap(m_ptr, other.m_ptr);
-            swap(m_size, other.m_size);
+            swap(m_span, other.m_span);
             swap(m_constructed, other.m_constructed);
         }
 
-        ~raw_allocator() { reset(); }
+        ~raw_array_allocator() { reset(); }
 
-        void reset()
+        void
+        reset()
         {
-            if (auto const ptr = const_cast<value_type*>(std::exchange(m_ptr, nullptr));
-                ptr != nullptr)
+            if (auto const s = std::exchange(m_span, span_type{}); s.data() != nullptr)
             {
                 if (auto const constructed = std::exchange(m_constructed, size_type{});
                     constructed != size_type{})
                 {
-                    std::destroy_n(ptr, constructed);
+                    std::destroy_n(s.data(), constructed);
                 }
 
-#ifdef WIN32
-                _aligned_free(ptr);
-#else
-                std::free(ptr);
-#endif
+                aligned_free(std::as_writable_bytes(s));
             }
-
-            m_size = 0;
         }
 
-        raw_allocator&
-        operator=(raw_allocator&& other) noexcept
+        raw_array_allocator&
+        operator=(raw_array_allocator&& other) noexcept
         {
             using std::swap;
 
-            swap(m_ptr, other.m_ptr);
-            swap(m_size, other.m_size);
+            swap(m_span, other.m_span);
             swap(m_constructed, other.m_constructed);
 
             return *this;
@@ -138,62 +136,45 @@ namespace m
         value_reference
         operator[](index_type i)
         {
-            return m_ptr[i];
+            return m_span[i];
         }
 
         const_reference
         operator[](index_type i) const
         {
-            return m_ptr[i];
+            return m_span[i];
         }
 
         constexpr
         operator pointer() const
         {
-            return m_ptr;
+            return m_span.data();
         }
 
         constexpr pointer
         get() const
         {
-            return m_ptr;
-        }
-
-        pointer
-        release()
-        {
-            if ((m_constructed != 0) && (m_constructed != m_size))
-                throw std::runtime_error("Cannot release after failed default construction");
-
-            if (auto const ptr = std::exchange(m_ptr, nullptr); ptr != nullptr)
-            {
-                m_size        = 0;
-                m_constructed = 0;
-
-                return ptr;
-            }
-
-            return nullptr;
+            return m_span.data();
         }
 
         std::span<T>
-        release_span()
+        release()
         {
-            if ((m_constructed != 0) && (m_constructed != m_size))
+            if ((m_constructed != 0) && (m_constructed != m_span.size()))
                 throw std::runtime_error("Cannot release after failed default construction");
 
-            auto const s  = std::span(std::exchange(m_ptr, nullptr), std::exchange(m_size, 0));
+            auto const s  = std::exchange(m_span, span_type{});
             m_constructed = 0;
             return s;
         }
 
         void
-        operator=(raw_allocator const&) = delete;
+        operator=(raw_array_allocator const&) = delete;
 
         constexpr size_type
         size() const
         {
-            return m_size;
+            return m_span.size();
         }
 
         constexpr size_type
@@ -205,31 +186,31 @@ namespace m
         value_type*
         begin() const
         {
-            return m_ptr;
+            return m_span.data();
         }
 
         T const*
         cbegin() const
         {
-            return m_ptr;
+            return m_span.data();
         }
 
         value_type*
         end() const
         {
-            return m_ptr + m_size;
+            return m_span.data() + m_span.size();
         }
 
         T const*
         cend() const
         {
-            return m_ptr + m_size;
+            return m_span.data() + m_span.size();
         }
 
         void
         default_construct()
         {
-            // You may not attempt to defalut construct more than once
+            // You may not attempt to default construct more than once
             if (m_constructed != 0)
                 throw std::runtime_error("Already constructed");
 
@@ -245,32 +226,31 @@ namespace m
         }
 
     private:
-        value_pointer m_ptr;
-        size_type     m_size;
-        size_type     m_constructed;
+        std::span<value_type> m_span;
+        size_type             m_constructed;
     };
 
     template <typename T>
     class unique_span
     {
     public:
-        using element_type           = T;
-        using value_type             = std::decay_t<T>;
-        using const_value_type       = std::add_const_t<value_type>;
-        using size_type              = std::size_t;
-        using difference_type        = std::ptrdiff_t;
-        using pointer                = T*;
-        using const_pointer          = T const*;
-        using reference              = T&;
-        using const_reference        = T const&;
-        using span_type              = std::span<T, std::dynamic_extent>;
-        using iterator               = typename span_type::iterator;
-        using reverse_iterator       = typename span_type::reverse_iterator;
+        using element_type     = T;
+        using value_type       = std::decay_t<T>;
+        using const_value_type = std::add_const_t<value_type>;
+        using size_type        = std::size_t;
+        using difference_type  = std::ptrdiff_t;
+        using pointer          = T*;
+        using const_pointer    = T const*;
+        using reference        = T&;
+        using const_reference  = T const&;
+        using span_type        = std::span<T, std::dynamic_extent>;
+        using iterator         = typename span_type::iterator;
+        using reverse_iterator = typename span_type::reverse_iterator;
 
-        #ifdef M_HAS_CXX23
+#ifdef M_HAS_CXX23
         using const_iterator         = typename span_type::const_iterator;
         using const_reverse_iterator = typename span_type::const_reverse_iterator;
-        #endif
+#endif
 
         constexpr unique_span() noexcept: m_span() {}
 
@@ -283,7 +263,7 @@ namespace m
 
         unique_span(std::size_t n): m_span()
         {
-            m::raw_allocator<value_type> ra(n);
+            m::raw_array_allocator<value_type> ra(n);
             ra.default_construct();
             m_span = ra.release_span();
         }
@@ -291,12 +271,12 @@ namespace m
         template <typename Fn>
         unique_span(std::size_t n, Fn&& fn): m_span()
         {
-            m::raw_allocator<value_type> ra(n);
+            m::raw_array_allocator<value_type> ra(n);
 
             for (std::size_t i = 0; i < n; i++)
                 std::invoke(fn, i, ra[i]);
 
-            m_span = ra.release_span();
+            m_span = ra.release();
         }
 
         /// <summary>
@@ -309,7 +289,7 @@ namespace m
         /// <param name="il"></param>
         unique_span(std::initializer_list<T> il): m_span()
         {
-            m::raw_allocator<value_type> ra(il.size());
+            m::raw_array_allocator<value_type> ra(il.size());
 
             std::uninitialized_copy_n(il.begin(), il.size(), ra.get());
 
@@ -328,30 +308,30 @@ namespace m
         template <std::size_t N>
         unique_span(std::span<T, N> s): m_span()
         {
-            m::raw_allocator<value_type> ra(s.size());
+            m::raw_array_allocator<value_type> ra(s.size());
 
             std::uninitialized_copy_n(s.begin(), s.size(), ra.get());
 
-            m_span = ra.release_span();
+            m_span = ra.release();
         }
 
         template <typename IteratorT, typename EndIteratorT>
             requires(std::random_access_iterator<IteratorT>)
         unique_span(IteratorT it, EndIteratorT end)
         {
-            constexpr auto               size = std::distance(it, end);
-            m::raw_allocator<value_type> ra(size);
+            constexpr auto                     size = std::distance(it, end);
+            m::raw_array_allocator<value_type> ra(size);
             std::uninitialized_copy(it, end, ra.get());
-            m_span = ra.release_span();
+            m_span = ra.release();
         }
 
         template <typename RangeT>
         unique_span(RangeT&& r)
         {
-            auto                         size = static_cast<std::size_t>(std::ranges::size(r));
-            m::raw_allocator<value_type> ra(size);
+            auto size = static_cast<std::size_t>(std::ranges::size(r));
+            m::raw_array_allocator<value_type> ra(size);
             std::ranges::uninitialized_copy(r, ra);
-            m_span = ra.release_span();
+            m_span = ra.release();
         }
 
         ~unique_span() { reset(); }
@@ -365,10 +345,10 @@ namespace m
             {
                 std::ranges::destroy(s);
 
-                // Have raw_allocator take control over the allocation again
+                // Have raw_array_allocator take control over the allocation again
                 // so that it can deallocate it, however it had allocated
                 // it.
-                raw_allocator ra(ptr, s.size());
+                raw_array_allocator ra(ptr, s.size());
             }
         }
 

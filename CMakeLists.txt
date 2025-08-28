@@ -27,6 +27,7 @@ if (MSVC)
     add_compile_options(/W4 /WX)
 #     add_compile_options(/Wall)
     add_compile_options(/wd4018)        # '_': signed/unsigned mismatch [builtin relop]
+    add_compile_options(/wd4324)        # '_': structure was padded due to alignment specifier
     add_compile_options(/wd4459)        # declaration of 'foo' hides global declaration
     add_compile_options(/wd4514)        # 'x': unreferenced inline function has been removed
     add_compile_options(/wd4625)        # 'x': copy constructor was implicitly defined as deleted
@@ -51,6 +52,10 @@ else()
     add_compile_options(-Wno-sign-compare)
 #    add_compile_options(-wno-unused-local-typedef)          # error : unused type alias 'x'
 endif()
+
+include(CheckLinkerFlag)
+
+check_linker_flag(CXX "LINKER:-natvis" HAS_LINKER_NATVIS)
 
 include(GNUInstallDirs)
 

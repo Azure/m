@@ -10,4 +10,5 @@ target_include_directories(m_arefc_ptr PUBLIC
 
 target_link_libraries(m_arefc_ptr PUBLIC
     m_error_handling
+    m_memory
 )

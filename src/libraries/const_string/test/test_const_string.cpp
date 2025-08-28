@@ -54,14 +54,3 @@ TEST(TestConstString, TestAddWithNatoLetters1)
     std::println("{}", x->view());
 }
 
-#if 0
-TEST(TestConstString, TryConcat)
-{
-    auto             x = m::make_wconst_string(L"foo"sv);
-    auto             y = m::make_wconst_string(L"bar"sv);
-    auto             z = m::wconst_string::concatenate(x, y);
-    auto e = m::make_wconst_string(L"foobar"sv);
-    auto c = m::wconst_string::compare(z, e);
-    EXPECT_EQ(c, std::whatever::equal);
-}
-#endif

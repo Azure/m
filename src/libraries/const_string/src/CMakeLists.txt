@@ -10,5 +10,5 @@ target_include_directories(m_const_string PUBLIC
 
 target_link_libraries(m_const_string PUBLIC
     m_error_handling
-    m_arc_ptr
+    m_arefc_ptr
 )

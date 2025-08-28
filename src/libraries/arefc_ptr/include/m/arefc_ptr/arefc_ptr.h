@@ -40,7 +40,7 @@ namespace m
     //
     using destroyer_fn = void (*)(void*);
 
-    namespace refcount_impl
+    namespace arefc_ptr_impl
     {
         struct control_area
         {
@@ -76,25 +76,25 @@ namespace m
                 std::destroy_n(reinterpret_cast<T*>(ptr), 1);
             }
         };
-    } // namespace refcount_impl
+    } // namespace arefc_ptr_impl
 
     template <typename T>
         requires(std::is_standard_layout_v<T>)
-    class arc_ptr;
+    class arefc_ptr;
 
     template <typename T, typename... Args>
         requires(std::is_standard_layout_v<T>)
-    arc_ptr<T>
-    make_arc(Args&&... args);
+    arefc_ptr<T>
+    mmake_arefc(Args&&... args);
 
     template <typename T, typename Fn, typename... Args>
         requires(std::is_standard_layout_v<T> &&
                  std::invocable<Fn, std::span<std::byte>, Args && ...>)
-    arc_ptr<T>
-    make_arc_ex(std::size_t extra_bytes_required, destroyer_fn destroyer, Fn&& fn, Args&&... args);
+    arefc_ptr<T>
+    mmake_arefc_ex(std::size_t extra_bytes_required, destroyer_fn destroyer, Fn&& fn, Args&&... args);
 
     /// <summary>
-    /// The arc_ptr type is pointer to a reference counted object, it is
+    /// The arefc_ptr type is pointer to a reference counted object, it is
     /// much like the Rust std::Arc<T> type.
     ///
     /// It is intended to have an interface akin to std::shared_ptr<> but at
@@ -108,19 +108,19 @@ namespace m
     /// <typeparam name="T"></typeparam>
     template <typename T>
         requires(std::is_standard_layout_v<T>)
-    class arc_ptr // ala shared_ptr
+    class arefc_ptr // ala shared_ptr
     {
     public:
-        arc_ptr() = default;
+        arefc_ptr() = default;
 
-        arc_ptr(arc_ptr const& other): m_ptr{other.addref()} {}
+        arefc_ptr(arefc_ptr const& other): m_ptr{other.addref()} {}
 
         template <typename U>
             requires(std::is_standard_layout_v<U> && std::convertible_to<U*, T*>)
-        arc_ptr(arc_ptr<U> const& other): m_ptr{other.addref()}
+        arefc_ptr(arefc_ptr<U> const& other): m_ptr{other.addref()}
         {}
 
-        arc_ptr(arc_ptr&& other) noexcept
+        arefc_ptr(arefc_ptr&& other) noexcept
         {
             auto const thisptr  = get();
             auto const otherptr = other.get();
@@ -128,10 +128,10 @@ namespace m
             other.put(thisptr);
         }
 
-        ~arc_ptr() { reset(); }
+        ~arefc_ptr() { reset(); }
 
-        arc_ptr&
-        operator=(arc_ptr& other)
+        arefc_ptr&
+        operator=(arefc_ptr& other)
         {
             if (this != &other)
             {
@@ -144,8 +144,8 @@ namespace m
 
         template <typename U>
             requires(std::is_standard_layout_v<U> && std::convertible_to<U*, T*>)
-        arc_ptr&
-        operator=(arc_ptr<U> const& other)
+        arefc_ptr&
+        operator=(arefc_ptr<U> const& other)
         {
             if (this != &other)
             {
@@ -156,8 +156,8 @@ namespace m
             return *this;
         }
 
-        arc_ptr&
-        operator=(arc_ptr&& other) noexcept
+        arefc_ptr&
+        operator=(arefc_ptr&& other) noexcept
         {
             auto thisvalue  = get();
             auto othervalue = other.get();
@@ -205,15 +205,15 @@ namespace m
 
         template <typename U>
             requires(std::is_standard_layout_v<U> && std::convertible_to<T*, U*>)
-        arc_ptr<U>
+        arefc_ptr<U>
         to() const
         {
-            arc_ptr<U> v(*this);
+            arefc_ptr<U> v(*this);
             return v;
         }
 
         bool
-        compare_exchange_strong(arc_ptr& expected, arc_ptr const& desired)
+        compare_exchange_strong(arefc_ptr& expected, arefc_ptr const& desired)
         {
             // The trick here is to not mess up the reference counting!
             //
@@ -228,7 +228,7 @@ namespace m
 
             if (m_ptr.compare_exchange_strong(e, d, std::memory_order_acq_rel))
             {
-                // the swap succeeded. this means that the arc_ptr that d refers
+                // the swap succeeded. this means that the arefc_ptr that d refers
                 // to needs to be addref'd, the one that e refers to needs
                 // to be released.
                 if (d != e)
@@ -256,12 +256,12 @@ namespace m
         }
 
     private:
-        constexpr arc_ptr(T* ptr) noexcept: m_ptr(ptr) {}
+        constexpr arefc_ptr(T* ptr) noexcept: m_ptr(ptr) {}
 
         constexpr static inline auto control_area_offset =
-            offsetof(refcount_impl::aggregate<T>, m_object);
+            offsetof(arefc_ptr_impl::aggregate<T>, m_object);
 
-        refcount_impl::control_area*
+        arefc_ptr_impl::control_area*
         get_control_area() const
         {
             auto const ptr = get();
@@ -271,12 +271,12 @@ namespace m
             return get_control_area(ptr);
         }
 
-        static refcount_impl::control_area*
+        static arefc_ptr_impl::control_area*
         get_control_area(T* ptr)
         {
             auto const uptr    = reinterpret_cast<uintptr_t>(ptr);
             auto const ca_uptr = uptr - control_area_offset;
-            return reinterpret_cast<refcount_impl::control_area*>(ca_uptr);
+            return reinterpret_cast<arefc_ptr_impl::control_area*>(ca_uptr);
         }
 
         T*
@@ -341,14 +341,14 @@ namespace m
 
         template <typename T1, typename... Args>
             requires(std::is_standard_layout_v<T1>)
-        friend arc_ptr<T1>
-        make_arc(Args&&... args);
+        friend arefc_ptr<T1>
+        mmake_arefc(Args&&... args);
 
         template <typename T1, typename Fn, typename... Args>
             requires(std::is_standard_layout_v<T1> &&
                      std::invocable<Fn, std::span<std::byte>, Args && ...>)
-        friend arc_ptr<T1>
-        make_arc_ex(std::size_t  extra_bytes_required,
+        friend arefc_ptr<T1>
+        mmake_arefc_ex(std::size_t  extra_bytes_required,
                     destroyer_fn destroyer,
                     Fn&&         fn,
                     Args&&... args);
@@ -357,10 +357,10 @@ namespace m
     template <typename T, typename Fn, typename... Args>
         requires(std::is_standard_layout_v<T> &&
                  std::invocable<Fn, std::span<std::byte>, Args && ...>)
-    arc_ptr<T>
-    make_arc_ex(std::size_t extra_bytes_required, destroyer_fn destroyer, Fn&& fn, Args&&... args)
+    arefc_ptr<T>
+    mmake_arefc_ex(std::size_t extra_bytes_required, destroyer_fn destroyer, Fn&& fn, Args&&... args)
     {
-        using aggregate_type = refcount_impl::aggregate<T>;
+        using aggregate_type = arefc_ptr_impl::aggregate<T>;
 
         auto const bytes_required =
             m::math::add(offsetof(aggregate_type, m_object), extra_bytes_required, std::size_t{});
@@ -376,18 +376,18 @@ namespace m
             std::forward<Args>(args)...);
 
         uniqptr.release();
-        arc_ptr<T> retval(ptr);
+        arefc_ptr<T> retval(ptr);
         return retval;
     }
 
     template <typename T, typename... Args>
         requires(std::is_standard_layout_v<T>)
-    arc_ptr<T>
-    make_arc(Args&&... args)
+    arefc_ptr<T>
+    mmake_arefc(Args&&... args)
     {
-        return make_arc_ex<T>(
+        return mmake_arefc_ex<T>(
             sizeof(T),
-            &refcount_impl::aggregate<T>::destroyer,
+            &arefc_ptr_impl::aggregate<T>::destroyer,
             [](std::span<std::byte> s, Args&&... args1) {
                 M_INTERNAL_ERROR_CHECK(s.size() >= sizeof(T));
                 return ::new (s.data()) T(std::forward<Args>(args1)...);

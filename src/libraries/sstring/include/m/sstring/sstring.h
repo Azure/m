@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-#include <m/arc_ptr/arc_ptr.h>
+#include <m/arefc_ptr/arefc_ptr.h>
 #include <m/const_string/const_string.h>
 #include <m/error_handling/macros.h>
 #include <m/math/math.h>
@@ -163,7 +163,7 @@ namespace m
             if (!m_v)
                 return nullptr;
 
-            arc_ptr<basic_const_string<char_type>> expected; // for the compare-exchange
+            arefc_ptr<basic_const_string<char_type>> expected; // for the compare-exchange
 
             // We didn't have one. Make one.
             auto [new_const_str, new_c_str_ptr] = make_c_str();
@@ -322,7 +322,7 @@ namespace m
             }
         }
 
-        std::pair<arc_ptr<basic_const_string<char_type>>, char_type const*>
+        std::pair<arefc_ptr<basic_const_string<char_type>>, char_type const*>
         make_c_str() const
         {
             //
@@ -344,17 +344,17 @@ namespace m
             return std::make_pair(new_string, new_string->view().data());
         }
 
-        basic_sstring(arc_ptr<basic_const_string<char_type>> const& aptr, view_type view):
+        basic_sstring(arefc_ptr<basic_const_string<char_type>> const& aptr, view_type view):
             m_v(aptr), m_view(view)
         {
             // Populate c_str() if possible
             // c_str();
         }
 
-        arc_ptr<basic_const_string<char_type>>         m_v;
-        std::basic_string_view<char_type>              m_view;
-        mutable arc_ptr<basic_const_string<char_type>> m_c_str_v;
-        mutable std::atomic<char_type const*>          m_c_str;
+        arefc_ptr<basic_const_string<char_type>>         m_v;
+        std::basic_string_view<char_type>                m_view;
+        mutable arefc_ptr<basic_const_string<char_type>> m_c_str_v;
+        mutable std::atomic<char_type const*>            m_c_str;
     };
 
     using sstring    = basic_sstring<char>;

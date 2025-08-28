@@ -28,6 +28,7 @@
 
 #include <m/error_handling/macros.h>
 #include <m/math/math.h>
+#include <m/memory/memory.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
 
@@ -54,15 +55,22 @@ namespace m
             destroyer_fn          m_destroyer;
         };
 
-        // Example layout of how the object _would look_ if the object were
-        // laid out and constructed in the normal fashion.
-        //
-        // This allows us to use offsetof() to determine the offset of
-        // m_object if we were to use this approach, without necessarily using
-        // it. For most Ts, offsetof(aggregate<T>, m_object) ==
-        // sizeof(control_area), but if T has some high alignment
-        // requirements, this could not be the case.
-        //
+        /// <summary>
+        /// aggregate is a struct that allows us to find a size for an
+        /// object that would give us the correct alignment for T.
+        ///
+        /// if alignof(T) is greater than the default alignment,
+        /// the actual control_area at run time will not be at the
+        /// beginning of the object. It will be at address_of(m_object)
+        /// -sizeof(control_area).
+        ///
+        /// This is because T may derive from U which may be of lesser
+        /// alignment and we still need to be able to find the
+        /// control area at run time. So the control area must
+        /// always immediately precede the object, even if
+        /// `aggregate<>` would have put padding between them.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
         template <typename T>
             requires(std::is_standard_layout_v<T>)
         struct aggregate
@@ -70,12 +78,95 @@ namespace m
             control_area m_control_area;
             T            m_object;
 
+            control_area*
+            get_control_area() const;
+ 
             static void
             destroyer(void* ptr)
             {
                 std::destroy_n(reinterpret_cast<T*>(ptr), 1);
             }
+
+            inline static std::span<std::byte>
+                allocate(std::size_t bytes)
+            {
+                if constexpr (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)
+                {
+                    return std::span(new std::byte[bytes], bytes);
+                }
+                else
+                {
+                    if (auto const ptr =
+                            m::aligned_alloc(std::align_val_t{alignof(aggregate)}, bytes);
+                        ptr != nullptr)
+                        return std::span(ptr, bytes);
+                    else
+                        throw std::bad_alloc();
+                }
+            }
+
+            inline static void
+                deallocate(std::span<std::byte> s)
+            {
+                if constexpr (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)
+                {
+                    delete[] s.data();
+                }
+                else
+                {
+                    m::aligned_free(s);
+                }
+
+            }
         };
+
+        /// <summary>
+        /// Returns a pointer to the control area for *this.
+        /// 
+        /// Depending on alignof(T), may not be at offsetof(aggregate, m_control_area).
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        template <typename T>
+            requires(std::is_standard_layout_v<T>)
+        control_area*
+        aggregate<T>::get_control_area() const
+        {
+            if constexpr (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)
+            {
+                return const_cast<control_area*>(&m_control_area);
+            }
+            else
+            {
+                // just some dumb assertions but they are kind of assumed
+                // in the below pointer math
+                static_assert(offsetof(aggregate, m_control_area) == 0);
+                static_assert(offsetof(aggregate, m_object) > offsetof(aggregate, m_control_area));
+                auto const cobjptr = &m_object;
+                auto const uobjptr = reinterpret_cast<uintptr_t>(cobjptr);
+                auto const uca     = uobjptr - sizeof(control_area);
+                return reinterpret_cast<control_area*>(uca);
+            }
+        }
+        /// <summary>
+        /// Returns the control_area* for any given pointer.
+        /// 
+        /// Note that it is unnecessary to use the aggregate to
+        /// find the control area. The control area is always immediately
+        /// before the object.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="ptr"></param>
+        /// <returns></returns>
+        template <typename T>
+        control_area*
+        get_control_area(T* ptr)
+        {
+            auto const uptr = reinterpret_cast<uintptr_t>(ptr);
+            auto const uca  = uptr - sizeof(control_area);
+            return reinterpret_cast<control_area*>(uca);
+        }
+
     } // namespace arefc_ptr_impl
 
     template <typename T>
@@ -91,7 +182,10 @@ namespace m
         requires(std::is_standard_layout_v<T> &&
                  std::invocable<Fn, std::span<std::byte>, Args && ...>)
     arefc_ptr<T>
-    mmake_arefc_ex(std::size_t extra_bytes_required, destroyer_fn destroyer, Fn&& fn, Args&&... args);
+    mmake_arefc_ex(std::size_t  extra_bytes_required,
+                   destroyer_fn destroyer,
+                   Fn&&         fn,
+                   Args&&... args);
 
     /// <summary>
     /// The arefc_ptr type is pointer to a reference counted object, it is
@@ -349,16 +443,19 @@ namespace m
                      std::invocable<Fn, std::span<std::byte>, Args && ...>)
         friend arefc_ptr<T1>
         mmake_arefc_ex(std::size_t  extra_bytes_required,
-                    destroyer_fn destroyer,
-                    Fn&&         fn,
-                    Args&&... args);
+                       destroyer_fn destroyer,
+                       Fn&&         fn,
+                       Args&&... args);
     };
 
     template <typename T, typename Fn, typename... Args>
         requires(std::is_standard_layout_v<T> &&
                  std::invocable<Fn, std::span<std::byte>, Args && ...>)
     arefc_ptr<T>
-    mmake_arefc_ex(std::size_t extra_bytes_required, destroyer_fn destroyer, Fn&& fn, Args&&... args)
+    mmake_arefc_ex(std::size_t  extra_bytes_required,
+                   destroyer_fn destroyer,
+                   Fn&&         fn,
+                   Args&&... args)
     {
         using aggregate_type = arefc_ptr_impl::aggregate<T>;
 

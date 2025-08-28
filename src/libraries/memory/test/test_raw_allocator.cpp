@@ -18,14 +18,14 @@ std::array const byte_array_abc{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
 
 TEST(MemoryRawAllocator, ByteSpanUnconstructed)
 {
-    m::raw_allocator<std::byte> ra(byte_array_abc.size());
+    m::raw_array_allocator<std::byte> ra(byte_array_abc.size());
     EXPECT_EQ(ra.size(), byte_array_abc.size());
     EXPECT_EQ(ra.constructed(), 0);
 }
 
 TEST(MemoryRawAllocator, ByteSpanConstructed)
 {
-    m::raw_allocator<std::byte> ra(byte_array_abc.size());
+    m::raw_array_allocator<std::byte> ra(byte_array_abc.size());
     ra.default_construct();
     EXPECT_EQ(ra.size(), byte_array_abc.size());
     EXPECT_EQ(ra.constructed(), ra.size());
@@ -177,7 +177,7 @@ std::array const owc_array{owc(std::byte{'a'}), owc(std::byte{'b'}), owc(std::by
 TEST(MemoryRawAllocator, CountOpsUnconstructed)
 {
     owc_stats             stats1;
-    m::raw_allocator<owc> ra(owc_array.size());
+    m::raw_array_allocator<owc> ra(owc_array.size());
     owc_stats             stats2;
     EXPECT_EQ(ra.size(), owc_array.size());
     EXPECT_EQ(ra.constructed(), 0);
@@ -208,7 +208,7 @@ TEST(MemoryRawAllocator, CountOpsUnconstructed)
 TEST(MemoryRawAllocator, CountOpsConstructed)
 {
     owc_stats             stats1;
-    m::raw_allocator<owc> ra(owc_array.size());
+    m::raw_array_allocator<owc> ra(owc_array.size());
     owc_stats             stats2;
     EXPECT_EQ(ra.size(), owc_array.size());
     EXPECT_EQ(ra.constructed(), 0);

@@ -96,12 +96,8 @@ namespace m
                 }
                 else
                 {
-                    if (auto const ptr =
-                            m::aligned_alloc(std::align_val_t{alignof(aggregate)}, bytes);
-                        ptr != nullptr)
-                        return std::span(ptr, bytes);
-                    else
-                        throw std::bad_alloc();
+                    auto const ptr = m::aligned_alloc(std::align_val_t{alignof(aggregate)}, bytes);
+                    return std::span(ptr, bytes);
                 }
             }
 

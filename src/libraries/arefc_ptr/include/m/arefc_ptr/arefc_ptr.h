@@ -96,8 +96,7 @@ namespace m
                 }
                 else
                 {
-                    auto const ptr = m::aligned_alloc(std::align_val_t{alignof(T)}, bytes);
-                    return std::span(ptr, bytes);
+                    return m::aligned_alloc(std::align_val_t{alignof(T)}, bytes);
                 }
             }
 

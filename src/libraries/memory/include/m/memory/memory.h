@@ -265,7 +265,7 @@ namespace m
         {
             m::raw_array_allocator<value_type> ra(n);
             ra.default_construct();
-            m_span = ra.release_span();
+            m_span = ra.release();
         }
 
         template <typename Fn>

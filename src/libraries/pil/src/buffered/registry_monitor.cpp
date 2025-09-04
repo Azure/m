@@ -48,7 +48,7 @@ namespace m::pil::impl::buffered
 
         M_NOT_IMPLEMENTED("buffered registry change notification not implemented");
 
-        //return register_watch_disposition{};
+        // return register_watch_disposition{};
     }
 
 } // namespace m::pil::impl::buffered

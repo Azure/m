@@ -19,10 +19,11 @@ target_link_libraries(m_pil PUBLIC
     m_sstring
     m_threadpool
     m_win32
+    m_windows_strings
 )
 
 target_include_directories(m_pil PRIVATE
-    ../../
+    ../../../
 )
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

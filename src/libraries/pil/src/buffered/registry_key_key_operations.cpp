@@ -47,8 +47,8 @@ namespace m::pil::impl::buffered
         if (!m_underlying_key)
             return;
 
-        std::array<pil::registry::path, 32>                 key_array;
-        std::span<pil::registry::path, std::dynamic_extent> key_span{key_array};
+        std::array<pil::key_path, 32>                 key_array;
+        std::span<pil::key_path, std::dynamic_extent> key_span{key_array};
         std::size_t                                         index{};
 
         for (;;)
@@ -73,7 +73,7 @@ namespace m::pil::impl::buffered
 
     ikey::create_key_disposition
     key::create_key(ikey::create_key_flags     flags,
-                    pil::registry::path const& key_name,
+                    pil::key_path const& key_name,
                     sam                        sam_desired,
                     std::optional<security_attributes>,
                     std::shared_ptr<ikey>& returned_key)
@@ -163,7 +163,7 @@ namespace m::pil::impl::buffered
     }
 
     ikey::delete_key_disposition
-    key::delete_key(ikey::delete_key_flags flags, pil::registry::path const& key_name, sam)
+    key::delete_key(ikey::delete_key_flags flags, pil::key_path const& key_name, sam)
     {
         M_API_PARAMETER_MUST_BE_ZERO("ikey::delete_key", flags);
 
@@ -192,7 +192,7 @@ namespace m::pil::impl::buffered
     }
 
     ikey::delete_tree_disposition
-    key::delete_tree(ikey::delete_tree_flags flags, std::optional<pil::registry::path> const& name)
+    key::delete_tree(ikey::delete_tree_flags flags, std::optional<pil::key_path> const& name)
     {
         M_API_PARAMETER_MUST_BE_ZERO("ikey::delete_tree", flags);
 
@@ -206,7 +206,7 @@ namespace m::pil::impl::buffered
     ikey::enumerate_keys_disposition
     key::enumerate_keys(ikey::enumerate_keys_flags                           flags,
                         std::size_t                                          index,
-                        std::span<pil::registry::path, std::dynamic_extent>& key_names)
+                        std::span<pil::key_path, std::dynamic_extent>& key_names)
     {
         M_API_PARAMETER_MUST_BE_ZERO("ikey::enumerate_keys", flags);
 
@@ -225,7 +225,7 @@ namespace m::pil::impl::buffered
                 continue;
             }
 
-            key_names[span_index] = pil::registry::path(it->first);
+            key_names[span_index] = pil::key_path(it->first);
             span_index++;
             it++;
         }
@@ -252,7 +252,7 @@ namespace m::pil::impl::buffered
 
     ikey::open_key_disposition
     key::open_key(ikey::open_key_flags                      flags,
-                  std::optional<pil::registry::path> const& key_name,
+                  std::optional<pil::key_path> const& key_name,
                   sam                                       sam_desired,
                   std::shared_ptr<ikey>&                    returned_key)
     {
@@ -346,8 +346,8 @@ namespace m::pil::impl::buffered
 
     ikey::rename_key_disposition
     key::rename_key(ikey::rename_key_flags                    flags,
-                    std::optional<pil::registry::path> const& old_key_name,
-                    pil::registry::path const&                new_key_name)
+                    std::optional<pil::key_path> const& old_key_name,
+                    pil::key_path const&                new_key_name)
     {
         auto const entry_time = time_point::clock::now();
 
@@ -413,7 +413,7 @@ namespace m::pil::impl::buffered
     }
 
     bool
-    key::is_subkey_empty(pil::registry::path const& key_name)
+    key::is_subkey_empty(pil::key_path const& key_name)
     {
         auto const it = m_keys.find(key_name.native());
 
@@ -444,8 +444,8 @@ namespace m::pil::impl::buffered
             }
         }
 
-        pil::registry::path                                 subkey_name;
-        std::span<pil::registry::path, std::dynamic_extent> subkey_name_span(&subkey_name, 1);
+        pil::key_path                                 subkey_name;
+        std::span<pil::key_path, std::dynamic_extent> subkey_name_span(&subkey_name, 1);
 
         auto const d = node.m_key->enumerate_keys(enumerate_keys_flags{}, 0, subkey_name_span);
         M_INTERNAL_ERROR_CHECK(!d);
@@ -454,7 +454,7 @@ namespace m::pil::impl::buffered
     }
 
     void
-    key::unmirror_node(pil::registry::path const& key_name, key_node& node)
+    key::unmirror_node(pil::key_path const& key_name, key_node& node)
     {
         std::ignore = key_name;
         std::ignore = node;
@@ -462,7 +462,7 @@ namespace m::pil::impl::buffered
     }
 
     ikey::get_path_disposition
-    key::get_path(ikey::get_path_flags flags, m::pil::registry::path& path_out)
+    key::get_path(ikey::get_path_flags flags, m::pil::key_path& path_out)
     {
         return m_underlying_key->get_path(flags, path_out);
     }

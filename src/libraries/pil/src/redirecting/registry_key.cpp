@@ -9,46 +9,74 @@
 
 #include <m/pil/registry.h>
 
-//
-// This is the implementation of the Platform Isolation Layer's
-// Registry Pass-Through Key object's operations on keys. that's
-// a mouthful.
-//
+#include "redirecting.h"
 
-//
-// The Pass-through layer is a simple implementation of the interface which
-// only passes through the calls to the next layer. It forms a basis for
-// copy-pasting new implementations mostly.
-//
-
-#include "passthrough.h"
-
-namespace m::pil::impl::passthrough
+namespace m::pil::impl::redirecting
 {
-    key::key(std::shared_ptr<ikey> const& key): m_key(key) {}
+    key::key(std::shared_ptr<ikey> const& key, std::shared_ptr<redirector> const& redir):
+        m_key(key), m_redirector(redir)
+    {
+        M_INTERNAL_ERROR_CHECK(m_redirector.get() != nullptr);
+    }
 
-    key::key(std::shared_ptr<ikey>&& key) noexcept: m_key(std::move(key)) {}
+    path
+    key::public_to_private(path const& p) const
+    {
+        return m_redirector->map_public_to_private(p);
+    }
+
+    std::optional<path>
+    key::public_to_private(std::optional<path> const& p) const
+    {
+        if (p.has_value())
+            return public_to_private(p.value());
+
+        return std::nullopt;
+    }
+
+    path
+    key::private_to_public(path const& p) const
+    {
+        return m_redirector->map_private_to_public(p);
+    }
+
+    std::optional<path>
+    key::private_to_public(std::optional<path> const& p) const
+    {
+        if (p.has_value())
+            return private_to_public(p.value());
+
+        return std::nullopt;
+    }
 
     ikey::create_key_disposition
     key::create_key(ikey::create_key_flags             flags,
-                    pil::key_path const&         name,
+                    pil::key_path const&         key_path,
                     sam                                sam_desired,
                     std::optional<security_attributes> sa,
                     std::shared_ptr<ikey>&             returned_key)
     {
-        return m_key->create_key(flags, name, sam_desired, sa, returned_key);
+        std::shared_ptr<ikey> unmapped_returned_key;
+        auto                  d = m_key->create_key(
+            flags, public_to_private(key_path), sam_desired, sa, unmapped_returned_key);
+        if (unmapped_returned_key)
+            returned_key = std::make_shared<key>(unmapped_returned_key, m_redirector);
+        return d;
     }
 
     ikey::delete_key_disposition
-    key::delete_key(ikey::delete_key_flags flags, pil::key_path const& name, sam sam_desired)
+    key::delete_key(ikey::delete_key_flags     flags,
+                    pil::key_path const& key_path,
+                    sam                        sam_desired)
     {
-        return m_key->delete_key(flags, name, sam_desired);
+        return m_key->delete_key(flags, public_to_private(key_path), sam_desired);
     }
 
     ikey::delete_tree_disposition
-    key::delete_tree(ikey::delete_tree_flags flags, std::optional<pil::key_path> const& name)
+    key::delete_tree(ikey::delete_tree_flags                   flags,
+                     std::optional<pil::key_path> const& key_path)
     {
-        return m_key->delete_tree(flags, name);
+        return m_key->delete_tree(flags, public_to_private(key_path));
     }
 
     ikey::enumerate_keys_disposition
@@ -56,7 +84,12 @@ namespace m::pil::impl::passthrough
                         std::size_t                                          index,
                         std::span<pil::key_path, std::dynamic_extent>& key_names)
     {
-        return m_key->enumerate_keys(flags, index, key_names);
+        auto d = m_key->enumerate_keys(flags, index, key_names);
+
+        for (auto&& e: key_names)
+            e = private_to_public(e);
+
+        return d;
     }
 
     ikey::flush_disposition
@@ -67,11 +100,15 @@ namespace m::pil::impl::passthrough
 
     ikey::open_key_disposition
     key::open_key(ikey::open_key_flags                      flags,
-                  std::optional<pil::key_path> const& name,
+                  std::optional<pil::key_path> const& key_path,
                   sam                                       sam_desired,
                   std::shared_ptr<ikey>&                    returned_key)
     {
-        return m_key->open_key(flags, name, sam_desired, returned_key);
+        std::shared_ptr<ikey> temp_key;
+        auto d = m_key->open_key(flags, public_to_private(key_path), sam_desired, temp_key);
+        if (temp_key)
+            returned_key = std::make_shared<key>(temp_key, m_redirector);
+        return d;
     }
 
     ikey::query_information_key_disposition
@@ -90,7 +127,7 @@ namespace m::pil::impl::passthrough
                     std::optional<pil::key_path> const& old_name,
                     pil::key_path const&                new_name)
     {
-        return m_key->rename_key(flags, old_name, new_name);
+        return m_key->rename_key(flags, public_to_private(old_name), public_to_private(new_name));
     }
 
     ikey::delete_value_disposition
@@ -146,7 +183,10 @@ namespace m::pil::impl::passthrough
     ikey::get_path_disposition
     key::get_path(ikey::get_path_flags flags, m::pil::key_path& path_out)
     {
-        return m_key->get_path(flags, path_out);
+        path temp_path;
+        auto d   = m_key->get_path(flags, temp_path);
+        path_out = private_to_public(temp_path);
+        return d;
     }
 
-} // namespace m::pil::impl::registry::passthrough
+} // namespace m::pil::impl::redirecting

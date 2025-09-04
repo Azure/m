@@ -42,7 +42,7 @@ namespace m::pil
     }
 
     key
-    key::do_create_key(pil::registry::path const& key_name)
+    key::do_create_key(pil::key_path const& key_name)
     {
         std::shared_ptr<ikey> return_value;
 
@@ -56,15 +56,15 @@ namespace m::pil
         return key(std::move(return_value));
     }
 
-    std::vector<registry::path>
+    std::vector<key_path>
     key::list_subkey_names()
     {
-        std::vector<registry::path> result;
+        std::vector<key_path> result;
 
         std::size_t index{};
 
-        std::array<registry::path, 32> key_names;
-        auto key_names_span = std::span<registry::path, std::dynamic_extent>(key_names);
+        std::array<key_path, 32> key_names;
+        auto key_names_span = std::span<key_path, std::dynamic_extent>(key_names);
 
         for (;;)
         {
@@ -147,7 +147,7 @@ namespace m::pil
     }
 
     void
-    key::do_delete_key(pil::registry::path const& key_name)
+    key::do_delete_key(pil::key_path const& key_name)
     {
         auto const d =
             m_key->delete_key(ikey::delete_key_flags{}, key_name, sam::default_delete_key);
@@ -155,27 +155,27 @@ namespace m::pil
     }
 
     void
-    key::do_delete_tree(std::optional<pil::registry::path> const& key_name)
+    key::do_delete_tree(std::optional<pil::key_path> const& key_name)
     {
         auto const d = m_key->delete_tree(ikey::delete_tree_flags{}, key_name);
         M_INTERNAL_ERROR_CHECK(!d);
     }
 
     key
-    key::do_open_key(std::optional<pil::registry::path> const& key_name)
+    key::do_open_key(std::optional<pil::key_path> const& key_name)
     {
         if (!key_name.has_value())
             return *this;
 
         key  result{*this};
-        auto name = static_cast<typename pil::registry::path::string_type>(key_name.value());
+        auto name = static_cast<typename pil::key_path::string_type>(key_name.value());
 
         for (;;)
         {
             auto [left, right] = name.split_at(uregistry_delimiter);
 
             if (!left.empty())
-                result = key(result.m_key->open_key(pil::registry::path(left)));
+                result = key(result.m_key->open_key(pil::key_path(left)));
 
             if (right.empty())
                 break;
@@ -187,15 +187,15 @@ namespace m::pil
     }
 
     void
-    key::do_rename_key(pil::registry::path const& old_key_name,
-                       pil::registry::path const& new_key_name)
+    key::do_rename_key(pil::key_path const& old_key_name,
+                       pil::key_path const& new_key_name)
     {
         auto const d = m_key->rename_key(ikey::rename_key_flags{}, old_key_name, new_key_name);
         M_INTERNAL_ERROR_CHECK(!d);
     }
 
     void
-    key::do_rename_key(pil::registry::path const& new_key_name)
+    key::do_rename_key(pil::key_path const& new_key_name)
     {
         auto const d = m_key->rename_key(ikey::rename_key_flags{}, std::nullopt, new_key_name);
         M_INTERNAL_ERROR_CHECK(!d);

@@ -12,12 +12,13 @@ target_sources(m_pil PRIVATE
     registry_base_types.cpp
     registry_key.cpp
     registry_monitor.cpp
-    registry_path.cpp
+    "key_path.cpp"
 )
 
 add_subdirectory(buffered)
 add_subdirectory(direct)
 add_subdirectory(passthrough)
+add_subdirectory(redirecting)
 
 target_compile_definitions(m_pil PRIVATE _CRT_SECURE_NO_WARNINGS)
 

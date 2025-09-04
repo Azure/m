@@ -23,7 +23,7 @@
 
 #include <m/pil/registry_base_types.h>
 #include <m/pil/registry_interfaces.h>
-#include <m/pil/registry_path.h>
+#include <m/pil/key_path.h>
 #include <m/strings/convert.h>
 #include <m/utility/enum_operations.h.h>
 #include <m/utility/utility.h>
@@ -39,7 +39,7 @@ namespace m::pil
     class key
     {
     public:
-        using path_type = m::pil::registry::path;
+        using path_type = m::pil::key_path;
 
         key() = default;
         key(key const& other);
@@ -446,7 +446,7 @@ namespace m::pil
 
         std::unique_ptr<iregistry_monitor_token>
         register_watch(register_watch_flags                                flags,
-                       pil::registry::path const&                          key_path,
+                       pil::key_path const&                          key_path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
         {
             return do_register_watch(flags, key_path, change_notification_ptr);
@@ -460,7 +460,7 @@ namespace m::pil
         std::unique_ptr<iregistry_monitor_token>
         do_register_watch(
             register_watch_flags                                flags,
-            pil::registry::path const&                          key_path,
+            pil::key_path const&                          key_path,
             m::not_null<iregistry_monitor_change_notification*> change_notification_ptr);
 
         std::mutex                              m_mutex;

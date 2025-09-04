@@ -15,24 +15,20 @@
 #include <m/strings/convert.h>
 #include <m/utility/make_span.h>
 
-#include "buffered.h"
+#include "redirecting.h"
 
-namespace m::pil::impl::buffered
+namespace m::pil::impl::redirecting
 {
     registry_monitor::registry_monitor(
-        std::shared_ptr<iregistry_monitor> const& underlying_registry_monitor):
-        m_underlying_registry_monitor(underlying_registry_monitor)
-    {}
-
-    registry_monitor::registry_monitor(
-        std::shared_ptr<iregistry_monitor>&& underlying_registry_monitor) noexcept:
-        m_underlying_registry_monitor(std::move(underlying_registry_monitor))
+        std::shared_ptr<iregistry_monitor> const& underlying_registry_monitor,
+        std::shared_ptr<redirector> const&        redir):
+        m_underlying_registry_monitor(underlying_registry_monitor), m_redirector(redir)
     {}
 
     iregistry_monitor::register_watch_disposition
     registry_monitor::register_watch(
         register_watch_flags                                flags,
-        pil::key_path const&                          path,
+        pil::key_path const&                                path,
         m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
         std::unique_ptr<iregistry_monitor_token>&           returned_ptr)
     {
@@ -46,9 +42,21 @@ namespace m::pil::impl::buffered
                 register_watch_flags::security_changes | register_watch_flags::value_changes |
                 register_watch_flags::watch_subtree);
 
-        M_NOT_IMPLEMENTED("buffered registry change notification not implemented");
+        auto notification_wrapper = std::unique_ptr<registry_monitor_change_notification_wrapper>(
+            new registry_monitor_change_notification_wrapper(change_notification_ptr,
+                                                             m_redirector));
 
-        // return register_watch_disposition{};
+        auto mapped_path = m_redirector->map_public_to_private(path);
+
+        auto d =
+            m_underlying_registry_monitor->register_watch(flags,
+                                                          mapped_path,
+                                                          notification_wrapper.get(),
+                                                          notification_wrapper->m_underlying_token);
+
+        returned_ptr.reset(notification_wrapper.release());
+
+        return d;
     }
 
-} // namespace m::pil::impl::buffered
+} // namespace m::pil::impl::redirecting

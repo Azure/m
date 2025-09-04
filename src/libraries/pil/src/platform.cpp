@@ -23,6 +23,16 @@ namespace m::pil
         return platform(std::move(sp));
     }
 
+
+    platform
+        make_platform(
+            platform_type                                                              pt,
+            std::initializer_list<std::pair<std::u16string_view, std::u16string_view>> redirections)
+    {
+        auto sp = impl::create_platform_interface(pt, redirections);
+        return platform(std::move(sp));
+    }
+
     platform::platform(platform&& other) noexcept
     {
         using std::swap;

@@ -43,23 +43,23 @@ namespace m::pil::impl::win32
             default: throw std::runtime_error("invalid predefined key value passed");
         }
 
-        return std::make_shared<key>(std::move(hk), m::pil::registry::path(pk));
+        return std::make_shared<key>(std::move(hk), m::pil::key_path(pk));
     }
 
-    key::key(m::win32::registry::hkey&& hk, m::pil::registry::path p):
+    key::key(m::win32::registry::hkey&& hk, m::pil::key_path p):
         m_hkey(std::move(hk)), m_path(std::move(p))
     {}
 
     ikey::create_key_disposition
     key::create_key(create_key_flags                   flags,
-                    pil::registry::path const&         relative_path,
+                    pil::key_path const&         relative_path,
                     sam                                sam_in,
                     std::optional<security_attributes> sa,
                     std::shared_ptr<ikey>&             returned_key)
     {
         M_VALIDATE_FLAGS_PARAMETER(flags, create_key_flags{});
 
-        m::pil::registry::path pth = m_path + relative_path;
+        m::pil::key_path pth = m_path + relative_path;
 
         m::win32::registry::hkey new_key;
 
@@ -91,7 +91,7 @@ namespace m::pil::impl::win32
     }
 
     ikey::delete_key_disposition
-    key::delete_key(delete_key_flags flags, pil::registry::path const& name, sam sam_in)
+    key::delete_key(delete_key_flags flags, pil::key_path const& name, sam sam_in)
     {
         if (flags != delete_key_flags{})
             throw std::runtime_error("Invalid flags to key::delete_key() call");
@@ -107,7 +107,7 @@ namespace m::pil::impl::win32
     }
 
     ikey::delete_tree_disposition
-    key::delete_tree(ikey::delete_tree_flags flags, std::optional<pil::registry::path> const& name)
+    key::delete_tree(ikey::delete_tree_flags flags, std::optional<pil::key_path> const& name)
     {
         if (flags != delete_tree_flags{})
             throw std::runtime_error("Invalid flags to key::delete_tree() call");
@@ -124,7 +124,7 @@ namespace m::pil::impl::win32
     ikey::enumerate_keys_disposition
     key::enumerate_keys(enumerate_keys_flags                                 flags,
                         std::size_t                                          index,
-                        std::span<pil::registry::path, std::dynamic_extent>& key_names)
+                        std::span<pil::key_path, std::dynamic_extent>& key_names)
     {
         if (flags != enumerate_keys_flags{})
             throw std::runtime_error("Invalid flags to key::enumerate_keys() call");
@@ -149,7 +149,7 @@ namespace m::pil::impl::win32
             if (status != ERROR_SUCCESS)
                 m::throw_win32_error_code(status);
 
-            pil::registry::path new_path(key_name_buffer);
+            pil::key_path new_path(key_name_buffer);
 
             using std::swap;
             swap(new_path, key_names[key_name_index]);
@@ -180,7 +180,7 @@ namespace m::pil::impl::win32
 
     ikey::open_key_disposition
     key::open_key(ikey::open_key_flags                      flags,
-                  std::optional<pil::registry::path> const& relative_path,
+                  std::optional<pil::key_path> const& relative_path,
                   sam                                       sam_in,
                   std::shared_ptr<ikey>&                    returned_key)
     {
@@ -188,7 +188,7 @@ namespace m::pil::impl::win32
             throw std::runtime_error("Invalid flags to key::open_key() call");
 
         m::win32::registry::hkey new_key;
-        m::pil::registry::path   new_path = m_path + relative_path;
+        m::pil::key_path   new_path = m_path + relative_path;
 
         auto const namez       = pcwstr(relative_path);
         DWORD      ulOptions   = 0;
@@ -254,8 +254,8 @@ namespace m::pil::impl::win32
 
     ikey::rename_key_disposition
     key::rename_key(rename_key_flags                          flags,
-                    std::optional<pil::registry::path> const& old_name,
-                    pil::registry::path const&                new_name)
+                    std::optional<pil::key_path> const& old_name,
+                    pil::key_path const&                new_name)
     {
         if (flags != rename_key_flags{})
             throw std::runtime_error("Invalid flags to key::rename_key() call");
@@ -271,7 +271,7 @@ namespace m::pil::impl::win32
     }
 
     ikey::get_path_disposition
-    key::get_path(ikey::get_path_flags flags, m::pil::registry::path& path_out)
+    key::get_path(ikey::get_path_flags flags, m::pil::key_path& path_out)
     {
         M_VALIDATE_FLAGS_PARAMETER(flags, get_path_flags{});
         path_out = m_path;

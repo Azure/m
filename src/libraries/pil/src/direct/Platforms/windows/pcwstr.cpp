@@ -31,7 +31,7 @@ namespace m::pil::impl
         m_c_str = m_value.data();
     }
 
-    pcwstr::pcwstr(std::optional<pil::registry::path> const& v)
+    pcwstr::pcwstr(std::optional<pil::key_path> const& v)
     {
         if (v.has_value())
         {
@@ -45,7 +45,7 @@ namespace m::pil::impl
         }
     }
 
-    pcwstr::pcwstr(pil::registry::path const& pv)
+    pcwstr::pcwstr(pil::key_path const& pv)
     {
         auto        outit  = std::back_inserter(m_value);
         auto const& native = pv.native();

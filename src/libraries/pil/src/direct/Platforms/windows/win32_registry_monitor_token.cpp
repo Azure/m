@@ -53,7 +53,7 @@ namespace m::pil::impl::win32
     registry_monitor_token::registry_monitor_token(
         std::shared_ptr<m::work_queue>                      work_queue,
         m::pil::iregistry_monitor::register_watch_flags     flags,
-        pil::registry::path const&                          key_path,
+        pil::key_path const&                          key_path,
         m::not_null<iregistry_monitor_change_notification*> change_notification_ptr):
         m_work_queue(std::move(work_queue)),
         m_flags(flags),

@@ -35,7 +35,7 @@ struct monitor_sink : public m::pil::iregistry_monitor_change_notification
 
     std::optional<requeue_key_access_attempt>
     on_key_access_failure(m::utc_time_point             when,
-                          m::pil::registry::path const& key,
+                          m::pil::key_path const& key,
                           std::system_error const&      ec) override
     {
         m::wtrace_error(L"on_key_access_failure({}, {}, {})",
@@ -48,7 +48,7 @@ struct monitor_sink : public m::pil::iregistry_monitor_change_notification
 
     std::optional<requeue_change_notification_attempt>
     on_change_notification_attempt_failure(m::utc_time_point             when,
-                                           m::pil::registry::path const& key,
+                                           m::pil::key_path const& key,
                                            std::system_error const&      ec) override
     {
         m::wtrace_error(L"on_change_notification_attempt_failure({}, {}, {})",
@@ -60,7 +60,7 @@ struct monitor_sink : public m::pil::iregistry_monitor_change_notification
     }
 
     void
-    on_change(m::utc_time_point when, m::pil::registry::path const& key) override
+    on_change(m::utc_time_point when, m::pil::key_path const& key) override
     {
         m::wtrace_error(
             L"on_change({}, {})", when, m::to_wstring(key.c_str()).value_or(L"-none-"s));

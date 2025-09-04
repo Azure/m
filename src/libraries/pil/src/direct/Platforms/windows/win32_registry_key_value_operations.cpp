@@ -12,14 +12,11 @@
 #include <m/strings/convert.h>
 #include <m/utility/utility.h>
 
-//
-//
-
 #include "pcwstr.h"
-#include "win32_registry.h"
+#include "win32.h"
 #include "win32_security_attributes.h"
 
-namespace m::pil::impl::registry::win32
+namespace m::pil::impl::win32
 {
 
     ikey::delete_value_disposition
@@ -219,4 +216,4 @@ namespace m::pil::impl::registry::win32
         return set_value_disposition{};
     }
 
-} // namespace m::pil::impl::registry::win32
+} // namespace m::pil::impl::win32

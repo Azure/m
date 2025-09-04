@@ -15,10 +15,10 @@
 //
 
 #include "pcwstr.h"
-#include "win32_registry.h"
+#include "win32.h"
 #include "win32_security_attributes.h"
 
-namespace m::pil::impl::registry::win32
+namespace m::pil::impl::win32
 {
     //
     std::shared_ptr<ikey>
@@ -277,4 +277,4 @@ namespace m::pil::impl::registry::win32
         path_out = m_path;
         return get_path_disposition{};
     }
-} // namespace m::pil::impl::registry::win32
+} // namespace m::pil::impl::win32

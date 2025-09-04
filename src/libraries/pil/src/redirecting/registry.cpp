@@ -9,21 +9,10 @@
 
 #include <m/pil/registry.h>
 
-//
-// This is the implementation of the Platform Isolation Layer's
-// Registry Pass-Through Key object's operations on keys. that's
-// a mouthful.
-//
 
-//
-// The Pass-through layer is a simple implementation of the interface which
-// only passes through the calls to the next layer. It forms a basis for
-// copy-pasting new implementations mostly.
-//
+#include "redirecting.h"
 
-#include "passthrough.h"
-
-namespace m::pil::impl::passthrough
+namespace m::pil::impl::redirecting
 {
     key::key(std::shared_ptr<ikey> const& key): m_key(key) {}
 

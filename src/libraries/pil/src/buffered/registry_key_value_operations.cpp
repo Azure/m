@@ -19,7 +19,7 @@
 #include <m/strings/convert.h>
 #include <m/utility/make_span.h>
 
-#include "buffered_registry.h"
+#include "buffered.h"
 
 namespace m::pil::impl::buffered
 {

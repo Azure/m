@@ -16,7 +16,7 @@
 
 #include <m/pil/registry.h>
 
-namespace m::pil::impl::registry::passthrough
+namespace m::pil::impl::redirecting
 {
     class registry : public iregistry, public std::enable_shared_from_this<registry>
     {

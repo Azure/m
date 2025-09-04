@@ -13,9 +13,9 @@
 #include <m/strings/convert.h>
 
 #include "pcwstr.h"
-#include "win32_registry.h"
+#include "win32.h"
 
-namespace m::pil::impl::registry::win32
+namespace m::pil::impl::win32
 {
     registry_monitor::registry_monitor(std::shared_ptr<m::work_queue> wq):
         m_work_queue(std::move(wq))
@@ -47,4 +47,4 @@ namespace m::pil::impl::registry::win32
 
         return register_watch_disposition{};
     }
-} // namespace m::pil::impl::registry::win32
+} // namespace m::pil::impl::win32

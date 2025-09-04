@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_pil PRIVATE
-    platform.cpp
     pcwstr.cpp
     win32_platform.cpp
     win32_registry.cpp

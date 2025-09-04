@@ -11,15 +11,11 @@
 #include <m/pil/registry.h>
 #include <m/strings/convert.h>
 
-//
-//
-
 #include "pcwstr.h"
-#include "win32_platform.h"
-#include "win32_registry.h"
+#include "win32.h"
 #include "win32_security_attributes.h"
 
-namespace m::pil::impl::platform::win32
+namespace m::pil::impl::win32
 {
     platform::platform(std::shared_ptr<m::work_queue> wq): m_work_queue(std::move(wq)) {}
 
@@ -28,8 +24,8 @@ namespace m::pil::impl::platform::win32
     {
         M_VALIDATE_FLAGS_PARAMETER(flags, get_registry_flags{});
         auto l            = std::unique_lock(m_mutex);
-        auto newreg       = std::make_shared<m::pil::impl::registry::win32::registry>(m_work_queue);
+        auto newreg       = std::make_shared<m::pil::impl::win32::registry>(m_work_queue);
         returned_registry = newreg;
         return get_registry_disposition{};
     }
-} // namespace m::pil::impl::platform::win32
+} // namespace m::pil::impl::win32

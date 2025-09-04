@@ -11,9 +11,9 @@
 #include <m/strings/convert.h>
 
 #include "pcwstr.h"
-#include "win32_registry.h"
+#include "win32.h"
 
-namespace m::pil::impl::registry::win32
+namespace m::pil::impl::win32
 {
     constexpr auto default_open_key_for_monitoring_retry_wait_duration =
         std::chrono::milliseconds(500);
@@ -136,9 +136,9 @@ namespace m::pil::impl::registry::win32
 
             case to_open_key:
             {
-                auto const ec =
-                    m_hkey.openq(
-                        pil_pk_to_win32_pk(m_key_path.root_key().value()), m_key_path.relative_path(), KEY_NOTIFY);
+                auto const ec = m_hkey.openq(pil_pk_to_win32_pk(m_key_path.root_key().value()),
+                                             m_key_path.relative_path(),
+                                             KEY_NOTIFY);
 
                 if (!ec)
                 {
@@ -223,4 +223,4 @@ namespace m::pil::impl::registry::win32
         drive_state(m::locked, when);
     }
 
-} // namespace m::pil::impl::registry::win32
+} // namespace m::pil::impl::win32

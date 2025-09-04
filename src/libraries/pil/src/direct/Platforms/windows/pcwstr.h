@@ -9,7 +9,7 @@
 #include <utility>
 
 #include <m/pil/registry_base_types.h>
-#include <m/pil/registry_path.h>
+#include <m/pil/key_path.h>
 
 namespace m::pil::impl
 {
@@ -21,8 +21,8 @@ namespace m::pil::impl
         pcwstr(std::wstring const& v);
         pcwstr(std::u16string_view v);
 
-        pcwstr(std::optional<pil::registry::path> const& v);
-        pcwstr(pil::registry::path const& v);
+        pcwstr(std::optional<pil::key_path> const& v);
+        pcwstr(pil::key_path const& v);
 
         pcwstr(std::optional<std::wstring_view> v);
         pcwstr(std::optional<std::u16string_view> v);

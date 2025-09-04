@@ -133,7 +133,7 @@ namespace m::pil::impl::win32
         key()                 = default;
         key(key const& other) = delete;
         key(key&& other) noexcept;
-        key(m::win32::registry::hkey&& hk, m::pil::registry::path pth);
+        key(m::win32::registry::hkey&& hk, m::pil::key_path pth);
         ~key() = default;
         key&
         operator=(key const& other) = delete;
@@ -145,31 +145,31 @@ namespace m::pil::impl::win32
 
         create_key_disposition
         create_key(create_key_flags                   flags,
-                   pil::registry::path const&         name,
+                   pil::key_path const&         name,
                    sam                                sam_desired,
                    std::optional<security_attributes> sa,
                    std::shared_ptr<ikey>&             returned_key) override;
 
         delete_key_disposition
         delete_key(delete_key_flags           flags,
-                   pil::registry::path const& name,
+                   pil::key_path const& name,
                    sam                        sam_desired) override;
 
         delete_tree_disposition
         delete_tree(delete_tree_flags                         flags,
-                    std::optional<pil::registry::path> const& name) override;
+                    std::optional<pil::key_path> const& name) override;
 
         enumerate_keys_disposition
         enumerate_keys(ikey::enumerate_keys_flags                           flags,
                        std::size_t                                          index,
-                       std::span<pil::registry::path, std::dynamic_extent>& key_names) override;
+                       std::span<pil::key_path, std::dynamic_extent>& key_names) override;
 
         flush_disposition
         flush(flush_flags flags) override;
 
         open_key_disposition
         open_key(open_key_flags                            flags,
-                 std::optional<pil::registry::path> const& key_name,
+                 std::optional<pil::key_path> const& key_name,
                  sam                                       sam_desired,
                  std::shared_ptr<ikey>&                    returned_key) override;
 
@@ -182,8 +182,8 @@ namespace m::pil::impl::win32
 
         rename_key_disposition
         rename_key(rename_key_flags                          flags,
-                   std::optional<pil::registry::path> const& old_name,
-                   pil::registry::path const&                new_name) override;
+                   std::optional<pil::key_path> const& old_name,
+                   pil::key_path const&                new_name) override;
 
         delete_value_disposition
         delete_value(delete_value_flags flags, std::u16string_view value_name) override;
@@ -218,11 +218,11 @@ namespace m::pil::impl::win32
                   std::span<std::byte const> value) override;
 
         get_path_disposition
-        get_path(get_path_flags flags, m::pil::registry::path& path_out) override;
+        get_path(get_path_flags flags, m::pil::key_path& path_out) override;
 
     private:
         m::win32::registry::hkey m_hkey;
-        m::pil::registry::path   m_path;
+        m::pil::key_path   m_path;
     };
 
     class registry_monitor :
@@ -249,7 +249,7 @@ namespace m::pil::impl::win32
 
         register_watch_disposition
         register_watch(register_watch_flags                                flags,
-                       pil::registry::path const&                          key_name,
+                       pil::key_path const&                          key_name,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
                        std::unique_ptr<iregistry_monitor_token>&           returned_ptr) override;
 
@@ -268,7 +268,7 @@ namespace m::pil::impl::win32
         registry_monitor_token(
             std::shared_ptr<m::work_queue>                      work_queue,
             m::pil::iregistry_monitor::register_watch_flags     flags,
-            pil::registry::path const&                          key_path,
+            pil::key_path const&                          key_path,
             m::not_null<iregistry_monitor_change_notification*> change_notification_ptr);
         registry_monitor_token(registry_monitor_token const& other)     = delete;
         registry_monitor_token(registry_monitor_token&& other) noexcept = delete;
@@ -324,7 +324,7 @@ namespace m::pil::impl::win32
         m::pil::iregistry_monitor::register_watch_flags m_flags;
         m::win32::registry::notify_filters              m_filters;
         state                                           m_state{state::to_open_key};
-        pil::registry::path                             m_key_path;
+        pil::key_path                             m_key_path;
         m::u16sstring                                   m_key_name;
         hkey                                            m_hkey;
         m::win32::event                                 m_event;

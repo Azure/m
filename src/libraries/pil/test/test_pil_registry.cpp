@@ -18,3 +18,5 @@ TEST(TestFormatters, TestImageSectionHeaderCharacteristicsFormatter)
     EXPECT_EQ(1, 1);
 //
 }
+
+

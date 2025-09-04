@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_pil PRIVATE
+    platform.cpp
+    redirector.cpp
     registry.cpp
+    registry_key.cpp
+    registry_monitor.cpp
+    registry_monitor_change_notification_wrapper.cpp
 )
 
 target_link_libraries(m_pil PUBLIC

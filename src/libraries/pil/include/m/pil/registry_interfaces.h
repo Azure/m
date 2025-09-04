@@ -19,7 +19,7 @@
 #include <m/pil/common.h>
 #include <m/pil/disposition.h>
 #include <m/pil/registry_base_types.h>
-#include <m/pil/registry_path.h>
+#include <m/pil/key_path.h>
 #include <m/pil/security_attributes.h>
 #include <m/strings/convert.h>
 #include <m/utility/enum_operations.h.h>
@@ -90,13 +90,13 @@ namespace m::pil
 
         virtual create_key_disposition
         create_key(create_key_flags                   flags,
-                   registry::path const&              path,
+                   key_path const&              path,
                    sam                                sam_desired,
                    std::optional<security_attributes> sa,
                    std::shared_ptr<ikey>&             returned_key) = 0;
 
         std::shared_ptr<ikey>
-        create_key(registry::path const&              path,
+        create_key(key_path const&              path,
                    sam                                sam_desired,
                    std::optional<security_attributes> sa)
         {
@@ -125,10 +125,10 @@ namespace m::pil
         using delete_key_disposition = disposition<delete_key_result_code, delete_key_result_flags>;
 
         virtual delete_key_disposition
-        delete_key(delete_key_flags flags, registry::path const& path, sam sam_desired) = 0;
+        delete_key(delete_key_flags flags, key_path const& path, sam sam_desired) = 0;
 
         void
-        delete_key(registry::path const& path)
+        delete_key(key_path const& path)
         {
             auto const d = delete_key(delete_key_flags{}, path, sam::default_delete_key);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -154,7 +154,7 @@ namespace m::pil
             disposition<delete_tree_result_code, delete_tree_result_flags>;
 
         virtual delete_tree_disposition
-        delete_tree(delete_tree_flags flags, std::optional<registry::path> const& key_name) = 0;
+        delete_tree(delete_tree_flags flags, std::optional<key_path> const& key_name) = 0;
 
         void
         delete_tree(std::optional<key_name_view_type> const& key_name)
@@ -195,13 +195,13 @@ namespace m::pil
         virtual enumerate_keys_disposition
         enumerate_keys(enumerate_keys_flags                            flags,
                        std::size_t                                     starting_index,
-                       std::span<registry::path, std::dynamic_extent>& key_names) = 0;
+                       std::span<key_path, std::dynamic_extent>& key_names) = 0;
 
-        std::optional<registry::path>
+        std::optional<key_path>
         enumerate_keys(std::size_t index)
         {
-            registry::path key_name;
-            auto           s = std::span<registry::path, std::dynamic_extent>(&key_name, 1);
+            key_path key_name;
+            auto           s = std::span<key_path, std::dynamic_extent>(&key_name, 1);
 
             auto const d = enumerate_keys(enumerate_keys_flags{}, index, s);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -261,12 +261,12 @@ namespace m::pil
 
         virtual open_key_disposition
         open_key(open_key_flags                       flags,
-                 std::optional<registry::path> const& path,
+                 std::optional<key_path> const& path,
                  sam                                  sam_desired,
                  std::shared_ptr<ikey>&               returned_key) = 0;
 
         std::shared_ptr<ikey>
-        open_key(std::optional<registry::path> const& path, sam sam_desired)
+        open_key(std::optional<key_path> const& path, sam sam_desired)
         {
             std::shared_ptr<ikey> returned_key;
             auto const            d = open_key(open_key_flags{}, path, sam_desired, returned_key);
@@ -275,7 +275,7 @@ namespace m::pil
         }
 
         std::shared_ptr<ikey>
-        open_key(std::optional<registry::path> const& path)
+        open_key(std::optional<key_path> const& path)
         {
             return open_key(path, sam::default_open_key);
         }
@@ -342,12 +342,12 @@ namespace m::pil
 
         virtual rename_key_disposition
         rename_key(rename_key_flags                     flags,
-                   std::optional<registry::path> const& old_key_name,
-                   registry::path const&                new_key_name) = 0;
+                   std::optional<key_path> const& old_key_name,
+                   key_path const&                new_key_name) = 0;
 
         void
-        rename_key(std::optional<registry::path> const& old_key_name,
-                   registry::path const&                new_key_name)
+        rename_key(std::optional<key_path> const& old_key_name,
+                   key_path const&                new_key_name)
         {
             auto const d = rename_key(rename_key_flags{}, old_key_name, new_key_name);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -652,12 +652,12 @@ namespace m::pil
         using get_path_disposition = disposition<get_path_result_code, get_value_result_flags>;
 
         virtual get_path_disposition
-        get_path(get_path_flags flags, pil::registry::path& path) = 0;
+        get_path(get_path_flags flags, pil::key_path& path) = 0;
 
-        pil::registry::path
+        pil::key_path
         get_path()
         {
-            pil::registry::path p;
+            pil::key_path p;
             auto                d = get_path(get_path_flags{}, p);
             M_INTERNAL_ERROR_CHECK(!d);
             return p;
@@ -718,7 +718,7 @@ namespace m::pil
 
         virtual std::optional<requeue_key_access_attempt>
         on_key_access_failure(utc_time_point           when,
-                              registry::path const&    key,
+                              key_path const&    key,
                               std::system_error const& ec) = 0;
 
         struct requeue_change_notification_attempt
@@ -728,11 +728,11 @@ namespace m::pil
 
         virtual std::optional<requeue_change_notification_attempt>
         on_change_notification_attempt_failure(utc_time_point           when,
-                                               registry::path const&    key,
+                                               key_path const&    key,
                                                std::system_error const& ec) = 0;
 
         virtual void
-        on_change(utc_time_point when, registry::path const& key) = 0;
+        on_change(utc_time_point when, key_path const& key) = 0;
 
         virtual void
         on_cancelled(utc_time_point when) = 0;
@@ -772,12 +772,12 @@ namespace m::pil
 
         virtual register_watch_disposition
         register_watch(register_watch_flags                                flags,
-                       pil::registry::path const&                          path,
+                       pil::key_path const&                          path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
                        std::unique_ptr<iregistry_monitor_token>&           returned_ptr) = 0;
 
         std::unique_ptr<iregistry_monitor_token>
-        register_watch(pil::registry::path const&                          path,
+        register_watch(pil::key_path const&                          path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
         {
             std::unique_ptr<iregistry_monitor_token> returned_ptr;
@@ -789,7 +789,7 @@ namespace m::pil
 
         std::unique_ptr<iregistry_monitor_token>
         register_watch(register_watch_flags                                flags,
-                       pil::registry::path const&                          path,
+                       pil::key_path const&                          path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
         {
             std::unique_ptr<iregistry_monitor_token> returned_ptr;

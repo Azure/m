@@ -24,7 +24,7 @@ namespace m::pil::impl::win32
     iregistry_monitor::register_watch_disposition
     registry_monitor::register_watch(
         register_watch_flags                                flags,
-        pil::registry::path const&                          key_path,
+        pil::key_path const&                          key_path,
         m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
         std::unique_ptr<iregistry_monitor_token>&           returned_ptr)
     {

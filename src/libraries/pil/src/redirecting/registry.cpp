@@ -1,141 +1,97 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <initializer_list>
 #include <memory>
+#include <new>
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <utility>
 
-#include <m/strings/convert.h>
-
+#include <m/error_handling/macros.h>
+#include <m/pil/pil.h>
+#include <m/pil/platform.h>
 #include <m/pil/registry.h>
-
+#include <m/strings/convert.h>
+#include <m/utility/make_span.h>
 
 #include "redirecting.h"
 
 namespace m::pil::impl::redirecting
 {
-    key::key(std::shared_ptr<ikey> const& key): m_key(key) {}
+    registry::registry(std::shared_ptr<iregistry> const&                      underlying_registry,
+                       std::initializer_list<std::pair<view_type, view_type>> il):
+        m_underlying_registry(underlying_registry), m_redirector(std::make_shared<redirector>(il))
+    {}
 
-    key::key(std::shared_ptr<ikey>&& key) noexcept: m_key(std::move(key)) {}
-
-    ikey::create_key_disposition
-    key::create_key(ikey::create_key_flags             flags,
-                    pil::registry::path const&         name,
-                    sam                                sam_desired,
-                    std::optional<security_attributes> sa,
-                    std::shared_ptr<ikey>&             returned_key)
+    bool
+    registry::simple_path(std::u16string_view key_path)
     {
-        return m_key->create_key(flags, name, sam_desired, sa, returned_key);
+        return key_path.contains(pil::uregistry_delimiter);
     }
 
-    ikey::delete_key_disposition
-    key::delete_key(ikey::delete_key_flags flags, pil::registry::path const& name, sam sam_desired)
+    iregistry::open_predefined_key_disposition
+    registry::open_predefined_key(open_predefined_key_flags flags,
+                                  predefined_key            pk,
+                                  sam,
+                                  std::shared_ptr<m::pil::ikey>& returned_key)
     {
-        return m_key->delete_key(flags, name, sam_desired);
+        if (flags != open_predefined_key_flags{})
+            throw std::runtime_error("Invalid flags to call to iregistry::open_predefined_key()");
+
+        auto lock = std::unique_lock(m_mutex);
+
+        auto find_location = m_predefined_keys.find(pk);
+        if (find_location != m_predefined_keys.end())
+        {
+            returned_key = find_location->second;
+            return open_predefined_key_disposition{};
+        }
+
+        // there are two axis to consider here: the underlying registry's predefined key, if there
+        // is one, and then our wrapper of it.
+        std::shared_ptr<ikey> underlying_predefined_key;
+        if (m_underlying_registry)
+            underlying_predefined_key = m_underlying_registry->open_predefined_key(pk);
+
+        auto const [insertion_location, insertted] = m_predefined_keys.emplace(std::make_pair(
+            pk, std::make_shared<key>(std::move(underlying_predefined_key), m_redirector)));
+        M_INTERNAL_ERROR_CHECK(insertted);
+
+        returned_key = insertion_location->second;
+
+        return open_predefined_key_disposition{};
     }
 
-    ikey::delete_tree_disposition
-    key::delete_tree(ikey::delete_tree_flags flags, std::optional<pil::registry::path> const& name)
+    iregistry::monitor_disposition
+    registry::monitor(monitor_flags                               flags,
+                      std::shared_ptr<m::pil::iregistry_monitor>& returned_registry_monitor)
     {
-        return m_key->delete_tree(flags, name);
+        if (flags != monitor_flags{})
+            throw std::runtime_error("Invalid flags to call to iregistry::monitor()");
+
+        auto lock = std::unique_lock(m_mutex);
+
+        if (!m_monitor)
+            initialize_monitor(m::locked);
+
+        M_INTERNAL_ERROR_CHECK(m_monitor);
+
+        returned_registry_monitor = m_monitor;
+        return monitor_disposition{};
     }
 
-    ikey::enumerate_keys_disposition
-    key::enumerate_keys(ikey::enumerate_keys_flags                           flags,
-                        std::size_t                                          index,
-                        std::span<pil::registry::path, std::dynamic_extent>& key_names)
+    void
+    registry::initialize_monitor(m::locked_t)
     {
-        return m_key->enumerate_keys(flags, index, key_names);
-    }
+        if (m_monitor)
+            return;
 
-    ikey::flush_disposition
-    key::flush(ikey::flush_flags flags)
-    {
-        return m_key->flush(flags);
-    }
+        auto underlying_monitor = m_underlying_registry->monitor();
 
-    ikey::open_key_disposition
-    key::open_key(ikey::open_key_flags                      flags,
-                  std::optional<pil::registry::path> const& name,
-                  sam                                       sam_desired,
-                  std::shared_ptr<ikey>&                    returned_key)
-    {
-        return m_key->open_key(flags, name, sam_desired, returned_key);
+        m_monitor = std::make_shared<registry_monitor>(std::move(underlying_monitor), m_redirector);
     }
-
-    ikey::query_information_key_disposition
-    key::query_information_key(ikey::query_information_key_flags flags,
-                               std::size_t&                      subkey_count,
-                               std::size_t&                      value_count,
-                               std::size_t&                      security_descriptor_size,
-                               m::pil::time_point&               last_write_time)
-    {
-        return m_key->query_information_key(
-            flags, subkey_count, value_count, security_descriptor_size, last_write_time);
-    }
-
-    ikey::rename_key_disposition
-    key::rename_key(ikey::rename_key_flags                    flags,
-                    std::optional<pil::registry::path> const& old_name,
-                    pil::registry::path const&                new_name)
-    {
-        return m_key->rename_key(flags, old_name, new_name);
-    }
-
-    ikey::delete_value_disposition
-    key::delete_value(ikey::delete_value_flags flags, std::u16string_view name)
-    {
-        return m_key->delete_value(flags, name);
-    }
-
-    ikey::enumerate_value_names_and_types_disposition
-    key::enumerate_value_names_and_types(
-        ikey::enumerate_value_names_and_types_flags                            flags,
-        std::size_t                                                            index,
-        std::span<enumerate_value_names_and_types_value, std::dynamic_extent>& values_span)
-    {
-        return m_key->enumerate_value_names_and_types(flags, index, values_span);
-    }
-
-    ikey::get_value_size_disposition
-    key::get_value_size(ikey::get_value_size_flags flags,
-                        std::u16string_view        value_name,
-                        std::size_t&               size)
-    {
-        return m_key->get_value_size(flags, value_name, size);
-    }
-
-    ikey::get_value_type_disposition
-    key::get_value_type(ikey::get_value_type_flags flags,
-                        std::u16string_view        value_name,
-                        reg_value_type&            type)
-    {
-        return m_key->get_value_type(flags, value_name, type);
-    }
-
-    ikey::get_value_disposition
-    key::get_value(ikey::get_value_flags       flags,
-                   std::u16string_view         value_name,
-                   reg_value_type&             type,
-                   std::span<std::byte>&       value,
-                   std::optional<std::size_t>& new_bytes_required)
-    {
-        return m_key->get_value(flags, value_name, type, value, new_bytes_required);
-    }
-
-    ikey::set_value_disposition
-    key::set_value(ikey::set_value_flags      flags,
-                   std::u16string_view        value_name,
-                   reg_value_type             type,
-                   std::span<std::byte const> value)
-    {
-        return m_key->set_value(flags, value_name, type, value);
-    }
-
-    ikey::get_path_disposition
-    key::get_path(ikey::get_path_flags flags, m::pil::registry::path& path_out)
-    {
-        return m_key->get_path(flags, path_out);
-    }
-
-} // namespace m::pil::impl::registry::passthrough
+} // namespace m::pil::impl::redirecting

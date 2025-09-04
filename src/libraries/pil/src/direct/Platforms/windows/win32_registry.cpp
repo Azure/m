@@ -60,7 +60,7 @@ namespace m::pil::impl::win32
             m::throw_win32_error_code(status);
 
         returned_key = std::make_shared<pil::impl::win32::key>(
-            std::move(hk2), m::pil::registry::path(pk));
+            std::move(hk2), m::pil::key_path(pk));
 
         return open_predefined_key_disposition{};
     }

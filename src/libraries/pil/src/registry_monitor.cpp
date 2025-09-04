@@ -20,7 +20,7 @@ namespace m::pil
     std::unique_ptr<iregistry_monitor_token>
     registry_monitor::do_register_watch(
         register_watch_flags                                flags,
-        pil::registry::path const&                          key_path,
+        pil::key_path const&                          key_path,
         m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
     {
         M_VALIDATE_FLAGS_PARAMETER(

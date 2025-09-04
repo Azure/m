@@ -121,31 +121,31 @@ namespace m::pil::impl::buffered
 
         ikey::create_key_disposition
         create_key(ikey::create_key_flags             flags,
-                   pil::registry::path const&         path,
+                   pil::key_path const&         path,
                    sam                                sam_desired,
                    std::optional<security_attributes> sa,
                    std::shared_ptr<ikey>&             returned_key) override;
 
         ikey::delete_key_disposition
         delete_key(ikey::delete_key_flags     flags,
-                   pil::registry::path const& path,
+                   pil::key_path const& path,
                    sam                        sam_desired) override;
 
         ikey::delete_tree_disposition
         delete_tree(ikey::delete_tree_flags                   flags,
-                    std::optional<pil::registry::path> const& name) override;
+                    std::optional<pil::key_path> const& name) override;
 
         ikey::enumerate_keys_disposition
         enumerate_keys(ikey::enumerate_keys_flags                           flags,
                        std::size_t                                          index,
-                       std::span<pil::registry::path, std::dynamic_extent>& key_names) override;
+                       std::span<pil::key_path, std::dynamic_extent>& key_names) override;
 
         ikey::flush_disposition
         flush(ikey::flush_flags flags) override;
 
         ikey::open_key_disposition
         open_key(ikey::open_key_flags                      flags,
-                 std::optional<pil::registry::path> const& key_name,
+                 std::optional<pil::key_path> const& key_name,
                  sam                                       sam_desired,
                  std::shared_ptr<ikey>&                    returned_key) override;
 
@@ -158,8 +158,8 @@ namespace m::pil::impl::buffered
 
         ikey::rename_key_disposition
         rename_key(ikey::rename_key_flags                    flags,
-                   std::optional<pil::registry::path> const& old_key_name,
-                   pil::registry::path const&                new_key_name) override;
+                   std::optional<pil::key_path> const& old_key_name,
+                   pil::key_path const&                new_key_name) override;
 
         ikey::delete_value_disposition
         delete_value(ikey::delete_value_flags flags, std::u16string_view value_name) override;
@@ -194,7 +194,7 @@ namespace m::pil::impl::buffered
                   std::span<std::byte const> value) override;
 
         ikey::get_path_disposition
-        get_path(ikey::get_path_flags flags, m::pil::registry::path& path_out) override;
+        get_path(ikey::get_path_flags flags, m::pil::key_path& path_out) override;
 
     protected:
         void
@@ -207,7 +207,7 @@ namespace m::pil::impl::buffered
         initialize_values_overlay();
 
         bool
-        is_subkey_empty(pil::registry::path const& key_name);
+        is_subkey_empty(pil::key_path const& key_name);
 
         struct key_node
         {
@@ -225,7 +225,7 @@ namespace m::pil::impl::buffered
         };
 
         void
-        unmirror_node(pil::registry::path const& key_name, key_node& node);
+        unmirror_node(pil::key_path const& key_name, key_node& node);
 
         void
         unmirror_node(value_name_view_type value_name, value_node& node);
@@ -274,7 +274,7 @@ namespace m::pil::impl::buffered
 
         register_watch_disposition
         register_watch(register_watch_flags                                flags,
-                       pil::registry::path const&                          path,
+                       pil::key_path const&                          path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
                        std::unique_ptr<iregistry_monitor_token>&           returned_ptr) override;
 

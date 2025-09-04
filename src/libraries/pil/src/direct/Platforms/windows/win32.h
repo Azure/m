@@ -1,4 +1,5 @@
 // Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 #pragma once
@@ -14,30 +15,53 @@
 #include <type_traits>
 #include <vector>
 
+#include <m/pil/pil.h>
+#include <m/pil/platform.h>
+#include <m/pil/platform_interfaces.h>
+#include <m/pil/registry.h>
+#include <m/pil/registry_interfaces.h>
+#include <m/threadpool/threadpool.h>
+#include <m/win32/registry.h>
+#include <m/win32/threadpool.h>
+
 #undef NOMINMAX
 #define NOMINMAX
 
 #include <Windows.h>
 
-#include <m/pil/platform.h>
-#include <m/pil/platform_interfaces.h>
-#include <m/pil/registry.h>
-#include <m/pil/registry_interfaces.h>
-#include <m/win32/registry.h>
-#include <m/win32/threadpool.h>
-
-#include "win32_platform.h"
-
-#define THROW_IF_NOT_ERROR_SUCCESS(e)                                                              \
-    do                                                                                             \
-    {                                                                                              \
-        auto local_status_value = (e);                                                             \
-        if (local_status_value != ERROR_SUCCESS)                                                   \
-            m::throw_win32_error_code(local_status_value);                                         \
-    } while (false)
-
-namespace m::pil::impl::registry::win32
+namespace m::pil::impl::win32
 {
+    class platform : public iplatform, public std::enable_shared_from_this<platform>
+    {
+    public:
+        platform() = delete;
+
+        platform(std::shared_ptr<m::work_queue> wq);
+
+        platform(platform const&)           = delete;
+        platform(platform&& other) noexcept = delete;
+        ~platform()                         = default;
+
+        platform&
+        operator=(platform const&) = delete;
+
+        platform&
+        operator=(platform&& other) noexcept = delete;
+
+        void
+        swap(platform& other) noexcept = delete;
+
+        // Implementation of iplatform:
+
+        get_registry_disposition
+        get_registry(get_registry_flags          flags,
+                     std::shared_ptr<iregistry>& returned_registry) override;
+
+    private:
+        std::mutex                     m_mutex;
+        std::shared_ptr<m::work_queue> m_work_queue;
+    };
+
     constexpr m::win32::registry::predefined_key
     pil_pk_to_win32_pk(m::pil::predefined_key pk)
     {
@@ -67,9 +91,9 @@ namespace m::pil::impl::registry::win32
 
         registry(std::shared_ptr<m::work_queue> wq);
 
-        registry(registry const&) = delete;
+        registry(registry const&)           = delete;
         registry(registry&& other) noexcept = delete;
-        ~registry() = default;
+        ~registry()                         = default;
 
         registry&
         operator=(registry const&) = delete;
@@ -203,12 +227,12 @@ namespace m::pil::impl::registry::win32
 
     class registry_monitor :
         public m::pil::iregistry_monitor,
-        public std::enable_shared_from_this<m::pil::impl::registry::win32::registry_monitor>
+        public std::enable_shared_from_this<m::pil::impl::win32::registry_monitor>
     {
     public:
         registry_monitor() = default;
         registry_monitor(std::shared_ptr<m::work_queue> wq);
-        registry_monitor(registry_monitor const& other) = delete;
+        registry_monitor(registry_monitor const& other)     = delete;
         registry_monitor(registry_monitor&& other) noexcept = delete;
 
         registry_monitor&
@@ -233,7 +257,6 @@ namespace m::pil::impl::registry::win32
         std::mutex                  m_mutex;
         std::shared_ptr<work_queue> m_work_queue;
     };
-
 
     using namespace m::win32::threadpool;
     using namespace m::win32::registry;
@@ -313,4 +336,4 @@ namespace m::pil::impl::registry::win32
         utc_time_point                                      m_notification_time;
     };
 
-} // namespace m::pil::impl::registry::win32
+} // namespace m::pil::impl::win32

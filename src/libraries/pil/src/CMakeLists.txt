@@ -5,6 +5,7 @@ target_include_directories(m_pil PUBLIC
 )
 
 target_sources(m_pil PRIVATE
+    create_platform.cpp
     pil.cpp
     platform.cpp
     registry.cpp
@@ -28,5 +29,16 @@ target_link_libraries(m_pil PUBLIC
     m_strings
     m_tracing
 )
+
+if(WIN32)
+
+target_include_directories(m_pil PRIVATE direct/Platforms/windows)
+
+elseif(LINUX)
+
+target_include_directories(m_pil PRIVATE direct/Platforms/Linux)
+
+endif()
+
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

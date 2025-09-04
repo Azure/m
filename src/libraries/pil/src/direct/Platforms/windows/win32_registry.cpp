@@ -12,14 +12,11 @@
 #include <m/strings/convert.h>
 #include <m/win32/registry.h>
 
-//
-//
-
 #include "pcwstr.h"
-#include "win32_registry.h"
+#include "win32.h"
 #include "win32_security_attributes.h"
 
-namespace m::pil::impl::registry::win32
+namespace m::pil::impl::win32
 {
     registry::registry(std::shared_ptr<m::work_queue> wq): m_work_queue(std::move(wq)) {}
 
@@ -62,7 +59,8 @@ namespace m::pil::impl::registry::win32
         if (status != ERROR_SUCCESS)
             m::throw_win32_error_code(status);
 
-        returned_key = std::make_shared<pil::impl::registry::win32::key>(std::move(hk2), m::pil::registry::path(pk));
+        returned_key = std::make_shared<pil::impl::win32::key>(
+            std::move(hk2), m::pil::registry::path(pk));
 
         return open_predefined_key_disposition{};
     }
@@ -94,4 +92,4 @@ namespace m::pil::impl::registry::win32
         m_monitor = std::make_shared<registry_monitor>(m_work_queue);
     }
 
-} // namespace m::pil::impl::registry::win32
+} // namespace m::pil::impl::win32

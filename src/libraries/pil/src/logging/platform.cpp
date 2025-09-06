@@ -14,23 +14,20 @@
 #include <m/strings/convert.h>
 #include <m/utility/make_span.h>
 
-#include "redirecting.h"
+#include "logging.h"
 
-namespace m::pil::impl::redirecting
+namespace m::pil::impl::logging
 {
     std::shared_ptr<iplatform>
-    create_platform(std::shared_ptr<iplatform> const&                       underlying_platform,
-                    std::initializer_list<std::pair<view_type, view_type>>* registry_redirections)
+    create_platform(std::shared_ptr<iplatform> const& underlying_platform)
     {
-        return std::make_shared<platform>(underlying_platform, registry_redirections);
+        return std::make_shared<platform>(underlying_platform);
     }
 
-    platform::platform(
-        std::shared_ptr<iplatform> const&                       underlying_platform,
-        std::initializer_list<std::pair<view_type, view_type>>* registry_redirections):
+    platform::platform(std::shared_ptr<iplatform> const& underlying_platform):
         m_underlying_platform(underlying_platform),
-        m_registry{std::make_shared<registry>(m_underlying_platform->get_registry(),
-                                              registry_redirections)}
+        m_log(std::make_shared<log>()),
+        m_registry{std::make_shared<registry>(m_underlying_platform->get_registry(), m_log)}
     {}
 
     iplatform::get_registry_disposition
@@ -51,9 +48,14 @@ namespace m::pil::impl::redirecting
     {
         M_VALIDATE_FLAGS_PARAMETER(flags, save_flags{});
 
-        // we don't save anything today, just pass through.
+        if (contents == save_contents::change_log)
+        {
+            auto log_element = platform_element.append_child("Log");
+
+            m_log->save(log_element);
+        }
 
         return m_underlying_platform->save(flags, contents, platform_element);
     }
 
-} // namespace m::pil::impl::redirecting
+} // namespace m::pil::impl::logging

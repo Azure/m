@@ -40,8 +40,6 @@ namespace m::pil
         using code_type  = CodeT;
         using flags_type = FlagsT;
 
-        // constexpr disposition() = default;
-
         constexpr disposition(code_type  code  = code_type{},
                               flags_type flags = flags_type{}) noexcept:
             m_code(code), m_flags(flags)

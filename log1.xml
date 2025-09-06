@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<Platform>
+	<Log>
+		<Registry.CreateKey key="HKCU\Software\Microsoft" subKey="test_key" />
+		<Registry.SetValue key="HKCU\Software\Microsoft\test_key" valueName="name" type="REG_SZ" data="Joe Amazing" />
+		<Registry.SetValue key="HKCU\Software\Microsoft\test_key" valueName="age" type="REG_DWORD" data="0x18" />
+	</Log>
+</Platform>

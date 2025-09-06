@@ -89,7 +89,7 @@ TEST(DirectRegistryMonitoring, MonitorKey)
     m::wtrace_error(L"This is just a test");
 
     using namespace m::pil;
-    auto p        = make_platform(platform_type::direct);
+    auto p        = make_platform();
 
     auto r  = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);

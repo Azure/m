@@ -7,6 +7,15 @@
   },
   "configurePresets": [
     {
+      "name": "vcpkg",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+    {
       "name": "linux-debug",
       "displayName": "Linux Debug",
       "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
@@ -14,11 +23,12 @@
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
       "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_C_COMPILER": "/usr/bin/clang",
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
         "build_tests": "ON",
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_BUILD_WITH_INSTALL_RPATH":  true
+        "CMAKE_BUILD_WITH_INSTALL_RPATH": true
       },
       "condition": {
         "type": "equals",
@@ -39,6 +49,7 @@
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
       "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_BUILD_TYPE": "Debug"
       },
       "condition": {
@@ -61,7 +72,7 @@
       "installDir": "${sourceDir}/out/install/${presetName}",
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE": {
-          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+          "value": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
           "type": "FILEPATH"
         },
         "CMAKE_C_COMPILER": "cl.exe",
@@ -124,12 +135,12 @@
       "displayName": "x64 Release Clang-cl",
       "description": "Build x64 release with clang-cl",
       "inherits": "x64-debug",
-        "cacheVariables": {
-            "CMAKE_C_COMPILER": "clang-cl.exe",
-            "CMAKE_CXX_COMPILER": "clang-cl.exe",
-            "build_tests": "ON",
-            "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-        }
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang-cl.exe",
+        "CMAKE_CXX_COMPILER": "clang-cl.exe",
+        "build_tests": "ON",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
     }
   ],
   "testPresets": [

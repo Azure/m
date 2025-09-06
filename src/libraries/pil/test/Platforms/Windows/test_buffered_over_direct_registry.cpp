@@ -19,7 +19,7 @@ using namespace std::string_view_literals;
 
 TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoft)
 {
-    auto p    = m::pil::make_platform(m::pil::platform_type::buffered_over_direct);
+    auto p    = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
     auto r    = p.get_registry();
     auto k1   = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2   = k1.open_key(L"Software\\Microsoft"sv);
@@ -45,8 +45,8 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoft)
 
 TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoftWindiff)
 {
-    auto p    = m::pil::make_platform(m::pil::platform_type::buffered_over_direct);
-    auto r    = p.get_registry();
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
+    auto r  = p.get_registry();
     auto k1   = r.open_predefined_key(m::pil::predefined_key::current_user);
     try
     {
@@ -78,7 +78,7 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoftWindiff)
 
 TEST(BufferedOverDirectRegistry, TrySettingStringValue)
 {
-    auto p    = m::pil::make_platform(m::pil::platform_type::buffered_over_direct);
+    auto p    = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
     auto r    = p.get_registry();
     auto k1   = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2   = k1.open_key(L"Software\\Microsoft"sv);
@@ -96,7 +96,7 @@ TEST(BufferedOverDirectRegistry, TrySettingStringValue)
 
 TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint)
 {
-    auto p  = m::pil::make_platform(m::pil::platform_type::buffered_over_direct);
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
     auto r  = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2 = k1.open_key(L"Software\\Microsoft"sv);
@@ -114,7 +114,7 @@ TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint)
 
 TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint2)
 {
-    auto p  = m::pil::make_platform(m::pil::platform_type::buffered_over_direct);
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
     auto r  = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2 = k1.open_key(L"Software\\Microsoft"sv);

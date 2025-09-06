@@ -44,8 +44,8 @@ namespace m::pil::impl::buffered
             for (auto&& e: evnatv_span)
             {
                 value_node vnv{.m_reg_value_type = e.m_reg_value_type,
-                                     .m_value          = std::nullopt,
-                                     .m_deleted        = false};
+                               .m_value          = std::nullopt,
+                               .m_deleted        = false};
 
                 m_values.emplace(std::move(e.m_value_name), std::move(vnv));
             }
@@ -58,7 +58,7 @@ namespace m::pil::impl::buffered
     }
 
     ikey::delete_value_disposition
-    key::delete_value(ikey::delete_value_flags flags, std::u16string_view value_name)
+    key::delete_value(ikey::delete_value_flags flags, value_name_string_type const& value_name)
     {
         M_API_PARAMETER_MUST_BE_ZERO("ikey::delete_value", flags);
 
@@ -121,7 +121,7 @@ namespace m::pil::impl::buffered
 
             auto& item = values_span[span_index];
 
-            item.m_value_name     = to_u16string(it->first);
+            item.m_value_name     = it->first;
             item.m_reg_value_type = it->second.m_reg_value_type;
 
             span_index++;
@@ -137,9 +137,9 @@ namespace m::pil::impl::buffered
     }
 
     ikey::get_value_size_disposition
-    key::get_value_size(ikey::get_value_size_flags flags,
-                        std::u16string_view        value_name,
-                        std::size_t&               size)
+    key::get_value_size(ikey::get_value_size_flags    flags,
+                        value_name_string_type const& value_name,
+                        std::size_t&                  size)
     {
         size = 0;
 
@@ -169,7 +169,7 @@ namespace m::pil::impl::buffered
 
     ikey::get_value_type_disposition
     key::get_value_type(ikey::get_value_type_flags flags,
-                        std::u16string_view        value_name,
+                        value_name_string_type const& value_name,
                         reg_value_type&            type)
     {
         M_API_PARAMETER_MUST_BE_ZERO("ikey::get_value_type", flags);
@@ -189,11 +189,11 @@ namespace m::pil::impl::buffered
     }
 
     ikey::get_value_disposition
-    key::get_value(ikey::get_value_flags       flags,
-                   std::u16string_view         value_name,
-                   reg_value_type&             type,
-                   std::span<std::byte>&       value,
-                   std::optional<std::size_t>& new_bytes_required)
+    key::get_value(ikey::get_value_flags         flags,
+                   value_name_string_type const& value_name,
+                   reg_value_type&               type,
+                   std::span<std::byte>&         value,
+                   std::optional<std::size_t>&   new_bytes_required)
     {
         new_bytes_required = std::nullopt;
 
@@ -235,10 +235,10 @@ namespace m::pil::impl::buffered
     }
 
     ikey::set_value_disposition
-    key::set_value(ikey::set_value_flags      flags,
-                   std::u16string_view        value_name,
-                   reg_value_type             type,
-                   std::span<std::byte const> value)
+    key::set_value(ikey::set_value_flags         flags,
+                   value_name_string_type const& value_name,
+                   reg_value_type                type,
+                   std::span<std::byte const>    value)
     {
         M_API_PARAMETER_MUST_BE_ZERO("ikey::set_value", flags);
 
@@ -300,7 +300,7 @@ namespace m::pil::impl::buffered
     }
 
     void
-    key::load_value_if_not_present(std::u16string_view value_name, value_node& vnv)
+    key::load_value_if_not_present(value_name_string_type const& value_name, value_node& vnv)
     {
         if (vnv.m_deleted)
             return;

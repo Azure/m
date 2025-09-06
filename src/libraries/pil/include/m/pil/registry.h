@@ -21,9 +21,10 @@
 #include <m/linux_strings/convert.h>
 #endif
 
+#include <m/pil/key_path.h>
 #include <m/pil/registry_base_types.h>
 #include <m/pil/registry_interfaces.h>
-#include <m/pil/key_path.h>
+#include <m/sstring/sstring.h>
 #include <m/strings/convert.h>
 #include <m/utility/enum_operations.h.h>
 #include <m/utility/utility.h>
@@ -39,8 +40,6 @@ namespace m::pil
     class key
     {
     public:
-        using path_type = m::pil::key_path;
-
         key() = default;
         key(key const& other);
         key(key&& other) noexcept;
@@ -61,11 +60,11 @@ namespace m::pil
         key
         create_key(std::basic_string_view<CharT> key_name)
         {
-            return create_key(path_type(key_name));
+            return create_key(key_path(key_name));
         }
 
         key
-        create_key(path_type const& key_name)
+        create_key(key_path const& key_name)
         {
             return do_create_key(key_name);
         }
@@ -74,11 +73,11 @@ namespace m::pil
         void
         delete_key(std::basic_string_view<CharT> key_name)
         {
-            delete_key(path_type(key_name));
+            delete_key(key_path(key_name));
         }
 
         void
-        delete_key(path_type const& key_name)
+        delete_key(key_path const& key_name)
         {
             do_delete_key(key_name);
         }
@@ -87,16 +86,16 @@ namespace m::pil
         void
         delete_tree(std::basic_string_view<CharT> key_name)
         {
-            delete_tree(path_type(key_name));
+            delete_tree(key_path(key_name));
         }
 
         void
-        delete_tree(path_type const& key_name)
+        delete_tree(key_path const& key_name)
         {
             do_delete_tree(key_name);
         }
 
-        std::vector<path_type>
+        std::vector<key_path>
         list_subkey_names();
 
         void
@@ -106,11 +105,11 @@ namespace m::pil
         key
         open_key(std::basic_string_view<CharT> key_name)
         {
-            return do_open_key(path_type(key_name));
+            return do_open_key(key_path(key_name));
         }
 
         key
-        open_key(path_type const& key_name)
+        open_key(key_path const& key_name)
         {
             return do_open_key(key_name);
         }
@@ -223,6 +222,7 @@ namespace m::pil
                                             binary_value>;
 
         template <typename CharT>
+            requires(m::character<CharT>)
         registry_value
         get_value(std::basic_string_view<CharT> value_name)
         {
@@ -230,6 +230,7 @@ namespace m::pil
         }
 
         template <typename CharT>
+            requires(m::character<CharT>)
         void
         set_value(std::basic_string_view<CharT> value_name, registry_string_view_type value)
         {
@@ -238,26 +239,59 @@ namespace m::pil
         }
 
         template <typename CharT1, typename CharT2>
+            requires(m::character<CharT1> && m::character<CharT2>)
         void
         set_string_value(std::basic_string_view<CharT1> value_name,
                          std::basic_string_view<CharT2> value)
         {
             auto const                s = to_null_terminated_registry_storage_string(value);
             storage_string_value_view v{s};
-            do_set_value(m::to_u16string(value_name), v);
+            do_set_value(to_value_name_string_type(value_name), v);
         }
 
         template <typename CharT1, typename CharT2>
+            requires(m::character<CharT1> && m::character<CharT2>)
+        void
+        set_string_value(CharT1 const* value_name, std::basic_string_view<CharT2> value)
+        {
+            auto const                s = to_null_terminated_registry_storage_string(value);
+            storage_string_value_view v{s};
+            do_set_value(to_value_name_string_type(value_name), v);
+        }
+
+        template <typename CharT1, typename CharT2>
+            requires(m::character<CharT1> && m::character<CharT2>)
+        void
+        set_string_value(std::basic_string_view<CharT1> value_name, CharT2 const* value)
+        {
+            auto const                s = to_null_terminated_registry_storage_string(value);
+            storage_string_value_view v{s};
+            do_set_value(to_value_name_string_type(value_name), v);
+        }
+
+        template <typename CharT1, typename CharT2>
+            requires(m::character<CharT1> && m::character<CharT2>)
+        void
+        set_string_value(CharT1 const* value_name, CharT2 const* value)
+        {
+            auto const                s = to_null_terminated_registry_storage_string(value);
+            storage_string_value_view v{s};
+            do_set_value(to_value_name_string_type(value_name), v);
+        }
+
+        template <typename CharT1, typename CharT2>
+            requires(m::character<CharT1> && m::character<CharT2>)
         void
         set_expand_string_value(std::basic_string_view<CharT1> value_name,
                                 std::basic_string_view<CharT2> value)
         {
             registry_string_type s{to_null_terminated_registry_string(value)};
             expand_string_value  v{s};
-            do_set_value(to_u16string(value_name), v);
+            do_set_value(to_value_name_string_type(value_name), v);
         }
 
         template <typename CharT>
+            requires(m::character<CharT>)
         void
         set_value(std::basic_string_view<CharT>                 value_name,
                   std::vector<registry_string_view_type> const& value)
@@ -271,13 +305,22 @@ namespace m::pil
         }
 
         template <typename CharT>
+            requires(m::character<CharT>)
         void
         set_value(std::basic_string_view<CharT> value_name, uint32_t value)
         {
-            do_set_value(to_u16string(value_name), uint32_value{value});
+            do_set_value(to_value_name_string_type(value_name), storage_uint32_value{value});
         }
 
-        path_type
+        template <typename CharT>
+            requires(m::character<CharT>)
+        void
+        set_value(CharT const* value_name, uint32_t value)
+        {
+            do_set_value(to_value_name_string_type(value_name), storage_uint32_value{value});
+        }
+
+        key_path
         get_path()
         {
             return do_get_path();
@@ -288,22 +331,22 @@ namespace m::pil
 
     private:
         key
-        do_create_key(path_type const& key_name);
+        do_create_key(key_path const& key_name);
 
         void
-        do_delete_key(path_type const& key_name);
+        do_delete_key(key_path const& key_name);
 
         void
-        do_delete_tree(std::optional<path_type> const& key_name);
+        do_delete_tree(std::optional<key_path> const& key_name);
 
         key
-        do_open_key(std::optional<path_type> const& key_name);
+        do_open_key(std::optional<key_path> const& key_name);
 
         void
-        do_rename_key(path_type const& old_key_name, path_type const& new_key_name);
+        do_rename_key(key_path const& old_key_name, key_path const& new_key_name);
 
         void
-        do_rename_key(path_type const& new_key_name);
+        do_rename_key(key_path const& new_key_name);
 
         void
         do_delete_value(std::u16string_view value_name);
@@ -326,7 +369,7 @@ namespace m::pil
         registry_value
         do_get_value(std::u16string_view value_name);
 
-        path_type
+        key_path
         do_get_path();
 
         //
@@ -446,7 +489,7 @@ namespace m::pil
 
         std::unique_ptr<iregistry_monitor_token>
         register_watch(register_watch_flags                                flags,
-                       pil::key_path const&                          key_path,
+                       pil::key_path const&                                key_path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
         {
             return do_register_watch(flags, key_path, change_notification_ptr);
@@ -460,7 +503,7 @@ namespace m::pil
         std::unique_ptr<iregistry_monitor_token>
         do_register_watch(
             register_watch_flags                                flags,
-            pil::key_path const&                          key_path,
+            pil::key_path const&                                key_path,
             m::not_null<iregistry_monitor_change_notification*> change_notification_ptr);
 
         std::mutex                              m_mutex;

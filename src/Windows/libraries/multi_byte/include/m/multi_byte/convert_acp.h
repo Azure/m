@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include <m/strings/tstring.h>
 #include <m/utf/transcode.h>
 
 #include "convert.h"
@@ -40,6 +41,9 @@ namespace m
     std::optional<std::string>
     to_string(std::optional<std::u8string_view> v);
 
+    std::optional<std::string>
+    to_string(std::optional<std::u8string> const& s);
+
     void
     to_string(std::u16string_view v, std::string& str);
 
@@ -53,10 +57,19 @@ namespace m
     to_string(std::u16string const& s);
 
     void
+    to_string(char16_t const* s, std::string& str);
+
+    std::string
+    to_string(char16_t const* s);
+
+    void
     to_string(std::optional<std::u16string_view> v, std::string& str);
 
     std::optional<std::string>
     to_string(std::optional<std::u16string_view> v);
+
+    std::optional<std::string>
+    to_string(std::optional<std::u16string> const& str);
 
     void
     to_string(std::u32string_view v, std::string& str);
@@ -76,6 +89,9 @@ namespace m
     std::optional<std::string>
     to_string(std::optional<std::u32string_view> v);
 
+    std::optional<std::string>
+    to_string(std::optional<std::u32string> const& s);
+
     void
     to_string(std::wstring_view v, std::string& str);
 
@@ -93,6 +109,9 @@ namespace m
 
     std::optional<std::string>
     to_string(std::optional<std::wstring_view> v);
+
+    std::optional<std::string>
+    to_string(std::optional<std::wstring> const& s);
 
     //
     // m::to_wstring
@@ -179,11 +198,30 @@ namespace m
     std::u32string
     to_u32string(m::czstring szstr);
 
-
     void
     to_u32string(std::string_view v, std::u32string& str);
 
     std::u32string
     to_u32string(std::string_view v);
+
+
+    template <>
+    struct string_conversion_helper<char, char16_t>
+    {
+        using from_char_type = char16_t;
+        using to_char_type   = char;
+
+        using from_view_type = std::basic_string_view<from_char_type>;
+        using to_view_type   = std::basic_string_view<to_char_type>;
+
+        using from_string_type = std::basic_string<from_char_type>;
+        using to_string_type   = std::basic_string<to_char_type>;
+
+        static to_string_type
+        xlate_to_string(from_view_type view)
+        {
+            return m::to_string(view);
+        }
+    };
 
 } // namespace m

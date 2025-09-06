@@ -5,10 +5,13 @@
 #include <string_view>
 
 #include <m/cast/to.h>
+#include <m/error_handling/macros.h>
 #include <m/pil/common.h>
 #include <m/pil/platform.h>
 #include <m/pil/registry.h>
 #include <m/strings/convert.h>
+
+#include "platform.h"
 
 #ifdef WIN32
 #include <m/errors/errors.h>
@@ -16,6 +19,7 @@
 #endif
 
 #include "buffered/buffered.h"
+#include "logging/logging.h"
 #include "redirecting/redirecting.h"
 
 #ifdef WIN32
@@ -25,81 +29,35 @@
 
 namespace m::pil::impl
 {
-    // std::initializer_list<std::pair<std::u16string_view, std::u16string_view>>
-
-    std::shared_ptr<iplatform>
-    create_platform_interface(platform_type pt)
-    {
-        //
-        switch (pt)
-        {
-            using enum platform_type;
-
-            case direct:
-            {
-#ifdef WIN32
-                auto wq =
-                    m::threadpool->create_work_queue(m::work_queue_execution_policy::parallel);
-                return std::make_shared<win32::platform>(wq);
-#else
-                M_NOT_IMPLEMENTED("platform_type::direct not implemented yet for Linux");
-#endif
-            }
-
-            case buffered_over_direct:
-            {
-#ifdef WIN32
-                auto wq =
-                    m::threadpool->create_work_queue(m::work_queue_execution_policy::parallel);
-                return std::make_shared<m::pil::impl::buffered::platform>(
-                    std::make_shared<win32::platform>(wq));
-#else
-                M_NOT_IMPLEMENTED(
-                    "platform_type::buffered_over_direct not implemented yet for Linux");
-#endif
-            }
-
-            default: M_UNREACHABLE_CODE();
-        }
-    }
-
     std::shared_ptr<iplatform>
     create_platform_interface(
-        platform_type pt,
-        std::initializer_list<std::pair<std::u16string_view, std::u16string_view>> redirections)
+        create_platform_interface_flags                                             flags,
+        std::initializer_list<std::pair<std::u16string_view, std::u16string_view>>* redirections)
     {
-        //
-        switch (pt)
-        {
-            using enum platform_type;
+        M_VALIDATE_FLAGS_PARAMETER(flags,
+                                   create_platform_interface_flags::record_modifications |
+                                       create_platform_interface_flags::buffer_updates);
 
-            case direct:
-            {
 #ifdef WIN32
-                auto wq =
-                    m::threadpool->create_work_queue(m::work_queue_execution_policy::parallel);
-                auto plat = std::make_shared<win32::platform>(wq);
-                return std::make_shared<redirecting::platform>(plat, redirections);
-#else
-                std::ignore = redirections;
-                M_NOT_IMPLEMENTED("platform_type::direct not implemented yet for Linux");
-#endif
-            }
+        auto wq = m::threadpool->create_work_queue(m::work_queue_execution_policy::parallel);
 
-            case buffered_over_direct:
-            {
-#ifdef WIN32
-                auto wq =
-                    m::threadpool->create_work_queue(m::work_queue_execution_policy::parallel);
-                return std::make_shared<m::pil::impl::buffered::platform>(
-                    std::make_shared<win32::platform>(wq));
-#else
-                M_NOT_IMPLEMENTED(
-                    "platform_type::buffered_over_direct not implemented yet for Linux");
-#endif
-            }
+        auto                       plat = std::make_shared<win32::platform>(wq);
+        std::shared_ptr<iplatform> top  = plat;
 
-            default: M_UNREACHABLE_CODE();
-        }
+        // If buffering is requested, put a buffering layer in between
+        if (!!(flags & create_platform_interface_flags::buffer_updates))
+            top = std::make_shared<m::pil::impl::buffered::platform>(top);
+
+        if (redirections)
+            top = std::make_shared<redirecting::platform>(top, redirections);
+
+        if (!!(flags & create_platform_interface_flags::record_modifications))
+            top = std::make_shared<logging::platform>(top);
+
+        return top;
+#else
+        std::ignore = redirections;
+        M_NOT_IMPLEMENTED("platform creation not implemented yet for Linux");
+#endif
     }
 } // namespace m::pil::impl

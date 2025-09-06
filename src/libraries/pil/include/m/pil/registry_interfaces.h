@@ -18,9 +18,10 @@
 #include <m/error_handling/macros.h>
 #include <m/pil/common.h>
 #include <m/pil/disposition.h>
-#include <m/pil/registry_base_types.h>
 #include <m/pil/key_path.h>
+#include <m/pil/registry_base_types.h>
 #include <m/pil/security_attributes.h>
+#include <m/sstring/sstring.h>
 #include <m/strings/convert.h>
 #include <m/utility/enum_operations.h.h>
 #include <m/utility/utility.h>
@@ -60,15 +61,12 @@
 
 namespace m::pil
 {
-    using key_name_type      = std::u16string;
-    using key_name_view_type = std::u16string_view;
-
-    using value_name_type      = std::u16string;
-    using value_name_view_type = std::u16string_view;
+    using value_name_string_type = m::u16sstring;
+    using value_name_view_type   = std::u16string_view;
 
     struct ikey
     {
-        virtual ~ikey() {}
+        virtual ~ikey() = default;
 
         //
         //  create_key
@@ -90,15 +88,13 @@ namespace m::pil
 
         virtual create_key_disposition
         create_key(create_key_flags                   flags,
-                   key_path const&              path,
+                   key_path const&                    path,
                    sam                                sam_desired,
                    std::optional<security_attributes> sa,
                    std::shared_ptr<ikey>&             returned_key) = 0;
 
         std::shared_ptr<ikey>
-        create_key(key_path const&              path,
-                   sam                                sam_desired,
-                   std::optional<security_attributes> sa)
+        create_key(key_path const& path, sam sam_desired, std::optional<security_attributes> sa)
         {
             std::shared_ptr<ikey> returned_key;
             auto const d = create_key(create_key_flags{}, path, sam_desired, sa, returned_key);
@@ -157,7 +153,7 @@ namespace m::pil
         delete_tree(delete_tree_flags flags, std::optional<key_path> const& key_name) = 0;
 
         void
-        delete_tree(std::optional<key_name_view_type> const& key_name)
+        delete_tree(std::optional<key_path> const& key_name)
         {
             auto const d = delete_tree(delete_tree_flags{}, key_name);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -193,15 +189,15 @@ namespace m::pil
         /// <param name="key_name"></param>
         /// <returns></returns>
         virtual enumerate_keys_disposition
-        enumerate_keys(enumerate_keys_flags                            flags,
-                       std::size_t                                     starting_index,
+        enumerate_keys(enumerate_keys_flags                      flags,
+                       std::size_t                               starting_index,
                        std::span<key_path, std::dynamic_extent>& key_names) = 0;
 
         std::optional<key_path>
         enumerate_keys(std::size_t index)
         {
             key_path key_name;
-            auto           s = std::span<key_path, std::dynamic_extent>(&key_name, 1);
+            auto     s = std::span<key_path, std::dynamic_extent>(&key_name, 1);
 
             auto const d = enumerate_keys(enumerate_keys_flags{}, index, s);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -260,10 +256,10 @@ namespace m::pil
         using open_key_disposition = disposition<open_key_result_code, open_key_result_flags>;
 
         virtual open_key_disposition
-        open_key(open_key_flags                       flags,
+        open_key(open_key_flags                 flags,
                  std::optional<key_path> const& path,
-                 sam                                  sam_desired,
-                 std::shared_ptr<ikey>&               returned_key) = 0;
+                 sam                            sam_desired,
+                 std::shared_ptr<ikey>&         returned_key) = 0;
 
         std::shared_ptr<ikey>
         open_key(std::optional<key_path> const& path, sam sam_desired)
@@ -341,13 +337,12 @@ namespace m::pil
         using rename_key_disposition = disposition<rename_key_result_code, rename_key_result_flags>;
 
         virtual rename_key_disposition
-        rename_key(rename_key_flags                     flags,
+        rename_key(rename_key_flags               flags,
                    std::optional<key_path> const& old_key_name,
                    key_path const&                new_key_name) = 0;
 
         void
-        rename_key(std::optional<key_path> const& old_key_name,
-                   key_path const&                new_key_name)
+        rename_key(std::optional<key_path> const& old_key_name, key_path const& new_key_name)
         {
             auto const d = rename_key(rename_key_flags{}, old_key_name, new_key_name);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -373,10 +368,10 @@ namespace m::pil
             disposition<delete_value_result_code, delete_value_result_flags>;
 
         virtual delete_value_disposition
-        delete_value(delete_value_flags flags, value_name_view_type value_name) = 0;
+        delete_value(delete_value_flags flags, value_name_string_type const& value_name) = 0;
 
         void
-        delete_value(value_name_view_type value_name)
+        delete_value(value_name_string_type const& value_name)
         {
             auto const d = delete_value(delete_value_flags{}, value_name);
             M_INTERNAL_ERROR_CHECK(!d);
@@ -406,14 +401,9 @@ namespace m::pil
         {
             enumerate_value_names_and_types_value() = default;
 
-            enumerate_value_names_and_types_value(value_name_view_type value_name,
-                                                  reg_value_type       type):
+            enumerate_value_names_and_types_value(value_name_string_type const& value_name,
+                                                  reg_value_type                type):
                 m_value_name(value_name), m_reg_value_type(type)
-            {}
-
-            enumerate_value_names_and_types_value(value_name_type&& value_name,
-                                                  reg_value_type    type):
-                m_value_name(std::move(value_name)), m_reg_value_type(type)
             {}
 
             enumerate_value_names_and_types_value(
@@ -457,8 +447,8 @@ namespace m::pil
                 swap(l.m_reg_value_type, r.m_reg_value_type);
             }
 
-            value_name_type m_value_name;
-            reg_value_type  m_reg_value_type{reg_value_type::none};
+            value_name_string_type m_value_name;
+            reg_value_type         m_reg_value_type{reg_value_type::none};
         };
 
         virtual enumerate_value_names_and_types_disposition
@@ -514,12 +504,12 @@ namespace m::pil
             disposition<get_value_size_result_code, get_value_size_result_flags>;
 
         virtual get_value_size_disposition
-        get_value_size(get_value_size_flags flags,
-                       value_name_view_type value_name,
-                       std::size_t&         size) = 0;
+        get_value_size(get_value_size_flags          flags,
+                       value_name_string_type const& value_name,
+                       std::size_t&                  size) = 0;
 
         std::size_t
-        get_value_size(value_name_view_type value_name)
+        get_value_size(value_name_string_type const& value_name)
         {
             std::size_t size{};
 
@@ -549,12 +539,12 @@ namespace m::pil
             disposition<get_value_type_result_code, get_value_type_result_flags>;
 
         virtual get_value_type_disposition
-        get_value_type(get_value_type_flags flags,
-                       value_name_view_type value_name,
-                       reg_value_type&      type) = 0;
+        get_value_type(get_value_type_flags          flags,
+                       value_name_string_type const& value_name,
+                       reg_value_type&               type) = 0;
 
         reg_value_type
-        get_value_type(value_name_view_type value_name)
+        get_value_type(value_name_string_type const& value_name)
         {
             reg_value_type type{};
 
@@ -603,11 +593,11 @@ namespace m::pil
         /// <param name="new_bytes_required"></param>
         /// <returns></returns>
         virtual get_value_disposition
-        get_value(get_value_flags             flags,
-                  value_name_view_type        value_name,
-                  reg_value_type&             vt,
-                  std::span<std::byte>&       value,
-                  std::optional<std::size_t>& new_bytes_required) = 0;
+        get_value(get_value_flags               flags,
+                  value_name_string_type const& value_name,
+                  reg_value_type&               vt,
+                  std::span<std::byte>&         value,
+                  std::optional<std::size_t>&   new_bytes_required) = 0;
 
         //
         //  set_value
@@ -628,10 +618,10 @@ namespace m::pil
         using set_value_disposition = disposition<set_value_result_code, set_value_result_flags>;
 
         virtual set_value_disposition
-        set_value(set_value_flags            flags,
-                  value_name_view_type       value_name,
-                  reg_value_type             type,
-                  std::span<std::byte const> value) = 0;
+        set_value(set_value_flags               flags,
+                  value_name_string_type const& value_name,
+                  reg_value_type                type,
+                  std::span<std::byte const>    value) = 0;
 
         //
         // get_path
@@ -658,7 +648,7 @@ namespace m::pil
         get_path()
         {
             pil::key_path p;
-            auto                d = get_path(get_path_flags{}, p);
+            auto          d = get_path(get_path_flags{}, p);
             M_INTERNAL_ERROR_CHECK(!d);
             return p;
         }
@@ -718,7 +708,7 @@ namespace m::pil
 
         virtual std::optional<requeue_key_access_attempt>
         on_key_access_failure(utc_time_point           when,
-                              key_path const&    key,
+                              key_path const&          key,
                               std::system_error const& ec) = 0;
 
         struct requeue_change_notification_attempt
@@ -728,7 +718,7 @@ namespace m::pil
 
         virtual std::optional<requeue_change_notification_attempt>
         on_change_notification_attempt_failure(utc_time_point           when,
-                                               key_path const&    key,
+                                               key_path const&          key,
                                                std::system_error const& ec) = 0;
 
         virtual void
@@ -772,12 +762,12 @@ namespace m::pil
 
         virtual register_watch_disposition
         register_watch(register_watch_flags                                flags,
-                       pil::key_path const&                          path,
+                       pil::key_path const&                                path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
                        std::unique_ptr<iregistry_monitor_token>&           returned_ptr) = 0;
 
         std::unique_ptr<iregistry_monitor_token>
-        register_watch(pil::key_path const&                          path,
+        register_watch(pil::key_path const&                                path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
         {
             std::unique_ptr<iregistry_monitor_token> returned_ptr;
@@ -789,7 +779,7 @@ namespace m::pil
 
         std::unique_ptr<iregistry_monitor_token>
         register_watch(register_watch_flags                                flags,
-                       pil::key_path const&                          path,
+                       pil::key_path const&                                path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr)
         {
             std::unique_ptr<iregistry_monitor_token> returned_ptr;

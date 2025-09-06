@@ -17,7 +17,7 @@ using namespace std::string_view_literals;
 
 TEST(DirectRegistry, TryEnumeratingSoftwareMicrosoft)
 {
-    auto p = m::pil::make_platform(m::pil::platform_type::direct);
+    auto p = m::pil::make_platform(m::pil::make_platform_flags{});
     auto r = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2 = k1.open_key(L"Software\\Microsoft"sv);

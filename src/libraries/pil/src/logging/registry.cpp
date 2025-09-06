@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <initializer_list>
 #include <memory>
 #include <new>
 #include <optional>
@@ -8,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 
 #include <m/error_handling/macros.h>
 #include <m/pil/pil.h>
@@ -16,20 +18,17 @@
 #include <m/strings/convert.h>
 #include <m/utility/make_span.h>
 
-#include "buffered.h"
+#include "logging.h"
 
-using namespace std::string_literals;
-using namespace std::string_view_literals;
-
-namespace m::pil::impl::buffered
+namespace m::pil::impl::logging
 {
-    registry::registry(std::shared_ptr<iregistry> const& underlying_registry):
-        m_underlying_registry(underlying_registry)
-    {}
-
-    registry::registry(std::shared_ptr<iregistry>&& underlying_registry) noexcept:
-        m_underlying_registry(std::move(underlying_registry))
-    {}
+    registry::registry(std::shared_ptr<iregistry> const& underlying_registry,
+                       std::shared_ptr<log> const& log_ptr):
+        m_underlying_registry(underlying_registry), m_log(log_ptr)
+    {
+        M_INTERNAL_ERROR_CHECK(m_underlying_registry.get() != nullptr);
+        M_INTERNAL_ERROR_CHECK(m_log.get() != nullptr);
+    }
 
     iregistry::open_predefined_key_disposition
     registry::open_predefined_key(open_predefined_key_flags flags,
@@ -45,7 +44,7 @@ namespace m::pil::impl::buffered
         auto find_location = m_predefined_keys.find(pk);
         if (find_location != m_predefined_keys.end())
         {
-            returned_key                          = find_location->second;
+            returned_key = find_location->second;
             return open_predefined_key_disposition{};
         }
 
@@ -55,11 +54,11 @@ namespace m::pil::impl::buffered
         if (m_underlying_registry)
             underlying_predefined_key = m_underlying_registry->open_predefined_key(pk);
 
-        auto const [insertion_location, insertted] = m_predefined_keys.emplace(
-            std::make_pair(pk, std::make_shared<key>(std::move(underlying_predefined_key))));
-        M_INTERNAL_ERROR_CHECK(insertted);
+        auto const [insertion_location, inserted] = m_predefined_keys.emplace(std::make_pair(
+            pk, std::make_shared<key>(std::move(underlying_predefined_key), m_log)));
+        M_INTERNAL_ERROR_CHECK(inserted);
 
-        returned_key = std::static_pointer_cast<pil::ikey>(insertion_location->second);
+        returned_key = insertion_location->second;
 
         return open_predefined_key_disposition{};
     }
@@ -88,34 +87,6 @@ namespace m::pil::impl::buffered
         if (m_monitor)
             return;
 
-        auto underlying_monitor = m_underlying_registry->monitor();
-
-        m_monitor = std::make_shared<registry_monitor>(std::move(underlying_monitor));
+        m_monitor = std::make_shared<registry_monitor>(m_underlying_registry->monitor());
     }
-
-    void
-    registry::save_xml(pugi::xml_node& doc_node) const
-    {
-        auto l = std::unique_lock(m_mutex);
-
-        auto reg_node = doc_node.append_child("Registry");
-
-        //
-        // The predefined nodes are special and so are handled here
-        // in a custom fashion. If major structural changes are made to
-        // how the Key element is written be sure to synchronize them
-        // between here and there.
-        //
-
-        for (auto const& e: m_predefined_keys)
-        {
-            auto key_node = reg_node.append_child("Key");
-            auto name_attr = key_node.append_attribute("name");
-            name_attr.set_value(m::to_string(map_predefined_key_to_string(e.first).view()).c_str());
-
-            e.second->save_xml(key_node);
-
-        }
-    }
-
-} // namespace m::pil::impl::buffered
+} // namespace m::pil::impl::logging

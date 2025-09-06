@@ -14,9 +14,9 @@
 
 namespace m::pil::impl::redirecting
 {
-    redirector::redirector(std::initializer_list<std::pair<view_type, view_type>> il)
+    redirector::redirector(std::initializer_list<std::pair<view_type, view_type>>* il)
     {
-        for (auto const& e: il)
+        for (auto const& e: *il)
         {
             m_public_to_private.emplace(e);
             m_private_to_public.emplace(std::make_pair(e.second, e.first));
@@ -50,8 +50,8 @@ namespace m::pil::impl::redirecting
             if (it != rmap.end())
             {
                 // just another name that makes more sense in context
-                auto const remainder_start = v.size() - remainder_size;
-                auto const remainder_view = v.substr(remainder_start);
+                auto const remainder_start      = v.size() - remainder_size;
+                auto const remainder_view       = v.substr(remainder_start);
                 auto const combined_path_string = string_type{{it->second.view(), remainder_view}};
                 return path{combined_path_string};
             }
@@ -60,7 +60,7 @@ namespace m::pil::impl::redirecting
             if (sep_pos == npos)
                 break;
 
-            search_key = search_key.substr(0, sep_pos);
+            search_key     = search_key.substr(0, sep_pos);
             remainder_size = v.size() - sep_pos;
         }
 

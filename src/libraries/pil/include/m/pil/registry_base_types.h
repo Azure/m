@@ -14,6 +14,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <m/pil/key_path.h>
 #include <m/sstring/sstring.h>
 #include <m/strings/convert.h>
 #include <m/utility/utility.h>
@@ -30,6 +31,35 @@
 
 namespace m::pil
 {
+    using key_path               = m::pil::key_path;
+    using char_type              = typename key_path::char_type;
+    using string_type            = typename key_path::string_type;
+    using view_type              = typename key_path::view_type;
+    using value_name_char_type   = char16_t;
+    using value_name_string_type = m::basic_sstring<value_name_char_type>;
+    using value_name_view_type   = std::basic_string_view<value_name_char_type>;
+
+    template <typename CharT>
+        requires(m::character<CharT>)
+    value_name_string_type
+    to_value_name_string_type(std::basic_string_view<CharT> view)
+    {
+        if constexpr (sizeof(CharT) == sizeof(value_name_char_type))
+            return m::u16sstring(*(reinterpret_cast<value_name_view_type const*>(&view)));
+        else
+        {
+            return value_name_string_type(to_u16string(view));
+        }
+    }
+
+    template <typename CharT>
+        requires(m::character<CharT>)
+    value_name_string_type
+    to_value_name_string_type(CharT const* ptr)
+    {
+        return to_value_name_string_type(std::basic_string_view<CharT>(ptr));
+    }
+
     //
     //  The registry_char_type, registry_string_type, and registry_string_view_type types
     // are the types of the strings that are presented to the client of the
@@ -110,12 +140,21 @@ namespace m::pil
     }
 
     template <typename CharT>
+        requires(m::character<CharT>)
     registry_storage_string_type
-    to_null_terminated_registry_storage_string(std::basic_string_view<CharT> const& view)
+    to_null_terminated_registry_storage_string(std::basic_string_view<CharT> view)
     {
         registry_storage_string_type value;
         to_null_terminated_registry_storage_string(view, value);
         return value;
+    }
+
+    template <typename CharT>
+        requires(m::character<CharT>)
+    registry_storage_string_type
+    to_null_terminated_registry_storage_string(CharT const* ptr)
+    {
+        return to_null_terminated_registry_storage_string(std::basic_string_view<CharT>(ptr));
     }
 
     registry_storage_string_type

@@ -9,15 +9,31 @@
 #include <tuple>
 
 #include <m/pil/pil.h>
+#include <m/pil/platform.h>
 #include <m/pil/platform_interfaces.h>
 
 namespace m::pil::impl
 {
-    std::shared_ptr<iplatform>
-    create_platform_interface(platform_type pt);
+    enum class create_platform_interface_flags : uint32_t
+    {
+        /// <summary>
+        /// Set the record_modifications flag to enable logging of changes to the platform
+        /// that can be written out at any time.
+        /// </summary>
+        record_modifications = 1 << 0,
+
+        /// <summary>
+        /// Set the buffer_updates flag to buffer the updates away from being applied to
+        /// the live system.
+        /// </summary>
+        buffer_updates = 1 << 1,
+    };
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(create_platform_interface_flags);
 
     std::shared_ptr<iplatform>
     create_platform_interface(
-        platform_type                                                              pt,
-        std::initializer_list<std::pair<std::u16string_view, std::u16string_view>> redirections);
+        create_platform_interface_flags flags = create_platform_interface_flags{},
+        std::initializer_list<std::pair<std::u16string_view, std::u16string_view>>* redirections =
+            nullptr);
 } // namespace m::pil::impl

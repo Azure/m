@@ -21,7 +21,7 @@
 
 namespace m::pil::impl::buffered
 {
-    key::key(time_point last_write_time): m_last_write_time(last_write_time) {}
+    key::key(key_path const& path, time_point last_write_time): m_key_path(path), m_last_write_time(last_write_time) {}
 
     key::key(std::shared_ptr<ikey> const& underlying_key): m_underlying_key(underlying_key)
     {
@@ -49,7 +49,7 @@ namespace m::pil::impl::buffered
 
         std::array<pil::key_path, 32>                 key_array;
         std::span<pil::key_path, std::dynamic_extent> key_span{key_array};
-        std::size_t                                         index{};
+        std::size_t                                   index{};
 
         for (;;)
         {
@@ -71,10 +71,18 @@ namespace m::pil::impl::buffered
         }
     }
 
+    void
+    key::save_xml(pugi::xml_node& parent) const
+    {
+        auto l = std::unique_lock(m_mutex);
+
+        std::ignore = parent;
+    }
+
     ikey::create_key_disposition
-    key::create_key(ikey::create_key_flags     flags,
-                    pil::key_path const& key_name,
-                    sam                        sam_desired,
+    key::create_key(ikey::create_key_flags flags,
+                    pil::key_path const&   key_name,
+                    sam                    sam_desired,
                     std::optional<security_attributes>,
                     std::shared_ptr<ikey>& returned_key)
     {
@@ -90,6 +98,8 @@ namespace m::pil::impl::buffered
 
         // TODO: Slice the name by path
 
+        key_path full_path = ikey::get_path() + key_name;
+
         auto lock = std::unique_lock(m_mutex);
 
         //
@@ -103,7 +113,7 @@ namespace m::pil::impl::buffered
         //
         auto [insertion_it, inserted] =
             m_keys.emplace(std::make_pair(key_name.string(),
-                                          key_node{.m_key = std::make_shared<key>(entry_time),
+                                          key_node{.m_key = std::make_shared<key>(full_path, entry_time),
                                                    .m_last_write_time = entry_time,
                                                    .m_deleted         = false,
                                                    .m_mirrored        = false}));
@@ -123,7 +133,7 @@ namespace m::pil::impl::buffered
             M_INTERNAL_ERROR_CHECK(!node.m_mirrored); // If the node was made a tombstone, it should
                                                       // have been marked as not mirrored any more
 
-            node.m_key     = std::make_shared<key>(node.m_last_write_time);
+            node.m_key     = std::make_shared<key>(full_path, node.m_last_write_time);
             node.m_deleted = false;
         }
         else if (node.m_mirrored)
@@ -204,8 +214,8 @@ namespace m::pil::impl::buffered
     }
 
     ikey::enumerate_keys_disposition
-    key::enumerate_keys(ikey::enumerate_keys_flags                           flags,
-                        std::size_t                                          index,
+    key::enumerate_keys(ikey::enumerate_keys_flags                     flags,
+                        std::size_t                                    index,
                         std::span<pil::key_path, std::dynamic_extent>& key_names)
     {
         M_API_PARAMETER_MUST_BE_ZERO("ikey::enumerate_keys", flags);
@@ -251,10 +261,10 @@ namespace m::pil::impl::buffered
     }
 
     ikey::open_key_disposition
-    key::open_key(ikey::open_key_flags                      flags,
+    key::open_key(ikey::open_key_flags                flags,
                   std::optional<pil::key_path> const& key_name,
-                  sam                                       sam_desired,
-                  std::shared_ptr<ikey>&                    returned_key)
+                  sam                                 sam_desired,
+                  std::shared_ptr<ikey>&              returned_key)
     {
         returned_key.reset();
 
@@ -345,7 +355,7 @@ namespace m::pil::impl::buffered
     }
 
     ikey::rename_key_disposition
-    key::rename_key(ikey::rename_key_flags                    flags,
+    key::rename_key(ikey::rename_key_flags              flags,
                     std::optional<pil::key_path> const& old_key_name,
                     pil::key_path const&                new_key_name)
     {
@@ -464,6 +474,19 @@ namespace m::pil::impl::buffered
     ikey::get_path_disposition
     key::get_path(ikey::get_path_flags flags, m::pil::key_path& path_out)
     {
-        return m_underlying_key->get_path(flags, path_out);
+        M_VALIDATE_FLAGS_PARAMETER(flags, get_path_flags{});
+
+        auto l = std::unique_lock(m_mutex);
+
+        auto underlying_key = m_underlying_key;
+        if (underlying_key)
+        {
+            l.unlock();
+            return underlying_key->get_path(flags, path_out);
+        }
+
+        path_out = m_key_path;
+
+        return get_path_disposition{};
     }
 } // namespace m::pil::impl::buffered

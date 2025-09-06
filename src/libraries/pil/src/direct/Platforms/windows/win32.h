@@ -57,6 +57,9 @@ namespace m::pil::impl::win32
         get_registry(get_registry_flags          flags,
                      std::shared_ptr<iregistry>& returned_registry) override;
 
+        save_disposition
+        save(save_flags flags, save_contents contents, pugi::xml_node& platform_element) override;
+
     private:
         std::mutex                     m_mutex;
         std::shared_ptr<m::work_queue> m_work_queue;
@@ -145,33 +148,30 @@ namespace m::pil::impl::win32
 
         create_key_disposition
         create_key(create_key_flags                   flags,
-                   pil::key_path const&         name,
+                   pil::key_path const&               name,
                    sam                                sam_desired,
                    std::optional<security_attributes> sa,
                    std::shared_ptr<ikey>&             returned_key) override;
 
         delete_key_disposition
-        delete_key(delete_key_flags           flags,
-                   pil::key_path const& name,
-                   sam                        sam_desired) override;
+        delete_key(delete_key_flags flags, pil::key_path const& name, sam sam_desired) override;
 
         delete_tree_disposition
-        delete_tree(delete_tree_flags                         flags,
-                    std::optional<pil::key_path> const& name) override;
+        delete_tree(delete_tree_flags flags, std::optional<pil::key_path> const& name) override;
 
         enumerate_keys_disposition
-        enumerate_keys(ikey::enumerate_keys_flags                           flags,
-                       std::size_t                                          index,
+        enumerate_keys(ikey::enumerate_keys_flags                     flags,
+                       std::size_t                                    index,
                        std::span<pil::key_path, std::dynamic_extent>& key_names) override;
 
         flush_disposition
         flush(flush_flags flags) override;
 
         open_key_disposition
-        open_key(open_key_flags                            flags,
+        open_key(open_key_flags                      flags,
                  std::optional<pil::key_path> const& key_name,
-                 sam                                       sam_desired,
-                 std::shared_ptr<ikey>&                    returned_key) override;
+                 sam                                 sam_desired,
+                 std::shared_ptr<ikey>&              returned_key) override;
 
         query_information_key_disposition
         query_information_key(query_information_key_flags flags,
@@ -181,12 +181,12 @@ namespace m::pil::impl::win32
                               m::pil::time_point&         last_write_time) override;
 
         rename_key_disposition
-        rename_key(rename_key_flags                          flags,
+        rename_key(rename_key_flags                    flags,
                    std::optional<pil::key_path> const& old_name,
                    pil::key_path const&                new_name) override;
 
         delete_value_disposition
-        delete_value(delete_value_flags flags, std::u16string_view value_name) override;
+        delete_value(delete_value_flags flags, value_name_string_type const& value_name) override;
 
         enumerate_value_names_and_types_disposition
         enumerate_value_names_and_types(enumerate_value_names_and_types_flags flags,
@@ -195,34 +195,34 @@ namespace m::pil::impl::win32
                                                   std::dynamic_extent>&       values_span) override;
 
         get_value_size_disposition
-        get_value_size(get_value_size_flags flags,
-                       std::u16string_view  value_name,
-                       std::size_t&         size) override;
+        get_value_size(get_value_size_flags          flags,
+                       value_name_string_type const& value_name,
+                       std::size_t&                  size) override;
 
         get_value_type_disposition
-        get_value_type(get_value_type_flags flags,
-                       std::u16string_view  value_name,
-                       reg_value_type&      type) override;
+        get_value_type(get_value_type_flags          flags,
+                       value_name_string_type const& value_name,
+                       reg_value_type&               type) override;
 
         get_value_disposition
-        get_value(get_value_flags             flags,
-                  std::u16string_view         value_name,
-                  reg_value_type&             type,
-                  std::span<std::byte>&       value,
-                  std::optional<std::size_t>& new_bytes_required) override;
+        get_value(get_value_flags               flags,
+                  value_name_string_type const& value_name,
+                  reg_value_type&               type,
+                  std::span<std::byte>&         value,
+                  std::optional<std::size_t>&   new_bytes_required) override;
 
         set_value_disposition
-        set_value(set_value_flags            flags,
-                  std::u16string_view        value_name,
-                  reg_value_type             type,
-                  std::span<std::byte const> value) override;
+        set_value(set_value_flags               flags,
+                  value_name_string_type const& value_name,
+                  reg_value_type                type,
+                  std::span<std::byte const>    value) override;
 
         get_path_disposition
         get_path(get_path_flags flags, m::pil::key_path& path_out) override;
 
     private:
         m::win32::registry::hkey m_hkey;
-        m::pil::key_path   m_path;
+        m::pil::key_path         m_path;
     };
 
     class registry_monitor :
@@ -249,7 +249,7 @@ namespace m::pil::impl::win32
 
         register_watch_disposition
         register_watch(register_watch_flags                                flags,
-                       pil::key_path const&                          key_name,
+                       pil::key_path const&                                key_name,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
                        std::unique_ptr<iregistry_monitor_token>&           returned_ptr) override;
 
@@ -268,7 +268,7 @@ namespace m::pil::impl::win32
         registry_monitor_token(
             std::shared_ptr<m::work_queue>                      work_queue,
             m::pil::iregistry_monitor::register_watch_flags     flags,
-            pil::key_path const&                          key_path,
+            pil::key_path const&                                key_path,
             m::not_null<iregistry_monitor_change_notification*> change_notification_ptr);
         registry_monitor_token(registry_monitor_token const& other)     = delete;
         registry_monitor_token(registry_monitor_token&& other) noexcept = delete;
@@ -324,7 +324,7 @@ namespace m::pil::impl::win32
         m::pil::iregistry_monitor::register_watch_flags m_flags;
         m::win32::registry::notify_filters              m_filters;
         state                                           m_state{state::to_open_key};
-        pil::key_path                             m_key_path;
+        pil::key_path                                   m_key_path;
         m::u16sstring                                   m_key_name;
         hkey                                            m_hkey;
         m::win32::event                                 m_event;

@@ -42,7 +42,7 @@ namespace m::pil::impl::redirecting
     class redirector : public std::enable_shared_from_this<redirector>
     {
     public:
-        redirector(std::initializer_list<std::pair<view_type, view_type>> il);
+        redirector(std::initializer_list<std::pair<view_type, view_type>>* il);
 
         path
         map_public_to_private(path const& public_path) const;
@@ -72,7 +72,7 @@ namespace m::pil::impl::redirecting
     public:
         registry() = delete;
         registry(std::shared_ptr<iregistry> const&                      underlying_registry,
-                 std::initializer_list<std::pair<view_type, view_type>> il);
+                 std::initializer_list<std::pair<view_type, view_type>>* il);
         registry(registry&& other) noexcept = delete;
         registry(registry const&)           = delete;
         ~registry()                         = default;
@@ -96,16 +96,7 @@ namespace m::pil::impl::redirecting
         monitor(monitor_flags                               flags,
                 std::shared_ptr<m::pil::iregistry_monitor>& returned_registry_monitor) override;
 
-        static bool
-        simple_path(std::u16string_view key_path);
-
     protected:
-        bool
-        overlaid() const
-        {
-            return static_cast<bool>(m_underlying_registry);
-        }
-
         void initialize_monitor(m::locked_t);
 
         std::mutex                                      m_mutex;
@@ -145,33 +136,33 @@ namespace m::pil::impl::redirecting
 
         ikey::create_key_disposition
         create_key(ikey::create_key_flags             flags,
-                   pil::key_path const&         name,
+                   pil::key_path const&               name,
                    sam                                sam_desired,
                    std::optional<security_attributes> sa,
                    std::shared_ptr<ikey>&             returned_key) override;
 
         ikey::delete_key_disposition
-        delete_key(ikey::delete_key_flags     flags,
-                   pil::key_path const& name,
-                   sam                        sam_desired) override;
+        delete_key(ikey::delete_key_flags flags,
+                   pil::key_path const&   name,
+                   sam                    sam_desired) override;
 
         ikey::delete_tree_disposition
-        delete_tree(ikey::delete_tree_flags                   flags,
+        delete_tree(ikey::delete_tree_flags             flags,
                     std::optional<pil::key_path> const& name) override;
 
         ikey::enumerate_keys_disposition
-        enumerate_keys(ikey::enumerate_keys_flags                           flags,
-                       std::size_t                                          index,
+        enumerate_keys(ikey::enumerate_keys_flags                     flags,
+                       std::size_t                                    index,
                        std::span<pil::key_path, std::dynamic_extent>& key_names) override;
 
         ikey::flush_disposition
         flush(ikey::flush_flags flags) override;
 
         ikey::open_key_disposition
-        open_key(ikey::open_key_flags                      flags,
+        open_key(ikey::open_key_flags                flags,
                  std::optional<pil::key_path> const& key_name,
-                 sam                                       sam_desired,
-                 std::shared_ptr<ikey>&                    returned_key) override;
+                 sam                                 sam_desired,
+                 std::shared_ptr<ikey>&              returned_key) override;
 
         ikey::query_information_key_disposition
         query_information_key(ikey::query_information_key_flags flags,
@@ -181,12 +172,13 @@ namespace m::pil::impl::redirecting
                               m::pil::time_point&               last_write_time) override;
 
         ikey::rename_key_disposition
-        rename_key(ikey::rename_key_flags                    flags,
+        rename_key(ikey::rename_key_flags              flags,
                    std::optional<pil::key_path> const& old_key_name,
                    pil::key_path const&                new_key_name) override;
 
         ikey::delete_value_disposition
-        delete_value(ikey::delete_value_flags flags, std::u16string_view value_name) override;
+        delete_value(ikey::delete_value_flags      flags,
+                     value_name_string_type const& value_name) override;
 
         ikey::enumerate_value_names_and_types_disposition
         enumerate_value_names_and_types(ikey::enumerate_value_names_and_types_flags flags,
@@ -195,27 +187,27 @@ namespace m::pil::impl::redirecting
                                                   std::dynamic_extent>& values_span) override;
 
         ikey::get_value_size_disposition
-        get_value_size(ikey::get_value_size_flags flags,
-                       std::u16string_view        value_name,
-                       std::size_t&               size) override;
+        get_value_size(ikey::get_value_size_flags    flags,
+                       value_name_string_type const& value_name,
+                       std::size_t&                  size) override;
 
         ikey::get_value_type_disposition
-        get_value_type(ikey::get_value_type_flags flags,
-                       std::u16string_view        value_name,
-                       reg_value_type&            type) override;
+        get_value_type(ikey::get_value_type_flags    flags,
+                       value_name_string_type const& value_name,
+                       reg_value_type&               type) override;
 
         ikey::get_value_disposition
-        get_value(ikey::get_value_flags       flags,
-                  std::u16string_view         value_name,
-                  reg_value_type&             type,
-                  std::span<std::byte>&       value,
-                  std::optional<std::size_t>& new_bytes_required) override;
+        get_value(ikey::get_value_flags         flags,
+                  value_name_string_type const& value_name,
+                  reg_value_type&               type,
+                  std::span<std::byte>&         value,
+                  std::optional<std::size_t>&   new_bytes_required) override;
 
         ikey::set_value_disposition
-        set_value(ikey::set_value_flags      flags,
-                  std::u16string_view        value_name,
-                  reg_value_type             type,
-                  std::span<std::byte const> value) override;
+        set_value(ikey::set_value_flags         flags,
+                  value_name_string_type const& value_name,
+                  reg_value_type                type,
+                  std::span<std::byte const>    value) override;
 
         ikey::get_path_disposition
         get_path(ikey::get_path_flags flags, m::pil::key_path& path_out) override;
@@ -248,7 +240,7 @@ namespace m::pil::impl::redirecting
 
         register_watch_disposition
         register_watch(register_watch_flags                                flags,
-                       pil::key_path const&                          path,
+                       pil::key_path const&                                path,
                        m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
                        std::unique_ptr<iregistry_monitor_token>&           returned_ptr) override;
 
@@ -285,14 +277,14 @@ namespace m::pil::impl::redirecting
         on_begin(utc_time_point when) override;
 
         std::optional<requeue_key_access_attempt>
-        on_key_access_failure(utc_time_point             when,
-                              pil::key_path const& key,
-                              std::system_error const&   ec) override;
+        on_key_access_failure(utc_time_point           when,
+                              pil::key_path const&     key,
+                              std::system_error const& ec) override;
 
         std::optional<requeue_change_notification_attempt>
-        on_change_notification_attempt_failure(utc_time_point             when,
-                                               pil::key_path const& key,
-                                               std::system_error const&   ec) override;
+        on_change_notification_attempt_failure(utc_time_point           when,
+                                               pil::key_path const&     key,
+                                               std::system_error const& ec) override;
 
         void
         on_change(utc_time_point when, pil::key_path const& key) override;
@@ -300,7 +292,7 @@ namespace m::pil::impl::redirecting
         void
         on_cancelled(utc_time_point when) override;
 
-    // protected:
+        // protected:
         m::not_null<iregistry_monitor_change_notification*> m_change_notification;
         std::shared_ptr<redirector>                         m_redirector;
         std::unique_ptr<iregistry_monitor_token>            m_underlying_token;
@@ -310,8 +302,8 @@ namespace m::pil::impl::redirecting
     {
     public:
         platform() = delete;
-        platform(std::shared_ptr<iplatform> const&                      underlying_platform,
-                 std::initializer_list<std::pair<view_type, view_type>> registry_redirections);
+        platform(std::shared_ptr<iplatform> const&                       underlying_platform,
+                 std::initializer_list<std::pair<view_type, view_type>>* registry_redirections);
         platform(platform&& other) noexcept = delete;
         platform(platform const&)           = delete;
         ~platform()                         = default;
@@ -329,13 +321,10 @@ namespace m::pil::impl::redirecting
         get_registry(get_registry_flags          flags,
                      std::shared_ptr<iregistry>& returned_registry) override;
 
-    protected:
-        bool
-        overlaid() const
-        {
-            return static_cast<bool>(m_underlying_platform);
-        }
+        save_disposition
+        save(save_flags flags, save_contents contents, pugi::xml_node& platform_element) override;
 
+    protected:
         std::shared_ptr<pil::iplatform> m_underlying_platform;
         std::shared_ptr<registry>       m_registry;
     };

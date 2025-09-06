@@ -53,6 +53,15 @@ namespace m
         return str;
     }
 
+    std::optional<std::string>
+    to_string(std::optional<std::u16string> const& s)
+    {
+        if (!s.has_value())
+            return std::nullopt;
+
+        return to_string(s.value());
+    }
+
     void
     to_string(std::u32string_view v, std::string& str)
     {

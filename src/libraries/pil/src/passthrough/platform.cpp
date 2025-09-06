@@ -14,23 +14,19 @@
 #include <m/strings/convert.h>
 #include <m/utility/make_span.h>
 
-#include "redirecting.h"
+#include "passthrough.h"
 
-namespace m::pil::impl::redirecting
+namespace m::pil::impl::passthrough
 {
     std::shared_ptr<iplatform>
-    create_platform(std::shared_ptr<iplatform> const&                       underlying_platform,
-                    std::initializer_list<std::pair<view_type, view_type>>* registry_redirections)
+    create_platform(std::shared_ptr<iplatform> const& underlying_platform)
     {
-        return std::make_shared<platform>(underlying_platform, registry_redirections);
+        return std::make_shared<platform>(underlying_platform);
     }
 
-    platform::platform(
-        std::shared_ptr<iplatform> const&                       underlying_platform,
-        std::initializer_list<std::pair<view_type, view_type>>* registry_redirections):
+    platform::platform(std::shared_ptr<iplatform> const& underlying_platform):
         m_underlying_platform(underlying_platform),
-        m_registry{std::make_shared<registry>(m_underlying_platform->get_registry(),
-                                              registry_redirections)}
+        m_registry{std::make_shared<registry>(m_underlying_platform->get_registry())}
     {}
 
     iplatform::get_registry_disposition
@@ -50,10 +46,7 @@ namespace m::pil::impl::redirecting
     platform::save(save_flags flags, save_contents contents, pugi::xml_node& platform_element)
     {
         M_VALIDATE_FLAGS_PARAMETER(flags, save_flags{});
-
-        // we don't save anything today, just pass through.
-
         return m_underlying_platform->save(flags, contents, platform_element);
     }
 
-} // namespace m::pil::impl::redirecting
+} // namespace m::pil::impl::passthrough

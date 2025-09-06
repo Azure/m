@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -17,39 +18,206 @@
 #include <m/pil/registry_interfaces.h>
 #include <m/strings/compare.h>
 
+#include <pugixml.hpp>
+
 namespace m::pil::impl::buffered
 {
-    class platform : public iplatform, public std::enable_shared_from_this<platform>
+    class platform;
+    class registry;
+
+    enum class persistence_format
+    {
+        xml,
+    };
+
+    class key : public ikey, public std::enable_shared_from_this<key>
     {
     public:
-        platform() = delete;
-        platform(std::shared_ptr<iplatform> const& underlying_platform);
-        platform(std::shared_ptr<iplatform>&& underlying_platform) noexcept;
-        platform(platform&& other) noexcept = delete;
-        platform(platform const&)           = delete;
-        ~platform()                         = default;
+        key() = delete;
+        key(key_path const& path, time_point last_write_time);
+        key(std::shared_ptr<ikey> const& underlying_key);
+        key(std::shared_ptr<ikey>&& underlying_key) noexcept;
+        key(key&& other) noexcept = delete;
+        key(key const&)           = delete;
+        ~key()                    = default;
 
-        platform&
-        operator=(platform&& other) noexcept = delete;
+        key&
+        operator=(key&& other) noexcept = delete;
 
-        platform&
-        operator=(platform const&) = delete;
+        key&
+        operator=(key const&) = delete;
 
         void
-        swap(platform& other) noexcept = delete;
+        swap(key& other) noexcept = delete;
 
-        get_registry_disposition
-        get_registry(get_registry_flags          flags,
-                     std::shared_ptr<iregistry>& returned_registry) override;
+        ikey::create_key_disposition
+        create_key(ikey::create_key_flags             flags,
+                   pil::key_path const&               path,
+                   sam                                sam_desired,
+                   std::optional<security_attributes> sa,
+                   std::shared_ptr<ikey>&             returned_key) override;
+
+        ikey::delete_key_disposition
+        delete_key(ikey::delete_key_flags flags,
+                   pil::key_path const&   path,
+                   sam                    sam_desired) override;
+
+        ikey::delete_tree_disposition
+        delete_tree(ikey::delete_tree_flags             flags,
+                    std::optional<pil::key_path> const& name) override;
+
+        ikey::enumerate_keys_disposition
+        enumerate_keys(ikey::enumerate_keys_flags                     flags,
+                       std::size_t                                    index,
+                       std::span<pil::key_path, std::dynamic_extent>& key_names) override;
+
+        ikey::flush_disposition
+        flush(ikey::flush_flags flags) override;
+
+        ikey::open_key_disposition
+        open_key(ikey::open_key_flags                flags,
+                 std::optional<pil::key_path> const& key_name,
+                 sam                                 sam_desired,
+                 std::shared_ptr<ikey>&              returned_key) override;
+
+        ikey::query_information_key_disposition
+        query_information_key(ikey::query_information_key_flags flags,
+                              std::size_t&                      subkey_count,
+                              std::size_t&                      value_count,
+                              std::size_t&                      security_descriptor_size,
+                              m::pil::time_point&               last_write_time) override;
+
+        ikey::rename_key_disposition
+        rename_key(ikey::rename_key_flags              flags,
+                   std::optional<pil::key_path> const& old_key_name,
+                   pil::key_path const&                new_key_name) override;
+
+        ikey::delete_value_disposition
+        delete_value(ikey::delete_value_flags      flags,
+                     value_name_string_type const& value_name) override;
+
+        ikey::enumerate_value_names_and_types_disposition
+        enumerate_value_names_and_types(ikey::enumerate_value_names_and_types_flags flags,
+                                        std::size_t                                 index,
+                                        std::span<enumerate_value_names_and_types_value,
+                                                  std::dynamic_extent>& values_span) override;
+
+        ikey::get_value_size_disposition
+        get_value_size(ikey::get_value_size_flags    flags,
+                       value_name_string_type const& value_name,
+                       std::size_t&                  size) override;
+
+        ikey::get_value_type_disposition
+        get_value_type(ikey::get_value_type_flags    flags,
+                       value_name_string_type const& value_name,
+                       reg_value_type&               type) override;
+
+        ikey::get_value_disposition
+        get_value(ikey::get_value_flags         flags,
+                  value_name_string_type const& value_name,
+                  reg_value_type&               type,
+                  std::span<std::byte>&         value,
+                  std::optional<std::size_t>&   new_bytes_required) override;
+
+        ikey::set_value_disposition
+        set_value(ikey::set_value_flags         flags,
+                  value_name_string_type const& value_name,
+                  reg_value_type                type,
+                  std::span<std::byte const>    value) override;
+
+        ikey::get_path_disposition
+        get_path(ikey::get_path_flags flags, m::pil::key_path& path_out) override;
 
     protected:
-        bool
-        overlaid() const
-        {
-            return static_cast<bool>(m_underlying_platform);
-        }
+        void
+        initialize_overlay();
 
-        std::shared_ptr<iplatform> m_underlying_platform;
+        void
+        initialize_keys_overlay();
+
+        void
+        initialize_values_overlay();
+
+        bool
+        is_subkey_empty(pil::key_path const& key_name);
+
+        struct key_node
+        {
+            std::shared_ptr<key> m_key;
+            time_point           m_last_write_time{(time_point::min)()};
+            bool                 m_deleted : 1;
+            bool                 m_mirrored : 1;
+        };
+
+        struct value_node
+        {
+            reg_value_type                        m_reg_value_type;
+            std::optional<std::vector<std::byte>> m_value;
+            bool                                  m_deleted;
+        };
+
+        void
+        unmirror_node(pil::key_path const& key_name, key_node& node);
+
+        void
+        unmirror_node(value_name_view_type value_name, value_node& node);
+
+        using key_map_type =
+            std::map<m::u16sstring, key_node, m::case_insensitive_less<m::u16sstring>>;
+
+        using value_map_type =
+            std::map<m::u16sstring, value_node, m::case_insensitive_less<m::u16sstring>>;
+
+        void
+        load_value_if_not_present(value_name_string_type const& value_name, value_node& vnv);
+
+        void
+        save_xml(pugi::xml_node& node) const;
+
+        //
+        // data
+        //
+
+        mutable std::mutex     m_mutex;
+        std::shared_ptr<ikey>  m_underlying_key;
+        time_point             m_last_write_time;
+        key_map_type           m_keys;
+        value_map_type         m_values;
+        key_path               m_key_path; // only populated for created keys
+        std::vector<std::byte> m_security_descriptor;
+
+        friend class registry;
+    };
+
+    class registry_monitor :
+        public iregistry_monitor,
+        public std::enable_shared_from_this<registry_monitor>
+    {
+    public:
+        registry_monitor() = default;
+        registry_monitor(std::shared_ptr<iregistry_monitor> const& underlying_registry_monitor);
+        registry_monitor(std::shared_ptr<iregistry_monitor>&& underlying_registry_monitor) noexcept;
+        registry_monitor(registry_monitor&& other) noexcept = delete;
+        registry_monitor(registry_monitor const&)           = delete;
+        ~registry_monitor()                                 = default;
+
+        registry_monitor&
+        operator=(registry_monitor&& other) noexcept = delete;
+
+        registry_monitor&
+        operator=(registry_monitor const&) = delete;
+
+        void
+        swap(registry_monitor& other) noexcept = delete;
+
+        register_watch_disposition
+        register_watch(register_watch_flags                                flags,
+                       pil::key_path const&                                path,
+                       m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
+                       std::unique_ptr<iregistry_monitor_token>&           returned_ptr) override;
+
+    private:
+        std::shared_ptr<iregistry_monitor> m_underlying_registry_monitor;
     };
 
     class registry : public iregistry, public std::enable_shared_from_this<registry>
@@ -81,207 +249,56 @@ namespace m::pil::impl::buffered
         monitor(monitor_flags                               flags,
                 std::shared_ptr<m::pil::iregistry_monitor>& returned_registry_monitor) override;
 
-        static bool
-        simple_path(std::u16string_view key_path);
-
     protected:
-        bool
-        overlaid() const
-        {
-            return static_cast<bool>(m_underlying_registry);
-        }
+        void
+        save_xml(pugi::xml_node& doc_node) const;
 
         void initialize_monitor(m::locked_t);
 
-        std::mutex                                      m_mutex;
-        std::shared_ptr<iregistry>                      m_underlying_registry;
-        std::shared_ptr<iregistry_monitor>              m_monitor;
-        std::map<predefined_key, std::shared_ptr<ikey>> m_predefined_keys;
+        mutable std::mutex                                             m_mutex;
+        std::shared_ptr<iregistry>                                     m_underlying_registry;
+        std::shared_ptr<iregistry_monitor>                             m_monitor;
+        std::map<predefined_key, std::shared_ptr<impl::buffered::key>> m_predefined_keys;
+
+        friend class platform;
     };
 
-    class key : public ikey, public std::enable_shared_from_this<key>
+    class platform : public iplatform, public std::enable_shared_from_this<platform>
     {
     public:
-        key() = delete;
-        key(time_point last_write_time);
-        key(std::shared_ptr<ikey> const& underlying_key);
-        key(std::shared_ptr<ikey>&& underlying_key) noexcept;
-        key(key&& other) noexcept = delete;
-        key(key const&)           = delete;
-        ~key()                    = default;
+        platform() = delete;
+        platform(std::shared_ptr<iplatform> const& underlying_platform);
+        platform(std::shared_ptr<iplatform>&& underlying_platform);
+        platform(platform&& other) noexcept = delete;
+        platform(platform const&)           = delete;
+        ~platform()                         = default;
 
-        key&
-        operator=(key&& other) noexcept = delete;
+        platform&
+        operator=(platform&& other) noexcept = delete;
 
-        key&
-        operator=(key const&) = delete;
+        platform&
+        operator=(platform const&) = delete;
 
         void
-        swap(key& other) noexcept = delete;
+        swap(platform& other) noexcept = delete;
 
-        ikey::create_key_disposition
-        create_key(ikey::create_key_flags             flags,
-                   pil::key_path const&         path,
-                   sam                                sam_desired,
-                   std::optional<security_attributes> sa,
-                   std::shared_ptr<ikey>&             returned_key) override;
+        get_registry_disposition
+        get_registry(get_registry_flags          flags,
+                     std::shared_ptr<iregistry>& returned_registry) override;
 
-        ikey::delete_key_disposition
-        delete_key(ikey::delete_key_flags     flags,
-                   pil::key_path const& path,
-                   sam                        sam_desired) override;
+        save_disposition
+        save(save_flags flags, save_contents contents, pugi::xml_node& platform_element) override;
 
-        ikey::delete_tree_disposition
-        delete_tree(ikey::delete_tree_flags                   flags,
-                    std::optional<pil::key_path> const& name) override;
-
-        ikey::enumerate_keys_disposition
-        enumerate_keys(ikey::enumerate_keys_flags                           flags,
-                       std::size_t                                          index,
-                       std::span<pil::key_path, std::dynamic_extent>& key_names) override;
-
-        ikey::flush_disposition
-        flush(ikey::flush_flags flags) override;
-
-        ikey::open_key_disposition
-        open_key(ikey::open_key_flags                      flags,
-                 std::optional<pil::key_path> const& key_name,
-                 sam                                       sam_desired,
-                 std::shared_ptr<ikey>&                    returned_key) override;
-
-        ikey::query_information_key_disposition
-        query_information_key(ikey::query_information_key_flags flags,
-                              std::size_t&                      subkey_count,
-                              std::size_t&                      value_count,
-                              std::size_t&                      security_descriptor_size,
-                              m::pil::time_point&               last_write_time) override;
-
-        ikey::rename_key_disposition
-        rename_key(ikey::rename_key_flags                    flags,
-                   std::optional<pil::key_path> const& old_key_name,
-                   pil::key_path const&                new_key_name) override;
-
-        ikey::delete_value_disposition
-        delete_value(ikey::delete_value_flags flags, std::u16string_view value_name) override;
-
-        ikey::enumerate_value_names_and_types_disposition
-        enumerate_value_names_and_types(ikey::enumerate_value_names_and_types_flags flags,
-                                        std::size_t                                 index,
-                                        std::span<enumerate_value_names_and_types_value,
-                                                  std::dynamic_extent>& values_span) override;
-
-        ikey::get_value_size_disposition
-        get_value_size(ikey::get_value_size_flags flags,
-                       std::u16string_view        value_name,
-                       std::size_t&               size) override;
-
-        ikey::get_value_type_disposition
-        get_value_type(ikey::get_value_type_flags flags,
-                       std::u16string_view        value_name,
-                       reg_value_type&            type) override;
-
-        ikey::get_value_disposition
-        get_value(ikey::get_value_flags       flags,
-                  std::u16string_view         value_name,
-                  reg_value_type&             type,
-                  std::span<std::byte>&       value,
-                  std::optional<std::size_t>& new_bytes_required) override;
-
-        ikey::set_value_disposition
-        set_value(ikey::set_value_flags      flags,
-                  std::u16string_view        value_name,
-                  reg_value_type             type,
-                  std::span<std::byte const> value) override;
-
-        ikey::get_path_disposition
-        get_path(ikey::get_path_flags flags, m::pil::key_path& path_out) override;
+        void
+        save(persistence_format pf, std::filesystem::path const& p) const;
 
     protected:
         void
-        initialize_overlay();
+        save_xml(m::locked_t, std::filesystem::path const& p) const;
 
-        void
-        initialize_keys_overlay();
-
-        void
-        initialize_values_overlay();
-
-        bool
-        is_subkey_empty(pil::key_path const& key_name);
-
-        struct key_node
-        {
-            std::shared_ptr<ikey> m_key;
-            time_point            m_last_write_time{(time_point::min)()};
-            bool                  m_deleted : 1;
-            bool                  m_mirrored : 1;
-        };
-
-        struct value_node
-        {
-            reg_value_type                        m_reg_value_type;
-            std::optional<std::vector<std::byte>> m_value;
-            bool                                  m_deleted;
-        };
-
-        void
-        unmirror_node(pil::key_path const& key_name, key_node& node);
-
-        void
-        unmirror_node(value_name_view_type value_name, value_node& node);
-
-        using key_map_type =
-            std::map<m::u16sstring, key_node, m::case_insensitive_less<m::u16sstring>>;
-
-        using value_map_type =
-            std::map<std::u16string, value_node, m::case_insensitive_less<std::u16string>>;
-
-        void
-        load_value_if_not_present(std::u16string_view value_name, value_node& vnv);
-
-        //
-        // data
-        //
-
-        std::mutex             m_mutex;
-        std::shared_ptr<ikey>  m_underlying_key;
-        time_point             m_last_write_time;
-        key_map_type           m_keys;
-        value_map_type         m_values;
-        std::vector<std::byte> m_security_descriptor;
+        mutable std::mutex         m_mutex;
+        std::shared_ptr<iplatform> m_underlying_platform;
+        std::shared_ptr<registry>  m_registry;
     };
-
-    class registry_monitor :
-        public iregistry_monitor,
-        public std::enable_shared_from_this<registry_monitor>
-    {
-    public:
-        registry_monitor() = default;
-        registry_monitor(std::shared_ptr<iregistry_monitor> const& underlying_registry_monitor);
-        registry_monitor(std::shared_ptr<iregistry_monitor>&& underlying_registry_monitor) noexcept;
-        registry_monitor(registry_monitor&& other) noexcept = delete;
-        registry_monitor(registry_monitor const&)           = delete;
-        ~registry_monitor()                                 = default;
-
-        registry_monitor&
-        operator=(registry_monitor&& other) noexcept = delete;
-
-        registry_monitor&
-        operator=(registry_monitor const&) = delete;
-
-        void
-        swap(registry_monitor& other) noexcept = delete;
-
-        register_watch_disposition
-        register_watch(register_watch_flags                                flags,
-                       pil::key_path const&                          path,
-                       m::not_null<iregistry_monitor_change_notification*> change_notification_ptr,
-                       std::unique_ptr<iregistry_monitor_token>&           returned_ptr) override;
-
-    private:
-        std::shared_ptr<iregistry_monitor> m_underlying_registry_monitor;
-    };
-
-
 
 } // namespace m::pil::impl::buffered

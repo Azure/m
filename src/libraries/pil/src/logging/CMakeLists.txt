@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_pil PRIVATE
+    log.cpp
     platform.cpp
     registry.cpp
     registry_key.cpp
+    registry_key_log_entries.cpp
     registry_monitor.cpp
     registry_monitor_change_notification_wrapper.cpp
 )

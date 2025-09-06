@@ -23,15 +23,9 @@
 namespace m::pil::impl::redirecting
 {
     registry::registry(std::shared_ptr<iregistry> const&                      underlying_registry,
-                       std::initializer_list<std::pair<view_type, view_type>> il):
+                       std::initializer_list<std::pair<view_type, view_type>>* il):
         m_underlying_registry(underlying_registry), m_redirector(std::make_shared<redirector>(il))
     {}
-
-    bool
-    registry::simple_path(std::u16string_view key_path)
-    {
-        return key_path.contains(pil::uregistry_delimiter);
-    }
 
     iregistry::open_predefined_key_disposition
     registry::open_predefined_key(open_predefined_key_flags flags,

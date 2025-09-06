@@ -131,7 +131,7 @@ namespace m::pil
             {
                 value_name_and_type vnt;
 
-                vnt.m_value_name     = to_registry_string(std::move(e.m_value_name));
+                vnt.m_value_name     = to_registry_string(e.m_value_name.view());
                 vnt.m_reg_value_type = e.m_reg_value_type;
 
                 result.push_back(std::move(vnt));
@@ -485,7 +485,7 @@ namespace m::pil
         return std::u16string_view(p, char_count);
     }
 
-    m::pil::key::path_type
+    key_path
     key::do_get_path()
     {
         return m_key->get_path();

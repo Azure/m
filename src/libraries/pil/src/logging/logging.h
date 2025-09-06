@@ -25,10 +25,14 @@
 #include <m/pil/registry_interfaces.h>
 #include <m/strings/compare.h>
 
+#include <pugixml.hpp>
+
 using namespace std::string_view_literals;
 
-namespace m::pil::impl::passthrough
+namespace m::pil::impl::logging
 {
+    class log;
+
     using key_path    = pil::key_path;
     using char_type   = typename key_path::char_type;
     using string_type = typename key_path::string_type;
@@ -41,11 +45,165 @@ namespace m::pil::impl::passthrough
 
     static_assert(string_type::npos == view_type::npos);
 
+    template <typename TChar1>
+        requires(m::character<TChar1>)
+    pugi::xml_attribute
+    append_attribute(pugi::xml_node& n, std::basic_string_view<TChar1> name)
+    {
+        pugi::xml_attribute a;
+
+        if constexpr (std::is_same_v<TChar1, pugi::char_t>)
+        {
+            a = n.append_attribute(name);
+        }
+        else
+        {
+            auto s = m::to_string(name);
+            a      = n.append_attribute(s.data(), s.size());
+        }
+
+        return a;
+    }
+
+    template <typename TChar1, typename TChar2>
+        requires(m::character<TChar1> && m::character<TChar2>)
+    void
+    write_attribute(pugi::xml_node&                n,
+                    std::basic_string_view<TChar1> name,
+                    std::basic_string_view<TChar2> value)
+    {
+        if (value.size() != 0)
+        {
+            auto a = append_attribute(n, name);
+
+            if constexpr (std::is_same_v<TChar2, pugi::char_t>)
+            {
+                a.set_value(value.data(), value.size());
+            }
+            else
+            {
+                auto value_string = m::to_string(value);
+                a.set_value(value_string.data(), value_string.size());
+            }
+        }
+    }
+
+    template <typename TChar1, typename TCode, typename TFlags>
+        requires(m::character<TChar1> && std::is_scoped_enum_v<TCode> &&
+                 std::is_scoped_enum_v<TFlags>)
+    void
+    write_attribute(pugi::xml_node&                n,
+                    std::basic_string_view<TChar1> name,
+                    disposition<TCode, TFlags>     d)
+    {
+        if (d)
+        {
+            auto a = append_attribute(n, name);
+            a.set_value(
+                std::format("{},{:#x}", m::to_underlying(d.code()), m::to_underlying(d.flags()))
+                    .c_str());
+        }
+    }
+
+    template <typename TChar1>
+        requires(m::character<TChar1>)
+    void
+    write_attribute(pugi::xml_node& n, std::basic_string_view<TChar1> name, key_path const& path)
+    {
+        auto a = append_attribute(n, name);
+        a.set_value(m::to_string(path.native().view()).c_str());
+    }
+
+    template <typename TChar1>
+        requires(m::character<TChar1>)
+    void
+    write_attribute(pugi::xml_node&                n,
+                    std::basic_string_view<TChar1> name,
+                    std::optional<key_path> const& path)
+    {
+        if (path.has_value())
+        {
+            auto a = append_attribute(n, name);
+            a.set_value(std::string_view(m::to_string(path.value().native().view())));
+        }
+    }
+
+    template <typename TChar1, typename TValue>
+        requires(m::character<TChar1> && std::integral<TValue>)
+    void
+    write_hex_integer_attribute(pugi::xml_node& n, std::basic_string_view<TChar1> name, TValue v)
+    {
+        write_attribute(n, name, std::string_view(std::format("{:#x}", v)));
+    }
+
+    template <typename TChar1, typename TValue>
+        requires(m::character<TChar1> && (std::integral<TValue> || std::is_enum_v<TValue>))
+    void
+    write_hex_attribute_omitting_default(pugi::xml_node&                n,
+                                         std::basic_string_view<TChar1> name,
+                                         TValue                         v,
+                                         TValue                         default_to_omit = TValue{})
+    {
+        if (v != default_to_omit)
+            write_attribute(
+                n, name, std::string_view(std::format("{:#x}", static_cast<uintmax_t>(v))));
+    }
+
+    /// <summary>
+    /// The `log_entry` class is the base class for entries in the
+    /// log queue. (Technically, the queue is kept in a std::deque<>
+    /// so that it can be iterated upon.)
+    ///
+    /// Functionally, it serves mostly to have a type that's the
+    /// root of the type hierarchy, and it has virtual member
+    /// functions for behaviors that are required across all
+    /// log entries.
+    ///
+    /// Initially this is only the ability to store their contents into
+    /// a Pugixml document tree.
+    /// </summary>
+    class log_entry
+    {
+    public:
+        virtual ~log_entry() = default;
+
+    protected:
+        log_entry() = default;
+
+        virtual void
+        save(pugi::xml_node& parent) const = 0;
+
+        friend class log;
+    };
+
+    class log : public std::enable_shared_from_this<log>
+    {
+    public:
+        log() = default;
+
+        template <typename T>
+            requires(std::derived_from<T, log_entry>)
+        void
+        add(std::unique_ptr<T>& entry)
+        {
+            auto l = std::unique_lock(m_mutex);
+            m_deque.emplace_back(std::move(entry));
+        }
+
+        void
+        save(pugi::xml_node& log_node) const;
+
+    private:
+        mutable std::mutex                     m_mutex;
+        std::deque<std::unique_ptr<log_entry>> m_deque; // a deque is used for iteratability
+    };
+
     class registry : public iregistry, public std::enable_shared_from_this<registry>
     {
     public:
         registry() = delete;
-        registry(std::shared_ptr<iregistry> const& underlying_registry);
+        registry(std::shared_ptr<iregistry> const& underlying_registry,
+                 std::shared_ptr<log> const&       log_ptr);
         registry(registry&& other) noexcept = delete;
         registry(registry const&)           = delete;
         ~registry()                         = default;
@@ -74,15 +232,157 @@ namespace m::pil::impl::passthrough
 
         std::mutex                                      m_mutex;
         std::shared_ptr<iregistry>                      m_underlying_registry;
+        std::shared_ptr<log>                            m_log;
         std::shared_ptr<iregistry_monitor>              m_monitor;
         std::map<predefined_key, std::shared_ptr<ikey>> m_predefined_keys;
+    };
+
+    class create_key_log_entry : public log_entry
+    {
+    public:
+        create_key_log_entry(key_path const&                    base_key_path,
+                             ikey::create_key_flags             flags,
+                             key_path const&                    subkey_path,
+                             sam                                sam_desired,
+                             std::optional<security_attributes> sa);
+
+        void
+        set_disposition(ikey::create_key_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        key_path                           m_base_key_path;
+        ikey::create_key_flags             m_flags;
+        key_path                           m_subkey_path;
+        sam                                m_sam_desired;
+        std::optional<security_attributes> m_sa;
+        ikey::create_key_disposition       m_disposition;
+    };
+
+    class delete_key_log_entry : public log_entry
+    {
+    public:
+        delete_key_log_entry(key_path const&        base_key_path,
+                             ikey::delete_key_flags flags,
+                             key_path const&        subkey_path,
+                             sam                    sam_desired);
+
+        void
+        set_disposition(ikey::delete_key_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        key_path                     m_base_key_path;
+        ikey::delete_key_flags       m_flags;
+        key_path                     m_subkey_path;
+        sam                          m_sam_desired;
+        ikey::delete_key_disposition m_disposition;
+    };
+
+    class delete_tree_log_entry : public log_entry
+    {
+    public:
+        delete_tree_log_entry(key_path const&                base_key_path,
+                              ikey::delete_tree_flags        flags,
+                              std::optional<key_path> const& subkey_path);
+
+        void
+        set_disposition(ikey::delete_tree_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        key_path                      m_base_key_path;
+        ikey::delete_tree_flags       m_flags;
+        std::optional<key_path>       m_subkey_path;
+        ikey::delete_tree_disposition m_disposition;
+    };
+
+    class rename_key_log_entry : public log_entry
+    {
+    public:
+        rename_key_log_entry(key_path const&                base_key_path,
+                             ikey::rename_key_flags         flags,
+                             std::optional<key_path> const& sub_key_name,
+                             pil::key_path const&           new_key_name);
+
+        void
+        set_disposition(ikey::rename_key_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        key_path                     m_base_key_path;
+        ikey::rename_key_flags       m_flags;
+        std::optional<key_path>      m_sub_key_name;
+        key_path                     m_new_key_name;
+        ikey::rename_key_disposition m_disposition;
+    };
+
+    class delete_value_log_entry : public log_entry
+    {
+    public:
+        delete_value_log_entry(key_path const&               base_key_path,
+                               ikey::delete_value_flags      flags,
+                               value_name_string_type const& value_name);
+
+        void
+        set_disposition(ikey::delete_value_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        key_path                       m_base_key_path;
+        ikey::delete_value_flags       m_flags;
+        value_name_string_type         m_value_name;
+        ikey::delete_value_disposition m_disposition;
+    };
+
+    class set_value_log_entry : public log_entry
+    {
+    public:
+        set_value_log_entry(key_path const&               base_key_path,
+                            ikey::set_value_flags         flags,
+                            value_name_string_type const& value_name,
+                            reg_value_type                type,
+                            std::span<std::byte const>    value);
+
+        void
+        set_disposition(ikey::set_value_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        void
+        save_binary(pugi::xml_node& parent) const;
+
+        static bool
+        data_is_utf16(std::span<std::byte const> const& x);
+
+        static void
+        set_value_as_string(pugi::xml_attribute& attr, std::span<std::byte const> const& s);
+
+        key_path                        m_base_key_path;
+        ikey::set_value_flags           m_flags;
+        value_name_string_type          m_value_name;
+        reg_value_type                  m_type;
+        m::unique_span<std::byte const> m_value;
+        ikey::set_value_disposition     m_disposition;
     };
 
     class key : public ikey, public std::enable_shared_from_this<key>
     {
     public:
         key() = delete;
-        key(std::shared_ptr<ikey> const& key);
+        key(std::shared_ptr<ikey> const& key, std::shared_ptr<log> const& log_ptr);
         key(key const& other)     = delete;
         key(key&& other) noexcept = delete;
         ~key()                    = default;
@@ -172,6 +472,7 @@ namespace m::pil::impl::passthrough
 
     private:
         std::shared_ptr<ikey> m_key;
+        std::shared_ptr<log>  m_log;
     };
 
     class registry_monitor :
@@ -278,7 +579,8 @@ namespace m::pil::impl::passthrough
 
     protected:
         std::shared_ptr<iplatform> m_underlying_platform;
+        std::shared_ptr<log>       m_log;
         std::shared_ptr<registry>  m_registry;
     };
 
-} // namespace m::pil::impl::passthrough
+} // namespace m::pil::impl::logging

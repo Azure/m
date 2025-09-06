@@ -28,4 +28,14 @@ namespace m::pil::impl::win32
         returned_registry = newreg;
         return get_registry_disposition{};
     }
+
+    iplatform::save_disposition
+    platform::save(save_flags flags, save_contents, pugi::xml_node&)
+    {
+        M_VALIDATE_FLAGS_PARAMETER(flags, save_flags{});
+
+        // Nothing to save!
+        return save_disposition{};
+    }
+
 } // namespace m::pil::impl::win32

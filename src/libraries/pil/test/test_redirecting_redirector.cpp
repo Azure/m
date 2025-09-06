@@ -30,7 +30,7 @@ auto r_il_1 = std::initializer_list<P>{
 
 TEST(TestRedirectingRedirector, ValidateHKLMNotMapped)
 {
-    auto r = std::make_shared<m::pil::impl::redirecting::redirector>(r_il_1);
+    auto r = std::make_shared<m::pil::impl::redirecting::redirector>(&r_il_1);
 
     // HKLM itself is not mapped
     EXPECT_EQ(r->map_public_to_private(key_path(u"HKLM"sv)), key_path(u"HKLM"sv));
@@ -38,7 +38,7 @@ TEST(TestRedirectingRedirector, ValidateHKLMNotMapped)
 
 TEST(TestRedirectingRedirector, ValidateHKLMSoftwareMicrosoftMapped)
 {
-    auto r = std::make_shared<m::pil::impl::redirecting::redirector>(r_il_1);
+    auto r = std::make_shared<m::pil::impl::redirecting::redirector>(&r_il_1);
 
     EXPECT_EQ(r->map_public_to_private(key_path(u"HKLM\\Software\\Microsoft"sv)),
               key_path(u"HKCU\\FooTemp1234\\Software\\Microsoft"sv));

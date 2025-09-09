@@ -12,6 +12,7 @@
 #include <string_view>
 #include <type_traits>
 
+#include <m/strings/tstring.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 #include <m/utf/transcode.h>
@@ -262,5 +263,48 @@ namespace m
         to_u32string(view, str);
         return str;
     }
+
+    template <typename CharT>
+        requires(m::character<CharT> && !std::is_same_v<CharT, char>)
+    struct string_conversion_helper<char, CharT>
+    {
+        using from_char_type = CharT;
+        using to_char_type   = char;
+
+        using from_view_type = std::basic_string_view<from_char_type>;
+        using to_view_type   = std::basic_string_view<to_char_type>;
+
+        using from_string_type = std::basic_string<from_char_type>;
+        using to_string_type   = std::basic_string<to_char_type>;
+
+        static to_string_type
+        xlate_to_string(from_view_type view)
+        {
+            return m::to_string(view);
+        }
+    };
+
+    template <typename CharT>
+        requires(m::character<CharT> && !std::is_same_v<CharT, wchar_t>)
+    struct string_conversion_helper<wchar_t, CharT>
+    {
+        using from_char_type = CharT;
+        using to_char_type   = wchar_t;
+
+        using from_view_type = std::basic_string_view<from_char_type>;
+        using to_view_type   = std::basic_string_view<to_char_type>;
+
+        using from_string_type = std::basic_string<from_char_type>;
+        using to_string_type   = std::basic_string<to_char_type>;
+
+        static to_string_type
+        xlate_to_string(from_view_type view)
+        {
+            return m::to_wstring(view);
+        }
+    };
+
+
+
 
 } // namespace m

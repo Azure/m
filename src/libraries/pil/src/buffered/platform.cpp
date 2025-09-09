@@ -87,7 +87,7 @@ namespace m::pil::impl::buffered
 
         auto doc_node = doc.document_element();
 
-        doc_node.set_name("Platform");
+        doc_node.set_name(M_PUGIXML_T("Platform"sv));
 
         m_registry->save_xml(doc_node);
 

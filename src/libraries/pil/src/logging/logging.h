@@ -27,6 +27,8 @@
 
 #include <pugixml.hpp>
 
+#include "../pugihelp.h"
+
 using namespace std::string_view_literals;
 
 namespace m::pil::impl::logging
@@ -58,8 +60,8 @@ namespace m::pil::impl::logging
         }
         else
         {
-            auto s = m::to_string(name);
-            a      = n.append_attribute(s.data(), s.size());
+            auto s = m::to_string_t<pugi::char_t>(name);
+            a      = n.append_attribute(pugi::string_view_t(s.data(), s.size()));
         }
 
         return a;
@@ -82,7 +84,7 @@ namespace m::pil::impl::logging
             }
             else
             {
-                auto value_string = m::to_string(value);
+                auto value_string = m::to_string_t<pugi::char_t>(value);
                 a.set_value(value_string.data(), value_string.size());
             }
         }
@@ -124,7 +126,8 @@ namespace m::pil::impl::logging
         if (path.has_value())
         {
             auto a = append_attribute(n, name);
-            a.set_value(std::string_view(m::to_string(path.value().native().view())));
+            a.set_value(
+                pugi::string_view_t(m::to_string_t<pugi::char_t>(path.value().native().view())));
         }
     }
 
@@ -133,7 +136,7 @@ namespace m::pil::impl::logging
     void
     write_hex_integer_attribute(pugi::xml_node& n, std::basic_string_view<TChar1> name, TValue v)
     {
-        write_attribute(n, name, std::string_view(std::format("{:#x}", v)));
+        write_attribute(n, name, pugi::string_view_t(std::format(M_PUGIXML_T("{:#x}"), v)));
     }
 
     template <typename TChar1, typename TValue>
@@ -146,7 +149,9 @@ namespace m::pil::impl::logging
     {
         if (v != default_to_omit)
             write_attribute(
-                n, name, std::string_view(std::format("{:#x}", static_cast<uintmax_t>(v))));
+                n,
+                name,
+                pugi::string_view_t(std::format(M_PUGIXML_T("{:#x}"), static_cast<uintmax_t>(v))));
     }
 
     /// <summary>

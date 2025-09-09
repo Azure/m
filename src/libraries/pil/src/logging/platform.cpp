@@ -14,6 +14,8 @@
 #include <m/strings/convert.h>
 #include <m/utility/make_span.h>
 
+using namespace std::string_view_literals;
+
 #include "logging.h"
 
 namespace m::pil::impl::logging
@@ -50,7 +52,7 @@ namespace m::pil::impl::logging
 
         if (contents == save_contents::change_log)
         {
-            auto log_element = platform_element.append_child("Log");
+            auto log_element = platform_element.append_child(M_PUGIXML_T("Log"sv));
 
             m_log->save(log_element);
         }

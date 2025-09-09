@@ -292,6 +292,46 @@ namespace m::pil::impl::logging
 
                 break;
             }
+
+            case reg_value_type::link:
+            {
+                type_a.set_value("REG_LINK"sv);
+                save_binary(n);
+                handled = true;
+                break;
+            }
+
+            case reg_value_type::multi_string:
+            {
+                type_a.set_value("REG_MULTI_SZ"sv);
+                save_binary(n);
+                handled = true;
+                break;
+            }
+
+            case reg_value_type::none:
+            {
+                type_a.set_value("REG_NONE"sv);
+                save_binary(n);
+                handled = true;
+                break;
+            }
+
+            case reg_value_type::uint32_big_endian:
+            {
+                type_a.set_value("REG_DWORD_BIG_ENDIAN"sv);
+                save_binary(n);
+                handled = true;
+                break;
+            }
+
+            default:
+            {
+                type_a.set_value(std::string_view(std::format("{:#x}", m::to_underlying(m_type))));
+                save_binary(n);
+                handled = true;
+                break;
+            }
         }
 
         if (!handled)
@@ -307,8 +347,12 @@ namespace m::pil::impl::logging
         auto view = std::u16string_view(reinterpret_cast<char16_t const*>(s.data()),
                                         (s.size() - sizeof(char16_t)) - 1);
 
+#ifdef WIN322
         auto tempstring = m::to_string_t<pugi::char_t>(view);
         attr.set_value(tempstring.data(), tempstring.size());
+#else
+        attr.set_value("TO-DO"sv);
+#endif
     }
 
     void

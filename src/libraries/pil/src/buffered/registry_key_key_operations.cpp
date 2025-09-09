@@ -21,7 +21,9 @@
 
 namespace m::pil::impl::buffered
 {
-    key::key(key_path const& path, time_point last_write_time): m_key_path(path), m_last_write_time(last_write_time) {}
+    key::key(key_path const& path, time_point last_write_time):
+        m_last_write_time(last_write_time), m_key_path(path)
+    {}
 
     key::key(std::shared_ptr<ikey> const& underlying_key): m_underlying_key(underlying_key)
     {
@@ -111,12 +113,12 @@ namespace m::pil::impl::buffered
         // with the underlying registry to see if we do not have access to the
         // key and have to fail the creation on that basis.
         //
-        auto [insertion_it, inserted] =
-            m_keys.emplace(std::make_pair(key_name.string(),
-                                          key_node{.m_key = std::make_shared<key>(full_path, entry_time),
-                                                   .m_last_write_time = entry_time,
-                                                   .m_deleted         = false,
-                                                   .m_mirrored        = false}));
+        auto [insertion_it, inserted] = m_keys.emplace(
+            std::make_pair(key_name.string(),
+                           key_node{.m_key = std::make_shared<key>(full_path, entry_time),
+                                    .m_last_write_time = entry_time,
+                                    .m_deleted         = false,
+                                    .m_mirrored        = false}));
 
         if (inserted)
         {

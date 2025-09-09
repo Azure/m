@@ -13,12 +13,13 @@
         "CMAKE_C_COMPILER": "/usr/bin/clang",
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      },
+      "environment": {
+        "VCPKG_ROOT": "${sourceDir}/vcpkg"
       }
     },
     {
-      "name": "linux-debug",
-      "displayName": "Linux Debug",
-      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
+      "name": "linux-base",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
@@ -27,7 +28,6 @@
         "CMAKE_C_COMPILER": "/usr/bin/clang",
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
         "build_tests": "ON",
-        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_BUILD_WITH_INSTALL_RPATH": true
       },
       "condition": {
@@ -35,10 +35,31 @@
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       },
+      "environment": {
+        "VCPKG_ROOT": "${sourceDir}/vcpkg"
+      },
       "vendor": {
         "microsoft.com/VisualStudioRemoteSettings/CMake/2.0": {
           "remoteSourceRootDir": "$env{HOME}/.vs/$ms{projectDirName}"
         }
+      }
+    },
+    {
+      "name": "linux-x64-debug",
+      "inherits": "linux-base",
+      "displayName": "Linux Debug",
+      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-x64-retail",
+      "inherits": "linux-base",
+      "displayName": "Linux x64 Retail",
+      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
       }
     },
     {
@@ -78,6 +99,9 @@
         "CMAKE_C_COMPILER": "cl.exe",
         "CMAKE_CXX_COMPILER": "cl.exe",
         "build_tests": "ON"
+      },
+      "environment": {
+        "VCPKG_ROOT": "${sourceDir}/vcpkg"
       },
       "condition": {
         "type": "equals",

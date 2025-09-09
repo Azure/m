@@ -7,5 +7,6 @@ target_sources(m_strings PUBLIC FILE_SET HEADERS FILES
     m/strings/ordinal_compare.h 
     m/strings/punning.h
     m/strings/split.h
-    m/strings/static_string.h 
+    m/strings/static_string.h
+    m/strings/tstring.h
 )

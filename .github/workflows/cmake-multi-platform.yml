@@ -55,33 +55,38 @@ jobs:
 
     - name: Update vcpkg
       run: |
-          git -C "${VCPKG_INSTALLATION_ROOT}" pull -q --autostash
-          ${VCPKG_INSTALLATION_ROOT}/bootstrap-vcpkg.sh
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            "${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh"
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            "${{ github.workspace }}/vcpkg//bootstrap-vcpkg.bat"
+          else
+            echo "$RUNNER_OS not supported"
+            exit 1
+          fi
+      shell: bash
 
     - name: Run vcpkg
       run: |
-        ls -R "${VCPKG_INSTALLATION_ROOT}"
-        which vcpkg
-        vcpkg install
+        ${{ github.workspace }}/vcpkg/vcpkg install
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: >
         cmake
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -DCMAKE_TOOLCHAIN_FILE=-DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_INSTALLATION_ROOT }}/scripts/buildsystems/vcpkg.cmake
+        -D CMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+        -D CMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
         -B ${{ steps.strings.outputs.build-output-dir }}
         -S ${{ github.workspace }}
 
     - name: Build
       # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE=${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest --build-config ${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE=${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake
+      run: ctest --build-config ${{ matrix.build_type }}

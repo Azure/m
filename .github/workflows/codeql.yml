@@ -56,6 +56,24 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: Update vcpkg
+      run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            "${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh"
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            "${{ github.workspace }}/vcpkg//bootstrap-vcpkg.bat"
+          else
+            echo "$RUNNER_OS not supported"
+            exit 1
+          fi
+      shell: bash
+
+    - name: Run vcpkg
+      run: |
+        ${{ github.workspace }}/vcpkg/vcpkg install
 
     # Add any setup steps before running the `github/codeql-action/init` action.
     # This includes steps like installing compilers or runtimes (`actions/setup-node`
@@ -87,7 +105,7 @@ jobs:
       run: |
         where cmake
         cmake --version
-        cmake -B out -S .
+        cmake -D "CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -B out -S .
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3

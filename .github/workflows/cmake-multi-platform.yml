@@ -78,6 +78,7 @@ jobs:
         -D CMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -D CMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+        -D build_tests=ON
         -B ${{ steps.strings.outputs.build-output-dir }}
         -S ${{ github.workspace }}
 

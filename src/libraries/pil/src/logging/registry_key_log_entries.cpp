@@ -37,9 +37,9 @@ namespace m::pil::impl::logging
     void
     create_key_log_entry::save(pugi::xml_node& log_node) const
     {
-        auto n = log_node.append_child("Registry.CreateKey"sv);
+        auto n = log_node.append_child(M_PUGIXML_T("Registry.CreateKey"sv));
 
-        write_attribute(n, "key"sv, m_base_key_path);
+        write_attribute(n, M_PUGIXML_T("key"sv), m_base_key_path);
         write_hex_attribute_omitting_default(n, "flags"sv, m_flags);
         write_attribute(n, "subKey"sv, m_subkey_path);
         write_hex_attribute_omitting_default(n, "samDesired"sv, m_sam_desired, sam{0x2000000});
@@ -65,13 +65,14 @@ namespace m::pil::impl::logging
     void
     delete_key_log_entry::save(pugi::xml_node& log_node) const
     {
-        auto n = log_node.append_child("Registry.DeleteKey"sv);
+        auto n = log_node.append_child(M_PUGIXML_T("Registry.DeleteKey"sv));
 
-        write_attribute(n, "key"sv, m_base_key_path);
-        write_hex_attribute_omitting_default(n, "flags"sv, m_flags);
-        write_attribute(n, "subKey"sv, m_subkey_path);
-        write_hex_attribute_omitting_default(n, "samDesired"sv, m_sam_desired, sam{0x2000000});
-        write_attribute(n, "disposition"sv, m_disposition);
+        write_attribute(n, M_PUGIXML_T("key"sv), m_base_key_path);
+        write_hex_attribute_omitting_default(n, M_PUGIXML_T("flags"sv), m_flags);
+        write_attribute(n, M_PUGIXML_T("subKey"sv), m_subkey_path);
+        write_hex_attribute_omitting_default(
+            n, M_PUGIXML_T("samDesired"sv), m_sam_desired, sam{0x2000000});
+        write_attribute(n, M_PUGIXML_T("disposition"sv), m_disposition);
     }
 
     delete_tree_log_entry::delete_tree_log_entry(key_path const&                base_key_path,
@@ -89,12 +90,12 @@ namespace m::pil::impl::logging
     void
     delete_tree_log_entry::save(pugi::xml_node& log_node) const
     {
-        auto n = log_node.append_child("Registry.DeleteTree"sv);
+        auto n = log_node.append_child(M_PUGIXML_T("Registry.DeleteTree"sv));
 
-        write_attribute(n, "key"sv, m_base_key_path);
-        write_hex_attribute_omitting_default(n, "flags"sv, m_flags);
-        write_attribute(n, "subKey"sv, m_subkey_path);
-        write_attribute(n, "disposition"sv, m_disposition);
+        write_attribute(n, M_PUGIXML_T("key"sv), m_base_key_path);
+        write_hex_attribute_omitting_default(n, M_PUGIXML_T("flags"sv), m_flags);
+        write_attribute(n, M_PUGIXML_T("subKey"sv), m_subkey_path);
+        write_attribute(n, M_PUGIXML_T("disposition"sv), m_disposition);
     }
 
     rename_key_log_entry::rename_key_log_entry(key_path const&                base_key_path,
@@ -116,13 +117,13 @@ namespace m::pil::impl::logging
     void
     rename_key_log_entry::save(pugi::xml_node& log_node) const
     {
-        auto n = log_node.append_child("Registry.RenameKey"sv);
+        auto n = log_node.append_child(M_PUGIXML_T("Registry.RenameKey"sv));
 
-        write_attribute(n, "key"sv, m_base_key_path);
-        write_hex_attribute_omitting_default(n, "flags"sv, m_flags);
-        write_attribute(n, "subKeyName"sv, m_sub_key_name);
-        write_attribute(n, "newKeyName"sv, m_new_key_name);
-        write_attribute(n, "disposition"sv, m_disposition);
+        write_attribute(n, M_PUGIXML_T("key"sv), m_base_key_path);
+        write_hex_attribute_omitting_default(n, M_PUGIXML_T("flags"sv), m_flags);
+        write_attribute(n, M_PUGIXML_T("subKeyName"sv), m_sub_key_name);
+        write_attribute(n, M_PUGIXML_T("newKeyName"sv), m_new_key_name);
+        write_attribute(n, M_PUGIXML_T("disposition"sv), m_disposition);
     }
 
     delete_value_log_entry::delete_value_log_entry(key_path const&               base_key_path,
@@ -140,12 +141,12 @@ namespace m::pil::impl::logging
     void
     delete_value_log_entry::save(pugi::xml_node& log_node) const
     {
-        auto n = log_node.append_child("Registry.DeleteValue"sv);
+        auto n = log_node.append_child(M_PUGIXML_T("Registry.DeleteValue"sv));
 
-        write_attribute(n, "key"sv, m_base_key_path);
-        write_hex_attribute_omitting_default(n, "flags"sv, m_flags);
-        write_attribute(n, "valueName"sv, m_value_name.view());
-        write_attribute(n, "disposition"sv, m_disposition);
+        write_attribute(n, M_PUGIXML_T("key"sv), m_base_key_path);
+        write_hex_attribute_omitting_default(n, M_PUGIXML_T("flags"sv), m_flags);
+        write_attribute(n, M_PUGIXML_T("valueName"sv), m_value_name.view());
+        write_attribute(n, M_PUGIXML_T("disposition"sv), m_disposition);
     }
 
     set_value_log_entry::set_value_log_entry(key_path const&               base_key_path,
@@ -188,22 +189,22 @@ namespace m::pil::impl::logging
 
         bool handled = false;
 
-        auto n = log_node.append_child("Registry.SetValue");
+        auto n = log_node.append_child(M_PUGIXML_T("Registry.SetValue"sv));
 
-        auto key = n.append_attribute("key");
+        auto key = n.append_attribute(M_PUGIXML_T("key"sv));
         key.set_value(m::to_string(m_base_key_path.native().view()).c_str());
 
-        write_hex_attribute_omitting_default(n, "flags"sv, m_flags);
+        write_hex_attribute_omitting_default(n, M_PUGIXML_T("flags"sv), m_flags);
 
-        write_attribute(n, "valueName"sv, m_value_name.view());
+        write_attribute(n, M_PUGIXML_T("valueName"sv), m_value_name.view());
 
-        auto type_a = n.append_attribute("type");
+        auto type_a = n.append_attribute(M_PUGIXML_T("type"sv));
 
         switch (m_type)
         {
             case reg_value_type::string:
             {
-                type_a.set_value("REG_SZ");
+                type_a.set_value(M_PUGIXML_T("REG_SZ"sv));
 
                 //
                 // Strings are always encoded as Utf-16 strings with a trailing pair of
@@ -212,7 +213,7 @@ namespace m::pil::impl::logging
 
                 if (data_is_utf16(m_value))
                 {
-                    auto data = n.append_attribute("reg_sz_data");
+                    auto data = n.append_attribute(M_PUGIXML_T("reg_sz_data"sv));
                     set_value_as_string(data, m_value);
                     handled = true;
                 }
@@ -222,7 +223,7 @@ namespace m::pil::impl::logging
 
             case reg_value_type::expand_string:
             {
-                type_a.set_value("REG_EXPAND_SZ");
+                type_a.set_value(M_PUGIXML_T("REG_EXPAND_SZ"sv));
 
                 //
                 // Strings are always encoded as Utf-16 strings with a trailing pair of
@@ -231,7 +232,7 @@ namespace m::pil::impl::logging
 
                 if (data_is_utf16(m_value))
                 {
-                    auto data = n.append_attribute("reg_expand_sz_data");
+                    auto data = n.append_attribute(M_PUGIXML_T("reg_expand_sz_data"sv));
                     set_value_as_string(data, m_value);
 
                     handled = true;
@@ -242,7 +243,7 @@ namespace m::pil::impl::logging
 
             case reg_value_type::uint32:
             {
-                type_a.set_value("REG_DWORD");
+                type_a.set_value(M_PUGIXML_T("REG_DWORD"sv));
 
                 if (m_value.size() == sizeof(uint32_t))
                 {
@@ -252,8 +253,8 @@ namespace m::pil::impl::logging
                                 sizeof(uint32_t),
                                 std::as_writable_bytes(std::span(v)).begin());
 
-                    auto data = n.append_attribute("reg_dword_data");
-                    data.set_value(std::format("{:#x}", v[0]).c_str());
+                    auto data = n.append_attribute(M_PUGIXML_T("reg_dword_data"sv));
+                    data.set_value(std::format(M_PUGIXML_T("{:#x}"), v[0]).c_str());
 
                     handled = true;
                 }
@@ -273,8 +274,8 @@ namespace m::pil::impl::logging
                                 sizeof(uint64_t),
                                 std::as_writable_bytes(std::span(v)).begin());
 
-                    auto data = n.append_attribute("reg_qword_data");
-                    data.set_value(std::format("{:#x}", v[0]).c_str());
+                    auto data = n.append_attribute(M_PUGIXML_T("reg_qword_data"sv));
+                    data.set_value(std::format(M_PUGIXML_T("{:#x}"), v[0]).c_str());
 
                     handled = true;
                 }
@@ -284,7 +285,7 @@ namespace m::pil::impl::logging
 
             case reg_value_type::binary:
             {
-                type_a.set_value("REG_BINARY"sv);
+                type_a.set_value(M_PUGIXML_T("REG_BINARY"sv));
 
                 save_binary(n);
 
@@ -295,7 +296,7 @@ namespace m::pil::impl::logging
 
             case reg_value_type::link:
             {
-                type_a.set_value("REG_LINK"sv);
+                type_a.set_value(M_PUGIXML_T("REG_LINK"sv));
                 save_binary(n);
                 handled = true;
                 break;
@@ -303,7 +304,7 @@ namespace m::pil::impl::logging
 
             case reg_value_type::multi_string:
             {
-                type_a.set_value("REG_MULTI_SZ"sv);
+                type_a.set_value(M_PUGIXML_T("REG_MULTI_SZ"sv));
                 save_binary(n);
                 handled = true;
                 break;
@@ -311,7 +312,7 @@ namespace m::pil::impl::logging
 
             case reg_value_type::none:
             {
-                type_a.set_value("REG_NONE"sv);
+                type_a.set_value(M_PUGIXML_T("REG_NONE"sv));
                 save_binary(n);
                 handled = true;
                 break;
@@ -319,7 +320,7 @@ namespace m::pil::impl::logging
 
             case reg_value_type::uint32_big_endian:
             {
-                type_a.set_value("REG_DWORD_BIG_ENDIAN"sv);
+                type_a.set_value(M_PUGIXML_T("REG_DWORD_BIG_ENDIAN"sv));
                 save_binary(n);
                 handled = true;
                 break;
@@ -327,7 +328,8 @@ namespace m::pil::impl::logging
 
             default:
             {
-                type_a.set_value(std::string_view(std::format("{:#x}", m::to_underlying(m_type))));
+                type_a.set_value(pugi::string_view_t(
+                    std::format(M_PUGIXML_T("{:#x}"), m::to_underlying(m_type))));
                 save_binary(n);
                 handled = true;
                 break;
@@ -337,7 +339,7 @@ namespace m::pil::impl::logging
         if (!handled)
             save_binary(n);
 
-        write_attribute(n, "disposition"sv, m_disposition);
+        write_attribute(n, M_PUGIXML_T("disposition"sv), m_disposition);
     }
 
     void
@@ -351,7 +353,7 @@ namespace m::pil::impl::logging
         auto tempstring = m::to_string_t<pugi::char_t>(view);
         attr.set_value(tempstring.data(), tempstring.size());
 #else
-        attr.set_value("TO-DO"sv);
+        attr.set_value(M_PUGIXML_T("TO-DO"sv));
 #endif
     }
 

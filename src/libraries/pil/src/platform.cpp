@@ -17,6 +17,10 @@
 
 #include <pugixml.hpp>
 
+#include "pugihelp.h"
+
+using namespace std::string_view_literals;
+
 namespace m::pil
 {
     platform
@@ -62,16 +66,14 @@ namespace m::pil
     }
 
     void
-    platform::save(std::filesystem::path const& p,
-                   save_contents                contents,
-                   save_format                  format)
+    platform::save(std::filesystem::path const& p, save_contents contents, save_format format)
     {
         M_VALIDATE_PARAMETER(contents, contents == save_contents::change_log);
         M_VALIDATE_PARAMETER(format, format == save_format::xml);
 
         pugi::xml_document doc;
 
-        auto platform_element = doc.append_child("Platform");
+        auto platform_element = doc.append_child(M_PUGIXML_T("Platform"sv));
 
         m_platform->save(iplatform::save_contents::change_log, platform_element);
 

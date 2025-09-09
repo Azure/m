@@ -45,7 +45,7 @@ namespace m::pil::impl::buffered
         auto find_location = m_predefined_keys.find(pk);
         if (find_location != m_predefined_keys.end())
         {
-            returned_key                          = find_location->second;
+            returned_key = find_location->second;
             return open_predefined_key_disposition{};
         }
 
@@ -98,7 +98,7 @@ namespace m::pil::impl::buffered
     {
         auto l = std::unique_lock(m_mutex);
 
-        auto reg_node = doc_node.append_child("Registry");
+        auto reg_node = doc_node.append_child(M_PUGIXML_T("Registry"sv));
 
         //
         // The predefined nodes are special and so are handled here
@@ -109,12 +109,11 @@ namespace m::pil::impl::buffered
 
         for (auto const& e: m_predefined_keys)
         {
-            auto key_node = reg_node.append_child("Key");
-            auto name_attr = key_node.append_attribute("name");
+            auto key_node  = reg_node.append_child(M_PUGIXML_T("Key"sv));
+            auto name_attr = key_node.append_attribute(M_PUGIXML_T("name"sv));
             name_attr.set_value(m::to_string(map_predefined_key_to_string(e.first).view()).c_str());
 
             e.second->save_xml(key_node);
-
         }
     }
 

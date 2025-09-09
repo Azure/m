@@ -204,11 +204,16 @@ namespace m
     std::u32string
     to_u32string(std::string_view v);
 
+    //
+    // This is where all the potentially lossy character conversions
+    // live.
+    //
 
-    template <>
-    struct string_conversion_helper<char, char16_t>
+    template <typename CharT>
+        requires(m::character<CharT> && !std::is_same_v<CharT, char>)
+    struct string_conversion_helper<char, CharT>
     {
-        using from_char_type = char16_t;
+        using from_char_type = CharT;
         using to_char_type   = char;
 
         using from_view_type = std::basic_string_view<from_char_type>;
@@ -221,6 +226,103 @@ namespace m
         xlate_to_string(from_view_type view)
         {
             return m::to_string(view);
+        }
+    };
+
+    template <typename CharT>
+        requires(m::character<CharT> && !std::is_same_v<CharT, wchar_t>)
+    struct string_conversion_helper<wchar_t, CharT>
+    {
+        using from_char_type = CharT;
+        using to_char_type   = wchar_t;
+
+        using from_view_type = std::basic_string_view<from_char_type>;
+        using to_view_type   = std::basic_string_view<to_char_type>;
+
+        using from_string_type = std::basic_string<from_char_type>;
+        using to_string_type   = std::basic_string<to_char_type>;
+
+        static to_string_type
+        xlate_to_string(from_view_type view)
+        {
+            return m::to_wstring(view);
+        }
+    };
+
+    //
+    // Since the others don't have uniform names for the
+    // conversion functions (which is kind of the point of
+    // the m::to_string_t<> function, for which this is
+    // the implementation machinery), they require individual
+    // attention. If there's a better pattern here, please
+    // apply it.
+    //
+    // In general, for the UTF encodings, on Windows, it's
+    // from char and from wchar_t to each of the possibilities.
+    // We can use partial specialization to at least avoid
+    // writing half of the templates.
+    //
+
+    template <typename TChar>
+        requires(m::character<TChar> &&
+                 (std::is_same_v<TChar, char> || std::is_same_v<TChar, wchar_t>))
+    struct string_conversion_helper<char8_t, TChar>
+    {
+        using from_char_type = TChar;
+        using to_char_type   = char8_t;
+
+        using from_view_type = std::basic_string_view<from_char_type>;
+        using to_view_type   = std::basic_string_view<to_char_type>;
+
+        using from_string_type = std::basic_string<from_char_type>;
+        using to_string_type   = std::basic_string<to_char_type>;
+
+        static to_string_type
+        xlate_to_string(from_view_type view)
+        {
+            return m::to_u8string(view);
+        }
+    };
+
+    template <typename TChar>
+        requires(m::character<TChar> &&
+                 (std::is_same_v<TChar, char> || std::is_same_v<TChar, wchar_t>))
+    struct string_conversion_helper<char16_t, TChar>
+    {
+        using from_char_type = TChar;
+        using to_char_type   = char16_t;
+
+        using from_view_type = std::basic_string_view<from_char_type>;
+        using to_view_type   = std::basic_string_view<to_char_type>;
+
+        using from_string_type = std::basic_string<from_char_type>;
+        using to_string_type   = std::basic_string<to_char_type>;
+
+        static to_string_type
+        xlate_to_string(from_view_type view)
+        {
+            return m::to_u16string(view);
+        }
+    };
+
+    template <typename TChar>
+        requires(m::character<TChar> &&
+                 (std::is_same_v<TChar, char> || std::is_same_v<TChar, wchar_t>))
+    struct string_conversion_helper<char32_t, TChar>
+    {
+        using from_char_type = TChar;
+        using to_char_type   = char32_t;
+
+        using from_view_type = std::basic_string_view<from_char_type>;
+        using to_view_type   = std::basic_string_view<to_char_type>;
+
+        using from_string_type = std::basic_string<from_char_type>;
+        using to_string_type   = std::basic_string<to_char_type>;
+
+        static to_string_type
+        xlate_to_string(from_view_type view)
+        {
+            return m::to_u32string(view);
         }
     };
 

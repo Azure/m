@@ -19,6 +19,7 @@
 #include <m/strings/compare.h>
 
 #include <pugixml.hpp>
+#include "../pugihelp.h"
 
 namespace m::pil::impl::buffered
 {

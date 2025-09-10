@@ -196,12 +196,12 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file(
     m-config.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/m-config.cmake
-    INSTALL_DESTINATION share/m
+    INSTALL_DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/share/m
     PATH_VARS INCLUDE_INSTALL_DIR SYSCONFIG_INSTALL_DIR
 )
 
 write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/m-configVersion.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/m-config-version.cmake
   VERSION ${VERSION}
   COMPATIBILITY SameMajorVersion
 )
@@ -209,7 +209,7 @@ write_basic_package_version_file(
 install(
     FILES
         ${CMAKE_CURRENT_BINARY_DIR}/m-config.cmake
-        ${CMAKE_CURRENT_BINARY_DIR}/m-configVersion.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/m-config-version.cmake
     DESTINATION
-        share/m )
+        ${CMAKE_INSTALL_SYSCONFDIR}/share/m )
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
-find_package(pugixml REQUIRED)
+find_package(pugixml CONFIG REQUIRED)
 
 target_sources(m_pil PRIVATE
     platform.cpp

@@ -1,0 +1,20 @@
+diff --git a/src/pugixml.cpp b/src/pugixml.cpp
+index 53a0526..6a58eb8 100644
+--- a/src/pugixml.cpp
++++ b/src/pugixml.cpp
+@@ -3681,6 +3681,7 @@ PUGI_IMPL_NS_BEGIN
+ 		if (length < 1) return 0;
+ 
+ 		// discard last character if it's the lead of a surrogate pair
++#pragma warning(suppress: 6239)
+ 		return (sizeof(wchar_t) == 2 && static_cast<unsigned int>(static_cast<uint16_t>(data[length - 1]) - 0xD800) < 0x400) ? length - 1 : length;
+ 	}
+ 
+@@ -6744,6 +6745,7 @@ namespace pugi
+ 
+ 	PUGI_IMPL_FN xml_node xml_node::first_element_by_path(const char_t* path_, char_t delimiter) const
+ 	{
++#pragma warning(suppress: 25101)
+ 		xml_node context = path_[0] == delimiter ? root() : *this;
+ 
+ 		if (!context._root) return xml_node();

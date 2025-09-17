@@ -8,6 +8,7 @@
     "ms-gsl",
     {
       "name": "pugixml",
+      "features": [ "header-only" ],
       "version>=": "1.15"
     },
     "wil"

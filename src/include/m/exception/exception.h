@@ -3,7 +3,11 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
 #include <exception>
+#include <source_location>
 #include <stdexcept>
 #include <string>
 
@@ -24,11 +28,11 @@ namespace m
     /// <summary>
     /// The `m::runtime_error` class is the specialization of `std::runtime_error`
     /// for runtime errors thrown by the m library.
-    /// 
+    ///
     /// Semantics are essentially the same as for `std::runtime_error`:
-    /// 
+    ///
     /// https://en.cppreference.com/w/cpp/error/runtime_error.html
-    /// 
+    ///
     /// </summary>
     class runtime_error : public std::runtime_error
     {
@@ -50,46 +54,46 @@ namespace m
     /// <summary>
     /// The `m::not_found` class is thrown when a runtime case of an item not
     /// found in a collection when it should be found.
-    /// 
+    ///
     /// Note that when working with, for example, classes that represent
     /// collections in C++, this type should not, in general be thrown. During
     /// normal operations, exceptions represent programming errors, not
     /// conditions to run into and then handle after the fact.
-    /// 
+    ///
     /// This is why the C++ standard avoids defining such a type.
-    /// 
+    ///
     /// We only define it because of the interactions with the
     /// underlying operating system platform. It was possibly to
     /// be added to the m::filesystem namespace but that seemed
     /// too narrow in scope since also the m::pil was going to use it for the
     /// registry support.
-    /// 
+    ///
     /// For in-memory structures where atomicity can be managed by the code,
     /// the "not found is a programming error" is a good design principle, but
     /// when dealing with external stores which cannot be managed
     /// transactionally with in-memory data, something must give. No matter
     /// how many times code probes to see if a file already exists before
     /// opening it, it may be deleted before the open is performed.
-    /// 
+    ///
     /// Rather than cluttering every code path with preamble code to try to
     /// prevent "file not found" and then still having to deal with it, it is
     /// better to simply deal with file not found.
-    /// 
+    ///
     /// As such, having a specific exception to catch makes this simpler. code
     /// within m is responsible for throwing not_found if the item in question
     /// was not present within the collection named.
-    /// 
+    ///
     /// A meta-question is whether the same exception is used when the named
     /// collection (directory) is also not found, or in the case of a compound
     /// address like an URL, the node name, or the protocol name. Windows
     /// returns distinct error codes in each of these cases and we will throw
     /// distinct exceptions in them also.
-    /// 
+    ///
     /// It's not even clear that "directory not found => file not found", since
     /// "directory not found" may be because a volume failed to mount, which
     /// certainly is a different category of problem from the user or sysadmin
     /// had intentionally deleted or not created the directory.
-    /// 
+    ///
     /// </summary>
     class not_found : public m::runtime_error
     {
@@ -109,7 +113,7 @@ namespace m
     /// <summary>
     /// The `m::sharing_violation` class is thrown when a resource is accessed
     /// but another entity is preventing access to it.
-    /// 
+    ///
     /// The canonical case of this is on Windows where when opening a file in
     /// the filesystem, the caller specifies a mask of read / write / delete
     /// sharing compatibility, and other openers that conflict in their access
@@ -218,6 +222,54 @@ namespace m
             m::runtime_error::operator=(other);
             return *this;
         }
+    };
+
+    class assertion_failure
+    {
+    public:
+        constexpr assertion_failure(std::source_location const& sl, std::string_view text) noexcept:
+            m_file_name(sl.file_name()), m_line(sl.line()), m_function_name(sl.function_name())
+        {
+            std::copy_n(text.begin(), (std::min)(text.size(), m_text.size()), m_text.begin());
+            m_text[m_text.size() - 1] = 0;
+        }
+
+        constexpr assertion_failure(assertion_failure const& other) noexcept:
+            m_file_name(other.m_file_name),
+            m_line(other.m_line),
+            m_function_name(other.m_function_name),
+            m_text(other.m_text)
+        {}
+
+        constexpr char const*
+        file_name() noexcept
+        {
+            return m_file_name;
+        }
+
+        constexpr std::uint_least32_t
+        line() noexcept
+        {
+            return m_line;
+        }
+
+        constexpr char const*
+        function_name() noexcept
+        {
+            return m_function_name;
+        }
+
+        constexpr std::string_view
+        text() noexcept
+        {
+            return std::string_view(m_text.data());
+        }
+
+    private:
+        char const*           m_file_name;
+        std::uint_least32_t   m_line;
+        char const*           m_function_name;
+        std::array<char, 512> m_text;
     };
 
 } // namespace m

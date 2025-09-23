@@ -38,7 +38,7 @@ if (MSVC)
     add_compile_options(/wd5027)        # 'x': move assignment operator was implicitly defined as deleted
     add_compile_options(/wd5039)        # 'x': pointer or reference to potentially throwing function passed to 'extern "C"'
 
-    string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    # string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
     if(disable_native_wchar_t)
         add_compile_options("/Zc:wchar_t-")
@@ -46,6 +46,17 @@ if (MSVC)
 
     add_compile_options(/bigobj)
     set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT Embedded)
+
+add_link_options(
+    /LARGEADDRESSAWARE
+    /DEBUG
+    /INCREMENTAL:NO
+    $<$<NOT:$<CONFIG:DEBUG>>:/OPT:REF> # Remove unreferenced functions and data.
+    $<$<NOT:$<CONFIG:DEBUG>>:/OPT:ICF> # Identical COMDAT folding.
+    $<$<CONFIG:DEBUG>:/OPT:NOREF> # No unreferenced data elimination.
+    $<$<CONFIG:DEBUG>:/OPT:NOICF> # No Identical COMDAT folding.
+)
+
 
 else()
     add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas)

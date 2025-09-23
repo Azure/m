@@ -25,6 +25,12 @@ namespace m
     template <typename T>
     constexpr bool is_integral_non_bool_v = is_integral_non_bool<T>::value;
 
+    template <typename T>
+    constexpr bool is_unsigned_integral_non_bool_v = (is_integral_non_bool<T>::value && std::is_unsigned_v<T>);
+
+    template <typename T>
+    constexpr bool is_signed_integral_non_bool_v =
+        (is_integral_non_bool<T>::value && std::is_signed_v<T>);
 
     template <typename T1, typename T2, typename enabled = void>
     struct are_integral_non_bool_types

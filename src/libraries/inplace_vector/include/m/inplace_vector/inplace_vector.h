@@ -5,12 +5,12 @@
 
 #include <m/utility/compiler.h>
 
-#include <algorithm> // for rotate, equals, move_backwards, ...
+#include <algorithm>
 #include <array>
 #include <compare>
-#include <concepts> // for lots...
-#include <cstddef>  // for size_t
-#include <cstdint>  // for fixed-width integer types
+#include <concepts>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <limits>
@@ -20,7 +20,7 @@
 #include <ranges>
 #include <source_location>
 #include <stdexcept>
-#include <stdio.h> // for assertion diagnostics
+#include <stdio.h>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -28,48 +28,52 @@
 #include <m/error_handling/macros.h>
 #include <m/exception/exception.h>
 #include <m/utility/pointers.h>
+#include <m/utility/smallest_size.h>
 
 namespace m
 {
-/*
- * SPDX-FileCopyrightText: Copyright (c) 2023 Gonzalo Brito Gadeschi. All rights reserved.
- * SPDX-License-Identifier: MIT
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF Precondition, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- */
+    /*
+     * SPDX-FileCopyrightText: Copyright (c) 2023 Gonzalo Brito Gadeschi. All rights reserved.
+     * SPDX-License-Identifier: MIT
+     *
+     * Permission is hereby granted, free of charge, to any person obtaining a
+     * copy of this software and associated documentation files (the "Software"),
+     * to deal in the Software without restriction, including without limitation
+     * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+     * and/or sell copies of the Software, and to permit persons to whom the
+     * Software is furnished to do so, subject to the following conditions:
+     *
+     * The above copyright notice and this permission notice shall be included in
+     * all copies or substantial portions of the Software.
+     *
+     * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+     * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+     * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+     * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+     * LIABILITY, WHETHER IN AN ACTION OF Precondition, TORT OR OTHERWISE, ARISING
+     * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+     * DEALINGS IN THE SOFTWARE.
+     */
+
+#pragma push_macro("M_IV_ASSUME")
+#pragma push_macro("M_IV_ASSERT")
+#pragma push_macro("M_IV_EXPECT")
 
 // Optimizer allowed to assume that EXPR evaluates to true
-#define __IV_ASSUME(__EXPR) static_cast<void>((__EXPR) ? void(0) : std::unreachable())
+#define M_IV_ASSUME(X) static_cast<void>((X) ? void(0) : std::unreachable())
 
 // Assert pretty printer
-#define __IV_ASSERT(...)                                                                           \
-    static_cast<void>(                                                                             \
-        (__VA_ARGS__) ?                                                                            \
-            void(0) :                                                                              \
-            ::m::inplace_vector_impl::assert_failure(                                              \
-                std::source_location::current(), "assertion failed: " #__VA_ARGS__))
+#define M_IV_ASSERT(...)                                                                           \
+    static_cast<void>((__VA_ARGS__) ?                                                              \
+                          void(0) :                                                                \
+                          ::m::inplace_vector_impl::assert_failure(                                \
+                              std::source_location::current(), "assertion failed: " #__VA_ARGS__))
 
 // Assert in debug, assume in release.
 #ifdef NDEBUG
-#define __IV_EXPECT(__EXPR) __IV_ASSUME(__EXPR)
+#define M_IV_EXPECT(X) M_IV_ASSUME(X)
 #else
-#define __IV_EXPECT(__EXPR) __IV_ASSERT(__EXPR)
+#define M_IV_EXPECT(X) M_IV_ASSERT(X)
 #endif
 
     // Private utilitIes
@@ -83,32 +87,18 @@ namespace m
             throw m::assertion_failure(sl, msg);
         }
 
-        // Smallest unsigned integer that can represent values in [0, N].
-        template <std::size_t N>
-        using smallest_size_t = std::conditional_t<
-            (N < std::numeric_limits<uint8_t>::max()),
-            uint8_t,
-            std::conditional_t<
-                (N < std::numeric_limits<uint16_t>::max()),
-                uint16_t,
-                std::conditional_t<(N < std::numeric_limits<uint32_t>::max()),
-                                   uint32_t,
-                                   std::conditional_t<(N < std::numeric_limits<uint64_t>::max()),
-                                                      uint64_t,
-                                                      std::size_t>>>>;
-
         // Index a random-access and sized range doing bound checks in debug builds
         template <std::ranges::random_access_range RangeT, std::integral IndexT>
         static constexpr decltype(auto)
         index(RangeT&& rng, IndexT idx) noexcept
             requires(std::ranges::sized_range<RangeT>)
         {
-            __IV_EXPECT(static_cast<ptrdiff_t>(idx) < std::ranges::size(rng));
+            M_IV_EXPECT(static_cast<ptrdiff_t>(idx) < std::ranges::size(rng));
             return std::begin(std::forward<RangeT>(rng))[std::forward<IndexT>(idx)];
         }
 
         // http://eel.is/c++draft/container.requirements.general#container.intro.reqmts-2
-        template <typename  RangeT, typename T>
+        template <typename RangeT, typename T>
         concept container_compatible_range =
             std::ranges::input_range<RangeT> &&
             std::convertible_to<std::ranges::range_reference_t<RangeT>, T>;
@@ -118,185 +108,201 @@ namespace m
             { std::construct_at(ptr, std::forward<T&&>(value)) } -> std::same_as<PointerT>;
         };
 
+        // Types implementing the `inplace_vector`'s storage
+        namespace storage
+        {
+            // TODO: flesh out
+            template <typename T, std::size_t N>
+            struct aligned_storage2
+            {
+                alignas(T) std::array<std::byte, sizeof(T) * N> m_data;
+
+                constexpr T*
+                data(size_t idx) noexcept
+                {
+                    M_IV_EXPECT(idx < N);
+                    return reinterpret_cast<T*>(m_data.data()) + idx;
+                }
+
+                constexpr const T*
+                data(size_t idx) const noexcept
+                {
+                    M_IV_EXPECT(idx < N);
+                    return reinterpret_cast<const T*>(m_data.data()) + idx;
+                }
+            };
+
+            // Storage for zero elements.
+            template <typename T>
+            struct zero_sized
+            {
+            protected:
+                using size_type = uint8_t;
+
+                static constexpr T*
+                data() noexcept
+                {
+                    return nullptr;
+                }
+
+                static constexpr size_type
+                size() noexcept
+                {
+                    return 0;
+                }
+
+                static constexpr void
+                unsafe_set_size(size_t new_size) noexcept
+                {
+                    M_IV_EXPECT(new_size == 0 &&
+                                "tried to change size of empty storage to non-zero value");
+                }
+
+            public:
+                constexpr zero_sized()                  = default;
+                constexpr zero_sized(zero_sized const&) = default;
+                constexpr zero_sized&
+                operator=(zero_sized const&)       = default;
+                constexpr zero_sized(zero_sized&&) = default;
+                constexpr zero_sized&
+                operator=(zero_sized&&) = default;
+                constexpr ~zero_sized() = default;
+            };
+
+            // Storage for trivial types.
+            template <typename T, std::size_t N>
+            struct trivial
+            {
+                // This static_assert() cannot be a requires() clause because
+                // std::conditional_t<> evidently simultaneously evaluates both
+                // branches so the fact that one branch or the other is or is
+                // not trivial breaks the use of std::conditional_t<> to
+                // choose between this type and `non_trivial`.
+                static_assert(std::is_trivial_v<T> && (N != 0));
+
+            protected:
+                using size_type = smallest_size_t<N>;
+
+            private:
+                // If value_type is const, then const array of non-const elements:
+                using data_t = std::conditional_t<!std::is_const_v<T>,
+                                                  std::array<T, N>,
+                                                  const std::array<std::remove_const_t<T>, N>>;
+
+                alignas(T) data_t m_data{};
+                size_type m_size{0};
+
+            protected:
+                constexpr const T*
+                data() const noexcept
+                {
+                    return m_data.data();
+                }
+
+                constexpr T*
+                data() noexcept
+                {
+                    return m_data.data();
+                }
+
+                constexpr size_type
+                size() const noexcept
+                {
+                    return m_size;
+                }
+
+                constexpr void
+                unsafe_set_size(std::size_t new_size) noexcept
+                {
+                    M_IV_EXPECT(new_size <= N && "new_size out-of-bounds [0, N]");
+                    m_size = static_cast<size_type>(new_size);
+                }
+
+            public:
+                constexpr trivial() noexcept               = default;
+                constexpr trivial(trivial const&) noexcept = default;
+                constexpr trivial&
+                operator=(trivial const&) noexcept    = default;
+                constexpr trivial(trivial&&) noexcept = default;
+                constexpr trivial&
+                operator=(trivial&&) noexcept = default;
+                constexpr ~trivial()          = default;
+            };
+
+            /// Storage for non-trivial elements.
+            template <typename T, std::size_t N>
+            struct non_trivial
+            {
+                // This static_assert() cannot be a requires() clause because
+                // std::conditional_t<> evidently simultaneously evaluates both
+                // branches so the fact that one branch or the other is or is
+                // not trivial breaks the use of std::conditional_t<> to
+                // choose between this type and `trivial`.
+                static_assert(!std::is_trivial_v<T> && (N != 0));
+
+            protected:
+                using size_type = smallest_size_t<N>;
+
+            private:
+                using data_t =
+                    std::conditional_t<!std::is_const_v<T>,
+                                       aligned_storage2<T, N>,
+                                       const aligned_storage2<std::remove_const_t<T>, N>>;
+                data_t    m_data{}; // BUGBUG: test SIMD types
+                size_type m_size = 0;
+
+            protected:
+                constexpr const T*
+                data() const noexcept
+                {
+                    return m_data.data(0);
+                }
+                constexpr T*
+                data() noexcept
+                {
+                    return m_data.data(0);
+                }
+                constexpr size_type
+                size() const noexcept
+                {
+                    return m_size;
+                }
+                constexpr void
+                unsafe_set_size(std::size_t new_size) noexcept
+                {
+                    M_IV_EXPECT(new_size <= N && "new_size out-of-bounds [0, N)");
+                    m_size = static_cast<size_type>(new_size);
+                }
+
+            public:
+                constexpr non_trivial() noexcept                   = default;
+                constexpr non_trivial(non_trivial const&) noexcept = default;
+                constexpr non_trivial&
+                operator=(non_trivial const&) noexcept        = default;
+                constexpr non_trivial(non_trivial&&) noexcept = default;
+                constexpr non_trivial&
+                operator=(non_trivial&&) noexcept = default;
+                constexpr ~non_trivial()          = default;
+            };
+
+            template <typename T, std::size_t N>
+            using select_trivial_or_nontrivial_t =
+                std::conditional_t<std::is_trivial_v<T>, trivial<T, N>, non_trivial<T, N>>;
+
+            // Selects the vector storage.
+            template <typename T, std::size_t N>
+            using storage_t =
+                std::conditional_t<N == 0, zero_sized<T>, select_trivial_or_nontrivial_t<T, N>>;
+
+        } // namespace storage
     } // namespace inplace_vector_impl
-
-    // Types implementing the `inplace_vector`'s storage
-    namespace inplace_vector_impl::storage
-    {
-        // TODO: flesh out
-        template <typename T, std::size_t N>
-        struct aligned_storage2
-        {
-            alignas(T) std::byte m_data[sizeof(T) * N];
-            constexpr T*
-            data(size_t idx) noexcept
-            {
-                __IV_EXPECT(idx < N);
-                return reinterpret_cast<T*>(m_data) + idx;
-            }
-            constexpr const T*
-            data(size_t idx) const noexcept
-            {
-                __IV_EXPECT(idx < N);
-                return reinterpret_cast<const T*>(m_data) + idx;
-            }
-        };
-
-        // Storage for zero elements.
-        template <typename T>
-        struct zero_sized
-        {
-        protected:
-            using size_type = uint8_t;
-            static constexpr T*
-            data() noexcept
-            {
-                return nullptr;
-            }
-            static constexpr size_type
-            size() noexcept
-            {
-                return 0;
-            }
-            static constexpr void
-            unsafe_set_size(size_t new_size) noexcept
-            {
-                __IV_EXPECT(new_size == 0 &&
-                            "tried to change size of empty storage to non-zero value");
-            }
-
-        public:
-            constexpr zero_sized()                  = default;
-            constexpr zero_sized(zero_sized const&) = default;
-            constexpr zero_sized&
-            operator=(zero_sized const&)       = default;
-            constexpr zero_sized(zero_sized&&) = default;
-            constexpr zero_sized&
-            operator=(zero_sized&&) = default;
-            constexpr ~zero_sized() = default;
-        };
-
-        // Storage for trivial types.
-        template <typename T, std::size_t N>
-        struct trivial
-        {
-            static_assert(std::is_trivial_v<T>, "storage::trivial<T, C> requires Trivial<T>");
-            static_assert(N != size_t{0}, "N  == 0, use zero_sized");
-
-        protected:
-            using size_type = smallest_size_t<N>;
-
-        private:
-            // If value_type is const, then const array of non-const elements:
-            using data_t = std::conditional_t<!std::is_const_v<T>,
-                                              std::array<T, N>,
-                                              const std::array<std::remove_const_t<T>, N>>;
-            alignas(alignof(T)) data_t m_data{};
-            size_type m_size = 0;
-
-        protected:
-            constexpr const T*
-            data() const noexcept
-            {
-                return m_data.data();
-            }
-
-            constexpr T*
-            data() noexcept
-            {
-                return m_data.data();
-            }
-
-            constexpr size_type
-            size() const noexcept
-            {
-                return m_size;
-            }
-
-            constexpr void
-            unsafe_set_size(std::size_t new_size) noexcept
-            {
-                __IV_EXPECT(new_size <= N && "new_size out-of-bounds [0, N]");
-                m_size = static_cast<size_type>(new_size);
-            }
-
-        public:
-            constexpr trivial() noexcept               = default;
-            constexpr trivial(trivial const&) noexcept = default;
-            constexpr trivial&
-            operator=(trivial const&) noexcept    = default;
-            constexpr trivial(trivial&&) noexcept = default;
-            constexpr trivial&
-            operator=(trivial&&) noexcept = default;
-            constexpr ~trivial()          = default;
-        };
-
-        /// Storage for non-trivial elements.
-        template <typename T, std::size_t N>
-        struct non_trivial
-        {
-            static_assert(!std::is_trivial_v<T>, "use storage::trivial for Trivial<T> elements");
-            static_assert(N != size_t{0}, "use storage::zero for N==0");
-
-        protected:
-            using size_type = smallest_size_t<N>;
-
-        private:
-            using data_t = std::conditional_t<!std::is_const_v<T>,
-                                              aligned_storage2<T, N>,
-                                              const aligned_storage2<std::remove_const_t<T>, N>>;
-            data_t    m_data{}; // BUGBUG: test SIMD types
-            size_type m_size = 0;
-
-        protected:
-            constexpr const T*
-            data() const noexcept
-            {
-                return m_data.data(0);
-            }
-            constexpr T*
-            data() noexcept
-            {
-                return m_data.data(0);
-            }
-            constexpr size_type
-            size() const noexcept
-            {
-                return m_size;
-            }
-            constexpr void
-            unsafe_set_size(std::size_t new_size) noexcept
-            {
-                __IV_EXPECT(new_size <= N && "new_size out-of-bounds [0, N)");
-                m_size = static_cast<size_type>(new_size);
-            }
-
-        public:
-            constexpr non_trivial() noexcept                   = default;
-            constexpr non_trivial(non_trivial const&) noexcept = default;
-            constexpr non_trivial&
-            operator=(non_trivial const&) noexcept        = default;
-            constexpr non_trivial(non_trivial&&) noexcept = default;
-            constexpr non_trivial&
-            operator=(non_trivial&&) noexcept = default;
-            constexpr ~non_trivial()          = default;
-        };
-
-        // Selects the vector storage.
-        template <typename T, std::size_t N>
-        using storage_t = std::conditional_t<
-            N == 0,
-            zero_sized<T>,
-            std::conditional_t<std::is_trivial_v<T>, trivial<T, N>, non_trivial<T, N>>>;
-
-    } // namespace inplace_vector_impl::storage
 
     /// Dynamically-resizable fixed-N vector with inplace storage.
     template <typename T, std::size_t N>
+        requires(std::is_nothrow_destructible_v<T>)
     struct inplace_vector : private inplace_vector_impl::storage::storage_t<T, N>
     {
     private:
-        static_assert(std::is_nothrow_destructible_v<T>, "T must be nothrow destructible");
         using base_type = inplace_vector_impl::storage::storage_t<T, N>;
         using self_type = inplace_vector<T, N>;
         using base_type::data;
@@ -547,30 +553,30 @@ namespace m
 
     private: // Utilities
         constexpr void
-        __assert_iterator_in_range(const_iterator it) noexcept
+        internal_assert_iterator_in_range(const_iterator it) noexcept
         {
-            __IV_EXPECT(begin() <= it && "iterator not in range");
-            __IV_EXPECT(it <= end() && "iterator not in range");
+            M_IV_EXPECT(begin() <= it && "iterator not in range");
+            M_IV_EXPECT(it <= end() && "iterator not in range");
         }
 
         constexpr void
-        __assert_valid_iterator_pair(const_iterator first, const_iterator last) noexcept
+        internal_assert_valid_iterator_pair(const_iterator first, const_iterator last) noexcept
         {
-            __IV_EXPECT(first <= last && "invalid iterator pair");
+            M_IV_EXPECT(first <= last && "invalid iterator pair");
         }
 
         constexpr void
-        __assert_iterator_pair_in_range(const_iterator first, const_iterator last) noexcept
+        internal_assert_iterator_pair_in_range(const_iterator first, const_iterator last) noexcept
         {
-            __assert_iterator_in_range(first);
-            __assert_iterator_in_range(last);
-            __assert_valid_iterator_pair(first, last);
+            internal_assert_iterator_in_range(first);
+            internal_assert_iterator_in_range(last);
+            internal_assert_valid_iterator_pair(first, last);
         }
 
         constexpr void
-        __unsafe_destroy(T* first, T* last) noexcept(std::is_nothrow_destructible_v<T>)
+        internal_unsafe_destroy(T* first, T* last) noexcept(std::is_nothrow_destructible_v<T>)
         {
-            __assert_iterator_pair_in_range(first, last);
+            internal_assert_iterator_pair_in_range(first, last);
             if constexpr (N > 0 && !std::is_trivial_v<T>)
             {
                 for (; first != last; ++first)
@@ -584,17 +590,18 @@ namespace m
         // [containers.sequences.inplace_vector.modifiers], modifiers
 
         template <typename... Args>
+            requires(std::constructible_from<T, Args...>)
         constexpr T&
         unchecked_emplace_back(Args&&... args)
-            requires(std::constructible_from<T, Args...>)
         {
-            __IV_EXPECT(size() < capacity() && "inplace_vector out-of-memory");
+            M_IV_EXPECT(size() < capacity() && "inplace_vector out-of-memory");
             std::construct_at(end(), std::forward<Args>(args)...);
             unsafe_set_size(size() + size_type{1});
             return back();
         }
 
         template <typename... Args>
+            requires(std::constructible_from<T, Args...>)
         constexpr T*
         try_emplace_back(Args&&... args)
         {
@@ -604,9 +611,9 @@ namespace m
         }
 
         template <typename... Args>
+            requires(std::constructible_from<T, Args...>)
         constexpr void
         emplace_back(Args&&... args)
-            requires(std::constructible_from<T, Args...>)
         {
             if (!try_emplace_back(std::forward<Args>(args)...)) [[unlikely]]
                 throw std::bad_alloc();
@@ -655,9 +662,9 @@ namespace m
         }
 
         template <inplace_vector_impl::container_compatible_range<T> RangeT>
+            requires(std::constructible_from<T, std::ranges::range_reference_t<RangeT>>)
         constexpr void
         append_range(RangeT&& rnge)
-            requires(std::constructible_from<T, std::ranges::range_reference_t<RangeT>>)
         {
             if constexpr (std::ranges::sized_range<RangeT>)
             {
@@ -673,11 +680,11 @@ namespace m
         }
 
         template <typename... Args>
+            requires(std::constructible_from<T, Args...> && std::movable<T>)
         constexpr iterator
         emplace(const_iterator pos, Args&&... args)
-            requires(std::constructible_from<T, Args...> && std::movable<T>)
         {
-            __assert_iterator_in_range(pos);
+            internal_assert_iterator_in_range(pos);
             auto b = end();
             emplace_back(std::forward<Args>(args)...);
             auto newpos = begin() + (pos - begin());
@@ -690,8 +697,8 @@ namespace m
         insert(const_iterator pos, InputIt first, InputIt last)
             requires(std::constructible_from<T, std::iter_reference_t<InputIt>> && std::movable<T>)
         {
-            __assert_iterator_in_range(pos);
-            __assert_valid_iterator_pair(first, last);
+            internal_assert_iterator_in_range(pos);
+            internal_assert_valid_iterator_pair(first, last);
             if constexpr (std::random_access_iterator<InputIt>)
             {
                 if (size() + static_cast<size_type>(std::distance(first, last)) > capacity())
@@ -729,7 +736,7 @@ namespace m
         insert(const_iterator pos, size_type n, T const& x)
             requires(std::constructible_from<T, T const&> && std::copyable<T>)
         {
-            __assert_iterator_in_range(pos);
+            internal_assert_iterator_in_range(pos);
             auto b = end();
             for (size_type idx = 0; idx < n; ++idx)
                 emplace_back(x);
@@ -793,11 +800,11 @@ namespace m
         erase(const_iterator first, const_iterator last)
             requires(std::movable<T>)
         {
-            __assert_iterator_pair_in_range(first, last);
+            internal_assert_iterator_pair_in_range(first, last);
             iterator new_first = begin() + (first - begin());
             if (first != last)
             {
-                __unsafe_destroy(std::move(new_first + (last - first), end(), new_first), end());
+                internal_unsafe_destroy(std::move(new_first + (last - first), end(), new_first), end());
                 unsafe_set_size(size() - static_cast<size_type>(last - first));
             }
             return new_first;
@@ -813,7 +820,7 @@ namespace m
         constexpr void
         clear() noexcept
         {
-            __unsafe_destroy(begin(), end());
+            internal_unsafe_destroy(begin(), end());
             unsafe_set_size(0);
         }
 
@@ -829,7 +836,7 @@ namespace m
                 insert(end(), sz - size(), c);
             else
             {
-                __unsafe_destroy(begin() + sz, end());
+                internal_unsafe_destroy(begin() + sz, end());
                 unsafe_set_size(sz);
             }
         }
@@ -846,7 +853,7 @@ namespace m
                     emplace_back(T{});
             else
             {
-                __unsafe_destroy(begin() + sz, end());
+                internal_unsafe_destroy(begin() + sz, end());
                 unsafe_set_size(sz);
             }
         }
@@ -870,8 +877,8 @@ namespace m
         constexpr void
         pop_back()
         {
-            __IV_EXPECT(size() > 0 && "pop_back from empty inplace_vector!");
-            __unsafe_destroy(end() - 1, end());
+            M_IV_EXPECT(size() > 0 && "pop_back from empty inplace_vector!");
+            internal_unsafe_destroy(end() - 1, end());
             unsafe_set_size(size() - 1);
         }
 
@@ -982,9 +989,8 @@ namespace m
         }
     };
 
-// undefine all the internal macros
-#undef __IV_ASSUME
-#undef __IV_ASSERT
-#undef __IV_EXPECT
+#pragma pop_macro("M_IV_ASSUME")
+#pragma pop_macro("M_IV_ASSERT")
+#pragma pop_macro("M_IV_EXPECT")
 
 } // namespace m

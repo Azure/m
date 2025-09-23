@@ -5,12 +5,6 @@
 
 #include <m/utility/compiler.h>
 
-#ifndef M_HAS_CXX23
-
-#error The inplace_vector.h header requires the C++23 standard or later
-
-#endif
-
 #include <algorithm> // for rotate, equals, move_backwards, ...
 #include <array>
 #include <compare>
@@ -24,6 +18,7 @@
 #include <new>
 #include <optional>
 #include <ranges>
+#include <source_location>
 #include <stdexcept>
 #include <stdio.h> // for assertion diagnostics
 #include <type_traits>
@@ -31,6 +26,7 @@
 #include <vector>
 
 #include <m/error_handling/macros.h>
+#include <m/exception/exception.h>
 #include <m/utility/pointers.h>
 
 namespace m
@@ -67,7 +63,7 @@ namespace m
         (__VA_ARGS__) ?                                                                            \
             void(0) :                                                                              \
             ::m::inplace_vector_impl::assert_failure(                                              \
-                static_cast<const char*>(__FILE__), __LINE__, "assertion failed: " #__VA_ARGS__))
+                std::source_location::current(), "assertion failed: " #__VA_ARGS__))
 
 // Assert in debug, assume in release.
 #ifdef NDEBUG
@@ -76,35 +72,15 @@ namespace m
 #define __IV_EXPECT(__EXPR) __IV_ASSERT(__EXPR)
 #endif
 
-#if 0
-    // BUGBUG workaround for libstdc++ not providing from_range_t / from_range yet
-    namespace std
-    {
-#if defined(__GLIBCXX__) || defined(__GLIBCPP__)
-        struct from_range_t
-        {};
-        inline constexpr from_range_t from_range;
-#endif
-    } // namespace std
-#endif
-
-    // Private utilites
+    // Private utilitIes
     namespace inplace_vector_impl
     {
         template <typename = void>
         [[noreturn]]
         static constexpr void
-        assert_failure(char const* file, int line, char const* msg)
+        assert_failure(std::source_location const& sl, char const* msg)
         {
-            if consteval
-            {
-                throw msg; // TODO: std lib implementor, do better here
-            }
-            else
-            {
-                fprintf(stderr, "%s(%d): %s\n", file, line, msg);
-                abort();
-            }
+            throw m::assertion_failure(sl, msg);
         }
 
         // Smallest unsigned integer that can represent values in [0, N].

@@ -37,6 +37,7 @@ if (MSVC)
     add_compile_options(/wd5026)        # 'x': move constrcutor was implicitly defined as deleted
     add_compile_options(/wd5027)        # 'x': move assignment operator was implicitly defined as deleted
     add_compile_options(/wd5039)        # 'x': pointer or reference to potentially throwing function passed to 'extern "C"'
+    add_compile_options(/we26447)       # The function is declared noexcept but calls function function_name that may throw exceptions (f.6).
 
     # string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 

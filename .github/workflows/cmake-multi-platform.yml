@@ -2,6 +2,9 @@
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
 name: CMake on multiple platforms
 
+permissions:
+  packages: write
+
 on:
   push:
     branches: [ "main" ]
@@ -56,6 +59,7 @@ jobs:
     - name: Update vcpkg
       run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt install mono-complete
             "${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh"
           elif [ "$RUNNER_OS" == "Windows" ]; then
             "${{ github.workspace }}/vcpkg//bootstrap-vcpkg.bat"
@@ -66,8 +70,32 @@ jobs:
       shell: bash
 
     - name: Run vcpkg
+      env: 
+        USERNAME: azure
+        VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
+        FEED_URL: https://nuget.pkg.github.com/azure/index.json
+        VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/azure/index.json,readwrite"
       run: |
-        ${{ github.workspace }}/vcpkg/vcpkg install
+        ${{ github.workspace }}/vcpkg/vcpkg install --debug
+
+    - name: Add NuGet sources
+      env: 
+        USERNAME: azure
+        VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
+        FEED_URL: https://nuget.pkg.github.com/azure/index.json
+        VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/azure/index.json,readwrite"
+      shell: pwsh
+      run: |
+        .$(${{ env.VCPKG_EXE }} fetch nuget) `
+          sources add `
+          -Source "${{ env.FEED_URL }}" `
+          -StorePasswordInClearText `
+          -Name GitHubPackages `
+          -UserName "${{ env.USERNAME }}" `
+          -Password "${{ secrets.GITHUB_TOKEN }}"
+        .$(${{ env.VCPKG_EXE }} fetch nuget) `
+          setapikey "${{ secrets.GITHUB_TOKEN }}" `
+          -Source "${{ env.FEED_URL }}"
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.

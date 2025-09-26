@@ -34,7 +34,7 @@ namespace m
     /// `NExtensionLimit` additional allocation groups.
     ///
     /// In a very basic way, consider the pool to be an array of
-    /// `NInitialSize` `T`s, followed by up to `NExtensionLimit` additional
+    /// `NInlineItemCount` `T`s, followed by up to `NExtensionLimit` additional
     /// arrays of `NExtensionSize` `T`s.
     ///
     /// In the initial version, no effort is made to make the allocation
@@ -56,23 +56,24 @@ namespace m
     /// drain and the pool to refill.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    /// <typeparam name="NInitialSize"></typeparam>
-    /// <typeparam name="NExpansionLimit"></typeparam>
-    /// <typeparam name="NExpansionSize"></typeparam>
+    /// <typeparam name="NInlineItemCount"></typeparam>
+    /// <typeparam name="NMaxExpansionSubpools"></typeparam>
+    /// <typeparam name="NExpansionItemCount"></typeparam>
 
     template <typename T,
-              std::size_t NInitialSize,
-              std::size_t NExpansionLimit = 0,
-              std::size_t NExpansionSize  = (std::max)((1ull << 10) / sizeof(T), 512ull)>
-        requires(NInitialSize != 0)
+              std::size_t NInlineItemCount,
+              std::size_t NMaxExpansionSubpools = 0,
+              std::size_t NExpansionItemCount   = (std::max)((1ull << 20) / sizeof(T), 512ull)>
+        requires(NInlineItemCount != 0)
     class pool :
-        public std::enable_shared_from_this<pool<T, NInitialSize, NExpansionLimit, NExpansionSize>>
+        public std::enable_shared_from_this<
+            pool<T, NInlineItemCount, NMaxExpansionSubpools, NExpansionItemCount>>
     {
-        using this_type = pool<T, NInitialSize, NExpansionLimit, NExpansionSize>;
+        using this_type = pool<T, NInlineItemCount, NMaxExpansionSubpools, NExpansionItemCount>;
 
-        static inline constexpr std::size_t initial_size    = NInitialSize;
-        static inline constexpr std::size_t expansion_limit = NExpansionLimit;
-        static inline constexpr std::size_t expansion_size  = NExpansionSize;
+        static inline constexpr std::size_t inline_item_count      = NInlineItemCount;
+        static inline constexpr std::size_t max_expansion_subpools = NMaxExpansionSubpools;
+        static inline constexpr std::size_t expansion_item_count   = NExpansionItemCount;
 
         struct subpool_base;
 
@@ -104,17 +105,15 @@ namespace m
         pool&
         operator=(pool&&) = delete;
 
-        struct pool_alloc_deleter
+        struct deleter
         {
-            pool_alloc_deleter() = default;
+            deleter() = default;
 
-            pool_alloc_deleter(std::shared_ptr<pool> const& sp,
-                               subpool_base*                ptr,
-                               std::size_t                  slot):
+            deleter(std::shared_ptr<pool> const& sp, subpool_base* ptr, std::size_t slot):
                 m_sp(sp), m_subpool_base(ptr), m_slot(slot)
             {}
 
-            pool_alloc_deleter(pool_alloc_deleter&& other)
+            deleter(deleter&& other)
             {
                 using std::swap;
 
@@ -122,10 +121,10 @@ namespace m
                 swap(m_subpool_base, other.m_subpool_base);
                 swap(m_slot, other.m_slot);
             }
-            ~pool_alloc_deleter() = default;
+            ~deleter() = default;
 
-            pool_alloc_deleter&
-            operator=(pool_alloc_deleter&& other)
+            deleter&
+            operator=(deleter&& other)
             {
                 using std::swap;
 
@@ -148,7 +147,7 @@ namespace m
             std::size_t                m_slot{};
         };
 
-        using unique_ptr_type = std::unique_ptr<T, pool_alloc_deleter>;
+        using unique_ptr_type = std::unique_ptr<T, deleter>;
 
         struct internal_allocation_result
         {
@@ -159,7 +158,7 @@ namespace m
             unique_ptr_type
             to_unique_ptr(std::shared_ptr<pool> const& sp)
             {
-                return unique_ptr_type(m_ptr, pool_alloc_deleter(sp, m_subpool_base, m_slot));
+                return unique_ptr_type(m_ptr, deleter(sp, m_subpool_base, m_slot));
             }
         };
 
@@ -238,13 +237,10 @@ namespace m
         {
             virtual ~subpool_base() = default;
 
-            virtual std::optional<internal_allocation_result>
-            try_allocate(m::locked_t) = 0;
+            virtual std::optional<internal_allocation_result> try_allocate(m::locked_t) = 0;
 
             virtual void
             deallocate(m::locked_t, std::size_t slot) = 0;
-
-            std::size_t m_free{};
         };
 
         template <std::size_t N, typename enable = void>
@@ -253,12 +249,12 @@ namespace m
         template <std::size_t N>
         struct subpool<N, std::enable_if_t<N != 0>> : public subpool_base
         {
-            using subpool_base::m_free;
+            using base_type = subpool_base;
 
             using this_type         = subpool<N>;
-            using expansion_subpool = subpool<pool::expansion_size>;
+            using expansion_subpool = subpool<pool::expansion_item_count>;
 
-            subpool() { m_free = m_in_use_map.size(); }
+            subpool()               = default;
             subpool(subpool const&) = delete;
             subpool(subpool&&)      = delete;
             ~subpool()              = default;
@@ -272,11 +268,13 @@ namespace m
             std::optional<internal_allocation_result>
             try_allocate(m::locked_t) override
             {
-                if (m_free == 0)
+                if (m_allocated == m_in_use_bitset.size())
                     return std::nullopt;
 
-                bitset_bit_allocator<N> ba(m_in_use_map);
-                // auto r1 = m_in_use_map.find_first_clear_and_set();
+                M_INTERNAL_ERROR_CHECK(m_allocated < m_in_use_bitset.size());
+
+                bitset_bit_allocator<N> ba(m_in_use_bitset);
+                // auto r1 = m_in_use_bitset.find_first_clear_and_set();
 
                 if (!ba.has_value())
                     return std::nullopt;
@@ -285,7 +283,7 @@ namespace m
                 auto const ptr          = reinterpret_cast<T*>(&m_data[sizeof(T) * index]);
                 auto const return_value = internal_allocation_result{
                     .m_ptr = ::new (ptr) T, .m_subpool_base = this, .m_slot = index};
-                m_free--;
+                m_allocated++;
                 ba.release();
 
                 return return_value;
@@ -294,19 +292,19 @@ namespace m
             void
             deallocate(m::locked_t, std::size_t slot) override
             {
-                m_in_use_map.clear(slot);
-                m_free++;
+                M_INTERNAL_ERROR_CHECK(m_allocated > 0);
+                m_in_use_bitset.clear(slot);
+                m_allocated--;
             }
 
-            m::bitset<N> m_in_use_map;
+            std::size_t  m_allocated{};
+            m::bitset<N> m_in_use_bitset;
             alignas(T) std::array<std::byte, sizeof(T) * N> m_data;
         };
 
         template <std::size_t N>
         struct subpool<N, std::enable_if_t<N == 0>> : public subpool_base
         {
-            using subpool_base::m_free;
-
             using this_type = subpool<N>;
 
             subpool()               = default;
@@ -338,14 +336,14 @@ namespace m
         void
         deallocate(T* ptr, subpool_base* subpool_base_ptr, std::size_t slot)
         {
-            // Destroy the object before taking the mutex, there is no need for
-            // synchronization around that.
             std::destroy_n(ptr, 1);
 
-            auto l = std::unique_lock(m_mutex);
-            subpool_base_ptr->deallocate(m::locked, slot);
-            m_active_allocations--;
-            l.unlock();
+            {
+                auto l = std::unique_lock(m_mutex);
+                subpool_base_ptr->deallocate(m::locked, slot);
+                m_active_allocations--;
+            }
+
             m_cv.notify_one();
         }
 
@@ -397,7 +395,7 @@ namespace m
         std::optional<internal_allocation_result>
         try_allocate_from_new_subpool(m::locked_t)
         {
-            if (m_expansion_subpool_count == expansion_limit)
+            if (m_expansion_subpool_count == max_expansion_subpools)
                 return std::nullopt;
 
             M_INTERNAL_ERROR_CHECK(m_expansion_subpools[m_expansion_subpool_count].get() ==
@@ -405,7 +403,7 @@ namespace m
             M_INTERNAL_ERROR_CHECK(m_subpool_count == m_expansion_subpool_count + 1);
 
             m_expansion_subpools[m_expansion_subpool_count] =
-                std::make_unique<subpool<expansion_size>>();
+                std::make_unique<subpool<expansion_item_count>>();
             m_subpools[m_subpool_count] = m_expansion_subpools[m_expansion_subpool_count].get();
 
             auto const new_pool = m_subpools[m_subpool_count]; // remember this for later
@@ -413,7 +411,7 @@ namespace m
             m_expansion_subpool_count++;
             m_subpool_count++;
 
-            m_pool_size += expansion_size;
+            m_pool_size += expansion_item_count;
 
             m_subpool_span = std::span(m_subpools.data(), m_subpool_count);
 
@@ -433,18 +431,38 @@ namespace m
             return std::nullopt;
         }
 
-        std::mutex                                     m_mutex;
-        std::condition_variable                        m_cv;
-        std::size_t                                    m_waiter_count{};
-        std::size_t                                    m_pool_size{initial_size};
-        std::size_t                                    m_active_allocations{};
-        std::size_t                                    m_subpool_count{};
-        std::size_t                                    m_expansion_subpool_count{};
-        std::span<subpool_base*>                       m_subpool_span;
-        std::array<subpool_base*, expansion_limit + 1> m_subpools;
-        subpool<initial_size>                          m_initial_subpool;
-        std::array<std::unique_ptr<subpool<expansion_size>>, expansion_limit> m_expansion_subpools;
+        using subpool_ptr = std::unique_ptr<subpool<expansion_item_count>>;
 
-        friend struct pool_alloc_deleter;
+        std::mutex                                            m_mutex;
+        std::condition_variable                               m_cv;
+        std::size_t                                           m_waiter_count{};
+        std::size_t                                           m_pool_size{inline_item_count};
+        std::size_t                                           m_active_allocations{};
+        std::size_t                                           m_subpool_count{};
+        std::size_t                                           m_expansion_subpool_count{};
+        std::span<subpool_base*>                              m_subpool_span;
+        std::array<subpool_base*, max_expansion_subpools + 1> m_subpools;
+        std::array<subpool_ptr, max_expansion_subpools>       m_expansion_subpools;
+        subpool<inline_item_count>                            m_initial_subpool;
+
+        friend struct deleter;
     };
+
+    template <typename T,
+              std::size_t NInlineItemCount,
+              std::size_t NMaxExpansionSubpools = 0,
+              std::size_t NExpansionItemCount   = (std::max)((1ull << 20) / sizeof(T), 512ull)>
+        requires(NInlineItemCount != 0)
+    using pool_size = std::integral_constant<
+        std::size_t,
+        sizeof(m::pool<T, NInlineItemCount, NMaxExpansionSubpools, NExpansionItemCount>)>;
+
+    template <typename T,
+              std::size_t NInlineItemCount,
+              std::size_t NMaxExpansionSubpools = 0,
+              std::size_t NExpansionItemCount   = (std::max)((1ull << 20) / sizeof(T), 512ull)>
+        requires(NInlineItemCount != 0)
+    constexpr std::size_t pool_size_v =
+        pool_size<T, NInlineItemCount, NMaxExpansionSubpools, NExpansionItemCount>::value;
+
 } // namespace m

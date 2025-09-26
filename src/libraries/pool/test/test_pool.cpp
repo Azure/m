@@ -148,3 +148,9 @@ TEST(TestPool, PoolExhaustionBlocks)
     // the wait time was
     ASSERT_GT(waitDuration.count(), static_cast<double>(sleepTime.count()) * 0.8);
 }
+
+TEST(TestPool, PoolCount)
+{
+    auto const x = m::pool_size_v<int, 1>;
+    ASSERT_GT(x, 0);
+}

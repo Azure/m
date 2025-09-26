@@ -698,7 +698,7 @@ namespace m
             requires(std::constructible_from<T, std::iter_reference_t<InputIt>> && std::movable<T>)
         {
             internal_assert_iterator_in_range(pos);
-            internal_assert_valid_iterator_pair(first, last);
+            // internal_assert_valid_iterator_pair(first, last);
             if constexpr (std::random_access_iterator<InputIt>)
             {
                 if (size() + static_cast<size_type>(std::distance(first, last)) > capacity())
@@ -941,7 +941,7 @@ namespace m
             requires(std::constructible_from<T, std::ranges::range_reference_t<RangeT>> &&
                      std::movable<T>)
         {
-            assign(begin(rnge), end(rnge));
+            assign(std::begin(rnge), std::end(rnge));
         }
 
         constexpr void

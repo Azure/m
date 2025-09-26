@@ -14,13 +14,11 @@
 #undef M_HAS_MSVC
 #undef M_HAS_CLANG
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 
 #define M_HAS_MSVC 1
 
-#else
-
-#ifdef __clang__
+#elif defined(__clang__)
 
 #define M_HAS_CLANG 1
 
@@ -28,7 +26,6 @@
 
 #error Unsupported compiler
 
-#endif
 #endif
 
 #if M_HAS_MSVC

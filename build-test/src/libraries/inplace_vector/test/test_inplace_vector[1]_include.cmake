@@ -1,5 +1,0 @@
-if(EXISTS "/home/runner/work/m/m/build-test/src/libraries/inplace_vector/test/test_inplace_vector[1]_tests.cmake")
-  include("/home/runner/work/m/m/build-test/src/libraries/inplace_vector/test/test_inplace_vector[1]_tests.cmake")
-else()
-  add_test(test_inplace_vector_NOT_BUILT test_inplace_vector_NOT_BUILT)
-endif()

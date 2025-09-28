@@ -1,5 +1,0 @@
-if(EXISTS "/home/runner/work/m/m/build-test/src/libraries/csv/test/test_csv[1]_tests.cmake")
-  include("/home/runner/work/m/m/build-test/src/libraries/csv/test/test_csv[1]_tests.cmake")
-else()
-  add_test(test_csv_NOT_BUILT test_csv_NOT_BUILT)
-endif()

@@ -1,5 +1,0 @@
-if(EXISTS "/home/runner/work/m/m/build-test/src/libraries/cast/test/test_cast[1]_tests.cmake")
-  include("/home/runner/work/m/m/build-test/src/libraries/cast/test/test_cast[1]_tests.cmake")
-else()
-  add_test(test_cast_NOT_BUILT test_cast_NOT_BUILT)
-endif()

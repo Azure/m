@@ -26,8 +26,15 @@
 
 #else
 
+#ifdef __GNUC__
+
+#define M_HAS_GCC 1
+
+#else
+
 #error Unsupported compiler
 
+#endif
 #endif
 #endif
 
@@ -52,6 +59,18 @@
 #endif
 
 #elif M_HAS_CLANG
+
+#define M_NOINLINE __attribute__((noinline))
+
+#if __cplusplus >= 202302L
+#define M_HAS_CXX23 1
+#endif
+
+#if __cplusplus >= 202002L
+#define M_HAS_CXX20 1
+#endif
+
+#elif M_HAS_GCC
 
 #define M_NOINLINE __attribute__((noinline))
 

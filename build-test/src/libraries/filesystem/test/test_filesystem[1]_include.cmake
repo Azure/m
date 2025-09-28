@@ -1,0 +1,5 @@
+if(EXISTS "/home/runner/work/m/m/build-test/src/libraries/filesystem/test/test_filesystem[1]_tests.cmake")
+  include("/home/runner/work/m/m/build-test/src/libraries/filesystem/test/test_filesystem[1]_tests.cmake")
+else()
+  add_test(test_filesystem_NOT_BUILT test_filesystem_NOT_BUILT)
+endif()

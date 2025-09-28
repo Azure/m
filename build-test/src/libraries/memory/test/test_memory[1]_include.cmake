@@ -1,0 +1,5 @@
+if(EXISTS "/home/runner/work/m/m/build-test/src/libraries/memory/test/test_memory[1]_tests.cmake")
+  include("/home/runner/work/m/m/build-test/src/libraries/memory/test/test_memory[1]_tests.cmake")
+else()
+  add_test(test_memory_NOT_BUILT test_memory_NOT_BUILT)
+endif()

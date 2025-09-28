@@ -1,0 +1,5 @@
+if(EXISTS "/home/runner/work/m/m/build-test/src/libraries/pe/test/test_pe[1]_tests.cmake")
+  include("/home/runner/work/m/m/build-test/src/libraries/pe/test/test_pe[1]_tests.cmake")
+else()
+  add_test(test_pe_NOT_BUILT test_pe_NOT_BUILT)
+endif()

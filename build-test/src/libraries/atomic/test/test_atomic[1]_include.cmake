@@ -1,0 +1,5 @@
+if(EXISTS "/home/runner/work/m/m/build-test/src/libraries/atomic/test/test_atomic[1]_tests.cmake")
+  include("/home/runner/work/m/m/build-test/src/libraries/atomic/test/test_atomic[1]_tests.cmake")
+else()
+  add_test(test_atomic_NOT_BUILT test_atomic_NOT_BUILT)
+endif()

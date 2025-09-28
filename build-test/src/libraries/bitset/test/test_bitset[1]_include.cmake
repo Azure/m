@@ -1,0 +1,5 @@
+if(EXISTS "/home/runner/work/m/m/build-test/src/libraries/bitset/test/test_bitset[1]_tests.cmake")
+  include("/home/runner/work/m/m/build-test/src/libraries/bitset/test/test_bitset[1]_tests.cmake")
+else()
+  add_test(test_bitset_NOT_BUILT test_bitset_NOT_BUILT)
+endif()

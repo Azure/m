@@ -141,13 +141,13 @@ namespace m::tracing_impl
         using channel_sink_shim_map_type =
             std::multimap<std::wstring, std::shared_ptr<sink_shim>, std::less<>>;
 
-        std::atomic<m::tracing::topology_version>         m_topology_version;
-        std::mutex                                        m_mutex;
-        channel_map_type                                  m_channels;
-        channel_sink_shim_map_type                        m_channel_sink_shims;
-        std::vector<std::shared_ptr<sink_shim>>           m_sink_shims;
-        m::tracing::message_queue                         m_message_queue;
-        m::tracing::message*                              m_raw_messages{};
+        std::atomic<m::tracing::topology_version> m_topology_version;
+        std::mutex                                m_mutex;
+        channel_map_type                          m_channels;
+        channel_sink_shim_map_type                m_channel_sink_shims;
+        std::vector<std::shared_ptr<sink_shim>>   m_sink_shims;
+        m::tracing::message_queue                 m_message_queue;
+        m::tracing::message*                      m_raw_messages{};
         // std::unique_ptr<m::tracing::message[]>            m_raw_messages;
         bool                                              m_closed_sinks;
         std::shared_ptr<wpooled_string_buffer::pool_type> m_pool;

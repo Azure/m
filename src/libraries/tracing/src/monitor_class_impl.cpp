@@ -28,7 +28,11 @@ namespace m::tracing_impl
         // It's tricky to construct the messages since each takes a pool. We have to allocate
         // the storage, then construct them.
 
-        using message_array_type = alignas(m::tracing::message) std::array<std::byte, raw_message_count * sizeof(m::tracing::message)>;
+        struct message_array_type
+        {
+            alignas(m::tracing::message)
+                std::array<std::byte, raw_message_count * sizeof(m::tracing::message)> m_data;
+        };
 
         auto p = new message_array_type;
 

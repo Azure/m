@@ -71,7 +71,6 @@ namespace m
 
             virtual void
             copy_into(m::not_null<imessage*> msg) = 0;
-
         };
 
     } // namespace tracing

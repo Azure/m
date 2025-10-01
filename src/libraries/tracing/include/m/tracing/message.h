@@ -39,7 +39,8 @@ namespace m
         class message : public imessage
         {
         public:
-            message(std::shared_ptr<wpooled_string_buffer::pool_type> const& pool): m_buffer(pool) {}
+            message(std::shared_ptr<wpooled_string_buffer::pool_type> const& pool): m_buffer(pool)
+            {}
             ~message()              = default;
             message(message const&) = delete;
             message(message&&)      = delete;

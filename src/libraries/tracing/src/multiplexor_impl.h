@@ -72,7 +72,7 @@ namespace m::tracing_impl
         allocate_message(m::tracing::event_kind kind) override;
 
         void
-        deallocate_message(m::not_null<m::tracing::message*> msg) noexcept override;
+        deallocate_message(m::not_null<m::tracing::imessage*> msg) noexcept override;
 
     private:
         void

@@ -11,6 +11,7 @@
 #include <functional>
 #include <initializer_list>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -20,22 +21,21 @@
 #include <utility>
 #include <vector>
 
-#include <m/tracing/envelope.h>
-#include <m/tracing/multiplexor.h>
-#include <m/tracing/sink.h>
-#include <m/tracing/source.h>
-
-#include <m/tracing/channel.h>
-
+#include <m/pool/pool.h>
+#include <m/string_buffer/string_buffer.h>
 #include <m/strings/literal_string_view.h>
+#include <m/tracing/channel.h>
 #include <m/tracing/close_flush_option.h>
+#include <m/tracing/envelope.h>
 #include <m/tracing/event_kind.h>
 #include <m/tracing/may_forward_message_option.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/monitor_class.h>
+#include <m/tracing/multiplexor.h>
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink.h>
 #include <m/tracing/sink_registration.h>
+#include <m/tracing/source.h>
 #include <m/tracing/topology_version.h>
 #include <m/utility/locked.h>
 
@@ -90,7 +90,7 @@ namespace m::tracing_impl
         allocate_message(m::tracing::event_kind kind) override;
 
         void
-        deallocate_message(m::not_null<tracing::message*> message) noexcept override;
+        deallocate_message(m::not_null<tracing::imessage*> message) noexcept override;
 
         m::tracing::envelope
         duplicate_message(m::locked_t, m::tracing::envelope const& item);
@@ -141,14 +141,16 @@ namespace m::tracing_impl
         using channel_sink_shim_map_type =
             std::multimap<std::wstring, std::shared_ptr<sink_shim>, std::less<>>;
 
-        std::atomic<m::tracing::topology_version> m_topology_version;
-        std::mutex                                m_mutex;
-        channel_map_type                          m_channels;
-        channel_sink_shim_map_type                m_channel_sink_shims;
-        std::vector<std::shared_ptr<sink_shim>>   m_sink_shims;
-        m::tracing::message_queue                 m_message_queue;
-        std::unique_ptr<m::tracing::message[]>    m_raw_messages;
-        bool                                      m_closed_sinks;
+        std::atomic<m::tracing::topology_version>         m_topology_version;
+        std::mutex                                        m_mutex;
+        channel_map_type                                  m_channels;
+        channel_sink_shim_map_type                        m_channel_sink_shims;
+        std::vector<std::shared_ptr<sink_shim>>           m_sink_shims;
+        m::tracing::message_queue                         m_message_queue;
+        m::tracing::message*                              m_raw_messages{};
+        // std::unique_ptr<m::tracing::message[]>            m_raw_messages;
+        bool                                              m_closed_sinks;
+        std::shared_ptr<wpooled_string_buffer::pool_type> m_pool;
 
         friend class multiplexor;
     };

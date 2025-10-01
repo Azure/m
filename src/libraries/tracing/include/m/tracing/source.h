@@ -24,7 +24,6 @@
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/channel.h>
 #include <m/tracing/event_kind.h>
-#include <m/tracing/message.h>
 #include <m/tracing/message_allocator.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/multiplexor.h>
@@ -97,8 +96,14 @@ namespace m
                 if (!m_closed && do_test_kind(kind))
                 {
                     message_allocator alloc(m_multiplexor.get(), kind);
-                    alloc.env().message()->vformat(std::forward<FormatStringT>(fmt), std::forward<FormatArgsT>(format_args));
-                    alloc.env().message()->m_event_context = event_context::current();
+
+                    auto imsg = alloc.env().message();
+                    auto it   = std::back_inserter(*imsg);
+
+                    imsg->clear();
+                    std::vformat_to(it, fmt.get(), std::forward<FormatArgsT>(format_args));
+                    imsg->event_context(event_context::current());
+
                     alloc.send_message(m_multiplexor.get());
                 }
             }

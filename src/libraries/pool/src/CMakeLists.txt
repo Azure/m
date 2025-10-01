@@ -11,4 +11,5 @@ target_include_directories(m_pool PUBLIC
 target_link_libraries(m_pool PUBLIC
     m_bitset
     m_error_handling
+    m_puddle
 )

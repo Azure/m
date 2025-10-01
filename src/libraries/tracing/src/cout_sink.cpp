@@ -43,7 +43,7 @@ namespace m::tracing
     }
 
     void
-    cout_sink::process_message(message* msg)
+    cout_sink::process_message(imessage* msg)
     {
         std::array<wchar_t, 16384> buffer;
 
@@ -53,9 +53,9 @@ namespace m::tracing
             auto itend = std::format_to(it,
                                         L"[k{} p({}) t({}) @ {}Z] {}\n",
                                         msg->kind(),
-                                        msg->m_event_context.os_process_id(),
-                                        msg->m_event_context.os_thread_id(),
-                                        msg->m_event_context.time_point(),
+                                        msg->event_context()->os_process_id(),
+                                        msg->event_context()->os_thread_id(),
+                                        msg->event_context()->time_point(),
                                         msg->view());
 
             std::wcout << std::wstring_view(&*it, &*itend);

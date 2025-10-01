@@ -10,16 +10,16 @@
 
 namespace m::tracing
 {
-    envelope::envelope(m::not_null<tracing::message_source*> source, tracing::message* msg):
-        m_message_source(source), m_message(msg)
+    envelope::envelope(m::not_null<tracing::message_source*> source, tracing::imessage* msg):
+        m_message_source(source), m_imessage(msg)
     {}
 
     envelope::envelope(envelope&& other) noexcept:
-        m_message_source{other.m_message_source}, m_message{}
+        m_message_source{other.m_message_source}, m_imessage{}
     {
         using std::swap;
 
-        swap(m_message, other.m_message);
+        swap(m_imessage, other.m_imessage);
     }
 
     void
@@ -27,7 +27,7 @@ namespace m::tracing
     {
         using std::swap;
 
-        swap(m_message, other.m_message);
+        swap(m_imessage, other.m_imessage);
         swap(m_message_source, other.m_message_source);
     }
 
@@ -36,20 +36,20 @@ namespace m::tracing
     {
         using std::swap;
 
-        swap(m_message, other.m_message);
+        swap(m_imessage, other.m_imessage);
         swap(m_message_source, other.m_message_source);
     }
 
-    tracing::message*
+    tracing::imessage*
     envelope::message() const
     {
-        return m_message;
+        return m_imessage;
     }
 
-    tracing::message*
-    envelope::message(tracing::message* msg)
+    tracing::imessage*
+    envelope::message(tracing::imessage* msg)
     {
-        return std::exchange(m_message, msg);
+        return std::exchange(m_imessage, msg);
     }
 
     m::not_null<tracing::message_source*>
@@ -58,5 +58,5 @@ namespace m::tracing
         return m_message_source;
     }
 
-    envelope::~envelope() { m_message = nullptr; }
+    envelope::~envelope() { m_imessage = nullptr; }
 } // namespace m::tracing

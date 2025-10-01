@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <mutex>
 
+#include <m/tracing/imessage.h>
 #include <m/tracing/message.h>
 #include <m/tracing/message_queue.h>
 #include <m/utility/compiler.h>
@@ -98,7 +99,7 @@ namespace m::tracing
     }
 
     void
-    message_queue::enqueue(m::not_null<message*> msg) noexcept
+    message_queue::enqueue(m::not_null<imessage*> msg) noexcept
     {
         auto l = std::unique_lock(m_mutex);
         m_queue.push(envelope(this, msg));
@@ -123,7 +124,7 @@ namespace m::tracing
     }
 
     void
-    message_queue::deallocate_message(m::not_null<message*> msg) noexcept
+    message_queue::deallocate_message(m::not_null<imessage*> msg) noexcept
     {
         enqueue(msg);
     }

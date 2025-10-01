@@ -89,7 +89,7 @@ namespace m
             allocate_message(event_kind kind) override = 0;
 
             virtual void
-            deallocate_message(m::not_null<tracing::message*> message) noexcept override = 0;
+            deallocate_message(m::not_null<tracing::imessage*> message) noexcept override = 0;
         };
 
         /// <summary>

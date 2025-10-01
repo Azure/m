@@ -87,7 +87,7 @@ namespace m
             wait() noexcept;
 
             void
-            enqueue(m::not_null<message*> msg) noexcept;
+            enqueue(m::not_null<imessage*> msg) noexcept;
 
             void
             enqueue(envelope const& e) noexcept;
@@ -97,7 +97,7 @@ namespace m
             allocate_message(event_kind kind) override;
 
             void
-            deallocate_message(m::not_null<message*> msg) noexcept override;
+            deallocate_message(m::not_null<imessage*> msg) noexcept override;
 
             void
             wait_for_nonempty(std::unique_lock<std::mutex>& lock) noexcept;

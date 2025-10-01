@@ -34,7 +34,7 @@ namespace m::tracing
         return m_envelope;
     }
 
-    m::not_null<tracing::message*>
+    m::not_null<tracing::imessage*>
     message_allocator::message()
     {
         return m_envelope.message();

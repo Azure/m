@@ -28,10 +28,10 @@ namespace m
               std::size_t NInlineItemsInPool,
               std::size_t NMaxExpansionSubpools,
               std::size_t NExpansionItemCount>
-    using basic_string_buffer_pool_type = m::pool<m::inplace_vector<CharT, NValuesInEachPoolItem>,
-                                                  NInlineItemsInPool,
-                                                  NMaxExpansionSubpools,
-                                                  NExpansionItemCount>;
+    using basic_string_buffer_pool_type = pool<m::inplace_vector<CharT, NValuesInEachPoolItem>,
+                                               NInlineItemsInPool,
+                                               NMaxExpansionSubpools,
+                                               NExpansionItemCount>;
 
     namespace string_buffer_impl
     {
@@ -401,8 +401,7 @@ namespace m
                                         NExpansionItemCount>::
         basic_string_buffer_pooled_overflow(std::shared_ptr<pool_type> const& pt):
         m_overflow_provider(pt)
-    {
-    }
+    {}
 
     template <typename CharT,
               std::size_t NInlineValueCount,

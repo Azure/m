@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <m/debugging/dbg_format.h>
+#include <m/tracing/message.h>
 #include <m/tracing/monitor_class.h>
 #include <m/tracing/multiplexor.h>
 #include <m/tracing/tracing.h>
@@ -19,9 +20,24 @@ namespace m::tracing_impl
     //
     monitor::monitor(): m_closed_sinks{false}
     {
+        m_pool = std::make_shared<wpooled_string_buffer::pool_type>();
+
         m::dbg_format("Constructing monitor at {}", reinterpret_cast<uintptr_t>(this));
         constexpr std::size_t raw_message_count = 64;
-        m_raw_messages = std::make_unique<m::tracing::message[]>(raw_message_count);
+
+        // It's tricky to construct the messages since each takes a pool. We have to allocate
+        // the storage, then construct them.
+
+        using message_array_type = /* alignas(m::tracing::message) */ std::array<std::byte, raw_message_count * sizeof(m::tracing::message)>;
+
+        auto p = new message_array_type;
+
+        m_raw_messages = reinterpret_cast<m::tracing::message*>(p);
+
+        for (std::size_t i = 0; i < raw_message_count; i++)
+        {
+            ::new (&m_raw_messages[i]) m::tracing::message(m_pool);
+        }
 
         for (std::size_t i = 0; i < raw_message_count; i++)
         {
@@ -99,7 +115,7 @@ namespace m::tracing_impl
     }
 
     void
-    monitor::deallocate_message(m::not_null<m::tracing::message*> ptr) noexcept
+    monitor::deallocate_message(m::not_null<m::tracing::imessage*> ptr) noexcept
     {
         auto l = std::unique_lock(m_mutex);
         m_message_queue.enqueue(ptr);
@@ -110,7 +126,8 @@ namespace m::tracing_impl
     {
         auto item_copy = m_message_queue.dequeue();
 
-        *item_copy.message() = *item_in.message();
+        item_in.message()->copy_into(item_copy.message());
+
         return item_copy;
     }
 

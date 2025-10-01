@@ -62,7 +62,7 @@ namespace m
             static inline std::atomic<std::shared_ptr<cout_sink>> ms_cout_sink;
 
             void
-            process_message(message* msg);
+            process_message(imessage* msg);
 
             void
             sink_thread();

@@ -29,6 +29,8 @@ namespace m
 {
     namespace tracing
     {
+        class imessage;
+
         class message_allocator
         {
         public:
@@ -39,7 +41,7 @@ namespace m
             envelope&
             env();
 
-            m::not_null<tracing::message*>
+            m::not_null<tracing::imessage*>
             message();
 
             /// <summary>

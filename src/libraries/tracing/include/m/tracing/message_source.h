@@ -21,6 +21,7 @@
 
 #include <m/tracing/envelope.h>
 #include <m/tracing/event_kind.h>
+#include <m/tracing/imessage.h>
 #include <m/tracing/message_processor.h>
 #include <m/utility/pointers.h>
 
@@ -40,7 +41,7 @@ namespace m
             allocate_message(event_kind kind) = 0;
 
             virtual void
-            deallocate_message(m::not_null<tracing::message*> msg) noexcept = 0;
+            deallocate_message(m::not_null<tracing::imessage*> msg) noexcept = 0;
 
         protected:
             message_source()          = default;

@@ -28,7 +28,9 @@ target_link_libraries(m_tracing PUBLIC
     m_debugging
     m_error_handling
     m_math
+    m_pool
     m_print
+    m_string_buffer
     m_strings
     m_utf
 )

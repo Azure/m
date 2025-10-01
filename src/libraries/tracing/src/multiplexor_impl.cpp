@@ -237,7 +237,7 @@ namespace m::tracing_impl
     }
 
     void
-    multiplexor::deallocate_message(m::not_null<m::tracing::message*> msg) noexcept
+    multiplexor::deallocate_message(m::not_null<m::tracing::imessage*> msg) noexcept
     {
         m_monitor->deallocate_message(msg);
     }

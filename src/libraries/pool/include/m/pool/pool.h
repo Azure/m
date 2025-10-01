@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <m/bitset/bitset.h>
+#include <m/puddle/puddle.h>
 #include <m/utility/incrementer.h>
 #include <m/utility/locked.h>
 #include <m/utility/pointers.h>
@@ -51,9 +52,15 @@ namespace m
     /// a new buffer 2x as big, repeat), or count the size first which would
     /// possibly require rewriting consumers of the logging interfaces
     /// or other untenable solutions, instead we will enable an output
-    /// iterator that will grab subpools from a pool as needed, up to some
+    /// iterator that will grab puddles from a pool as needed, up to some
     /// limit. If the pool becomes empty, it will wait for the queue to
     /// drain and the pool to refill.
+    ///
+    /// Since the array/bitmap discipline has moved out to the `puddle` object,
+    /// the `pool` object only maintains the synchronization, and the
+    /// knowledge of the initial puddle of instances vs. the expansion
+    /// puddles.
+    ///
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <typeparam name="NInlineItemCount"></typeparam>
@@ -71,18 +78,21 @@ namespace m
     {
         using this_type = pool<T, NInlineItemCount, NMaxExpansionSubpools, NExpansionItemCount>;
 
-        static inline constexpr std::size_t inline_item_count      = NInlineItemCount;
-        static inline constexpr std::size_t max_expansion_subpools = NMaxExpansionSubpools;
-        static inline constexpr std::size_t expansion_item_count   = NExpansionItemCount;
-
-        struct subpool_base;
-
     public:
+        using value_type = T;
+
+        static inline constexpr std::size_t inline_item_count     = NInlineItemCount;
+        static inline constexpr std::size_t max_expansion_puddles = NMaxExpansionSubpools;
+        static inline constexpr std::size_t expansion_item_count  = NExpansionItemCount;
+
+        using puddle_type = puddle<value_type, inline_item_count>;
+        using slot_type   = typename puddle_type::count_type;
+
         pool()
         {
-            m_subpools[0]   = &m_initial_subpool;
-            m_subpool_count = 1;
-            m_subpool_span  = std::span(m_subpools.data(), m_subpool_count);
+            m_puddles[0]   = &m_initial_puddle;
+            m_puddle_count = 1;
+            m_puddle_span  = std::span(m_puddles.data(), m_puddle_count);
         }
 
         pool(pool const& other) = delete;
@@ -109,8 +119,10 @@ namespace m
         {
             deleter() = default;
 
-            deleter(std::shared_ptr<pool> const& sp, subpool_base* ptr, std::size_t slot):
-                m_sp(sp), m_subpool_base(ptr), m_slot(slot)
+            deleter(std::shared_ptr<pool> const& sp,
+                    puddle_type*                 unique_puddle_ptr,
+                    slot_type                    slot):
+                m_sp(sp), m_puddle(unique_puddle_ptr), m_slot(slot)
             {}
 
             deleter(deleter&& other)
@@ -118,7 +130,7 @@ namespace m
                 using std::swap;
 
                 swap(m_sp, other.m_sp);
-                swap(m_subpool_base, other.m_subpool_base);
+                swap(m_puddle, other.m_puddle);
                 swap(m_slot, other.m_slot);
             }
             ~deleter() = default;
@@ -129,7 +141,7 @@ namespace m
                 using std::swap;
 
                 swap(m_sp, other.m_sp);
-                swap(m_subpool_base, other.m_subpool_base);
+                swap(m_puddle, other.m_puddle);
                 swap(m_slot, other.m_slot);
 
                 return *this;
@@ -138,27 +150,31 @@ namespace m
             void
             operator()(T* ptr)
             {
-                m_sp->deallocate(ptr, m_subpool_base, m_slot);
+                m_sp->deallocate(ptr, m_puddle, m_slot);
             }
 
         private:
             std::shared_ptr<this_type> m_sp;
-            subpool_base*              m_subpool_base{};
-            std::size_t                m_slot{};
+            puddle_type*               m_puddle{};
+            slot_type                  m_slot{};
         };
 
         using unique_ptr_type = std::unique_ptr<T, deleter>;
 
         struct internal_allocation_result
         {
-            T*            m_ptr;
-            subpool_base* m_subpool_base;
-            std::size_t   m_slot;
+            T*           m_ptr;
+            puddle_type* m_puddle;
+            slot_type    m_slot;
+
+            internal_allocation_result(puddle_type* ptr, puddle_type::allocation_result const& ar):
+                m_ptr(ar.m_ptr), m_puddle(ptr), m_slot(ar.m_slot)
+            {}
 
             unique_ptr_type
             to_unique_ptr(std::shared_ptr<pool> const& sp)
             {
-                return unique_ptr_type(m_ptr, deleter(sp, m_subpool_base, m_slot));
+                return unique_ptr_type(m_ptr, deleter(sp, m_puddle, m_slot));
             }
         };
 
@@ -233,114 +249,16 @@ namespace m
         }
 
     private:
-        struct subpool_base
-        {
-            virtual ~subpool_base() = default;
-
-            virtual std::optional<internal_allocation_result> try_allocate(m::locked_t) = 0;
-
-            virtual void
-            deallocate(m::locked_t, std::size_t slot) = 0;
-        };
-
-        template <std::size_t N, typename enable = void>
-        struct subpool;
-
-        template <std::size_t N>
-        struct subpool<N, std::enable_if_t<N != 0>> : public subpool_base
-        {
-            using base_type = subpool_base;
-
-            using this_type         = subpool<N>;
-            using expansion_subpool = subpool<pool::expansion_item_count>;
-
-            subpool()               = default;
-            subpool(subpool const&) = delete;
-            subpool(subpool&&)      = delete;
-            ~subpool()              = default;
-
-            subpool&
-            operator=(subpool const&) = delete;
-
-            subpool&
-            operator=(subpool&&) = delete;
-
-            std::optional<internal_allocation_result>
-            try_allocate(m::locked_t) override
-            {
-                if (m_allocated == m_in_use_bitset.size())
-                    return std::nullopt;
-
-                M_INTERNAL_ERROR_CHECK(m_allocated < m_in_use_bitset.size());
-
-                bitset_bit_allocator<N> ba(m_in_use_bitset);
-                // auto r1 = m_in_use_bitset.find_first_clear_and_set();
-
-                if (!ba.has_value())
-                    return std::nullopt;
-
-                auto const index        = ba.bit();
-                auto const ptr          = reinterpret_cast<T*>(&m_data[sizeof(T) * index]);
-                auto const return_value = internal_allocation_result{
-                    .m_ptr = ::new (ptr) T, .m_subpool_base = this, .m_slot = index};
-                m_allocated++;
-                ba.release();
-
-                return return_value;
-            }
-
-            void
-            deallocate(m::locked_t, std::size_t slot) override
-            {
-                M_INTERNAL_ERROR_CHECK(m_allocated > 0);
-                m_in_use_bitset.clear(slot);
-                m_allocated--;
-            }
-
-            std::size_t  m_allocated{};
-            m::bitset<N> m_in_use_bitset;
-            alignas(T) std::array<std::byte, sizeof(T) * N> m_data;
-        };
-
-        template <std::size_t N>
-        struct subpool<N, std::enable_if_t<N == 0>> : public subpool_base
-        {
-            using this_type = subpool<N>;
-
-            subpool()               = default;
-            subpool(subpool const&) = delete;
-            subpool(subpool&&)      = delete;
-            ~subpool()              = default;
-
-            subpool&
-            operator=(subpool const&) = delete;
-
-            subpool&
-            operator=(subpool&&) = delete;
-
-            std::optional<internal_allocation_result>
-            try_allocate(m::locked_t) override
-            {
-                // zero size, no need to do anything
-                return std::nullopt;
-            }
-
-            void
-            deallocate(m::locked_t, std::size_t) override
-            {
-                M_NOT_IMPLEMENTED(
-                    "No allocations from this pool; should be no deallocations to it");
-            }
-        };
-
         void
-        deallocate(T* ptr, subpool_base* subpool_base_ptr, std::size_t slot)
+        deallocate(T* ptr, puddle_type* unique_puddle_ptr, slot_type slot)
         {
             std::destroy_n(ptr, 1);
 
             {
                 auto l = std::unique_lock(m_mutex);
-                subpool_base_ptr->deallocate(m::locked, slot);
+                // Use `release` on the puddle since we already destroyed
+                // the object outside of holding the mutex
+                unique_puddle_ptr->release(slot);
                 m_active_allocations--;
             }
 
@@ -381,7 +299,7 @@ namespace m
                 if (auto oiar = try_internal_allocate(m::locked); oiar.has_value())
                     return oiar.value().to_unique_ptr(this->shared_from_this());
 
-                if (auto oiar = try_allocate_from_new_subpool(m::locked); oiar.has_value())
+                if (auto oiar = try_allocate_from_new_puddle(m::locked); oiar.has_value())
                     return oiar.value().to_unique_ptr(this->shared_from_this());
 
                 m::incrementer waiter_increment(m_waiter_count);
@@ -393,57 +311,55 @@ namespace m
         }
 
         std::optional<internal_allocation_result>
-        try_allocate_from_new_subpool(m::locked_t)
+        try_allocate_from_new_puddle(m::locked_t)
         {
-            if (m_expansion_subpool_count == max_expansion_subpools)
+            if (m_expansion_puddle_count == max_expansion_puddles)
                 return std::nullopt;
 
-            M_INTERNAL_ERROR_CHECK(m_expansion_subpools[m_expansion_subpool_count].get() ==
-                                   nullptr);
-            M_INTERNAL_ERROR_CHECK(m_subpool_count == m_expansion_subpool_count + 1);
+            M_INTERNAL_ERROR_CHECK(m_expansion_puddles[m_expansion_puddle_count].get() == nullptr);
+            M_INTERNAL_ERROR_CHECK(m_puddle_count == m_expansion_puddle_count + 1);
 
-            m_expansion_subpools[m_expansion_subpool_count] =
-                std::make_unique<subpool<expansion_item_count>>();
-            m_subpools[m_subpool_count] = m_expansion_subpools[m_expansion_subpool_count].get();
+            m_expansion_puddles[m_expansion_puddle_count] = std::make_unique<puddle_type>();
+            m_puddles[m_puddle_count] = m_expansion_puddles[m_expansion_puddle_count].get();
 
-            auto const new_pool = m_subpools[m_subpool_count]; // remember this for later
+            auto const new_puddle = m_puddles[m_puddle_count]; // remember this for later
 
-            m_expansion_subpool_count++;
-            m_subpool_count++;
+            m_expansion_puddle_count++;
+            m_puddle_count++;
 
             m_pool_size += expansion_item_count;
 
-            m_subpool_span = std::span(m_subpools.data(), m_subpool_count);
+            m_puddle_span = std::span(m_puddles.data(), m_puddle_count);
 
-            auto oiar = new_pool->try_allocate(m::locked);
+            auto ar = new_puddle->try_allocate();
             // If a new pool can't allocate a slot, we have a bug.
-            M_INTERNAL_ERROR_CHECK(oiar.has_value());
-            return oiar;
+            M_INTERNAL_ERROR_CHECK(ar.has_value());
+            return internal_allocation_result(new_puddle, ar.value());
         }
 
         std::optional<internal_allocation_result>
         try_internal_allocate(m::locked_t)
         {
-            for (auto const& e: m_subpool_span)
-                if (auto result = e->try_allocate(m::locked); result.has_value())
-                    return result;
+            for (auto const& e: m_puddle_span)
+                if (auto result = e->try_allocate(); result.has_value())
+                    return internal_allocation_result(e, result.value());
 
             return std::nullopt;
         }
 
-        using subpool_ptr = std::unique_ptr<subpool<expansion_item_count>>;
+        using unique_puddle_ptr = std::unique_ptr<puddle_type>;
 
-        std::mutex                                            m_mutex;
-        std::condition_variable                               m_cv;
-        std::size_t                                           m_waiter_count{};
-        std::size_t                                           m_pool_size{inline_item_count};
-        std::size_t                                           m_active_allocations{};
-        std::size_t                                           m_subpool_count{};
-        std::size_t                                           m_expansion_subpool_count{};
-        std::span<subpool_base*>                              m_subpool_span;
-        std::array<subpool_base*, max_expansion_subpools + 1> m_subpools;
-        std::array<subpool_ptr, max_expansion_subpools>       m_expansion_subpools;
-        subpool<inline_item_count>                            m_initial_subpool;
+        std::mutex                                           m_mutex;
+        std::condition_variable                              m_cv;
+        std::size_t                                          m_waiter_count{};
+        std::size_t                                          m_pool_size{inline_item_count};
+        std::size_t                                          m_active_allocations{};
+        std::size_t                                          m_puddle_count{};
+        std::size_t                                          m_expansion_puddle_count{};
+        std::span<puddle_type*>                              m_puddle_span;
+        std::array<puddle_type*, max_expansion_puddles + 1>  m_puddles;
+        std::array<unique_puddle_ptr, max_expansion_puddles> m_expansion_puddles;
+        puddle_type                                          m_initial_puddle;
 
         friend struct deleter;
     };

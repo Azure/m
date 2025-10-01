@@ -9,18 +9,24 @@
 namespace m::tracing
 {
     void
-    message::operator=(message const& other)
+    message::copy_into(m::not_null<imessage*> msg)
     {
-        m_event_kind = other.m_event_kind;
-        std::copy_n(other.m_chars.begin(), other.m_length, m_chars.begin());
-        m_length        = other.m_length;
-        m_event_context = other.m_event_context;
+        if (auto othermsg = dynamic_cast<message*>(static_cast<imessage*>(msg)); othermsg != nullptr)
+        {
+            othermsg->m_event_kind = m_event_kind;
+            othermsg->m_buffer.assign(m_buffer);
+            othermsg->m_event_context = m_event_context;
+        }
+        else
+        {
+            M_NOT_IMPLEMENTED("Heterogeneous message types not implemented, how did this happen?");
+        }
     }
 
     std::wstring_view
     message::view()
     {
-        return std::wstring_view(m_chars.data(), m_length);
+        return std::wstring_view(m_buffer.c_str());
     }
 
     event_kind
@@ -33,6 +39,30 @@ namespace m::tracing
     message::kind(event_kind kind)
     {
         m_event_kind = kind;
+    }
+
+    void
+    message::clear()
+    {
+        m_buffer.clear();
+    }
+
+    void
+    message::push_back(wchar_t const& wch)
+    {
+        m_buffer.push_back(wch);
+    }
+
+    void
+    message::event_context(tracing::event_context const& ec)
+    {
+        m_event_context = ec;
+    }
+
+    tracing::event_context const*
+    message::event_context() const
+    {
+        return &m_event_context;
     }
 
 } // namespace m::tracing

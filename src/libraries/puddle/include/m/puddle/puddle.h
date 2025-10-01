@@ -106,9 +106,10 @@ namespace m
             if (!ba.has_value())
                 return std::nullopt;
 
-            auto const slot         = ba.bit();
-            auto const ptr          = reinterpret_cast<T*>(&m_data[sizeof(T) * slot]);
-            auto       return_value = allocation_result{.m_ptr = ::new (ptr) T, .m_slot = static_cast<count_type>(slot)};
+            auto const slot = ba.bit();
+            auto const ptr  = reinterpret_cast<T*>(&m_data[sizeof(T) * slot]);
+            auto       return_value =
+                allocation_result{.m_ptr = ::new (ptr) T, .m_slot = static_cast<count_type>(slot)};
             m_allocated++;
             ba.release();
 
@@ -189,7 +190,6 @@ namespace m
         deallocate(std::size_t)
         {
             M_NOT_IMPLEMENTED("No allocations were possible from a puddle of size zero!");
-            //
         }
     };
 } // namespace m

@@ -131,7 +131,7 @@ namespace m::tracing_impl
         // a point where we have a large number of sinks, maybe someone else will
         // have a hand at copying that code here. -@micgrier
 
-        for (auto&& s : sinks)
+        for (auto&& s: sinks)
         {
             auto const disp =
                 s->on_message(m::tracing::may_forward_message_option::may_not_forward_message, env);

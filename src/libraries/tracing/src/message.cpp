@@ -11,7 +11,8 @@ namespace m::tracing
     void
     message::copy_into(m::not_null<imessage*> msg)
     {
-        if (auto othermsg = dynamic_cast<message*>(static_cast<imessage*>(msg)); othermsg != nullptr)
+        if (auto othermsg = dynamic_cast<message*>(static_cast<imessage*>(msg));
+            othermsg != nullptr)
         {
             othermsg->m_event_kind = m_event_kind;
             othermsg->m_buffer.assign(m_buffer);

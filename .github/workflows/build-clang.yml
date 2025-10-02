@@ -1,0 +1,38 @@
+name: Build Clang Binary
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4   
+      - name: Install build dependencies
+        run: sudo apt install -y ninja-build
+
+      - name: Clone LLVM
+        uses: actions/checkout@v3
+        with:
+          repository: llvm/llvm-project
+          path: llvm
+      - name: Setting Clang
+        working-directory: llvm
+        run: |
+          cmake -DLLVM_ENABLE_PROJECTS="clang" \
+          -DCMAKE_BUILD_TYPE="Release" \
+          -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/clang" \
+          -DLLVM_PARALLEL_LINK_JOBS=2 \
+          -S llvm -B build -G Ninja
+      - name: Building Clang
+        working-directory: llvm
+        run: cmake --build build
+      - name: Install Clang
+        working-directory: llvm/build
+        run: ninja install
+      - name: Upload Clang binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: clang-binary
+          path: ${{ github.workspace }}/clang
+

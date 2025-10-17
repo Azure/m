@@ -36,21 +36,21 @@ namespace m
 {
     namespace bitset_impl
     {
+        //
+        // Efficiency is a primary concern here; want to use mmx/sse types over time
+        // so cache lines are a more interesting granularity than even plain integral
+        // types.
+        //
+        // The greatest utility there will come when there is correspondence with
+        // the lock-free atomic allocation capabilities which are clearly possible,
+        // all platforms support such operations but for now, just something is needed
+        // since there is no type provided by the standard library.
+        //
+        using representation_type = uint64_t;
+
         class bitset_base
         {
         public:
-            //
-            // Efficiency is a primary concern here; want to use mmx/sse types over time
-            // so cache lines are a more interesting granularity than even plain integral
-            // types.
-            //
-            // The greatest utility there will come when there is correspondance with
-            // the lock-free atomic allocation capabilities which are clearly possible,
-            // all platforms support such operations but for now, just something is needed
-            // since there is no type provided by the standard library.
-            //
-            using representation_type = uint64_t;
-
             static inline constexpr std::size_t granularity =
                 sizeof(representation_type) * CHAR_BIT;
 
@@ -70,7 +70,7 @@ namespace m
     class bitset : public bitset_impl::bitset_base
     {
         using bitset_base::granularity;
-        using bitset_base::representation_type;
+        using representation_type = bitset_impl::representation_type;
 
         static inline constexpr std::size_t rounded_N =
             (N + granularity - 1) - ((N + granularity - 1) % granularity);
@@ -284,3 +284,211 @@ namespace m
     };
 
 } // namespace m
+
+/// <summary>
+/// Partial specialization for std::atomic<> for m::bitset<N> so that we
+/// can have a lock-free std::atomic<m::bitset<N>> which allows for lock-free
+/// allocation and deallocation of bits.
+/// </summary>
+/// <typeparam name="N"></typeparam>
+template <std::size_t N>
+struct std::atomic<m::bitset<N>>
+{
+    using bitset_base = m::bitset_impl::bitset_base;
+
+    constexpr static inline auto granularity = bitset_base::granularity;
+    using representation_type = m::bitset_impl::representation_type;
+
+    static inline constexpr std::size_t rounded_N =
+        (N + granularity - 1) - ((N + granularity - 1) % granularity);
+    // cache line size can be assumed to be std::hardware_constructive_interference_size
+
+    static_assert(rounded_N % granularity == 0);
+
+    static inline constexpr std::size_t allocation_count = rounded_N / granularity;
+    static inline constexpr std::size_t last_index       = allocation_count - 1;
+    static inline constexpr std::size_t last_index_bits  = N % granularity;
+
+    using val_t = uint64_t;
+    using rep_t = std::atomic<val_t>;
+
+public:
+    // TODO: surely the default constructor can zero the storage??
+    atomic() = default;
+
+    void
+    clear()
+    {
+        for (auto&& e: m_bits)
+        {
+            e.store(0, std::memory_order_release);
+        }
+    }
+
+    constexpr std::size_t
+    size() noexcept
+    {
+        return N;
+    }
+
+    constexpr std::size_t
+    popcount() noexcept
+    {
+        return std::ranges::fold_left(m_bits, std::size_t{}, [](std::size_t acc, rep_t& rep) {
+            return acc + std::popcount(rep.load(std::memory_order_acquire));
+        });
+    }
+
+    template <typename Counter>
+        requires(std::invocable<Counter, val_t> &&
+                 std::is_convertible_v<std::invoke_result_t<Counter, val_t>, std::size_t>)
+    constexpr std::optional<std::size_t>
+    find_first_x_and_invert(Counter const& counter) noexcept
+    {
+        for (std::size_t i = 0; i < m_bits.size(); i++)
+        {
+            rep_t& rep = m_bits[i];
+            auto   val = rep.load(std::memory_order_acquire);
+
+            // Lock free atomics. You pick a bit, you try it, you may lose a
+            // race, you pick another bit, yadda yadda yadda.
+            for (;;)
+            {
+                std::size_t const leading_bits = std::invoke(counter(val));
+
+                // If this is the last index in the array of representation
+                // unsigned integers, we use "last_index_bits" as the maximal
+                // bit count, otherwise the granularity.
+                //
+
+                auto const maxbit = (i == last_index) ? last_index_bits : granularity;
+
+                if (leading_bits >= maxbit)
+                    break;
+
+                // we found a bit! let's see if we can claim it. There is no
+                // need to loop on the compare-exchange here, if we lose the
+                // race, we move on to another bit in the bitset.
+                //
+                // Fortunately we don't have to know whether we want to set
+                // it to one or zero, we just know we want to invert it. The
+                // callable told us which bit was of interest.
+                val_t desired = val ^ (1ull << leading_bits);
+
+                if (rep.compare_exchange_strong(val, desired, std::memory_order_acq_rel))
+                    return (i * granularity) + leading_bits;
+
+                // Otherwise, val is refreshed with the new value in `rep` and we can try
+                // whatever other clear bits there are.
+            }
+        }
+
+        // One /could/ argue that you repeat passes until you don't find any
+        // slots free, since if the bitset is under high contention, it
+        // could be better to keep seeking a free slot than to return not
+        // found, but that's probably better served by adding a richer API
+        // which gives the caller an indication of whether any slots were even
+        // contended upon and let them make that call.
+
+        return std::nullopt;
+    }
+
+    constexpr std::optional<std::size_t>
+    find_first_clear_and_set() noexcept
+    {
+        return find_first_x_and_invert(std::countr_one);
+    }
+
+    constexpr std::optional<std::size_t>
+    find_first_set_and_clear() noexcept
+    {
+        return find_first_x_and_invert(std::countr_zero);
+    }
+
+    constexpr void
+    clear(std::size_t n) noexcept
+    {
+        precondition_validate_index(n);
+
+        auto const storage_index = static_cast<std::size_t>(n / granularity);
+        auto const bit_index     = n % granularity;
+
+        mask_and_set_bits(m_bits[storage_index], static_cast<val_t>(~(1ull << bit_index)), 0);
+    }
+
+    constexpr void
+    set(std::size_t n) noexcept
+    {
+        precondition_validate_index(n);
+
+        auto const storage_index = static_cast<std::size_t>(n / granularity);
+        auto const bit_index = n % granularity;
+
+        mask_and_set_bits(m_bits[storage_index], static_cast<val_t>(~0), (1ull << bit_index));
+    }
+
+    constexpr bool
+    is_set(std::size_t n) noexcept
+    {
+        precondition_validate_index(n);
+
+        auto const storage_index = static_cast<std::size_t>(n / granularity);
+        auto const bit_index     = n % granularity;
+        auto const bit_mask      = (1ull << bit_index);
+
+        rep_t rep = m_bits[storage_index];
+        val_t val = rep.load(std::memory_order_acquire);
+
+        return (val & bit_mask) != 0;
+    }
+
+private:
+    static constexpr void
+    mask_and_set_bits(rep_t& rep, val_t mask, val_t bits) noexcept
+    {
+        val_t val = rep.load(std::memory_order_acquire);
+
+        for (;;)
+        {
+            val_t desired = (val & mask) | bits;
+
+            if (val == desired)
+                return;
+
+            if (rep.compare_exchange_strong(val, desired, std::memory_order_acq_rel))
+                return;
+
+            // If the compare exchange failed, whatever new value stored in `rep` is
+            // stored in `val` and we will go around the loop again.
+        }
+    }
+
+    void
+    precondition_validate_index(std::size_t n) noexcept
+    {
+        if (n >= size())
+        {
+#if M_HAS_MSVC
+#pragma warning(push)
+#pragma warning(disable : 4297)
+#elif M_HAS_CLANG
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wexceptions"
+#else
+#error Unsupported compiler
+#endif
+
+            throw m::runtime_error("Bit index out of range");
+
+#if M_HAS_MSVC
+#pragma warning(pop)
+#elif M_HAS_CLANG
+#pragma clang diagnostic pop
+#else
+#error Unsupported compiler
+#endif
+        }
+    }
+
+    alignas(bitset_base::alignment) std::atomic<uint64_t> m_bits[allocation_count];
+};

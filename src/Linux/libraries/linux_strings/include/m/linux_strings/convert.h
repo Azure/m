@@ -266,7 +266,7 @@ namespace m
 
     template <typename CharT>
         requires(m::character<CharT> && !std::is_same_v<CharT, char>)
-    struct string_conversion_helper<char, CharT>
+    struct string_conversion_helper<std::basic_string_view<CharT>, char>
     {
         using from_char_type = CharT;
         using to_char_type   = char;
@@ -278,7 +278,7 @@ namespace m
         using to_string_type   = std::basic_string<to_char_type>;
 
         static to_string_type
-        xlate_to_string(from_view_type view)
+        xlate_to_string(from_view_type const& view)
         {
             return m::to_string(view);
         }
@@ -286,7 +286,7 @@ namespace m
 
     template <typename CharT>
         requires(m::character<CharT> && !std::is_same_v<CharT, wchar_t>)
-    struct string_conversion_helper<wchar_t, CharT>
+    struct string_conversion_helper<std::basic_string_view<CharT>, wchar_t>
     {
         using from_char_type = CharT;
         using to_char_type   = wchar_t;
@@ -298,13 +298,9 @@ namespace m
         using to_string_type   = std::basic_string<to_char_type>;
 
         static to_string_type
-        xlate_to_string(from_view_type view)
+        xlate_to_string(from_view_type const& view)
         {
             return m::to_wstring(view);
         }
     };
-
-
-
-
 } // namespace m

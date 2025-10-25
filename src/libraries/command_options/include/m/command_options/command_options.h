@@ -20,15 +20,24 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
+#include <m/cast/to.h>
 #include <m/cast/try_cast.h>
+#include <m/error_handling/macros.h>
 #include <m/filesystem/filesystem.h>
+#include <m/sstring/sstring.h>
+#include <m/string_buffer/string_buffer.h>
+#include <m/string_buffer/try_cast_basic_sstring.h>
 #include <m/strings/convert.h>
 #include <m/strings/static_string.h>
 
 namespace m
 {
+    using namespace std::string_literals;
+    using namespace std::string_view_literals;
+
     namespace command_options
     {
         enum class option_match_type
@@ -39,10 +48,27 @@ namespace m
         };
 
         template <typename CharT>
-        static inline constexpr std::array<CharT, 3> negation_prefix{'n', 'o', '-'};
+        static inline constexpr std::array<CharT, 3> negation_prefix_array = {'n', 'o', '-'};
 
         template <typename CharT>
-        static inline constexpr std::array<CharT, 2> dashdash{'-', '-'};
+        static inline constexpr std::basic_string_view<CharT> negation_prefix{
+            negation_prefix_array<CharT>.data(),
+            negation_prefix_array<CharT>.size()};
+
+        template <typename CharT>
+        static inline constexpr std::array<CharT, 2> dashdash_array = {'-', '-'};
+
+        template <typename CharT>
+        static inline constexpr std::basic_string_view<CharT> dashdash{
+            dashdash_array<CharT>.data(),
+            dashdash_array<CharT>.size()};
+
+        template <typename CharT>
+        using value = std::variant<bool, basic_sstring<CharT>, std::filesystem::path>;
+
+        template <typename CharT, typename T>
+        concept is_value_v = std::is_same_v<T, bool> || std::is_same_v<T, basic_sstring<CharT>> ||
+                             std::is_same_v<T, std::filesystem::path>;
 
         template <typename CharT>
         class option;
@@ -51,41 +77,221 @@ namespace m
         class parameter;
 
         template <typename CharT>
+        class path_parameter;
+
+        template <typename CharT>
         class verb;
 
         template <typename CharT>
         class command_verb_set;
 
         template <typename CharT>
+        class parsed_option;
+
+        template <typename CharT>
+        class parsed_parameter;
+
+        template <typename CharT>
+        class parsed_command;
+
+        template <typename CharT>
+        using verb_action = std::function<void(m::not_null<parsed_command<CharT>*>)>;
+
+        template <typename CharT>
         std::optional<std::size_t>
         starts_with_dashdash(std::basic_string_view<CharT, std::char_traits<CharT>> const& str)
         {
-            if (str.size() >= dashdash<CharT>.size())
-            {
-                for (size_t i = 0; i < dashdash<CharT>.size(); i++)
-                {
-                    if (str[i] != dashdash<CharT>[i])
-                        return std::nullopt;
-                }
-
+            if (str.starts_with(dashdash<CharT>))
                 return str.size() - dashdash<CharT>.size();
-            }
 
             return std::nullopt;
         }
 
         template <typename CharT>
+        class parsed_parameter
+        {
+            using char_t             = CharT;
+            using verb_t             = verb<char_t>;
+            using parameter_t        = parameter<char_t>;
+            using parsed_parameter_t = parsed_parameter<char_t>;
+            using parsed_option_t    = parsed_option<char_t>;
+            using parsed_command_t   = parsed_command<char_t>;
+            using value_t            = value<char_t>;
+            using sstring_t          = basic_sstring<char_t>;
+
+        public:
+            parsed_parameter() = delete;
+            parsed_parameter(m::not_null<parameter_t*> parameter, value_t value):
+                m_parameter(parameter), m_value(std::move(value))
+            {}
+            parsed_parameter(parsed_parameter const&) = delete;
+
+            parsed_parameter&
+            operator=(parsed_parameter const&) = delete;
+
+            sstring_t
+            name() const
+            {
+                return m_parameter->name();
+            }
+
+            value_t
+            value() const
+            {
+                return m_value;
+            }
+
+        protected:
+            m::not_null<parameter_t*> m_parameter;
+            value_t                   m_value;
+        };
+
+        template <typename CharT>
+        class parsed_option
+        {
+            using char_t             = CharT;
+            using sstring_t          = basic_sstring<char_t>;
+            using verb_t             = verb<char_t>;
+            using parsed_parameter_t = parsed_parameter<char_t>;
+            using parsed_option_t    = parsed_option<char_t>;
+
+        public:
+            //
+
+        protected:
+            //
+        };
+
+        template <typename CharT>
+        class parsed_command
+        {
+            using char_t             = CharT;
+            using sstring_t          = basic_sstring<char_t>;
+            using verb_t             = verb<char_t>;
+            using option_t           = option<char_t>;
+            using parameter_t        = parameter<char_t>;
+            using parsed_parameter_t = parsed_parameter<char_t>;
+            using parsed_option_t    = parsed_option<char_t>;
+
+        public:
+            parsed_command() = default;
+
+            constexpr verb_t*
+            verb() const noexcept
+            {
+                return m_verb;
+            }
+
+            template <typename T, typename StringishT>
+                requires(is_value_v<char_t, T>)
+            T
+            get_parameter(StringishT const& name) const
+            {
+                auto const pp = get_parsed_parameter(name);
+                return std::get<T>(pp->value());
+            }
+
+            template <typename StringishT>
+            parsed_parameter_t*
+            try_get_parsed_parameter(StringishT const& name) const
+            {
+                auto const it = m_parameter_map.find(name);
+                if (it == m_parameter_map.end())
+                    return nullptr;
+
+                return it->second;
+            }
+
+            template <typename StringishT>
+            m::not_null<parsed_parameter_t*>
+            get_parsed_parameter(StringishT const& name) const
+            {
+                auto const it = m_parameter_map.find(name);
+                if (it == m_parameter_map.end())
+                {
+                    throw m::not_found("Parameter not present in parsed command");
+                }
+
+                return it->second;
+            }
+
+        protected:
+            constexpr void
+            verb(verb_t* v) noexcept
+            {
+                m_verb = v;
+            }
+
+            void
+            add_parsed_parameter(std::unique_ptr<parsed_parameter_t>&& pp)
+            {
+                M_INTERNAL_ERROR_CHECK(pp.get() != nullptr);
+
+                // I'm sure there's a more elegant way to express this but I want to ensure that
+                // the lifetime is transferred correctly and obviously.
+                std::unique_ptr<parsed_parameter_t> localpp;
+                using std::swap;
+                swap(localpp, pp);
+
+                auto const paramcount = m_parameters.size();
+                m_parameters.resize(paramcount + 1);
+                swap(localpp, m_parameters[paramcount]);
+
+                m_parameter_map.emplace(m_parameters[paramcount]->name(),
+                                        m_parameters[paramcount].get());
+
+                M_INTERNAL_ERROR_CHECK(localpp.get() == nullptr);
+            }
+
+            void
+            add_parsed_option(std::unique_ptr<parsed_option_t>&& po)
+            {
+                M_INTERNAL_ERROR_CHECK(po.get() != nullptr);
+
+                // I'm sure there's a more elegant way to express this but I want to ensure that
+                // the lifetime is transferred correctly and obviously.
+                std::unique_ptr<parsed_option_t> localpo;
+                using std::swap;
+                swap(localpo, po);
+
+                auto const optcount = m_options.size();
+                m_options.resize(optcount + 1);
+                swap(localpo, m_options[optcount]);
+
+                m_option_map.emplace(m_options[optcount]->name(), m_options[optcount].get());
+
+                M_INTERNAL_ERROR_CHECK(localpo.get() == nullptr);
+            }
+
+            //
+            // When a command is parsed, the result is a verb, a list of parameter values and a list
+            // of options.
+            //
+            verb_t*                                               m_verb;
+            std::vector<std::unique_ptr<parsed_parameter_t>>      m_parameters;
+            std::vector<std::unique_ptr<parsed_option_t>>         m_options;
+            std::map<sstring_t, m::not_null<parsed_parameter_t*>> m_parameter_map;
+            std::map<sstring_t, m::not_null<parsed_option_t*>>    m_option_map;
+
+            friend verb_t;
+            friend parameter_t;
+            friend option_t;
+        };
+
+        template <typename CharT>
         class option
         {
         public:
-            using char_t        = CharT;
-            using char_traits_t = std::char_traits<char_t>;
-            using string_view_t = std::basic_string_view<char_t, char_traits_t>;
-            using string_t      = std::basic_string<char_t, char_traits_t>;
+            using char_t           = CharT;
+            using sstring_t        = basic_sstring<char_t>;
+            using char_traits_t    = std::char_traits<char_t>;
+            using string_view_t    = std::basic_string_view<char_t, char_traits_t>;
+            using string_t         = std::basic_string<char_t, char_traits_t>;
+            using parsed_command_t = parsed_command<char_t>;
 
             virtual ~option() = default;
 
-            string_t
+            sstring_t
             name() const
             {
                 return m_name;
@@ -105,9 +311,7 @@ namespace m
                 // Assume on a fresh line
                 //
 
-                auto fourspaces = {' ', ' ', ' ', ' '};
-
-                auto twodashes = {'-', '-'};
+                auto fourspaces = "    "sv;
 
                 // We could just always write the "    --" but perhaps we
                 // want to enable single dash aliases in the future so we'll
@@ -124,12 +328,12 @@ namespace m
                 // See if we can unify these later
                 //
 
-                it = std::ranges::copy(twodashes, it).out;
-                col += twodashes.size();
+                it = std::ranges::copy(dashdash<CharT>, it).out;
+                col += dashdash<CharT>.size();
 
                 if (m_negatable)
                 {
-                    auto bracketnobracket = {'[', 'n', 'o', '-', ']'};
+                    auto bracketnobracket = "[no-]"sv;
                     it                    = std::ranges::copy(bracketnobracket, it).out;
                     col += bracketnobracket.size();
                 }
@@ -152,8 +356,7 @@ namespace m
                     ++col;
                 }
 
-                auto TBD = {
-                    'T', 'o', ' ', 'b', 'e', ' ', 'd', 'e', 't', 'e', 'r', 'm', 'i', 'n', 'e', 'd'};
+                auto TBD = "To be determined"sv;
 
                 it = std::ranges::copy(TBD, it).out;
 
@@ -170,7 +373,7 @@ namespace m
             }
 
             bool
-            process_option(int& index, int argc, char_t const* argv[])
+            process_option(parsed_command_t& pc, int& index, int argc, char_t const* argv[])
             {
                 if (index >= argc)
                     throw std::runtime_error("internal error - past end of command line arguments");
@@ -184,7 +387,7 @@ namespace m
 
                 ++index;
 
-                return do_process_option(index, argc, argv);
+                return do_process_option(pc, index, argc, argv);
             }
 
         protected:
@@ -210,9 +413,9 @@ namespace m
                 {
                     auto rest = option.substr(2);
 
-                    if (m_name.compare(rest) == 0)
+                    if (m_name.view().compare(rest) == 0)
                         return option_match_type::positive_match;
-                    else if (m_negated_name.compare(rest) == 0)
+                    else if (m_negated_name.view().compare(rest) == 0)
                         return option_match_type::negated_match;
                 }
 
@@ -220,10 +423,10 @@ namespace m
             }
 
             virtual bool
-            do_process_option(int& index, int argc, char_t const* argv[]) = 0;
+            do_process_option(parsed_command_t& pc, int& index, int argc, char_t const* argv[]) = 0;
 
-            string_t          m_name;
-            string_t          m_negated_name;
+            sstring_t         m_name;
+            sstring_t         m_negated_name;
             bool              m_negatable;
             bool              m_defaulted;
             option_match_type m_match_type;
@@ -233,10 +436,12 @@ namespace m
         class boolean_option : public option<CharT>
         {
         public:
-            using char_t        = CharT;
-            using char_traits_t = std::char_traits<char_t>;
-            using string_view_t = std::basic_string_view<char_t, char_traits_t>;
-            using string_t      = std::basic_string<char_t, char_traits_t>;
+            using base_type_t      = option<CharT>;
+            using char_t           = CharT;
+            using sstring_t        = basic_sstring<char_t>;
+            using char_traits_t    = std::char_traits<char_t>;
+            using string_view_t    = std::basic_string_view<char_t, char_traits_t>;
+            using parsed_command_t = parsed_command<char_t>;
 
             boolean_option(string_view_t name,
                            bool&         value,
@@ -249,8 +454,9 @@ namespace m
 
         protected:
             bool
-            do_process_option(int&, int, char_t const*[]) override
+            do_process_option(parsed_command_t& pc, int&, int, char_t const*[]) override
             {
+                std::ignore                 = pc;
                 option<char_t>::m_defaulted = false;
 
                 // The value itself tracks the "positivity" of the option
@@ -270,13 +476,15 @@ namespace m
         class string_option : public option<CharT>
         {
         public:
-            using char_t        = CharT;
-            using char_traits_t = std::char_traits<char_t>;
-            using string_view_t = std::basic_string_view<char_t, char_traits_t>;
-            using string_t      = std::basic_string<char_t, char_traits_t>;
+            using base_type_t      = option<CharT>;
+            using char_t           = CharT;
+            using sstring_t        = basic_sstring<char_t>;
+            using char_traits_t    = std::char_traits<char_t>;
+            using string_view_t    = std::basic_string_view<char_t, char_traits_t>;
+            using parsed_command_t = parsed_command<char_t>;
 
             string_option(string_view_t name,
-                          string_t&     value,
+                          sstring_t     value,
                           string_view_t default_value = string_view_t{},
                           bool          negatable     = false):
                 option<char_t>(name, negatable), m_default_value(default_value), m_value(value)
@@ -286,8 +494,12 @@ namespace m
 
         protected:
             bool
-            do_process_option(int& index, int argc, char_t const* argv[]) override
+            do_process_option(parsed_command_t& pc,
+                              int&              index,
+                              int               argc,
+                              char_t const*     argv[]) override
             {
+                std::ignore                 = pc;
                 option<char_t>::m_defaulted = false;
 
                 if (index >= argc)
@@ -298,18 +510,20 @@ namespace m
                 return true;
             }
 
-            string_t  m_default_value;
-            string_t& m_value;
+            sstring_t m_default_value;
+            sstring_t m_value;
         };
 
         template <typename CharT>
         class path_option : public option<CharT>
         {
         public:
-            using char_t        = CharT;
-            using char_traits_t = std::char_traits<char_t>;
-            using string_view_t = std::basic_string_view<char_t, char_traits_t>;
-            using string_t      = std::basic_string<char_t, char_traits_t>;
+            using base_type_t      = option<CharT>;
+            using char_t           = CharT;
+            using sstring_t        = basic_sstring<char_t>;
+            using char_traits_t    = std::char_traits<char_t>;
+            using string_view_t    = std::basic_string_view<char_t, char_traits_t>;
+            using parsed_command_t = parsed_command<char_t>;
 
             path_option(string_view_t          name,
                         std::filesystem::path& value,
@@ -322,8 +536,12 @@ namespace m
 
         protected:
             bool
-            do_process_option(int& index, int argc, char_t const* argv[]) override
+            do_process_option(parsed_command_t& pc,
+                              int&              index,
+                              int               argc,
+                              char_t const*     argv[]) override
             {
+                std::ignore                 = pc;
                 option<char_t>::m_defaulted = false;
 
                 if (index >= argc)
@@ -342,10 +560,13 @@ namespace m
         class parameter
         {
         public:
-            using char_t        = CharT;
-            using string_view_t = std::basic_string_view<char_t, std::char_traits<char_t>>;
-            using string_t      = std::basic_string<char_t, std::char_traits<char_t>>;
-            using option_t      = option<char_t>;
+            using char_t             = CharT;
+            using sstring_t          = basic_sstring<char_t>;
+            using string_view_t      = std::basic_string_view<char_t, std::char_traits<char_t>>;
+            using option_t           = option<char_t>;
+            using parsed_command_t   = parsed_command<char_t>;
+            using parsed_parameter_t = parsed_parameter<char_t>;
+            using parsed_option_t    = parsed_option<char_t>;
 
             parameter()                 = delete;
             parameter(parameter const&) = delete;
@@ -355,7 +576,7 @@ namespace m
 
             virtual ~parameter() = default;
 
-            string_t
+            sstring_t
             name() const
             {
                 return m_name;
@@ -380,7 +601,7 @@ namespace m
                 *it = '<';
                 ++it;
 
-                it = std::ranges::copy(m_name, it).out;
+                it = std::ranges::copy(m_name.view(), it).out;
 
                 *it = '>';
                 ++it;
@@ -404,7 +625,7 @@ namespace m
             }
 
             void
-            process_parameter(int& index, int argc, char_t const* argv[])
+            process_parameter(parsed_command_t& pc, int& index, int argc, char_t const* argv[])
             {
                 if (index >= argc && m_required)
                     throw std::runtime_error("too few arguments");
@@ -419,19 +640,38 @@ namespace m
                             throw std::runtime_error("missing required parameter");
                     }
 
-                    do_process_parameter(index, argc, argv);
+                    do_process_parameter(pc, index, argc, argv);
                 }
             }
 
         protected:
-            parameter(string_view_t name, bool required): m_name(name), m_required(required) {}
+            parameter(string_view_t name, bool required):
+                m_name(name), m_defaulted{}, m_required(required)
+            {}
+
+            static void
+            add_parsed_parameter_to_parsed_command(parsed_command_t&                     pc,
+                                                   std::unique_ptr<parsed_parameter_t>&& pp)
+            {
+                pc.add_parsed_parameter(std::move(pp));
+            }
+
+            static void
+            add_parsed_option_to_parsed_command(parsed_command_t&                  pc,
+                                                std::unique_ptr<parsed_option_t>&& po)
+            {
+                pc.add_parsed_option(std::move(po));
+            }
 
             virtual void
-            do_process_parameter(int& index, int argc, char_t const* argv[]) = 0;
+            do_process_parameter(parsed_command_t& pc,
+                                 int&              index,
+                                 int               argc,
+                                 char_t const*     argv[]) = 0;
 
-            string_t m_name;
-            bool     m_defaulted;
-            bool     m_required;
+            sstring_t m_name;
+            bool      m_defaulted;
+            bool      m_required;
 
             template <typename>
             class verb;
@@ -441,9 +681,12 @@ namespace m
         class path_parameter : public parameter<CharT>
         {
         public:
-            using char_t        = CharT;
-            using string_view_t = std::basic_string_view<char_t, std::char_traits<char_t>>;
-            using string_t      = std::basic_string<char_t, std::char_traits<char_t>>;
+            using char_t             = CharT;
+            using base_type_t        = parameter<char_t>;
+            using sstring_t          = basic_sstring<char_t>;
+            using string_view_t      = std::basic_string_view<char_t, std::char_traits<char_t>>;
+            using parsed_command_t   = parsed_command<char_t>;
+            using parsed_parameter_t = parsed_parameter<char_t>;
 
             path_parameter(string_view_t          name,
                            std::filesystem::path& value,
@@ -462,10 +705,13 @@ namespace m
 
         protected:
             std::filesystem::path& m_value;
-            string_t               m_default_value;
+            sstring_t              m_default_value;
 
             void
-            do_process_parameter(int& index, int argc, char_t const* argv[]) override
+            do_process_parameter(parsed_command_t& pc,
+                                 int&              index,
+                                 int               argc,
+                                 char_t const*     argv[]) override
             {
                 if (index >= argc)
                 {
@@ -474,7 +720,10 @@ namespace m
                 }
                 else
                 {
-                    m_value = m::filesystem::make_path(argv[index]);
+                    auto const path = m::filesystem::make_path(argv[index]);
+                    m_value         = path;
+                    base_type_t::add_parsed_parameter_to_parsed_command(
+                        pc, std::make_unique<parsed_parameter_t>(this, path));
                     index++;
                     parameter<char_t>::m_defaulted = false;
                 }
@@ -485,13 +734,15 @@ namespace m
         class verb
         {
         public:
-            using char_t        = CharT;
-            using string_view_t = std::basic_string_view<char_t, std::char_traits<char_t>>;
-            using string_t      = std::basic_string<char_t, std::char_traits<char_t>>;
-            using parameter_t   = parameter<char_t>;
-            using option_t      = option<char_t>;
+            using char_t           = CharT;
+            using sstring_t        = basic_sstring<char_t>;
+            using string_view_t    = std::basic_string_view<char_t, std::char_traits<char_t>>;
+            using parameter_t      = parameter<char_t>;
+            using option_t         = option<char_t>;
+            using parsed_command_t = parsed_command<char_t>;
+            using verb_action_t    = std::function<void(parsed_command_t*)>;
 
-            verb(string_view_t name): m_name(name) {}
+            verb(string_view_t name, verb_action_t va): m_name(name), m_verb_action(va) {}
 
             verb()            = delete;
             verb(verb const&) = delete;
@@ -503,7 +754,7 @@ namespace m
 
             ~verb() = default;
 
-            string_t
+            sstring_t
             name() const
             {
                 return m_name;
@@ -513,7 +764,7 @@ namespace m
             Iter
             usage(Iter it)
             {
-                it = std::ranges::copy(m_name, it).out;
+                it = std::ranges::copy(m_name.view(), it).out;
 
                 *it = ' ';
                 ++it;
@@ -535,7 +786,7 @@ namespace m
                     *it = '<';
                     ++it;
 
-                    it = std::ranges::copy(p->name(), it).out;
+                    it = std::ranges::copy(p->name().view(), it).out;
 
                     *it = '>';
                     ++it;
@@ -551,8 +802,7 @@ namespace m
                     optional_count--;
                 }
 
-                auto sometext = {
-                    ' ', '[', '<', 'O', 'p', 't', 'i', 'o', 'n', 's', '>', ']', '\n', '\n'};
+                auto sometext = " [<Options>]\n\n"sv;
 
                 it = std::ranges::copy(sometext, it).out;
 
@@ -601,6 +851,9 @@ namespace m
                 if (!verb_matches(argv[index]))
                     return false;
 
+                parsed_command_t pc;
+                pc.verb(this);
+
                 index++;
 
                 //
@@ -610,7 +863,7 @@ namespace m
                 //
 
                 for (auto&& p: m_parameters)
-                    p->process_parameter(index, argc, argv);
+                    p->process_parameter(pc, index, argc, argv);
 
                 while (index < argc)
                 {
@@ -618,7 +871,7 @@ namespace m
 
                     for (auto&& e: m_options)
                     {
-                        if (e->process_option(index, argc, argv))
+                        if (e->process_option(pc, index, argc, argv))
                         {
                             option_found = true;
                             break;
@@ -630,6 +883,9 @@ namespace m
                         throw std::runtime_error("invalid command line switch");
                 }
 
+                if (m_verb_action)
+                    std::invoke(m_verb_action, &pc);
+
                 return true;
             }
 
@@ -637,10 +893,11 @@ namespace m
             bool
             verb_matches(string_view_t arg)
             {
-                return m_name.compare(arg) == 0;
+                return m_name.view().compare(arg) == 0;
             }
 
-            string_t                                  m_name;
+            sstring_t                                 m_name;
+            verb_action_t                             m_verb_action;
             std::vector<std::unique_ptr<option_t>>    m_options;
             std::vector<std::unique_ptr<parameter_t>> m_parameters;
         };
@@ -649,11 +906,14 @@ namespace m
         class command_verb_set
         {
         public:
-            using char_t        = CharT;
-            using string_view_t = std::basic_string_view<char_t, std::char_traits<char_t>>;
-            using string_t      = std::basic_string<char_t, std::char_traits<char_t>>;
-            using option_t      = option<char_t>;
-            using verb_t        = verb<char_t>;
+            using char_t           = CharT;
+            using sstring_t        = basic_sstring<char_t>;
+            using string_view_t    = std::basic_string_view<char_t, std::char_traits<char_t>>;
+            using string_t         = std::basic_string<char_t, std::char_traits<char_t>>;
+            using option_t         = option<char_t>;
+            using verb_t           = verb<char_t>;
+            using verb_action_t    = verb_action<char_t>;
+            using parsed_command_t = parsed_command<char_t>;
 
             command_verb_set() {}
             command_verb_set(command_verb_set const&) = delete;
@@ -663,9 +923,9 @@ namespace m
             operator=(command_verb_set const&) = delete;
 
             verb_t&
-            add_verb(string_view_t name)
+            add_verb(string_view_t name, verb_action_t va = verb_action_t{})
             {
-                auto p1 = std::make_unique<verb_t>(name);
+                auto p1 = std::make_unique<verb_t>(name, va);
 
                 auto index = m_verbs.size();
                 m_verbs.push_back(nullptr);
@@ -702,13 +962,14 @@ namespace m
                 return true;
             }
 
-            string_t
+            sstring_t
             usage(std::filesystem::path program)
             {
                 auto filename  = program.filename();
                 auto filename2 = m::filesystem::path_to_string(filename);
 
-                string_t buffer;
+                using buffer_t = basic_string_buffer<char_t>;
+                buffer_t buffer;
                 auto     it = std::back_inserter(buffer);
 
                 // clang-format off
@@ -721,7 +982,7 @@ namespace m
 
                     for (auto&& v : m_verbs)
                     {
-                        it = std::format_to(it, "[{}] ", v->name());
+                        it = std::format_to(it, "[{}] ", v->name().c_str());
                     }
 
                     it = std::format_to(it,
@@ -735,8 +996,16 @@ namespace m
                         it = v->usage(it);
                     }
                 }
+                // clang-format on
 
-                return buffer;
+                return m::try_cast_helper<
+                    basic_string_buffer_base<CharT,
+                                             buffer_t::inline_value_count,
+                                             typename buffer_t::derived_most_string_buffer_type>,
+                    basic_sstring<char_t>,
+                    void>::do_cast(buffer);
+
+                // return m::to<basic_sstring<char_t>>(buffer);
             }
 
         protected:
@@ -745,7 +1014,7 @@ namespace m
 
         template <typename CharT>
         void
-        parse(int , CharT const* [])
+        parse(int, CharT const*[])
         {
             //
             // We assume that this is the full argument set from main(), so

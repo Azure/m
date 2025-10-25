@@ -86,15 +86,15 @@
 namespace m
 {
     template <typename TTo, typename TFrom>
-        requires (std::copyable<TTo> && std::integral<TFrom>)
     TTo
-    to(TFrom v)
+    to(TFrom const& v)
     {
         return m::try_cast<TTo>(v);
     }
 
+#if 0
     template <typename TTo, typename TFrom>
-        requires std::is_enum_v<TFrom>
+        requires (std::is_enum_v<TFrom>)
     TTo
     to(TFrom const& v)
     {
@@ -114,5 +114,6 @@ namespace m
     {
         return m::try_cast<TTo>(tp);
     }
+#endif
 
 } // namespace m

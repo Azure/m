@@ -20,7 +20,7 @@ namespace m
     {
         struct writer_traits
         {
-            static inline constexpr std::wstring_view line_break = L"\r\n"sv;
+            static inline constexpr auto line_break = "\r\n"sv;
         };
 
         template <typename OutputBackIterT, typename TraitsT = writer_traits>
@@ -47,7 +47,7 @@ namespace m
                     });
                 }
 
-                std::ranges::for_each(row, [this](std::wstring_view str) { write_field(str); });
+                std::ranges::for_each(row, [this](auto str) { write_field(str); });
 
                 m_first_field = true;
             }
@@ -69,7 +69,7 @@ namespace m
                     m_first_field = false;
                 else
                 {
-                    *m_iter = L',';
+                    *m_iter = ',';
                     ++m_iter;
                 }
 

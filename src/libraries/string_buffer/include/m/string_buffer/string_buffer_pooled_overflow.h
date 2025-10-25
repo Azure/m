@@ -240,7 +240,7 @@ namespace m
             {
                 auto const e_size    = e.m_ptr->size();
                 auto const charleft  = e.m_ptr->capacity() - e_size;
-                auto const charcount = std::min(charleft, spn.size());
+                auto const charcount = (std::min)(charleft, spn.size());
 
                 e.m_ptr->resize(e_size + charcount);
                 std::ranges::copy(spn.subspan(0, charcount), e.m_ptr->begin() + e_size);

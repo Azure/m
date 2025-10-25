@@ -110,9 +110,9 @@ namespace m
     template <typename Rep, typename Period>
     struct try_cast_helper<std::chrono::duration<Rep, Period>, FILETIME, void>
     {
-        template <typename Rep, typename Period>
+        template <typename Rep2, typename Period2>
         static FILETIME
-        DurationToFILETIME(std::chrono::duration<Rep, Period> const& duration)
+        DurationToFILETIME(std::chrono::duration<Rep2, Period2> const& duration)
         {
             if (duration.count() < 0)
             {

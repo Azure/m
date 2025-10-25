@@ -24,8 +24,6 @@ using namespace std::string_view_literals;
 int
 main(int argc, char const* argv[])
 {
-    using verb_t = m::command_options::verb<char>;
-
     std::filesystem::path filename_path;
 
 #if 0
@@ -42,8 +40,11 @@ main(int argc, char const* argv[])
 
     auto commands = m::command_options::command_verb_set<char>();
 
-    verb_t& traverse_verb = commands.add_verb("traverse");
+    auto& traverse_verb = commands.add_verb("traverse", m::pe2l::traverse);
     traverse_verb.add_path_parameter("filename", filename_path);
+
+    auto& dump = commands.add_verb("dump");
+    dump.add_path_parameter("filename", filename_path);
 
     try
     {
@@ -62,7 +63,7 @@ main(int argc, char const* argv[])
         exit(EXIT_FAILURE);
     }
 
-    m::pe2l::traverse(filename_path);
+    // m::pe2l::traverse(filename_path);
 
     return EXIT_SUCCESS;
 }

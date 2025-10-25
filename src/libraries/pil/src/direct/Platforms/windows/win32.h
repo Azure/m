@@ -264,7 +264,7 @@ namespace m::pil::impl::win32
     class registry_monitor_token : public m::pil::iregistry_monitor_token
     {
     public:
-        registry_monitor_token() = default;
+        registry_monitor_token() = delete;
         registry_monitor_token(
             std::shared_ptr<m::work_queue>                      work_queue,
             m::pil::iregistry_monitor::register_watch_flags     flags,

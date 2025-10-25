@@ -88,7 +88,7 @@ namespace m
             //
             // This *should* be addressed. There is no need for it and its
             // a point of fragility for no real purpose. On the other hand,
-            // it's nice to make progres.
+            // it's nice to make progress.
             //
             std::unique_ptr<rva_ra_in_t> m_rva_ra_in;
 

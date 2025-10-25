@@ -7,9 +7,23 @@
     },
     "ms-gsl",
     {
+      "name": "ms-gsl",
+      "host": true
+    },
+    {
       "name": "pugixml",
       "features": [ "header-only" ],
       "version>=": "1.15"
+    },
+    {
+      "name": "pugixml",
+      "features": [ "header-only" ],
+      "host": true,
+      "version>=": "1.15"
+    },
+    {
+      "name": "wil",
+      "host": true
     },
     "wil"
   ]

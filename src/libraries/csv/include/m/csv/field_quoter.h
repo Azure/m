@@ -29,7 +29,7 @@ namespace m
         {
             constexpr field_quoter(OutputBackIterT& iter) noexcept: m_iter(iter) {}
 
-            static inline constexpr std::wstring_view characters_that_require_quotes = L",\r\n\""sv;
+            static inline constexpr auto characters_that_require_quotes = ",\r\n\""sv;
 
             void
             enquote(std::wstring_view input)
@@ -51,7 +51,7 @@ namespace m
                 {
                     // Fast path:
                     //
-                    std::ranges::for_each(input, [&](wchar_t ch) {
+                    std::ranges::for_each(input, [&](auto ch) {
                         *m_iter = ch;
                         ++m_iter;
                     });
@@ -61,7 +61,7 @@ namespace m
                     *m_iter = L'"';
                     ++m_iter;
 
-                    std::ranges::for_each(input, [&](wchar_t ch) {
+                    std::ranges::for_each(input, [&](auto ch) {
                         if ((ch != '\r' && ch != '\n') && ((ch < 32) || (ch > 126) || (ch == '{')))
                         {
                             //
@@ -70,14 +70,17 @@ namespace m
                             //
                             // Open braces are mapped to {U+007b}. Sorry.
                             // 
-                            m_iter = std::format_to(m_iter, L"{{U+{:04x}}}", ch);
+
+                            // We assume that the characters we're dealing with are not char32_t.
+                            static_assert(sizeof(ch) <= 4);
+                            m_iter = std::format_to(m_iter, "{{U+{:04x}}}", static_cast<uint16_t>(ch));
                         }
-                        else if (ch == L'"')
+                        else if (ch == '"')
                         {
-                            *m_iter = L'"';
+                            *m_iter = '"';
                             ++m_iter;
 
-                            *m_iter = L'"';
+                            *m_iter = '"';
                             ++m_iter;
                         }
                         else
@@ -87,7 +90,7 @@ namespace m
                         }
                     });
 
-                    *m_iter = L'"';
+                    *m_iter = '"';
                     ++m_iter;
                 }
             }

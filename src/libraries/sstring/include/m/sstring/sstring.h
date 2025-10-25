@@ -31,11 +31,38 @@
 #include <m/math/math.h>
 #include <m/strings/compare.h>
 #include <m/strings/convert.h>
+#include <m/strings/tstring.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
 
 namespace m
 {
+    using namespace std::string_view_literals;
+
+    namespace sstring_impl
+    {
+        template <typename TraitsT>
+        struct get_comparison_category
+        {
+            using type = std::weak_ordering;
+        };
+
+        template <typename TraitsT>
+            requires requires { typename TraitsT::comparison_category; }
+        struct get_comparison_category<TraitsT>
+        {
+            using type = TraitsT::comparison_category;
+
+            static_assert(m::is_any_of_v<type,
+                                         std::partial_ordering,
+                                         std::weak_ordering,
+                                         std::strong_ordering>);
+        };
+
+        template <typename TraitsT>
+        using get_comparison_category_t = get_comparison_category<TraitsT>::type;
+    } // namespace sstring_impl
+
     template <typename CharT>
         requires(character<CharT>)
     class basic_sstring
@@ -45,14 +72,29 @@ namespace m
     public:
         using char_type  = CharT;
         using value_type = CharT;
+        using size_type  = std::size_t;
         using view_type  = std::basic_string_view<char_type>;
+        using comparison_category_type =
+            sstring_impl::get_comparison_category_t<typename view_type::traits_type>;
 
         static inline constexpr auto npos = view_type::npos;
 
         basic_sstring() = default;
+
         basic_sstring(std::initializer_list<view_type> il)
         {
             m_arefc = make_basic_const_string<char_type>(il);
+            m_view  = m_arefc->view();
+            // Since we know that the string is null-terminated,
+            // just populate the c_str now to avoid any of the
+            // fuss later.
+            m_c_str_v = m_arefc;
+            m_c_str.store(m_view.data(), std::memory_order_release);
+        }
+
+        basic_sstring(std::span<view_type const> spn)
+        {
+            m_arefc = make_basic_const_string<char_type>(spn);
             m_view  = m_arefc->view();
             // Since we know that the string is null-terminated,
             // just populate the c_str now to avoid any of the
@@ -167,13 +209,82 @@ namespace m
             return *this;
         }
 
-        view_type
+        constexpr view_type
         view() const noexcept
         {
             return m_view;
         }
 
-        operator view_type() const { return view(); }
+        constexpr
+        operator view_type() const noexcept
+        {
+            return view();
+        }
+
+        constexpr int
+        compare(basic_sstring s) const
+        {
+            return compare(s.view());
+        }
+
+        constexpr int
+        compare(view_type v) const
+        {
+            return view().compare(v);
+        }
+
+        constexpr int
+        compare(size_type pos1, size_t count1, view_type v) const
+        {
+            return view().compare(pos1, count1, v);
+        }
+
+        constexpr int
+        compare(size_type pos1, size_t count1, basic_sstring str) const
+        {
+            return view().compare(pos1, count1, str.view());
+        }
+
+        constexpr int
+        compare(size_type pos1, size_type count1, view_type v, size_type pos2, size_type count2)
+            const
+        {
+            return view().compare(pos1, count1, v, pos2, count2);
+        }
+
+        constexpr int
+        compare(size_type     pos1,
+                size_type     count1,
+                basic_sstring str,
+                size_type     pos2,
+                size_type     count2) const
+        {
+            return view().compare(pos1, count1, str.view(), pos2, count2);
+        }
+
+        constexpr int
+        compare(char_type const* s) const
+        {
+            return view().compare(s);
+        }
+
+        constexpr int
+        compare(size_type pos1, size_type count1, char_type const* s) const
+        {
+            return view().compare(pos1, count1, s);
+        }
+
+        constexpr int
+        compare(size_type pos1, size_type count1, char_type const* s, size_type count2) const
+        {
+            return view().compare(pos1, count1, s, count2);
+        }
+
+        constexpr bool
+        equals(basic_sstring const& str) const noexcept
+        {
+            return view().compare(str.view()) == 0;
+        }
 
         char_type const*
         c_str() const
@@ -350,26 +461,34 @@ namespace m
             return std::nullopt;
         }
 
+#if 0
         bool
-        operator==(basic_sstring const& other) const
+        operator==(basic_sstring&& other) const noexcept
         {
             return view() == other.view();
         }
 
         bool
-        operator==(view_type other) const
+        operator==(view_type&& other) const noexcept
         {
             return view() == other;
         }
 
         friend bool
-        operator==(view_type l, basic_sstring const& r)
+        operator==(view_type&& l, basic_sstring&& r) noexcept
         {
             return l == r.view();
         }
 
+        friend decltype(auto)
+        operator<=>(basic_sstring&& l, basic_sstring&& r) noexcept
+        {
+            return operator<=>(l.view(), r.view());
+        }
+#endif
+
         bool
-        empty() const
+        empty() const noexcept
         {
             return view().size() == 0;
         }
@@ -393,6 +512,41 @@ namespace m
         {
             M_INTERNAL_ERROR_CHECK(m_view.size() > 0);
             return m_view.data()[m_view.size() - 1];
+        }
+
+        template <typename StringishT>
+        constexpr bool
+        operator==(StringishT&& r) const noexcept
+        {
+            return compare(m::to_string_view_t<char_type>(std::forward<StringishT>(r))) == 0;
+        }
+
+
+        [[nodiscard]] constexpr comparison_category_type
+        operator<=>(basic_sstring const& r) const noexcept
+        {
+            auto const v              = m::to_string_view_t<char_type>(r);
+            auto const compare_result = compare(v);
+
+            return static_cast<comparison_category_type>(compare_result <=> 0);
+        }
+
+        [[nodiscard]] constexpr comparison_category_type
+        operator<=>(view_type const& r) const noexcept
+        {
+            auto const v              = m::to_string_view_t<char_type>(r);
+            auto const compare_result = compare(v);
+
+            return static_cast<comparison_category_type>(compare_result <=> 0);
+        }
+
+        [[nodiscard]] constexpr comparison_category_type
+        operator<=>(char_type const* str) const noexcept
+        {
+            auto const v              = m::to_string_view_t<char_type>(str);
+            auto const compare_result = compare(v);
+
+            return static_cast<comparison_category_type>(compare_result <=> 0);
         }
 
     private:
@@ -447,6 +601,39 @@ namespace m
     using u16sstring = basic_sstring<char16_t>;
     using u32sstring = basic_sstring<char32_t>;
 
+    template <typename CharT>
+        requires(m::character<CharT>)
+    struct string_conversion_helper<basic_sstring<CharT>, CharT>
+    {
+        using sstring_t = basic_sstring<CharT>;
+        using string_t = std::basic_string<CharT>;
+        using string_view_t = std::basic_string_view<CharT>;
+
+        constexpr static string_view_t
+        xlate_to_view(sstring_t&& str) noexcept
+        {
+            return str.view();
+        }
+
+        constexpr static string_view_t
+        xlate_to_view(sstring_t const& str) noexcept
+        {
+            return str.view();
+        }
+
+        static string_t
+        xlate_to_string(sstring_t&& str)
+        {
+            return string_t(str.view());
+        }
+
+        static string_t
+        xlate_to_string(sstring_t const& str)
+        {
+            return string_t(str.view());
+        }
+    };
+
     static_assert(has_view<sstring, char>);
     static_assert(has_view<wsstring, wchar_t>);
     static_assert(has_view<u8sstring, char8_t>);
@@ -459,4 +646,9 @@ namespace m
     static_assert(has_some_view<u16sstring>);
     static_assert(has_some_view<u32sstring>);
 
+    static_assert(std::totally_ordered<sstring>);
+    static_assert(std::totally_ordered<wsstring>);
+    static_assert(std::totally_ordered<u8sstring>);
+    static_assert(std::totally_ordered<u16sstring>);
+    static_assert(std::totally_ordered<u32sstring>);
 } // namespace m

@@ -43,10 +43,22 @@
 #include <stdexcept>
 #include <type_traits>
 
+#include <m/utility/to_underlying.h>
+
 namespace m
 {
     template <typename FromType, typename ToType, typename Enable = void>
-    struct try_cast_helper;
+    struct try_cast_helper
+    {
+        try_cast_helper()                       = delete;
+        try_cast_helper(try_cast_helper const&) = delete;
+        try_cast_helper&
+        operator=(try_cast_helper const&) = delete;
+    };
+
+    template <typename ToType, typename FromType>
+    constexpr decltype(auto)
+    try_cast(FromType const& from);
 
     //
     // It would be nice if a single helper could be used for all integral types
@@ -184,11 +196,24 @@ namespace m
     };
 
     template <typename ToType, typename FromType>
-        requires(std::copyable<ToType> && std::copyable<FromType>)
+        requires(std::is_enum_v<FromType>)
+    struct try_cast_helper<FromType, ToType, void>
+    {
+        static constexpr ToType
+        do_cast(FromType const& v)
+        {
+            FromType   v1 = v;
+            auto const t  = m::to_underlying(v1);
+            return m::try_cast<ToType>(t);
+        }
+    };
+
+    template <typename ToType, typename FromType>
     constexpr decltype(auto)
     try_cast(FromType const& from)
     {
-        return try_cast_helper<FromType, ToType>::do_cast(from);
+        using cast_helper_t = try_cast_helper<FromType, ToType>;
+        return cast_helper_t::do_cast(from);
     }
 
 } // namespace m

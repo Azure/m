@@ -211,7 +211,7 @@ namespace m
 
     template <typename CharT>
         requires(m::character<CharT> && !std::is_same_v<CharT, char>)
-    struct string_conversion_helper<char, CharT>
+    struct string_conversion_helper<std::basic_string_view<CharT>, char>
     {
         using from_char_type = CharT;
         using to_char_type   = char;
@@ -231,7 +231,7 @@ namespace m
 
     template <typename CharT>
         requires(m::character<CharT> && !std::is_same_v<CharT, wchar_t>)
-    struct string_conversion_helper<wchar_t, CharT>
+    struct string_conversion_helper<std::basic_string_view<CharT>, wchar_t>
     {
         using from_char_type = CharT;
         using to_char_type   = wchar_t;
@@ -263,12 +263,12 @@ namespace m
     // writing half of the templates.
     //
 
-    template <typename TChar>
-        requires(m::character<TChar> &&
-                 (std::is_same_v<TChar, char> || std::is_same_v<TChar, wchar_t>))
-    struct string_conversion_helper<char8_t, TChar>
+    template <typename CharT>
+        requires(m::character<CharT> &&
+                 (std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>))
+    struct string_conversion_helper<std::basic_string_view<CharT>, char8_t>
     {
-        using from_char_type = TChar;
+        using from_char_type = CharT;
         using to_char_type   = char8_t;
 
         using from_view_type = std::basic_string_view<from_char_type>;
@@ -284,12 +284,12 @@ namespace m
         }
     };
 
-    template <typename TChar>
-        requires(m::character<TChar> &&
-                 (std::is_same_v<TChar, char> || std::is_same_v<TChar, wchar_t>))
-    struct string_conversion_helper<char16_t, TChar>
+    template <typename CharT>
+        requires(m::character<CharT> &&
+                 (std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>))
+    struct string_conversion_helper<std::basic_string_view<CharT>, char16_t>
     {
-        using from_char_type = TChar;
+        using from_char_type = CharT;
         using to_char_type   = char16_t;
 
         using from_view_type = std::basic_string_view<from_char_type>;
@@ -305,12 +305,12 @@ namespace m
         }
     };
 
-    template <typename TChar>
-        requires(m::character<TChar> &&
-                 (std::is_same_v<TChar, char> || std::is_same_v<TChar, wchar_t>))
-    struct string_conversion_helper<char32_t, TChar>
+    template <typename CharT>
+        requires(m::character<CharT> &&
+                 (std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>))
+    struct string_conversion_helper<std::basic_string_view<CharT>, char32_t>
     {
-        using from_char_type = TChar;
+        using from_char_type = CharT;
         using to_char_type   = char32_t;
 
         using from_view_type = std::basic_string_view<from_char_type>;

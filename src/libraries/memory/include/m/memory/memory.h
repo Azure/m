@@ -442,6 +442,7 @@ namespace m
     // purpose serialization / deserialization support as of yet.
     //
     template <typename T, typename SourceT>
+        requires(m::byte_streams::input_stream_pointer<SourceT>)
     T
     load_from(SourceT s, io::position_t p)
     {
@@ -452,6 +453,7 @@ namespace m
     }
 
     template <typename T, typename SourceT>
+        requires(m::byte_streams::input_stream_pointer<SourceT>)
     void
     load_into(T& v, SourceT s, io::position_t p)
     {
@@ -460,6 +462,7 @@ namespace m
     }
 
     template <typename T, typename SourceT>
+        requires(m::byte_streams::input_stream_pointer<SourceT>)
     void
     load_into(T& v, SourceT s, io::position_t origin, std::size_t /* limit */)
     {
@@ -468,6 +471,7 @@ namespace m
     }
 
     template <typename SourceT>
+        requires(m::byte_streams::input_stream_pointer<SourceT>)
     class load_from_position_context
     {
     public:

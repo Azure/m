@@ -60,6 +60,53 @@ namespace m
         m::not_null<czstring_type>
         c_str();
 
+        /// <summary>
+        /// Applies a function to each span in the buffer, accumulating a result.
+        /// </summary>
+        /// <typeparam name="AccumulatorT">The type of the accumulator value.</typeparam>
+        /// <typeparam name="Fn">The type of the callable object to apply to each span.</typeparam>
+        /// <param name="initial">The initial value for the accumulator.</param>
+        /// <param name="fn">A callable object that takes the current accumulator and a span, and
+        /// returns the updated accumulator.</param> <returns>The final accumulated value after
+        /// applying the function to all spans.</returns>
+        template <typename AccumulatorT, typename Fn>
+            requires(std::invocable<Fn, AccumulatorT, span_type>)
+        AccumulatorT
+        accumulate_for_each_span(AccumulatorT initial, Fn&& fn) const
+        {
+            AccumulatorT acc = initial;
+
+            acc = std::invoke(fn, acc, inplace_vector_span());
+
+            if (exceeds_inplace_vector())
+            {
+                acc = static_cast<DerivedMostStringBufferT const*>(this)->accumulate_for_each_span(
+                    acc, fn);
+            }
+
+            return acc;
+        }
+
+        /// <summary>
+        /// Invokes a function on the current span and, if necessary, recursively on additional
+        /// spans managed by a derived string buffer.
+        /// </summary>
+        /// <typeparam name="Fn">The type of the callable object, which must be invocable with a
+        /// span_type argument.</typeparam> <param name="fn">A callable object to be invoked with
+        /// each span.</param>
+        template <typename Fn>
+            requires(std::invocable<Fn, span_type>)
+        void
+        for_each_span(Fn&& fn) const
+        {
+            std::invoke(fn, inplace_vector_span());
+
+            if (exceeds_inplace_vector())
+            {
+                static_cast<DerivedMostStringBufferT*>(this)->for_each_span(fn);
+            }
+        }
+
         void
         append(string_view_type view);
 
@@ -205,7 +252,7 @@ namespace m
     {
         auto const inplace_remaining = m_inplace_vector.capacity() - m_inplace_vector.size();
 
-        auto inplace_portion = std::min(spn.size(), inplace_remaining);
+        auto inplace_portion = (std::min)(spn.size(), inplace_remaining);
 
         if (inplace_portion != 0)
         {
@@ -230,7 +277,7 @@ namespace m
     basic_string_buffer_base<CharT, NInlineValueCount, DerivedMostStringBufferT>::assign(
         span_type spn)
     {
-        m_inplace_vector.assign_range(spn.subspan(0, std::min(spn.size(), inline_value_count)));
+        m_inplace_vector.assign_range(spn.subspan(0, (std::min)(spn.size(), inline_value_count)));
 
         if (spn.size() > inline_value_count)
         {
@@ -310,8 +357,9 @@ namespace m
 
             std::size_t idx{};
 
-            auto        other_overflow_spans =
-                static_cast<DerivedMostStringBufferT const*>(&other)->get_overflow_spans(idx, spnspn);
+            auto other_overflow_spans =
+                static_cast<DerivedMostStringBufferT const*>(&other)->get_overflow_spans(idx,
+                                                                                         spnspn);
 
             if (!other_overflow_spans.has_value())
             {
@@ -359,9 +407,7 @@ namespace m
                 {
                     M_INTERNAL_ERROR_CHECK(spns.size() > 4);
                     assign(std::initializer_list<span_type>{
-                        other_inplace_span,
-                                                 spns[0],
-                                                 spns[1], spns[2], spns[3]});
+                        other_inplace_span, spns[0], spns[1], spns[2], spns[3]});
 
                     for (std::size_t i = 4; i < spns.size(); i++)
                         append(spns[i]);
@@ -383,7 +429,7 @@ namespace m
 
                 spns = other_overflow_spans.value();
 
-                for (auto const& e : spns)
+                for (auto const& e: spns)
                     append(e);
 
                 idx += spns.size();

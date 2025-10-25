@@ -222,7 +222,6 @@ namespace m
             void
             load_into(T& v, offset_t offset) const
             {
-
                 m::pe::load_into(v, m_s, m_origin + offset);
             }
 

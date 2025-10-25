@@ -46,7 +46,14 @@ namespace functors
             if (!h)
                 m::throw_last_win32_error();
 
+#if M_HAS_CLANG
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-function-type-mismatch"
+#endif
             m_pfn = reinterpret_cast<PointerTypeT>(::GetProcAddress(h, functionName));
+#if M_HAS_CLANG
+#pragma clang diagnostic pop
+#endif
 
             if (!m_pfn)
                 m_pfn = &DerivedMostT::default_function;
@@ -104,7 +111,7 @@ namespace functors
 
     get_thread_description_functor get_thread_description;
     set_thread_description_functor set_thread_description;
-} // namespace
+} // namespace functors
 
 void
 m::thread_description_impl::set_thread_description(

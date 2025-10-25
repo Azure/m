@@ -11,6 +11,8 @@ target_link_libraries(m_command_options PUBLIC
     m_filesystem
     m_math
     m_memory
+    m_sstring
+    m_string_buffer
     m_strings
 )
 

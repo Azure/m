@@ -46,6 +46,11 @@ namespace m
     m::arefc_ptr<basic_const_string<CharT>>
     make_basic_const_string(std::initializer_list<StringishT> il);
 
+    template <typename CharT, typename StringishT>
+        requires(m::character<CharT>)
+    m::arefc_ptr<basic_const_string<CharT>>
+    make_basic_const_string(std::span<StringishT const> spn);
+
     template <typename CharT>
         requires(m::character<CharT>)
     class basic_const_string
@@ -118,6 +123,22 @@ namespace m
             m_size = cursor - buffer;
         }
 
+        basic_const_string(std::span<view_type const> spn): m_size(0)
+        {
+            auto const buffer = get_buffer_ptr();
+            auto       cursor = buffer;
+
+            for (auto const& str: spn)
+            {
+                std::copy_n(str.begin(), str.size(), cursor);
+                cursor += str.size();
+            }
+
+            *cursor = 0;
+
+            m_size = cursor - buffer;
+        }
+
         char_type*
         get_buffer_ptr()
         {
@@ -158,6 +179,11 @@ namespace m
             requires(m::character<U>)
         friend m::arefc_ptr<basic_const_string<U>>
         make_basic_const_string(std::initializer_list<S> il);
+
+        template <typename U, typename S>
+            requires(m::character<U>)
+        friend m::arefc_ptr<basic_const_string<U>>
+        make_basic_const_string(std::span<S const> spn);
     };
 
     template <typename CharT, typename StringishT>
@@ -216,6 +242,36 @@ namespace m
                 return ::new (s.data()) basic_const_string<CharT>(il2);
             },
             il);
+    }
+
+    template <typename CharT, typename StringishT>
+        requires(m::character<CharT>)
+    m::arefc_ptr<basic_const_string<CharT>>
+    make_basic_const_string(std::span<StringishT const> spn)
+    {
+        std::size_t chars_needed{};
+
+        for (auto const& str: spn)
+        {
+            chars_needed = m::math::add(chars_needed,
+                                        basic_const_string<CharT>::stringish_size(str),
+                                        decltype(chars_needed){});
+        }
+
+        chars_needed = m::math::add(chars_needed, 1, decltype(chars_needed){});
+
+        auto const str_bytes_needed = m::math::multiply(chars_needed, sizeof(CharT), std::size_t{});
+
+        auto const bytes_needed =
+            m::math::add(str_bytes_needed, sizeof(basic_const_string<CharT>), std::size_t{});
+
+        return m::mmake_arefc_ex<basic_const_string<CharT>>(
+            bytes_needed,
+            nullptr,
+            [](std::span<std::byte> s, std::span<StringishT const> spn2) {
+                return ::new (s.data()) basic_const_string<CharT>(spn2);
+            },
+            spn);
     }
 
     using const_string    = basic_const_string<char>;

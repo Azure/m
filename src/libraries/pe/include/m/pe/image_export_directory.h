@@ -36,12 +36,12 @@ namespace m
             // [+036]    DWORD AddressOfNameOrdinals; // RVA from base of image
             // } IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;
 
-            static inline constexpr offset_t k_offset_characteristics = offset_t{0};
-            static inline constexpr offset_t k_offset_time_date_stamp = offset_t{4};
-            static inline constexpr offset_t k_offset_major_version   = offset_t{8};
-            static inline constexpr offset_t k_offset_minor_version   = offset_t{10};
-            static inline constexpr offset_t k_offset_name            = offset_t{12};
-            static inline constexpr offset_t k_offset_base            = offset_t{16};
+            static inline constexpr offset_t k_offset_characteristics     = offset_t{0};
+            static inline constexpr offset_t k_offset_time_date_stamp     = offset_t{4};
+            static inline constexpr offset_t k_offset_major_version       = offset_t{8};
+            static inline constexpr offset_t k_offset_minor_version       = offset_t{10};
+            static inline constexpr offset_t k_offset_name                = offset_t{12};
+            static inline constexpr offset_t k_offset_base                = offset_t{16};
             static inline constexpr offset_t k_offset_number_of_functions = offset_t{20};
             static inline constexpr offset_t k_offset_number_of_names     = offset_t{24};
             static inline constexpr offset_t k_offset_functions           = offset_t{28};
@@ -50,19 +50,26 @@ namespace m
 
             static inline constexpr std::size_t k_size = 40;
 
-            uint32_t m_characteristics;
-            uint32_t m_time_date_stamp;
-            uint16_t m_major_version;
-            uint16_t m_minor_version;
-            rva_t    m_name;
-            uint32_t m_base;
-            uint32_t m_number_of_functions;
-            uint32_t m_number_of_names;
-            rva_t    m_functions;
-            rva_t    m_names;
-            rva_t    m_ordinals;
+            struct
+            {
+                uint32_t m_characteristics;
+                uint32_t m_time_date_stamp;
+                uint16_t m_major_version;
+                uint16_t m_minor_version;
+                rva_t    m_name;
+                uint32_t m_base;
+                uint32_t m_number_of_functions;
+                uint32_t m_number_of_names;
+                rva_t    m_functions;
+                rva_t    m_names;
+                rva_t    m_ordinals;
+            } m_raw;
+
+            std::wstring              m_name;
+            std::vector<std::wstring> m_names;
 
             template <typename SourceT>
+                requires(rva_ra_stream_in_pointer<SourceT>)
             static image_export_directory
             load_from(SourceT s, image_magic_t /* image_magic */, image_data_directory const& idd)
             {
@@ -72,17 +79,32 @@ namespace m
 
                 ContextT lfrc(s, idd.m_virtual_address);
 
-                lfrc.load_into(ied.m_characteristics, k_offset_characteristics);
-                lfrc.load_into(ied.m_time_date_stamp, k_offset_time_date_stamp);
-                lfrc.load_into(ied.m_major_version, k_offset_major_version);
-                lfrc.load_into(ied.m_minor_version, k_offset_minor_version);
-                lfrc.load_into(ied.m_name, k_offset_name);
-                lfrc.load_into(ied.m_base, k_offset_base);
-                lfrc.load_into(ied.m_number_of_functions, k_offset_number_of_functions);
-                lfrc.load_into(ied.m_number_of_names, k_offset_number_of_names);
-                lfrc.load_into(ied.m_functions, k_offset_functions);
-                lfrc.load_into(ied.m_names, k_offset_names);
-                lfrc.load_into(ied.m_ordinals, k_offset_ordinals);
+                lfrc.load_into(ied.m_raw.m_characteristics, k_offset_characteristics);
+                lfrc.load_into(ied.m_raw.m_time_date_stamp, k_offset_time_date_stamp);
+                lfrc.load_into(ied.m_raw.m_major_version, k_offset_major_version);
+                lfrc.load_into(ied.m_raw.m_minor_version, k_offset_minor_version);
+                lfrc.load_into(ied.m_raw.m_name, k_offset_name);
+                lfrc.load_into(ied.m_raw.m_base, k_offset_base);
+                lfrc.load_into(ied.m_raw.m_number_of_functions, k_offset_number_of_functions);
+                lfrc.load_into(ied.m_raw.m_number_of_names, k_offset_number_of_names);
+                lfrc.load_into(ied.m_raw.m_functions, k_offset_functions);
+                lfrc.load_into(ied.m_raw.m_names, k_offset_names);
+                lfrc.load_into(ied.m_raw.m_ordinals, k_offset_ordinals);
+
+                std::vector<std::wstring> names;
+                rva_t                     names_rva{ied.m_raw.m_names};
+
+                names.reserve(ied.m_raw.m_number_of_names);
+
+                for (std::size_t i = 0; i < ied.m_raw.m_number_of_names; i++)
+                {
+                    rva_t name_rva = s->template read_and_advance_rva<rva_t>(names_rva);
+                    names.emplace_back(s->load_ascii(name_rva));
+                }
+
+                using std::swap;
+
+                swap(names, ied.m_names);
 
                 return ied;
             }
@@ -124,16 +146,16 @@ struct std::formatter<m::pe::image_export_directory, wchar_t>
                               L"m_names: {}, "
                               L"m_ordinals: {}, "
                               L"}}",
-                              ied.m_characteristics,
-                              ied.m_time_date_stamp,
-                              ied.m_major_version,
-                              ied.m_minor_version,
-                              ied.m_name,
-                              ied.m_base,
-                              ied.m_number_of_functions,
-                              ied.m_number_of_names,
-                              ied.m_functions,
-                              ied.m_names,
-                              ied.m_ordinals);
+                              ied.m_raw.m_characteristics,
+                              ied.m_raw.m_time_date_stamp,
+                              ied.m_raw.m_major_version,
+                              ied.m_raw.m_minor_version,
+                              ied.m_raw.m_name,
+                              ied.m_raw.m_base,
+                              ied.m_raw.m_number_of_functions,
+                              ied.m_raw.m_number_of_names,
+                              ied.m_raw.m_functions,
+                              ied.m_raw.m_names,
+                              ied.m_raw.m_ordinals);
     }
 };

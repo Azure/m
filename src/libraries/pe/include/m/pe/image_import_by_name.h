@@ -34,6 +34,7 @@ namespace m
             std::wstring m_name_string;
 
             template <typename SourceT>
+                requires(rva_ra_stream_in_pointer<SourceT>)
             static image_import_by_name
             load_from(SourceT s, rva_t rva)
             {

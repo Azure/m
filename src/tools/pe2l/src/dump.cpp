@@ -19,7 +19,9 @@
 #include <m/filesystem/filesystem.h>
 #include <m/pe/loader_context.h>
 #include <m/pe/pe_decoder.h>
+#include <m/print/print.h>
 #include <m/strings/convert.h>
+
 
 #ifdef WIN32
 #include <m/windows_strings/convert.h>
@@ -38,8 +40,6 @@ m::pe2l::dump(m::not_null<m::command_options::parsed_command<char>*> pc)
     auto                  stream  = m::filesystem::open_seekable_input_file(path);
     auto                  decoder = std::make_unique<m::pe::decoder>(stream);
 
-    std::ignore = decoder;
-
-
-
+    for (auto const& e: decoder->m_image_export_directory.m_names)
+        m::wprintln(L"Exported symbol: {}", e);
 }

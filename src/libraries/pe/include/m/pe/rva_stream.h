@@ -28,9 +28,23 @@ namespace m
     namespace pe
     {
         template <typename SourceT>
+            requires(byte_streams::input_stream_pointer<SourceT>)
+        class rva_ra_in;
+
+        template <typename T>
+        concept rva_ra_stream_in = std::derived_from<T, rva_ra_in<typename T::source_type>>;
+
+        template <typename T>
+        concept rva_ra_stream_in_pointer =
+            requires(T x) { requires rva_ra_stream_in<std::remove_reference_t<decltype(*x)>>; };
+
+        template <typename SourceT>
+            requires(byte_streams::input_stream_pointer<SourceT>)
         class rva_ra_in
         {
         public:
+            using source_type = SourceT;
+
             struct section_header_data
             {
                 rva_t         m_virtual_address;
@@ -97,7 +111,7 @@ namespace m
                 return position_t{};
             }
 
-            std::size_t
+            [[nodiscard]] std::size_t
             read(rva_t rva, std::span<std::byte> span)
             {
                 auto const position = rva_to_position(rva);
@@ -106,6 +120,29 @@ namespace m
                     throw std::runtime_error("bad pe - unmapped rva");
 
                 return m_source->read(position, span);
+            }
+
+            std::size_t
+            read(rva_t rva, std::span<std::byte>& span)
+            {
+                auto const position = rva_to_position(rva);
+
+                if (position == 0)
+                    throw std::runtime_error("bad pe - unmapped rva");
+
+                return m_source->read(position, span);
+            }
+
+            template <typename T>
+                requires(std::copyable<T> && std::default_initializable<T>)
+            T
+            read_and_advance_rva(rva_t& rva)
+            {
+                T v{};
+                if (read(rva, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
+                    throw std::runtime_error("end of file");
+                rva += sizeof(T);
+                return v;
             }
 
             //
@@ -121,7 +158,7 @@ namespace m
             }
 
             std::wstring
-            load_ascii(rva_t rva)
+            load_ascii_and_advance_rva(rva_t& rva)
             {
                 // The PE has these null-terminated ASCII strings... kind of
                 // weird but there you go. ASCII is only defined as 0-127
@@ -172,10 +209,17 @@ namespace m
                 for (;;)
                 {
                     std::array<std::byte, 64> buffer;
-                    auto                      bufferspan = m::make_span(buffer);
+                    auto const                bufferspan = m::make_span(buffer);
                     auto                      length     = read(rva, bufferspan);
+
                     if (length == 0)
+                    {
+                        // This should not be able to happen outside a corrupt
+                        // image because strings must be null terminated. A
+                        // read of zero length would indicate that the end of the
+                        // span was reached.
                         throw std::runtime_error("end of file reached while loading string");
+                    }
 
                     auto it = std::ranges::find(bufferspan, std::byte{});
 
@@ -184,17 +228,25 @@ namespace m
 
                     result.reserve(result.size() + length);
 
-                    std::ranges::for_each(bufferspan.subspan(0, length), [&](std::byte b) {
+                    std::ranges::for_each(bufferspan.subspan(0, length), [&](auto b) {
                         result.push_back(static_cast<wchar_t>(b));
                     });
 
+                    rva += length;
+
                     if (length != buffer.size())
                         break;
-
-                    rva = rva + buffer.size();
                 }
 
+                rva++;
+
                 return result;
+            }
+
+            std::wstring
+            load_ascii(rva_t rva)
+            {
+                return load_ascii_and_advance_rva(rva);
             }
 
         private:
@@ -203,26 +255,41 @@ namespace m
         };
 
         template <typename T, typename SourceT>
+            requires(rva_ra_stream_in_pointer<SourceT>)
         void
-        load_into(T& v, SourceT s, rva_t origin)
+        load_into_from(T& v, SourceT s, rva_t origin)
         {
             if (s->read(origin, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
                 throw std::runtime_error("end of file");
         }
 
+        template <typename T, typename SourceT>
+            requires(rva_ra_stream_in_pointer<SourceT> && std::copyable<T> &&
+                     std::default_initializable<T>)
+        T
+        load_from_and_advance_rva(SourceT s, rva_t& rva)
+        {
+            T v{};
+            if (s->read(rva, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
+                throw std::runtime_error("end of file");
+            rva += sizeof(T);
+            return v;
+        }
+
         template <typename SourceT>
+            requires(rva_ra_stream_in_pointer<SourceT>)
         class load_from_rva_context
         {
             using source_t = SourceT;
 
         public:
-            load_from_rva_context(source_t s, rva_t origin): m_s(s), m_origin(origin) {}
+            load_from_rva_context(source_t s, rva_t origin = rva_t{}): m_s(s), m_origin(origin) {}
 
             template <typename T>
             void
             load_into(T& v, offset_t offset) const
             {
-                m::pe::load_into(v, m_s, m_origin + offset);
+                m::pe::load_into_from(v, m_s, m_origin + offset);
             }
 
         private:
@@ -232,6 +299,9 @@ namespace m
 
         template <typename S>
         load_from_rva_context(S, rva_t) -> load_from_rva_context<S>;
+
+        template <typename S>
+        load_from_rva_context(S) -> load_from_rva_context<S>;
 
     } // namespace pe
 } // namespace m

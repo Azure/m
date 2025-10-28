@@ -165,12 +165,15 @@
         return T{m::math::subtract(m::to_underlying(l), r, std::underlying_type_t<T>{})};          \
     }
 
-#define M_INTEGER_OPERATIONS_PLUSEQUALS(TLEFT, TRIGHT)                                             \
+#define M_INTEGER_OPERATIONS_PLUSEQUALS_NOENUM(TLEFT, TRIGHT)                                      \
     constexpr TLEFT& operator+=(TLEFT& l, TRIGHT r)                                                \
     {                                                                                              \
         l = l + r;                                                                                 \
         return l;                                                                                  \
-    }                                                                                              \
+    }
+
+#define M_INTEGER_OPERATIONS_PLUSEQUALS(TLEFT, TRIGHT)                                             \
+    M_INTEGER_OPERATIONS_PLUSEQUALS_NOENUM(TLEFT, TRIGHT)                                          \
                                                                                                    \
     constexpr TLEFT& operator+=(TLEFT& l, std::underlying_type_t<TRIGHT> r)                        \
     {                                                                                              \

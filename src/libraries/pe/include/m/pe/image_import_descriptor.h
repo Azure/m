@@ -38,7 +38,7 @@ namespace m
             // } IMAGE_IMPORT_DESCRIPTOR;
 
             static inline constexpr offset_t k_offset_import_name_table    = offset_t{0};
-            static inline constexpr offset_t k_offset_time_date_stamp   = offset_t{4};
+            static inline constexpr offset_t k_offset_time_date_stamp      = offset_t{4};
             static inline constexpr offset_t k_offset_forwarder_chain      = offset_t{8};
             static inline constexpr offset_t k_offset_name                 = offset_t{12};
             static inline constexpr offset_t k_offset_import_address_table = offset_t{16};
@@ -77,6 +77,7 @@ namespace m
             std::vector<import_name_table_entry> m_import_name_table_entries;
 
             template <typename SourceT>
+                requires(rva_ra_stream_in_pointer<SourceT>)
             static image_import_descriptor
             load_from(SourceT                     s,
                       image_magic_t               image_magic,
@@ -85,9 +86,9 @@ namespace m
             {
                 image_import_descriptor iid{};
 
-                using ContextT = load_from_rva_context<SourceT>;
+                // using ContextT = load_from_rva_context<SourceT>;
 
-                ContextT lfrc(s, idd.m_virtual_address);
+                load_from_rva_context lfrc(s, idd.m_virtual_address);
 
                 offset_t base_offset = offset_t{} + (image_import_descriptor::k_size * index);
                 lfrc.load_into(iid.m_import_name_table, base_offset + k_offset_import_name_table);
@@ -116,10 +117,10 @@ namespace m
                             {
                                 uint32_t int_entry{};
 
-                                m::pe::load_into(int_entry,
-                                                 s,
-                                                 iid.m_import_name_table +
-                                                     (i * k_size_pe32_image_name_table_entry));
+                                load_into_from(int_entry,
+                                               s,
+                                               iid.m_import_name_table +
+                                                   (i * k_size_pe32_image_name_table_entry));
 
                                 if (int_entry == 0)
                                     break;
@@ -147,10 +148,10 @@ namespace m
                             {
                                 uint64_t int_entry{};
 
-                                m::pe::load_into(int_entry,
-                                                 s,
-                                                 iid.m_import_name_table +
-                                                     (i * k_size_pe32plus_image_name_table_entry));
+                                load_into_from(int_entry,
+                                               s,
+                                               iid.m_import_name_table +
+                                                   (i * k_size_pe32plus_image_name_table_entry));
 
                                 if (int_entry == 0)
                                     break;
@@ -167,8 +168,9 @@ namespace m
                                         import_name_table_entry(m::to<uint32_t>(int_entry)));
                                 }
                                 else
-                                    iid.m_import_name_table_entries.emplace_back(import_name_table_entry(
-                                        image_import_by_name::load_from(s, rva_t(m::to<uint32_t>(int_entry)))));
+                                    iid.m_import_name_table_entries.emplace_back(
+                                        import_name_table_entry(image_import_by_name::load_from(
+                                            s, rva_t(m::to<uint32_t>(int_entry)))));
 
                                 i++;
                             }

@@ -25,10 +25,8 @@ namespace m
         concept input_stream = (std::derived_from<T, seq_in> || std::derived_from<T, ra_in>);
 
         template <typename T>
-        concept input_stream_pointer = requires(T x)
-        {
-            requires input_stream<std::remove_reference_t<decltype(*x)>>;
-        };
+        concept input_stream_pointer =
+            requires(T x) { requires input_stream<std::remove_reference_t<decltype(*x)>>; };
 
         /// <summary>
         /// Provides methods to read bytes or typed values from an input byte stream, handling

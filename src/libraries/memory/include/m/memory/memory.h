@@ -455,7 +455,7 @@ namespace m
     template <typename T, typename SourceT>
         requires(m::byte_streams::input_stream_pointer<SourceT>)
     void
-    load_into(T& v, SourceT s, io::position_t p)
+    load_into_from(T& v, SourceT s, io::position_t p)
     {
         if (s->read(p, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
             throw std::runtime_error("end of file");
@@ -464,7 +464,7 @@ namespace m
     template <typename T, typename SourceT>
         requires(m::byte_streams::input_stream_pointer<SourceT>)
     void
-    load_into(T& v, SourceT s, io::position_t origin, std::size_t /* limit */)
+    load_into_from(T& v, SourceT s, io::position_t origin, std::size_t /* limit */)
     {
         if (s->read(origin, std::as_writable_bytes(std::span(&v, 1))) != sizeof(T))
             throw std::runtime_error("end of file");
@@ -489,7 +489,7 @@ namespace m
         load_into(T& v, offset_t offset) const
         {
 
-            m::load_into(v, m_s, m_origin + offset, m_limit);
+            m::load_into_from(v, m_s, m_origin + offset, m_limit);
         }
 
     private:
@@ -508,6 +508,7 @@ namespace m
     using data_member_loader_t = void (*)(TargetT&, load_from_position_context<SourceT> const&);
 
     template <typename SourceT, typename TargetT>
+        requires(m::byte_streams::input_stream_pointer<SourceT>)
     void
     load_data_members(load_from_position_context<SourceT> const&        lfpc,
                       TargetT&                                          target,

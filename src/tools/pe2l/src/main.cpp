@@ -15,11 +15,10 @@
 #include <m/pe/pe_decoder.h>
 #include <m/strings/convert.h>
 
+#include "dump.h"
 #include "traverse.h"
 
 using namespace std::string_view_literals;
-
-
 
 int
 main(int argc, char const* argv[])
@@ -43,7 +42,7 @@ main(int argc, char const* argv[])
     auto& traverse_verb = commands.add_verb("traverse", m::pe2l::traverse);
     traverse_verb.add_path_parameter("filename", filename_path);
 
-    auto& dump = commands.add_verb("dump");
+    auto& dump = commands.add_verb("dump", m::pe2l::dump);
     dump.add_path_parameter("filename", filename_path);
 
     try

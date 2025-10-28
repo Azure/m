@@ -16,6 +16,7 @@ target_link_libraries(pe2l PUBLIC
     m_csv
     m_filesystem
     m_pe
+    m_print
 )
 
 if(WIN32)

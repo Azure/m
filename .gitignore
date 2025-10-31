@@ -43,6 +43,7 @@ Cargo.lock
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
+.vscode/
 # Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 
@@ -407,3 +408,4 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+/build

@@ -40,6 +40,9 @@ if (MSVC)
     add_compile_options(/we26447)       # The function is declared noexcept but calls function function_name that may throw exceptions (f.6).
 
     # string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    
+    # work around what appears to be a LTCG bug in MSVC
+    string(REGEX REPLACE "/GL" "/GL-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
     if(disable_native_wchar_t)
         add_compile_options("/Zc:wchar_t-")

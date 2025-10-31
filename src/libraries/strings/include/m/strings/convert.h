@@ -11,6 +11,7 @@
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 #include <m/utf/transcode.h>
+#include <m/utility/pointers.h>
 
 namespace m
 {
@@ -158,14 +159,34 @@ namespace m
 
     constexpr void to_u8string(std::nullptr_t) = delete;
 
-    constexpr std::u8string
+    constexpr std::optional<std::u8string>
     to_u8string(char8_t const* ptr)
     {
+        if (ptr == nullptr)
+            return std::nullopt;
+
         return std::u8string(std::u8string_view{ptr});
     }
 
     constexpr std::u8string
+    to_u8string(m::not_null<char8_t const*> ptr)
+    {
+        return std::u8string(std::u8string_view{ptr});
+    }
+
+    constexpr std::optional<std::u8string>
     to_u8string(char16_t const* ptr)
+    {
+        if (ptr == nullptr)
+            return std::nullopt;
+
+        std::u8string str;
+        utf::transcode(std::u16string_view{ptr}, str);
+        return str;
+    }
+
+    constexpr std::u8string
+    to_u8string(m::not_null<char16_t const*> ptr)
     {
         std::u8string str;
         utf::transcode(std::u16string_view{ptr}, str);
@@ -173,7 +194,7 @@ namespace m
     }
 
     constexpr std::u8string
-    to_u8string(char32_t const* ptr)
+    to_u8string(m::not_null<char32_t const*> ptr)
     {
         std::u8string str;
         utf::transcode(std::u32string_view{ptr}, str);

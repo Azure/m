@@ -33,15 +33,17 @@ main(int argc, char const* argv[])
         std::wstring buffer;
         auto         iter = std::back_inserter(buffer);
 
-        auto path_name      = path.filename();
-        auto path_name_str  = m::filesystem::path_to_wstring(path_name);
-        auto path_name_view = std::wstring_view(path_name_str);
+        auto path_name           = path.filename();
+        auto path_name_str       = m::filesystem::path_to_wstring(path_name);
+        auto utf8_path_name_str  = m::to_u8string(path_name_str);
+        auto utf8_path_name_view = std::u8string_view(utf8_path_name_str);
 
-        auto csv_writer = m::csv::writer(iter);
+        auto csv_writer = m::csv::writer([&](auto spn) { std::ranges::copy(spn, iter); });
 
         for (auto&& imp: decoded_pe.m_image_import_descriptors)
         {
-            auto import_name_sv = std::wstring_view(imp.m_name_string);
+            auto utf8_name    = m::to_u8string(imp.m_name_string);
+            auto utf8_name_sv = std::u8string_view(utf8_name);
 
             for (auto&& f: imp.m_import_name_table_entries)
             {
@@ -49,13 +51,14 @@ main(int argc, char const* argv[])
                 {
                     case m::pe::image_import_descriptor::k_import_name_table_entry_type_index_name:
                     {
-                        //
-                        auto import_name = std::wstring_view(
+                        auto utf8_import_name = m::to_u8string(
                             std::get<m::pe::image_import_descriptor::
                                          k_import_name_table_entry_type_index_name>(f)
                                 .m_name_string);
+                        auto utf8_import_name_sv = std::u8string_view(utf8_import_name);
 
-                        auto cols = {L"IMPORT"sv, path_name_view, import_name_sv, import_name};
+                        auto cols = {
+                            u8"IMPORT"sv, utf8_path_name_view, utf8_name_sv, utf8_import_name_sv};
 
                         csv_writer.write_row(cols);
 
@@ -74,9 +77,12 @@ main(int argc, char const* argv[])
 
                         std::format_to(buffer_iter, L"#{:#x}", import_ordinal);
 
-                        auto ordinal_view = std::wstring_view(ordinal_buffer);
+                        auto       ordinal_view      = std::wstring_view(ordinal_buffer);
+                        auto       utf8_ordinal      = m::to_u8string(ordinal_view);
+                        auto const utf8_ordinal_view = std::u8string_view(utf8_ordinal);
 
-                        auto cols = {L"IMPORT"sv, path_name_view, import_name_sv, ordinal_view};
+                        auto cols = {
+                            u8"IMPORT"sv, utf8_path_name_view, utf8_name_sv, utf8_ordinal_view};
 
                         csv_writer.write_row(cols);
 
@@ -86,9 +92,17 @@ main(int argc, char const* argv[])
             }
         }
 
-        csv_writer.write_end();
+        for (auto const& e: decoded_pe.m_image_export_directory.m_names)
+        {
+            auto const utf8_export_name      = m::to_u8string(e.c_str());
+            auto const utf8_export_name_view = utf8_export_name.has_value() ?
+                                                   std::u8string_view(utf8_export_name.value()) :
+                                                   std::u8string_view();
+            auto const cols = {u8"EXPORT"sv, utf8_path_name_view, utf8_export_name_view};
+            csv_writer.write_row(cols);
+        }
 
-        std::wcout << buffer;
+        std::wcout << m::to_wstring(buffer);
     }
 
     return EXIT_SUCCESS;

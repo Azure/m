@@ -19,6 +19,8 @@ namespace m
 
     using cwzstring = basic_zstring<wchar_t const, std::dynamic_extent>;
 
+    using cu8zstring = basic_zstring<char8_t const, std::dynamic_extent>;
+
     using cu16zstring = basic_zstring<char16_t const, std::dynamic_extent>;
 
     using cu32zstring = basic_zstring<char32_t const, std::dynamic_extent>;

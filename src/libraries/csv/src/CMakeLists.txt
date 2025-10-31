@@ -11,4 +11,5 @@ target_include_directories(m_csv PUBLIC
 target_link_libraries(m_csv PUBLIC
     m_io
     m_math
+    m_string_buffer
 )

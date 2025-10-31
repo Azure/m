@@ -26,6 +26,7 @@
 #include <m/cast/to.h>
 #include <m/cast/try_cast.h>
 #include <m/error_handling/macros.h>
+#include <m/exception/exception.h>
 #include <m/filesystem/filesystem.h>
 #include <m/sstring/sstring.h>
 #include <m/string_buffer/string_buffer.h>
@@ -152,14 +153,36 @@ namespace m
             using char_t             = CharT;
             using sstring_t          = basic_sstring<char_t>;
             using verb_t             = verb<char_t>;
+            using option_t           = option<char_t>;
             using parsed_parameter_t = parsed_parameter<char_t>;
             using parsed_option_t    = parsed_option<char_t>;
+            using value_t            = value<char_t>;
 
         public:
-            //
+            parsed_option() = delete;
+            parsed_option(m::not_null<option_t*> option, value_t value):
+                m_option(option), m_value(std::move(value))
+            {}
+            parsed_option(parsed_option const&) = delete;
+
+            parsed_option&
+            operator=(parsed_option const&) = delete;
+
+            sstring_t
+            name() const
+            {
+                return m_option->name();
+            }
+
+            value_t
+            value() const
+            {
+                return m_value;
+            }
 
         protected:
-            //
+            m::not_null<option_t*> m_option;
+            value_t                m_value;
         };
 
         template <typename CharT>
@@ -191,6 +214,15 @@ namespace m
                 return std::get<T>(pp->value());
             }
 
+            template <typename T, typename StringishT>
+                requires(is_value_v<char_t, T>)
+            T
+            get_option(StringishT const& name) const
+            {
+                auto const po = get_parsed_option(name);
+                return std::get<T>(po->value());
+            }
+
             template <typename StringishT>
             parsed_parameter_t*
             try_get_parsed_parameter(StringishT const& name) const
@@ -210,6 +242,30 @@ namespace m
                 if (it == m_parameter_map.end())
                 {
                     throw m::not_found("Parameter not present in parsed command");
+                }
+
+                return it->second;
+            }
+
+            template <typename StringishT>
+            parsed_option_t*
+            try_get_parsed_option(StringishT const& name) const
+            {
+                auto const it = m_option_map.find(name);
+                if (it == m_option_map.end())
+                    return nullptr;
+
+                return it->second;
+            }
+
+            template <typename StringishT>
+            m::not_null<parsed_option_t*>
+            get_parsed_option(StringishT const& name) const
+            {
+                auto const it = m_option_map.find(name);
+                if (it == m_option_map.end())
+                {
+                    throw m::not_found("Option not present in parsed command");
                 }
 
                 return it->second;
@@ -399,10 +455,20 @@ namespace m
             {
                 if (m_negatable)
                 {
-                    m_negated_name.reserve(m_name.size() + 2);
-                    m_negated_name.push_back('n');
-                    m_negated_name.push_back('o');
-                    m_negated_name.append(m_name);
+                    if constexpr (std::is_same_v<char_t, char>)
+                    {
+                        m_negated_name = "no"sv + m_name;
+                    }
+                    else if constexpr (std::is_same_v<char_t, wchar_t>)
+                    {
+                        m_negated_name = L"no"sv + m_name;
+                    }
+                    else
+                    {
+                        // Should implement the other three char types
+                        // and then not support non-char-types.
+                        M_NOT_IMPLEMENTED("Only char and wchar_t implemented at this time");
+                    }
                 }
             }
 
@@ -443,14 +509,11 @@ namespace m
             using string_view_t    = std::basic_string_view<char_t, char_traits_t>;
             using parsed_command_t = parsed_command<char_t>;
 
-            boolean_option(string_view_t name,
-                           bool&         value,
-                           bool          negatable     = true,
-                           bool          default_value = false):
-                option<char_t>(name, negatable), m_default_value(default_value), m_value(value)
-            {
-                m_value = default_value;
-            }
+            boolean_option(string_view_t name, bool negatable = true, bool default_value = false):
+                option<char_t>(name, negatable),
+                m_default_value(default_value),
+                m_value(m_default_value)
+            {}
 
         protected:
             bool
@@ -468,8 +531,8 @@ namespace m
                 return true;
             }
 
-            bool  m_default_value;
-            bool& m_value;
+            bool m_default_value;
+            bool m_value;
         };
 
         template <typename CharT>
@@ -484,13 +547,12 @@ namespace m
             using parsed_command_t = parsed_command<char_t>;
 
             string_option(string_view_t name,
-                          sstring_t     value,
                           string_view_t default_value = string_view_t{},
                           bool          negatable     = false):
-                option<char_t>(name, negatable), m_default_value(default_value), m_value(value)
-            {
-                m_value = default_value;
-            }
+                option<char_t>(name, negatable),
+                m_default_value(default_value),
+                m_value(m_default_value)
+            {}
 
         protected:
             bool
@@ -505,8 +567,7 @@ namespace m
                 if (index >= argc)
                     throw std::runtime_error("too few command line arguments");
 
-                m_value = argv[index];
-                index++;
+                m_value = argv[index++];
                 return true;
             }
 
@@ -525,14 +586,13 @@ namespace m
             using string_view_t    = std::basic_string_view<char_t, char_traits_t>;
             using parsed_command_t = parsed_command<char_t>;
 
-            path_option(string_view_t          name,
-                        std::filesystem::path& value,
-                        string_view_t          default_value = string_view_t{},
-                        bool                   negatable     = false):
-                option<char_t>(name, negatable), m_default_value(default_value), m_value(value)
-            {
-                m_value = default_value;
-            }
+            path_option(string_view_t name,
+                        string_view_t default_value = string_view_t{},
+                        bool          negatable     = false):
+                option<char_t>(name, negatable),
+                m_default_value(default_value),
+                m_value(m_default_value)
+            {}
 
         protected:
             bool
@@ -548,12 +608,13 @@ namespace m
                     throw std::runtime_error("too few command line arguments");
 
                 m_value = m::filesystem::make_path(argv[index]);
+
                 index++;
                 return true;
             }
 
-            std::filesystem::path  m_default_value;
-            std::filesystem::path& m_value;
+            std::filesystem::path m_default_value;
+            std::filesystem::path m_value;
         };
 
         template <typename CharT>
@@ -689,12 +750,12 @@ namespace m
             using parsed_parameter_t = parsed_parameter<char_t>;
 
             path_parameter(string_view_t          name,
-                           std::filesystem::path& value,
                            bool                   required      = true,
                            string_view_t          default_value = string_view_t{}):
-                parameter<CharT>(name, required), m_value(value), m_default_value(default_value)
+                parameter<CharT>(name, required),
+                m_default_value(default_value),
+                m_value(m::filesystem::make_path(m_default_value))
             {
-                m_value = m::filesystem::make_path(m_default_value);
             }
 
             path_parameter()                      = delete;
@@ -704,8 +765,8 @@ namespace m
             operator=(path_parameter const&) = delete;
 
         protected:
-            std::filesystem::path& m_value;
-            sstring_t              m_default_value;
+            sstring_t             m_default_value;
+            std::filesystem::path m_value;
 
             void
             do_process_parameter(parsed_command_t& pc,
@@ -834,6 +895,19 @@ namespace m
                 return *m::try_cast<path_parameter<char_t>*>(m_parameters[index].get());
             }
 
+            path_parameter<char_t>&
+            add_path_parameter(string_view_t name)
+            {
+                auto p1 = std::make_unique<path_parameter<char_t>>(name);
+
+                auto index = m_parameters.size();
+                m_parameters.push_back(nullptr);
+
+                // What was the size is now the index
+                m_parameters[index].reset(p1.release());
+                return *m::try_cast<path_parameter<char_t>*>(m_parameters[index].get());
+            }
+
 #if 0
             option_t&
             add_option(string_view_t name)
@@ -841,6 +915,18 @@ namespace m
                 return m_options.emplace_back(option_t(name));
             }
 #endif
+
+            path_option<char_t>&
+            add_path_option(string_view_t name)
+            {
+                auto p1 = std::make_unique<path_option<char_t>>(name);
+
+                auto const index = m_options.size();
+                m_options.push_back(nullptr);
+
+                m_options[index].reset(p1.release());
+                return *m::try_cast<path_option<char_t>*>(m_options[index].get());
+            }
 
             bool
             try_process_command_line(int& index, int argc, char_t const* argv[])

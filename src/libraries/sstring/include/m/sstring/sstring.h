@@ -350,6 +350,13 @@ namespace m
             return basic_sstring({m_view, rhs});
         }
 
+        friend basic_sstring
+        operator+(view_type l, basic_sstring const& r)
+        {
+            std::initializer_list<view_type> il{l, r.view()};
+            return basic_sstring(il);
+        }
+
         basic_sstring
         substr(std::size_t start, std::size_t length = max_size_t) const
         {
@@ -521,7 +528,6 @@ namespace m
             return compare(m::to_string_view_t<char_type>(std::forward<StringishT>(r))) == 0;
         }
 
-
         [[nodiscard]] constexpr comparison_category_type
         operator<=>(basic_sstring const& r) const noexcept
         {
@@ -605,8 +611,8 @@ namespace m
         requires(m::character<CharT>)
     struct string_conversion_helper<basic_sstring<CharT>, CharT>
     {
-        using sstring_t = basic_sstring<CharT>;
-        using string_t = std::basic_string<CharT>;
+        using sstring_t     = basic_sstring<CharT>;
+        using string_t      = std::basic_string<CharT>;
         using string_view_t = std::basic_string_view<CharT>;
 
         constexpr static string_view_t

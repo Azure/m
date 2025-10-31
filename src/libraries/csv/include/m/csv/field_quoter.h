@@ -24,15 +24,13 @@ namespace m
 {
     namespace csv
     {
-        template <typename OutputBackIterT>
         struct field_quoter
         {
-            constexpr field_quoter(OutputBackIterT& iter) noexcept: m_iter(iter) {}
-
             static inline constexpr auto characters_that_require_quotes = ",\r\n\""sv;
 
-            void
-            enquote(std::wstring_view input)
+            template <typename OutputBackIterT, typename StringishT>
+            static OutputBackIterT
+            enquote(OutputBackIterT iter, StringishT&& input)
             {
                 bool must_quote = false;
 
@@ -49,17 +47,14 @@ namespace m
 
                 if (!must_quote)
                 {
-                    // Fast path:
                     //
-                    std::ranges::for_each(input, [&](auto ch) {
-                        *m_iter = ch;
-                        ++m_iter;
-                    });
+                    // Fast path
+                    //
+                    iter = std::copy(input.begin(), input.end(), iter);
                 }
                 else
                 {
-                    *m_iter = L'"';
-                    ++m_iter;
+                    *iter++ = '"';
 
                     std::ranges::for_each(input, [&](auto ch) {
                         if ((ch != '\r' && ch != '\n') && ((ch < 32) || (ch > 126) || (ch == '{')))
@@ -69,37 +64,28 @@ namespace m
                             // mapped to {U+xxxx}
                             //
                             // Open braces are mapped to {U+007b}. Sorry.
-                            // 
+                            //
 
                             // We assume that the characters we're dealing with are not char32_t.
                             static_assert(sizeof(ch) <= 4);
-                            m_iter = std::format_to(m_iter, "{{U+{:04x}}}", static_cast<uint16_t>(ch));
+                            iter = std::format_to(iter, "{{U+{:04x}}}", static_cast<uint16_t>(ch));
                         }
                         else if (ch == '"')
                         {
-                            *m_iter = '"';
-                            ++m_iter;
-
-                            *m_iter = '"';
-                            ++m_iter;
+                            *iter++ = '"';
+                            *iter++ = '"';
                         }
                         else
                         {
-                            *m_iter = ch;
-                            ++m_iter;
+                            *iter++ = ch;
                         }
                     });
 
-                    *m_iter = '"';
-                    ++m_iter;
+                    *iter++ = '"';
                 }
+
+                return iter;
             }
-
-            OutputBackIterT& m_iter;
         };
-
-        template <typename T>
-        field_quoter(T) -> field_quoter<T>;
-
     } // namespace csv
 } // namespace m

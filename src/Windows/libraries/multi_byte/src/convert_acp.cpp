@@ -87,13 +87,31 @@ namespace m
     }
 
     void
-    to_u8string(m::czstring szstr, std::u8string& str)
+    to_u8string(m::czstring szstr, std::optional<std::u8string>& str)
+    {
+        if (!szstr)
+            str = std::nullopt;
+        else
+            to_u8string(m::not_null(szstr), str);
+    }
+
+    void
+    to_u8string(m::not_null<m::czstring> szstr, std::u8string& str)
     {
         to_u8string(std::string_view(szstr), str);
     }
 
-    std::u8string
+    std::optional<std::u8string>
     to_u8string(m::czstring szstr)
+    {
+        if (!szstr)
+            return std::nullopt;
+
+        return to_u8string(m::not_null(szstr));
+    }
+
+    std::u8string
+    to_u8string(m::not_null<m::czstring> szstr)
     {
         return to_u8string(std::string_view(szstr));
     }
@@ -111,13 +129,31 @@ namespace m
     }
 
     void
+    to_u16string(m::czstring szstr, std::optional<std::u16string>& str)
+    {
+        if (!szstr)
+            str = std::nullopt;
+        else
+            to_u16string(m::not_null(szstr), str);
+    }
+
+    void
     to_u16string(m::czstring szstr, std::u16string& str)
     {
         to_u16string(std::string_view(szstr), str);
     }
 
-    std::u16string
+    std::optional<std::u16string>
     to_u16string(m::czstring szstr)
+    {
+        if (!szstr)
+            return std::nullopt;
+
+        return to_u16string(m::not_null(szstr));
+    }
+
+    std::u16string
+    to_u16string(m::not_null<m::czstring> szstr)
     {
         return to_u16string(std::string_view(szstr));
     }
@@ -135,13 +171,31 @@ namespace m
     }
 
     void
-    to_u32string(m::czstring szstr, std::u32string& str)
+    to_u32string(m::czstring szstr, std::optional<std::u32string>& str)
+    {
+        if (!szstr)
+            str = std::nullopt;
+        else
+            to_u32string(m::not_null(szstr), str);
+    }
+
+    void
+    to_u32string(m::not_null<m::czstring> szstr, std::u32string& str)
     {
         to_u32string(std::string_view(szstr), str);
     }
 
-    std::u32string
+    std::optional<std::u32string>
     to_u32string(m::czstring szstr)
+    {
+        if (!szstr)
+            return std::nullopt;
+
+        return to_u32string(m::not_null(szstr));
+    }
+
+    std::u32string
+    to_u32string(m::not_null<m::czstring> szstr)
     {
         return to_u32string(std::string_view(szstr));
     }
@@ -159,13 +213,31 @@ namespace m
     }
 
     void
-    to_wstring(m::czstring szstr, std::wstring& str)
+    to_wstring(m::czstring szstr, std::optional<std::wstring>& str)
+    {
+        if (!szstr)
+            str = std::nullopt;
+        else
+            to_wstring(m::not_null(szstr), str);
+    }
+
+    void
+    to_wstring(m::not_null<m::czstring> szstr, std::wstring& str)
     {
         to_wstring(std::string_view(szstr), str);
     }
 
-    std::wstring
+    std::optional<std::wstring>
     to_wstring(m::czstring szstr)
+    {
+        if (!szstr)
+            return std::nullopt;
+
+        return to_wstring(m::not_null(szstr));
+    }
+
+    std::wstring
+    to_wstring(m::not_null<m::czstring> szstr)
     {
         return to_wstring(std::string_view(szstr));
     }

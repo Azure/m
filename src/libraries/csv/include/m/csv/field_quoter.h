@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <exception>
 #include <format>
 #include <functional>
@@ -68,7 +69,8 @@ namespace m
 
                             // We assume that the characters we're dealing with are not char32_t.
                             static_assert(sizeof(ch) <= 4);
-                            iter = std::format_to(iter, "{{U+{:04x}}}", static_cast<uint16_t>(ch));
+                            iter = std::format_to(
+                                iter, "{{U+{:04x}}}", static_cast<uint_least16_t>(ch));
                         }
                         else if (ch == '"')
                         {

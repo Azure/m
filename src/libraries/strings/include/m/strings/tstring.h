@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include <m/strings/string_conversion_details.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 #include <m/utf/transcode.h>
@@ -39,7 +40,7 @@ namespace m
     to_string_t(FromT&& from) noexcept
     {
         using CleanFromT = std::remove_const_t<std::remove_reference_t<FromT>>;
-        return string_conversion_helper<CleanFromT, ToCharT>::xlate_to_string(
+        return m::string_conversion_details::sch<CleanFromT, std::basic_string<ToCharT>>::xlate(
             std::forward<FromT>(from));
     }
 

@@ -11,140 +11,68 @@
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 
-namespace details
+namespace m::string_conversion_details
 {
-    template <typename OutIter>
-    OutIter
-    write_to_wchar_t(char32_t ch, OutIter it)
+    template <>
+    std::basic_string<wchar_t>
+    string_view_to_string<wchar_t, wchar_t>(std::basic_string_view<wchar_t> const& from)
     {
-        if constexpr (sizeof(wchar_t) == 2)
-        {
-            // wchar_t is UTF-16
-            it = m::utf::encode_utf16(ch, it);
-        }
-        else
-        {
-            it = m::utf::encode_utf32(ch, it);
-        }
-
-        return it;
+        return std::basic_string<wchar_t>(from);
     }
 
-    //
-    // Templatized form because the UTF-8 data can come in
-    // possibly 3 different "byte" sized chunks, std::byte,
-    // char, and char8_t.
-    //
-    template <typename Utf8CharT>
-    void
-    transcode_utf8_to_wchar_t(std::basic_string_view<Utf8CharT> v, std::wstring& str)
+    template <>
+    std::basic_string<wchar_t>
+    string_to_string<wchar_t, wchar_t>(std::basic_string<wchar_t> const& str)
     {
-        str.erase();
-
-        std::size_t wchar_count{};
-
-        auto       it   = v.begin();
-        auto const last = v.end();
-
-        while (it != last)
-        {
-            auto [newit, ch] = m::utf::decode_utf8(it, last);
-            wchar_count += m::utf::compute_encoded_utf16_count(ch);
-            it = newit;
-        }
-
-        str.reserve(wchar_count);
-
-        it = v.begin();
-
-        auto outit = std::back_inserter(str);
-
-        while (it != last)
-        {
-            auto [newit, ch] = m::utf::decode_utf8(it, last);
-            outit            = details::write_to_wchar_t(ch, outit);
-        }
-    }
-} // namespace details
-
-namespace m
-{
-    std::optional<std::wstring>
-    to_wstring(cwzstring str)
-    {
-        if (str == nullptr)
-            return std::nullopt;
-
-        return to_wstring(m::not_null(str));
+        return str;
     }
 
-    std::wstring
-    to_wstring(m::not_null<cwzstring> str)
+    template <>
+    std::basic_string<wchar_t>
+    string_view_to_string<char8_t, wchar_t>(std::basic_string_view<char8_t> const& from)
     {
-        return std::wstring{str};
+        std::basic_string<wchar_t> to;
+        utf::transcode(from, to);
+        return to;
     }
 
-    std::wstring
-    to_wstring(std::wstring_view v)
+    template <>
+    std::basic_string<wchar_t>
+    string_to_string<char8_t, wchar_t>(std::basic_string<char8_t> const& str)
     {
-        return std::wstring(v);
+        return string_view_to_string<char8_t, wchar_t>(std::basic_string_view<char8_t>(str));
     }
 
-    void
-    to_wstring(std::wstring_view v, std::wstring& str)
+    template <>
+    std::basic_string<wchar_t>
+    string_view_to_string<char16_t, wchar_t>(std::basic_string_view<char16_t> const& from)
     {
-        str = v;
+        std::basic_string<wchar_t> to;
+        utf::transcode(from, to);
+        return to;
     }
 
-    std::wstring
-    to_wstring(std::wstring const& s)
+    template <>
+    std::basic_string<wchar_t>
+    string_to_string<char16_t, wchar_t>(std::basic_string<char16_t> const& str)
     {
-        return std::wstring(s);
+        return string_view_to_string<char16_t, wchar_t>(std::basic_string_view<char16_t>(str));
     }
 
-    void
-    to_wstring(std::wstring const& s, std::wstring& str)
+    template <>
+    std::basic_string<wchar_t>
+    string_view_to_string<char32_t, wchar_t>(std::basic_string_view<char32_t> const& from)
     {
-        str = s;
+        std::basic_string<wchar_t> to;
+        utf::transcode(from, to);
+        return to;
     }
 
-    std::optional<std::wstring>
-    to_wstring(std::optional<std::wstring_view> v)
+    template <>
+    std::basic_string<wchar_t>
+    string_to_string<char32_t, wchar_t>(std::basic_string<char32_t> const& str)
     {
-        if (v)
-            return std::wstring(v.value());
-
-        return std::nullopt;
+        return string_view_to_string<char32_t, wchar_t>(std::basic_string_view<char32_t>(str));
     }
 
-    void
-    to_wstring(std::optional<std::wstring_view> v, std::optional<std::wstring>& str)
-    {
-        if (v)
-            str = v;
-        else
-            str = std::nullopt;
-    }
-
-    std::optional<std::wstring>
-    to_wstring(std::optional<std::wstring> const& s)
-    {
-        if (s)
-            return std::wstring(s.value());
-
-        return std::nullopt;
-    }
-
-    void
-    to_wstring(std::optional<std::wstring> s, std::optional<std::wstring>& str)
-    {
-        if (s)
-            str = s;
-        else
-            str = std::nullopt;
-    }
-
-
-
-
-}
+} // namespace m::string_conversion_details

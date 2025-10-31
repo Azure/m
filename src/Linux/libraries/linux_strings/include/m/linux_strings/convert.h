@@ -22,6 +22,97 @@
 
 namespace m
 {
+    namespace string_conversion_details
+    {
+        //
+        template <>
+        std::basic_string<char>
+        string_view_to_string(std::basic_string_view<wchar_t> const&);
+        template <>
+        std::basic_string<char>
+        string_view_to_string(std::basic_string_view<char8_t> const&);
+        template <>
+        std::basic_string<char>
+        string_view_to_string(std::basic_string_view<char16_t> const&);
+        template <>
+        std::basic_string<char>
+        string_view_to_string(std::basic_string_view<char32_t> const&);
+
+        template <>
+        std::basic_string<wchar_t>
+        string_view_to_string(std::basic_string_view<char> const&);
+
+        template <>
+        std::basic_string<char8_t>
+        string_view_to_string(std::basic_string_view<char> const&);
+        template <>
+        std::basic_string<char8_t>
+        string_view_to_string(std::basic_string_view<wchar_t> const&);
+
+        template <>
+        std::basic_string<char16_t>
+        string_view_to_string(std::basic_string_view<char> const&);
+        template <>
+        std::basic_string<char16_t>
+        string_view_to_string(std::basic_string_view<wchar_t> const&);
+
+        template <>
+        std::basic_string<char32_t>
+        string_view_to_string(std::basic_string_view<char> const&);
+        template <>
+        std::basic_string<char32_t>
+        string_view_to_string(std::basic_string_view<wchar_t> const&);
+
+        template <>
+        std::basic_string<char>
+        string_view_to_string(std::basic_string_view<wchar_t> const&);
+        template <>
+        std::basic_string<char>
+        string_view_to_string(std::basic_string_view<char8_t> const&);
+        template <>
+        std::basic_string<char>
+        string_view_to_string(std::basic_string_view<char16_t> const&);
+        template <>
+        std::basic_string<char>
+        string_view_to_string(std::basic_string_view<char32_t> const&);
+
+        template <>
+        std::basic_string<wchar_t>
+        string_to_string(std::basic_string<char> const&);
+        template <>
+        std::basic_string<wchar_t>
+        string_to_string(std::basic_string<char8_t> const&);
+        template <>
+        std::basic_string<wchar_t>
+        string_to_string(std::basic_string<char16_t> const&);
+        template <>
+        std::basic_string<wchar_t>
+        string_to_string(std::basic_string<char32_t> const&);
+
+        template <>
+        std::basic_string<char8_t>
+        string_to_string(std::basic_string<char> const&);
+        template <>
+        std::basic_string<char8_t>
+        string_to_string(std::basic_string<wchar_t> const&);
+
+        template <>
+        std::basic_string<char16_t>
+        string_to_string(std::basic_string<char> const&);
+        template <>
+        std::basic_string<char16_t>
+        string_to_string(std::basic_string<wchar_t> const&);
+
+        template <>
+        std::basic_string<char32_t>
+        string_to_string(std::basic_string<char> const&);
+        template <>
+        std::basic_string<char32_t>
+        string_to_string(std::basic_string<wchar_t> const&);
+
+    } // namespace string_conversion_details
+
+#if 0
     template <typename CharT>
         requires(m::character<CharT>)
     std::optional<std::string>
@@ -66,21 +157,6 @@ namespace m
         return str;
     }
 
-    constexpr std::string
-    to_string(m::not_null<cu8zstring> ptr)
-    {
-        return to_string(std::u8string_view(ptr));
-    }
-
-    constexpr std::optional<std::string>
-    to_string(cu8zstring ptr)
-    {
-        if (!ptr)
-            return std::nullopt;
-
-        return to_string(m::not_null<cu8zstring>(ptr));
-    }
-
     constexpr void
     to_string(std::u16string_view view, std::string& str)
     {
@@ -95,21 +171,6 @@ namespace m
         return str;
     }
 
-    constexpr std::string
-    to_string(m::not_null<cu16zstring> ptr)
-    {
-        return to_string(std::u16string_view(ptr));
-    }
-
-    constexpr std::optional<std::string>
-    to_string(cu16zstring ptr)
-    {
-        if (!ptr)
-            return std::nullopt;
-
-        return to_string(m::not_null<cu16zstring>(ptr));
-    }
-
     constexpr void
     to_string(std::u32string_view view, std::string& str)
     {
@@ -122,21 +183,6 @@ namespace m
         std::string str;
         to_string(view, str);
         return str;
-    }
-
-    constexpr std::string
-    to_string(m::not_null<cu32zstring> ptr)
-    {
-        return to_string(std::u32string_view(ptr));
-    }
-
-    constexpr std::optional<std::string>
-    to_string(cu32zstring ptr)
-    {
-        if (!ptr)
-            return std::nullopt;
-
-        return to_string(m::not_null<cu32zstring>(ptr));
     }
 
     //
@@ -526,4 +572,5 @@ namespace m
             return m::to_wstring(view);
         }
     };
+#endif
 } // namespace m

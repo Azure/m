@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
 if (WIN32)
-if(M_BUILD_TESTS)
     include(GoogleTest)
 
     add_executable(test_threadpool
@@ -22,5 +21,4 @@ if(M_BUILD_TESTS)
     enable_testing()
 
     gtest_discover_tests(test_threadpool)
-endif()
 endif()

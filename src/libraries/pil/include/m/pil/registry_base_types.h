@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <m/pil/key_path.h>
+#include <m/platform_adaptive_strings/convert.h>
 #include <m/sstring/sstring.h>
 #include <m/strings/convert.h>
 #include <m/utility/utility.h>

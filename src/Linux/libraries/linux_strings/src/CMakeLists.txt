@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_linux_strings PRIVATE
+    convert_string_view_to_string.cpp
+    convert_string_to_string.cpp
     to_string.cpp
     to_wstring.cpp
 )

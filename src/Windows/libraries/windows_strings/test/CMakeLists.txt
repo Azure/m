@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
 if(0)
-if(M_BUILD_TESTS)
     include(GoogleTest)
 
     add_executable(test_windows_strings
@@ -21,6 +20,4 @@ if(M_BUILD_TESTS)
     enable_testing()
 
     gtest_discover_tests(test_windows_strings)
-endif()
-
 endif()

@@ -7,15 +7,29 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include <m/strings/convert.h>
+#include <m/utility/pointers.h>
 
 #include "test_data.h"
 
 using namespace std::string_literals;
 using namespace std::string_view_literals;
+
+static char8_t const* pu8c_nullptr    = nullptr;
+static char8_t const* pu8c_notnullptr = u8"foo";
+
+//
+// Verify the optionality mechanics are kicking in
+//
+
+static_assert(std::is_same_v<decltype(m::to_u8string(pu8c_nullptr)), std::optional<std::u8string>>);
+static_assert(
+    std::is_same_v<decltype(m::to_u8string(m::not_null(pu8c_notnullptr))), std::u8string>);
 
 //
 // Unfortunately in the multi-platform world, there's essentially nothing

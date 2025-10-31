@@ -66,6 +66,7 @@ add_link_options(
 else()
     add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas)
     add_compile_options(-Wno-sign-compare)
+    add_compile_options(-Wno-unneeded-internal-declaration)
 #    add_compile_options(-wno-unused-local-typedef)          # error : unused type alias 'x'
 endif()
 
@@ -85,40 +86,6 @@ endif()
 
 message(STATUS "Project M: VCPKG_TARGET_TRIPLET: '${VCPKG_TARGET_TRIPLET}' -> M_VCPKG_MODE: ${M_VCPKG_MODE}")
 message(STATUS "Project M: Using vcpkg toolchain file at ${CMAKE_TOOLCHAIN_FILE}")
-
-# The tests build by default if the repo is accessed directly, not
-# by default if included as a dependency via vcpkg. You may enable
-# this by turning this option on.
-if(M_VCPKG_MODE)
-    option(build_tests "Build the tests for M" OFF)
-else()
-    option(build_tests "Build the tests for M" ON)
-endif()
-
-#
-# The logic for the defaulting of options is somehow weird
-# perhaps use of CMake_condition_option() would fix it but
-# it doesn't seem so.
-#
-# In practice, for vcpkg mode, we will assume that the
-# options are correctly configured since they are always
-# configured via the vcpkg.json manifest.
-#
-# For non-vcpkg mode, at least building using visual
-# studio, the defaults are not honored and the developer
-# has to go in to the CMakePresets.json and set the
-# cache variables for the options in order for them to
-# be recognized.
-#
-# So for non-vcpkg mode, we will just always build tests,
-# with no way to avoid it for now. Sorry.
-#
-
-if(M_VCPKG_MODE)
-    set(M_BUILD_TESTS ${build_tests} CACHE BOOL "Are the tests being built" FORCE)
-else()
-    set(M_BUILD_TESTS ON CACHE BOOL "Are the tests being built" FORCE)
-endif()
 
 set(M_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -151,18 +118,16 @@ if (M_VCPKG_MODE)
     include(FindGTest)
     find_package(GTest CONFIG REQUIRED)
 else()
-    if (M_BUILD_TESTS)
-        FetchContent_Declare(
-          GTest
-          GIT_REPOSITORY https://github.com/google/googletest.git
-          GIT_TAG v1.16.0
-        )
+    FetchContent_Declare(
+        GTest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.16.0
+    )
 
-        # For Windows: Prevent overriding the parent project's compiler/linker settings
-        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    # For Windows: Prevent overriding the parent project's compiler/linker settings
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
-        FetchContent_MakeAvailable(GTest)
-    endif()
+    FetchContent_MakeAvailable(GTest)
 
     FetchContent_Declare(GSL
         GIT_REPOSITORY "https://github.com/microsoft/GSL"
@@ -173,11 +138,7 @@ else()
     FetchContent_MakeAvailable(GSL)
 endif()
 
-message(STATUS "Project M: M_BUILD_TESTS: '${M_BUILD_TESTS}'")
-
-if (M_BUILD_TESTS)
-    enable_testing()
-endif()
+enable_testing()
 
 # Global include directories
 include_directories(

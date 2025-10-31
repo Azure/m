@@ -8,5 +8,6 @@ target_sources(m_strings PUBLIC FILE_SET HEADERS FILES
     m/strings/punning.h
     m/strings/split.h
     m/strings/static_string.h
+    m/strings/string_conversion_details.h
     m/strings/tstring.h
 )

@@ -11,257 +11,69 @@
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 
-namespace
+namespace m::string_conversion_details
 {
-    template <typename OutIter>
-    OutIter
-    write_to_wchar_t(char32_t ch, OutIter it)
+    template <>
+    std::basic_string<char8_t>
+    string_view_to_string<wchar_t, char8_t>(std::basic_string_view<wchar_t> const& from)
     {
-        if constexpr (sizeof(wchar_t) == 2)
-        {
-            // wchar_t is UTF-16
-            it = m::utf::encode_utf16(ch, it);
-        }
-        else
-        {
-            it = m::utf::encode_utf32(ch, it);
-        }
-
-        return it;
+        std::u8string to;
+        utf::transcode(from, to);
+        return to;
     }
 
-    //
-    // Templatized form because the UTF-8 data can come in
-    // possibly 3 different "byte" sized chunks, std::byte,
-    // char, and char8_t.
-    //
-    template <typename Utf8CharT>
-    void
-    transcode_utf8_to_wchar_t(std::basic_string_view<Utf8CharT> v, std::wstring& str)
+    template <>
+    std::basic_string<char8_t>
+    string_to_string<wchar_t, char8_t>(std::basic_string<wchar_t> const& str)
     {
-        str.erase();
-
-        std::size_t wchar_count{};
-
-        auto       it   = v.begin();
-        auto const last = v.end();
-
-        while (it != last)
-        {
-            auto [newit, ch] = m::utf::decode_utf8(it, last);
-            wchar_count += m::utf::compute_encoded_utf16_count(ch);
-            it = newit;
-        }
-
-        str.reserve(wchar_count);
-
-        it = v.begin();
-
-        auto outit = std::back_inserter(str);
-
-        while (it != last)
-        {
-            auto [newit, ch] = m::utf::decode_utf8(it, last);
-            outit            = write_to_wchar_t(ch, outit);
-        }
-    }
-} // namespace
-
-namespace m
-{
-    std::optional<std::u8string>
-    to_u8string(cu8zstring str)
-    {
-        if (str == nullptr)
-            return std::nullopt;
-
-        return to_u8string(m::not_null(str));
+        return string_view_to_string<wchar_t, char8_t>(std::wstring_view(str));
     }
 
-    std::u8string
-    to_u8string(m::not_null<cu8zstring> str)
+    template <>
+    std::basic_string<char8_t>
+    string_view_to_string<char8_t, char8_t>(std::basic_string_view<char8_t> const& from)
     {
-        return std::u8string(str);
+        return std::basic_string<char8_t>(from);
     }
 
-    std::optional<std::u8string>
-    to_u8string(cu16zstring ptr)
+    template <>
+    std::basic_string<char8_t>
+    string_to_string<char8_t, char8_t>(std::basic_string<char8_t> const& str)
     {
-        if (ptr == nullptr)
-            return std::nullopt;
-
-        return to_u8string(m::not_null(ptr));
-    }
-
-    std::u8string
-    to_u8string(m::not_null<cu16zstring> ptr)
-    {
-        std::u8string str;
-        utf::transcode(std::u16string_view{ptr}, str);
         return str;
     }
 
-    std::optional<std::u8string>
-    to_u8string(cu32zstring ptr)
+    template <>
+    std::basic_string<char8_t>
+    string_view_to_string<char16_t, char8_t>(std::basic_string_view<char16_t> const& from)
     {
-        if (ptr == nullptr)
-            return std::nullopt;
-
-        return to_u8string(m::not_null(ptr));
+        std::u8string to;
+        utf::transcode(from, to);
+        return to;
     }
 
-    std::u8string
-    to_u8string(m::not_null<cu32zstring> ptr)
+    template <>
+    std::basic_string<char8_t>
+    string_to_string<char16_t, char8_t>(std::basic_string<char16_t> const& str)
     {
-        std::u8string str;
-        utf::transcode(std::u32string_view{ptr}, str);
-        return str;
+        return string_view_to_string<char16_t, char8_t>(std::u16string_view(str));
     }
 
-    //
-    // std::u8string -> std::u8string
-    // std::u8string_view -> std::u8string
-    // std::optional<std::u8string_view> -> std::optional<std::u8string>
-    //
 
-    std::u8string
-    to_u8string(std::u8string_view v)
+    template <>
+    std::basic_string<char8_t>
+    string_view_to_string<char32_t, char8_t>(std::basic_string_view<char32_t> const& from)
     {
-        return std::u8string(v);
+        std::u8string to;
+        utf::transcode(from, to);
+        return to;
     }
 
-    void
-    to_u8string(std::u8string_view v, std::u8string& str)
+    template <>
+    std::basic_string<char8_t>
+    string_to_string<char32_t, char8_t>(std::basic_string<char32_t> const& str)
     {
-        str = v;
+        return string_view_to_string<char32_t, char8_t>(std::u32string_view(str));
     }
 
-    std::u8string
-    to_u8string(std::u8string const& s)
-    {
-        return std::u8string(std::u8string_view{s});
-    }
-
-    void
-    to_u8string(std::u8string const& s, std::u8string& str)
-    {
-        str = s;
-    }
-
-    std::optional<std::u8string>
-    to_u8string(std::optional<std::u8string_view> v)
-    {
-        if (v)
-            return std::u8string(v.value());
-
-        return std::nullopt;
-    }
-
-    void
-    to_u8string(std::optional<std::u8string_view> v, std::optional<std::u8string>& str)
-    {
-        if (v)
-            str = v;
-        else
-            str = std::nullopt;
-    }
-
-    void
-    to_u8string(std::u16string_view v, std::u8string& str)
-    {
-        utf::transcode(v, str);
-    }
-
-    std::u8string
-    to_u8string(std::u16string_view v)
-    {
-        std::u8string str;
-        to_u8string(v, str);
-        return str;
-    }
-
-    void
-    to_u8string(std::u16string const& s, std::u8string& str)
-    {
-        utf::transcode(std::u16string_view{s}, str);
-    }
-
-    std::u8string
-    to_u8string(std::u16string const& s)
-    {
-        std::u8string str;
-        to_u8string(s, str);
-        return str;
-    }
-
-    void
-    to_u8string(std::optional<std::u16string_view> v, std::optional<std::u8string>& str)
-    {
-        if (v)
-        {
-            std::u8string t;
-            utf::transcode(v.value(), t);
-            str = t;
-        }
-        else
-            str = std::nullopt;
-    }
-
-    std::optional<std::u8string>
-    to_u8string(std::optional<std::u16string_view> v)
-    {
-        std::optional<std::u8string> str;
-        to_u8string(v, str);
-        return str;
-    }
-
-    void
-    to_u8string(std::u32string_view v, std::u8string& str)
-    {
-        utf::transcode(v, str);
-    }
-
-    std::u8string
-    to_u8string(std::u32string_view v)
-    {
-        std::u8string str;
-        to_u8string(v, str);
-        return str;
-    }
-
-    void
-    to_u8string(std::u32string const& s, std::u8string& str)
-    {
-        utf::transcode(std::u32string_view{s}, str);
-    }
-
-    std::u8string
-    to_u8string(std::u32string const& s)
-    {
-        std::u8string str;
-        to_u8string(s, str);
-        return str;
-    }
-
-    void
-    to_u8string(std::optional<std::u32string_view> v, std::optional<std::u8string>& str)
-    {
-        if (v)
-        {
-            std::u8string t;
-            utf::transcode(v.value(), t);
-            str = t;
-        }
-        else
-            str = std::nullopt;
-    }
-
-    std::optional<std::u8string>
-    to_u8string(std::optional<std::u32string_view> v)
-    {
-        std::optional<std::u8string> str;
-        to_u8string(v, str);
-        return str;
-    }
-
-} // namespace m
+} // namespace m::string_conversion_details

@@ -10,6 +10,7 @@
 #include <m/error_handling/macros.h>
 #include <m/pil/pil.h>
 #include <m/pil/platform.h>
+#include <m/platform_adaptive_strings/convert.h>
 #include <m/strings/convert.h>
 #include <m/utility/make_span.h>
 

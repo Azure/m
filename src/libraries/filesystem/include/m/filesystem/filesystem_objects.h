@@ -34,6 +34,12 @@ namespace m
             do_path() = 0;
         };
 
+        class sequential_output_file : public m::filesystem::file, public m::byte_streams::seq_out
+        {
+        public:
+            virtual ~sequential_output_file() = default;
+        };
+
         class seekable_input_file :
             public m::filesystem::file,
             public m::byte_streams::ra_in,
@@ -55,6 +61,9 @@ namespace m
             seekable_output_file() {}
             virtual ~seekable_output_file() {}
         };
+
+        std::shared_ptr<sequential_output_file>
+        make_sequential_output_file(std::filesystem::path const& path);
 
         std::shared_ptr<seekable_input_file>
         open_seekable_input_file(std::filesystem::path const& path);

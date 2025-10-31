@@ -103,7 +103,7 @@ namespace m
 
             if (exceeds_inplace_vector())
             {
-                static_cast<DerivedMostStringBufferT*>(this)->for_each_span(fn);
+                static_cast<DerivedMostStringBufferT const*>(this)->for_each_non_inplace_span(fn);
             }
         }
 

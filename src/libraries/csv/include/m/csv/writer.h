@@ -3,83 +3,88 @@
 
 #pragma once
 
+#include <concepts>
 #include <exception>
 #include <functional>
 #include <iterator>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 
-#include "field_quoter.h"
+#include <m/string_buffer/string_buffer.h>
 
-using namespace std::string_view_literals;
+#include "field_quoter.h"
 
 namespace m
 {
+    using namespace std::string_view_literals;
+
     namespace csv
     {
+        namespace csv_impl
+        {
+            static inline m::u8string_buffer unused;
+            using back_inserter_type = decltype(std::back_inserter(unused));
+        } // namespace csv_impl
+
         struct writer_traits
         {
-            static inline constexpr auto line_break = "\r\n"sv;
+            static inline constexpr bool write_line_breaks = true;
+            static inline constexpr auto line_break        = "\r\n"sv;
         };
 
-        template <typename OutputBackIterT, typename TraitsT = writer_traits>
+        template <typename LineWriterT, typename TraitsT = writer_traits>
+            requires(std::invocable<LineWriterT, std::span<char8_t const>>)
         struct writer
         {
-            using output_back_iter_t = OutputBackIterT;
+            using line_writer_type   = LineWriterT;
             using traits_t           = TraitsT;
+            using string_buffer_type = u8string_buffer;
 
-            constexpr writer(output_back_iter_t& iter) noexcept:
-                m_iter{iter}, m_first_field{true}, m_first_row{true}, m_field_quoter{iter}
+            constexpr writer(line_writer_type line_writer) noexcept:
+                m_line_writer(line_writer), m_first_field{true}
             {}
 
             template <typename T>
             void
-            write_row(T const& row)
+            write_row(T&& row)
             {
-                if (m_first_row)
-                    m_first_row = false;
-                else
-                {
-                    std::ranges::for_each(traits_t::line_break, [this](auto ch) {
-                        *m_iter = ch;
-                        ++m_iter;
-                    });
-                }
-
-                std::ranges::for_each(row, [this](auto str) { write_field(str); });
-
+                auto iter     = std::back_inserter(m_line_buffer);
                 m_first_field = true;
-            }
-
-            void
-            write_end()
-            {
-                std::ranges::for_each(traits_t::line_break, [this](auto ch) {
-                    *m_iter = ch;
-                    ++m_iter;
+                m_line_buffer.clear();
+                std::ranges::for_each(std::forward<T>(row), [this, &iter](auto const& str) {
+                    // Explicit use of `this` because clang gives a warning
+                    // for the explicit capture of `this` because it does not
+                    // see it used using the toolset on ubuntu-latest on
+                    // github, 10/30/2025.
+                    this->write_field(iter, str);
                 });
+                iter = std::ranges::copy(traits_t::line_break, iter).out;
+
+                m_line_buffer.for_each_span([this](auto spn) { std::invoke(m_line_writer, spn); });
+
+                std::invoke(m_line_writer, string_buffer_type::span_type());
             }
 
         protected:
-            void
-            write_field(std::wstring_view input)
+            template <typename IteratorT, typename StringishT>
+            IteratorT
+            write_field(IteratorT iter, StringishT&& input)
             {
                 if (m_first_field)
                     m_first_field = false;
                 else
-                {
-                    *m_iter = ',';
-                    ++m_iter;
-                }
+                    *iter++ = ',';
 
-                m_field_quoter.enquote(input);
+                iter = field_quoter::enquote(iter, std::forward<StringishT>(input));
+
+                return iter;
             }
 
-            output_back_iter_t&              m_iter;
-            bool                             m_first_field;
-            bool                             m_first_row;
-            field_quoter<output_back_iter_t> m_field_quoter;
+            line_writer_type   m_line_writer;
+            string_buffer_type m_line_buffer;
+            bool               m_first_field;
         };
 
         template <typename T>

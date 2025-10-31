@@ -7,6 +7,7 @@ target_sources(m_filesystem PRIVATE
     path_conversions.cpp
     seekable_input_file.cpp
     seekable_output_file.cpp
+    sequential_output_file.cpp
     monitor.cpp
 )
 

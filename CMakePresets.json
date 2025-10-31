@@ -7,16 +7,20 @@
   },
   "configurePresets": [
     {
-      "name": "vcpkg",
+      "name": "base",
+      "displayName": "Basic Config",
+      "description": "Basic build using Ninja generator",
       "generator": "Ninja",
-      "cacheVariables": {
-        "CMAKE_C_COMPILER": "/usr/bin/clang",
-        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake"
-      },
+      "hidden": true,
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
       "environment": {
         "VCPKG_ROOT": "${sourceDir}/vcpkg"
-      }
+      },
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      },
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake"
     },
     {
       "name": "linux-base",
@@ -35,144 +39,310 @@
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       },
-      "environment": {
-        "VCPKG_ROOT": "${sourceDir}/vcpkg"
-      },
       "vendor": {
         "microsoft.com/VisualStudioRemoteSettings/CMake/2.0": {
           "remoteSourceRootDir": "$env{HOME}/.vs/$ms{projectDirName}"
         }
-      }
-    },
-    {
-      "name": "linux-x64-debug",
-      "inherits": "linux-base",
-      "displayName": "Linux Debug",
-      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-    {
-      "name": "linux-x64-retail",
-      "inherits": "linux-base",
-      "displayName": "Linux x64 Retail",
-      "description": "Target the Windows Subsystem for Linux (WSL) or a remote Linux system.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
-      "name": "macos-debug",
-      "displayName": "macOS Debug",
-      "description": "Target a remote macOS system.",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-        "CMAKE_BUILD_TYPE": "Debug"
       },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioRemoteSettings/CMake/1.0": {
-          "sourceDir": "$env{HOME}/.vs/$ms{projectDirName}"
-        }
-      }
+      "hidden": true
     },
     {
-      "name": "windows-base",
-      "description": "Target Windows with the Visual Studio development environment.",
-      "hidden": true,
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "installDir": "${sourceDir}/out/install/${presetName}",
-      "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": {
-          "value": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-          "type": "FILEPATH"
-        },
-        "CMAKE_C_COMPILER": "cl.exe",
-        "CMAKE_CXX_COMPILER": "cl.exe",
-        "build_tests": "ON"
-      },
-      "environment": {
-        "VCPKG_ROOT": "${sourceDir}/vcpkg"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "x64-debug",
-      "displayName": "x64 Debug",
-      "description": "Target Windows (64-bit) with the Visual Studio development environment. (Debug)",
-      "inherits": "windows-base",
+      "name": "x64",
       "architecture": {
         "value": "x64",
         "strategy": "external"
       },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_BUILD_TESTS": true
-      }
+      "cacheVariables": { "DIRECTX_ARCH": "x64" },
+      "hidden": true
     },
     {
-      "name": "x64-release",
-      "displayName": "x64 Release",
-      "description": "Target Windows (64-bit) with the Visual Studio development environment. (Release)",
-      "inherits": "x64-debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_BUILD_TESTS": true
-      }
+      "name": "ARM64",
+      "architecture": {
+        "value": "arm64",
+        "strategy": "external"
+      },
+      "cacheVariables": { "DIRECTX_ARCH": "arm64" },
+      "hidden": true
     },
     {
-      "name": "x64-relwithdebinfo",
-      "displayName": "x64 RelWithDebInfo",
-      "description": "Target Windows (64-bit) with the Visual Studio development environment. (RelWithDebInfo)",
-      "inherits": "x64-debug",
+      "name": "ARM64EC",
+      "architecture": {
+        "value": "arm64ec",
+        "strategy": "external"
+      },
+      "cacheVariables": { "DIRECTX_ARCH": "arm64ec" },
+      "environment": {
+        "CFLAGS": "/arm64EC",
+        "CXXFLAGS": "/arm64EC"
+      },
+      "hidden": true
+    },
+
+    {
+      "name": "Debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" },
+      "hidden": true
+    },
+    {
+      "name": "Release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CXX_STANDARD": "23",
-        "CMAKE_BUILD_TESTS": true
-      }
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": false
+      },
+      "hidden": true
     },
+
     {
-      "name": "x64-release-no-wchar_t",
-      "displayName": "x64 Rel wchar_t-",
-      "description": "x64 Rel /Zc:wchar_t-",
-      "inherits": "x64-relwithdebinfo",
+      "name": "MSVC",
+      "hidden": true,
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "disable_native_wchar_t": "ON"
+        "CMAKE_CXX_COMPILER": "cl.exe"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
       }
     },
     {
-      "name": "x64-release-clang-cl",
-      "displayName": "x64 Release Clang-cl",
-      "description": "Build x64 release with clang-cl",
-      "inherits": "x64-debug",
+      "name": "Clang",
+      "hidden": true,
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang-cl.exe",
-        "CMAKE_CXX_COMPILER": "clang-cl.exe",
-        "build_tests": "ON",
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        "CMAKE_CXX_COMPILER": "clang-cl.exe"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
       }
+    },
+    {
+      "name": "Clang-AArch64",
+      "environment": {
+        "CFLAGS": "--target=arm64-pc-windows-msvc",
+        "CXXFLAGS": "--target=arm64-pc-windows-msvc"
+      },
+      "hidden": true
+    },
+    {
+      "name": "GNUC",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "g++.exe"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      }
+    },
+
+    {
+      "name": "UWP",
+      "cacheVariables": {
+        "CMAKE_SYSTEM_NAME": "WindowsStore",
+        "CMAKE_SYSTEM_VERSION": "10.0"
+      },
+      "hidden": true
+    },
+    {
+      "name": "Analyze",
+      "cacheVariables": {
+        "ENABLE_CODE_ANALYSIS": true
+      },
+      "hidden": true
+    },
+    {
+      "name": "Coverage",
+      "cacheVariables": {
+        "BUILD_TOOLS": false,
+        "ENABLE_CODE_COVERAGE": true
+      },
+      "hidden": true
+    },
+    {
+      "name": "Fuzzing",
+      "cacheVariables": {
+        "BUILD_FUZZING": true,
+        "BUILD_TESTING": false
+      },
+      "hidden": true
+    },
+
+    {
+      "name": "x64-Debug",
+      "description": "MSVC for x64 (Debug)",
+      "inherits": [ "base", "x64", "Debug", "MSVC" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    },
+    {
+      "name": "x64-Release",
+      "description": "MSVC for x64 (Release)",
+      "inherits": [ "base", "x64", "Release", "MSVC" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    },
+
+    {
+      "name": "arm64-Debug",
+      "description": "MSVC for ARM64 (Debug)",
+      "inherits": [ "base", "ARM64", "Debug", "MSVC" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows"
+      }
+    },
+    {
+      "name": "arm64-Release",
+      "description": "MSVC for ARM64 (Release)",
+      "inherits": [ "base", "ARM64", "Release", "MSVC" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows"
+      }
+    },
+    {
+      "name": "arm64ec-Debug",
+      "description": "MSVC for ARM64EC (Debug)",
+      "inherits": [ "base", "ARM64EC", "Debug", "MSVC" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64ec-windows"
+      }
+    },
+    {
+      "name": "arm64ec-Release",
+      "description": "MSVC for ARM64EC (Release)",
+      "inherits": [ "base", "ARM64EC", "Release", "MSVC" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64ec-windows"
+      }
+    },
+
+    {
+      "name": "x64-Debug-UWP",
+      "description": "MSVC for x64 (Debug) for UWP",
+      "inherits": [ "base", "x64", "Debug", "MSVC", "UWP" ]
+    },
+    {
+      "name": "x64-Release-UWP",
+      "description": "MSVC for x64 (Release) for UWP",
+      "inherits": [ "base", "x64", "Release", "MSVC", "UWP" ]
+    },
+    {
+      "name": "arm64-Debug-UWP",
+      "description": "MSVC for ARM64 (Debug) for UWP",
+      "inherits": [ "base", "ARM64", "Debug", "MSVC", "UWP" ]
+    },
+    {
+      "name": "arm64-Release-UWP",
+      "description": "MSVC for ARM64 (Release) for UWP",
+      "inherits": [ "base", "ARM64", "Release", "MSVC", "UWP" ]
+    },
+
+    {
+      "name": "x64-Debug-Clang",
+      "description": "Clang/LLVM for x64 (Debug)",
+      "inherits": [ "base", "x64", "Debug", "Clang" ]
+    },
+    {
+      "name": "x64-Release-Clang",
+      "description": "Clang/LLVM for x64 (Release)",
+      "inherits": [ "base", "x64", "Release", "Clang" ]
+    },
+
+    {
+      "name": "arm64-Debug-Clang",
+      "description": "Clang/LLVM for AArch64 (Debug)",
+      "inherits": [ "base", "ARM64", "Debug", "Clang", "Clang-AArch64" ]
+    },
+    {
+      "name": "arm64-Release-Clang",
+      "description": "Clang/LLVM for AArch64 (Release)",
+      "inherits": [ "base", "ARM64", "Release", "Clang", "Clang-AArch64" ]
+    },
+
+    {
+      "name": "x64-Debug-UWP-Clang",
+      "description": "Clang/LLVM for x64 (Debug) for UWP",
+      "inherits": [ "base", "x64", "Debug", "Clang", "UWP" ]
+    },
+    {
+      "name": "x64-Release-UWP-Clang",
+      "description": "Clang/LLVM for x64 (Release) for UWP",
+      "inherits": [ "base", "x64", "Release", "Clang", "UWP" ]
+    },
+    {
+      "name": "arm64-Debug-UWP-Clang",
+      "description": "Clang/LLVM for AArch64 (Debug) for UWP",
+      "inherits": [ "base", "ARM64", "Debug", "Clang", "Clang-AArch64", "UWP" ]
+    },
+    {
+      "name": "arm64-Release-UWP-Clang",
+      "description": "Clang/LLVM for AArch64 (Release) for UWP",
+      "inherits": [ "base", "ARM64", "Release", "Clang", "Clang-AArch64", "UWP" ]
+    },
+
+    {
+      "name": "x64-Analyze-Win10",
+      "description": "MSVC for x64 (Debug) using /analyze",
+      "inherits": [ "base", "x64", "Debug", "MSVC", "Analyze" ]
+    },
+    {
+      "name": "x64-Coverage",
+      "description": "MSVC for x64 (Debug) w/ Code Coverage",
+      "inherits": [ "base", "x64", "Debug", "MSVC", "Coverage" ]
+    },
+    {
+      "name": "x64-Coverage-Clang",
+      "description": "Clang/LLVM for x64 (Debug) w/ Code Coverage",
+      "inherits": [ "base", "x64", "Debug", "Clang", "Coverage" ]
+    },
+    {
+      "name": "x64-Fuzzing",
+      "description": "MSVC for x64 (Release) with ASan",
+      "inherits": [ "base", "x64", "Release", "MSVC", "Fuzzing" ]
     }
   ],
   "testPresets": [
     {
-      "name": "testPresets",
-      "displayName": "Custom Test Preset",
-      "description": "Custom test preset description",
-      "configurePreset": "x64-release"
+      "name": "x64-Debug",
+      "configurePreset": "x64-Debug"
+    },
+    {
+      "name": "x64-Release",
+      "configurePreset": "x64-Release"
+    },
+    {
+      "name": "arm64-Debug",
+      "configurePreset": "arm64-Debug"
+    },
+    {
+      "name": "arm64-Release",
+      "configurePreset": "arm64-Release"
+    },
+    {
+      "name": "arm64ec-Debug",
+      "configurePreset": "arm64ec-Debug"
+    },
+    {
+      "name": "arm64ec-Release",
+      "configurePreset": "arm64ec-Release"
+    },
+
+    {
+      "name": "x64-Debug-Clang",
+      "configurePreset": "x64-Debug-Clang"
+    },
+    {
+      "name": "x64-Release-Clang",
+      "configurePreset": "x64-Release-Clang"
+    },
+    {
+      "name": "arm64-Debug-Clang",
+      "configurePreset": "arm64-Debug-Clang"
+    },
+    {
+      "name": "arm64-Release-Clang",
+      "configurePreset": "arm64-Release-Clang"
     }
   ]
 }

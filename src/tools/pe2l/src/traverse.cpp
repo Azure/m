@@ -27,6 +27,7 @@
 #include <m/linux_strings/convert.h>
 #endif
 
+using namespace std::string_literals;
 using namespace std::string_view_literals;
 
 #include "traverse.h"
@@ -63,13 +64,13 @@ m::pe2l::traverse(m::not_null<m::command_options::parsed_command<char>*> pc)
     if (loader.unresolved_count() == 0)
     {
         std::wcout << std::format(L"All imports of {} successfully resolved.\n",
-                                  m::to_wstring(path.c_str()));
+                                  m::to_wstring(path.c_str()).value_or(L""s));
     }
     else
     {
         std::wcout << std::format(L"{} imported DLLs of {} not found\n\n",
                                   loader.unresolved_count(),
-                                  m::to_wstring(path.c_str()));
+                                  m::to_wstring(path.c_str()).value_or(L""s));
 
         loader.for_each_not_found([](auto n) { std::wcout << n << "\n"; });
     }

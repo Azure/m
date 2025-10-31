@@ -12,6 +12,7 @@
 #include <m/utf/encode.h>
 #include <m/utf/transcode.h>
 #include <m/utility/pointers.h>
+#include <m/utility/zstring.h>
 
 namespace m
 {
@@ -21,233 +22,107 @@ namespace m
 
     constexpr void to_string(std::nullptr_t) = delete;
 
-    constexpr std::string
-    to_string(char const* str)
-    {
-        return std::string(str);
-    }
+    std::optional<std::string>
+    to_string(czstring str);
 
-    //
-    // std::string -> std::string
-    // std::string_view -> std::string
-    // std::optional<std::string_view> -> std::optional<std::string>
-    //
+    std::string
+    to_string(m::not_null<czstring> str);
 
-    constexpr std::string
-    to_string(std::string_view v)
-    {
-        return std::string(v);
-    }
+    std::string
+    to_string(std::string_view v);
 
-    constexpr void
-    to_string(std::string_view v, std::string& str)
-    {
-        str = v;
-    }
+    void
+    to_string(std::string_view v, std::string& str);
 
-    constexpr std::string
-    to_string(std::string const& s)
-    {
-        return std::string(std::string_view{s});
-    }
+    std::string
+    to_string(std::string const& s);
 
-    constexpr void
-    to_string(std::string const& s, std::string& str)
-    {
-        str = s;
-    }
+    void
+    to_string(std::string const& s, std::string& str);
 
-    constexpr std::optional<std::string>
-    to_string(std::optional<std::string_view> v)
-    {
-        if (v)
-            return std::string(v.value());
+    std::optional<std::string>
+    to_string(std::optional<std::string_view> v);
 
-        return std::nullopt;
-    }
-
-    constexpr void
-    to_string(std::optional<std::string_view> v, std::optional<std::string>& str)
-    {
-        if (v)
-            str = v;
-        else
-            str = std::nullopt;
-    }
+    void
+    to_string(std::optional<std::string_view> v, std::optional<std::string>& str);
 
     //
     //  m::to_wstring
     //
 
-    constexpr void to_wstring(std::nullptr_t) = delete;
+    void to_wstring(std::nullptr_t) = delete;
 
-    constexpr std::wstring
-    to_wstring(wchar_t const* str)
-    {
-        return std::wstring{str};
-    }
+    std::optional<std::wstring>
+    to_wstring(cwzstring str);
 
-    //
-    // std::wstring -> std::wstring
-    // std::wstring_view -> std::wstring
-    // std::optional<std::wstring> -> std::optional<std::wstring> ** only type that implements this
-    // pattern at this moment std::optional<std::wstring_view> -> std::optional<std::wstring>
-    //
-    constexpr std::wstring
-    to_wstring(std::wstring_view v)
-    {
-        return std::wstring(v);
-    }
+    std::wstring
+    to_wstring(m::not_null<cwzstring> str);
 
-    constexpr void
-    to_wstring(std::wstring_view v, std::wstring& str)
-    {
-        str = v;
-    }
+    std::wstring
+    to_wstring(std::wstring_view v);
 
-    constexpr std::wstring
-    to_wstring(std::wstring const& s)
-    {
-        return std::wstring(s);
-    }
+    void
+    to_wstring(std::wstring_view v, std::wstring& str);
 
-    constexpr void
-    to_wstring(std::wstring const& s, std::wstring& str)
-    {
-        str = s;
-    }
+    std::wstring
+    to_wstring(std::wstring const& s);
 
-    constexpr std::optional<std::wstring>
-    to_wstring(std::optional<std::wstring_view> v)
-    {
-        if (v)
-            return std::wstring(v.value());
+    void
+    to_wstring(std::wstring const& s, std::wstring& str);
 
-        return std::nullopt;
-    }
+    std::optional<std::wstring>
+    to_wstring(std::optional<std::wstring_view> v);
 
-    constexpr void
-    to_wstring(std::optional<std::wstring_view> v, std::optional<std::wstring>& str)
-    {
-        if (v)
-            str = v;
-        else
-            str = std::nullopt;
-    }
+    void
+    to_wstring(std::optional<std::wstring_view> v, std::optional<std::wstring>& str);
 
-    constexpr std::optional<std::wstring>
-    to_wstring(std::optional<std::wstring> const& s)
-    {
-        if (s)
-            return std::wstring(s.value());
+    std::optional<std::wstring>
+    to_wstring(std::optional<std::wstring> const& s);
 
-        return std::nullopt;
-    }
-
-    constexpr void
-    to_wstring(std::optional<std::wstring> s, std::optional<std::wstring>& str)
-    {
-        if (s)
-            str = s;
-        else
-            str = std::nullopt;
-    }
+    void
+    to_wstring(std::optional<std::wstring> s, std::optional<std::wstring>& str);
 
     //
     // to_u8string
     //
 
-    constexpr void to_u8string(std::nullptr_t) = delete;
+    void to_u8string(std::nullptr_t) = delete;
 
-    constexpr std::optional<std::u8string>
-    to_u8string(char8_t const* ptr)
-    {
-        if (ptr == nullptr)
-            return std::nullopt;
+    std::optional<std::u8string>
+    to_u8string(cu8zstring str);
 
-        return std::u8string(std::u8string_view{ptr});
-    }
+    std::u8string
+    to_u8string(m::not_null<cu8zstring> str);
 
-    constexpr std::u8string
-    to_u8string(m::not_null<char8_t const*> ptr)
-    {
-        return std::u8string(std::u8string_view{ptr});
-    }
+    std::optional<std::u8string>
+    to_u8string(cu16zstring ptr);
 
-    constexpr std::optional<std::u8string>
-    to_u8string(char16_t const* ptr)
-    {
-        if (ptr == nullptr)
-            return std::nullopt;
+    std::u8string
+    to_u8string(m::not_null<cu16zstring> ptr);
 
-        std::u8string str;
-        utf::transcode(std::u16string_view{ptr}, str);
-        return str;
-    }
+    std::optional<std::u8string>
+    to_u8string(cu32zstring ptr);
 
-    constexpr std::u8string
-    to_u8string(m::not_null<char16_t const*> ptr)
-    {
-        std::u8string str;
-        utf::transcode(std::u16string_view{ptr}, str);
-        return str;
-    }
+    std::u8string
+    to_u8string(m::not_null<cu32zstring> ptr);
 
-    constexpr std::u8string
-    to_u8string(m::not_null<char32_t const*> ptr)
-    {
-        std::u8string str;
-        utf::transcode(std::u32string_view{ptr}, str);
-        return str;
-    }
+    std::u8string
+    to_u8string(std::u8string_view v);
 
-    //
-    // std::u8string -> std::u8string
-    // std::u8string_view -> std::u8string
-    // std::optional<std::u8string_view> -> std::optional<std::u8string>
-    //
+    void
+    to_u8string(std::u8string_view v, std::u8string& str);
 
-    constexpr std::u8string
-    to_u8string(std::u8string_view v)
-    {
-        return std::u8string(v);
-    }
+    std::u8string
+    to_u8string(std::u8string const& s);
 
-    constexpr void
-    to_u8string(std::u8string_view v, std::u8string& str)
-    {
-        str = v;
-    }
+    void
+    to_u8string(std::u8string const& s, std::u8string& str);
 
-    constexpr std::u8string
-    to_u8string(std::u8string const& s)
-    {
-        return std::u8string(std::u8string_view{s});
-    }
+    std::optional<std::u8string>
+    to_u8string(std::optional<std::u8string_view> v);
 
-    constexpr void
-    to_u8string(std::u8string const& s, std::u8string& str)
-    {
-        str = s;
-    }
-
-    constexpr std::optional<std::u8string>
-    to_u8string(std::optional<std::u8string_view> v)
-    {
-        if (v)
-            return std::u8string(v.value());
-
-        return std::nullopt;
-    }
-
-    constexpr void
-    to_u8string(std::optional<std::u8string_view> v, std::optional<std::u8string>& str)
-    {
-        if (v)
-            str = v;
-        else
-            str = std::nullopt;
-    }
+    void
+    to_u8string(std::optional<std::u8string_view> v, std::optional<std::u8string>& str);
 
     //
     //  Transcoding
@@ -259,137 +134,65 @@ namespace m
     // std::optional<std::u16string_view> -> std::optional<std::u8string>
     //
 
-    constexpr void
-    to_u8string(std::u16string_view v, std::u8string& str)
-    {
-        utf::transcode(v, str);
-    }
+    void
+    to_u8string(std::u16string_view v, std::u8string& str);
 
-    constexpr std::u8string
-    to_u8string(std::u16string_view v)
-    {
-        std::u8string str;
-        to_u8string(v, str);
-        return str;
-    }
+    std::u8string
+    to_u8string(std::u16string_view v);
 
-    constexpr void
-    to_u8string(std::u16string const& s, std::u8string& str)
-    {
-        utf::transcode(std::u16string_view{s}, str);
-    }
+    void
+    to_u8string(std::u16string const& s, std::u8string& str);
 
-    constexpr std::u8string
-    to_u8string(std::u16string const& s)
-    {
-        std::u8string str;
-        to_u8string(s, str);
-        return str;
-    }
+    std::u8string
+    to_u8string(std::u16string const& s);
 
-    constexpr void
-    to_u8string(std::optional<std::u16string_view> v, std::optional<std::u8string>& str)
-    {
-        if (v)
-        {
-            std::u8string t;
-            utf::transcode(v.value(), t);
-            str = t;
-        }
-        else
-            str = std::nullopt;
-    }
+    void
+    to_u8string(std::optional<std::u16string_view> v, std::optional<std::u8string>& str);
 
-    constexpr std::optional<std::u8string>
-    to_u8string(std::optional<std::u16string_view> v)
-    {
-        std::optional<std::u8string> str;
-        to_u8string(v, str);
-        return str;
-    }
+    std::optional<std::u8string>
+    to_u8string(std::optional<std::u16string_view> v);
 
-    //
-    // std::u32string -> std::u8string
-    // std::u32string_view -> std::u8string
-    // std::optional<std::u32string_view> -> std::optional<std::u8string>
-    //
+    void
+    to_u8string(std::u32string_view v, std::u8string& str);
 
-    constexpr void
-    to_u8string(std::u32string_view v, std::u8string& str)
-    {
-        utf::transcode(v, str);
-    }
+    std::u8string
+    to_u8string(std::u32string_view v);
 
-    constexpr std::u8string
-    to_u8string(std::u32string_view v)
-    {
-        std::u8string str;
-        to_u8string(v, str);
-        return str;
-    }
+    void
+    to_u8string(std::u32string const& s, std::u8string& str);
 
-    constexpr void
-    to_u8string(std::u32string const& s, std::u8string& str)
-    {
-        utf::transcode(std::u32string_view{s}, str);
-    }
+    std::u8string
+    to_u8string(std::u32string const& s);
 
-    constexpr std::u8string
-    to_u8string(std::u32string const& s)
-    {
-        std::u8string str;
-        to_u8string(s, str);
-        return str;
-    }
+    void
+    to_u8string(std::optional<std::u32string_view> v, std::optional<std::u8string>& str);
 
-    constexpr void
-    to_u8string(std::optional<std::u32string_view> v, std::optional<std::u8string>& str)
-    {
-        if (v)
-        {
-            std::u8string t;
-            utf::transcode(v.value(), t);
-            str = t;
-        }
-        else
-            str = std::nullopt;
-    }
-
-    constexpr std::optional<std::u8string>
-    to_u8string(std::optional<std::u32string_view> v)
-    {
-        std::optional<std::u8string> str;
-        to_u8string(v, str);
-        return str;
-    }
+    std::optional<std::u8string>
+    to_u8string(std::optional<std::u32string_view> v);
 
     //
     // to_u16string
     //
 
-    constexpr void to_u16string(std::nullptr_t) = delete;
+    void to_u16string(std::nullptr_t) = delete;
 
-    constexpr std::u16string
-    to_u16string(char8_t const* ptr)
-    {
-        std::u16string str;
-        utf::transcode(std::u8string_view{ptr}, str);
-        return str;
-    }
+    std::optional<std::u16string>
+    to_u16string(cu8zstring ptr);
 
-    constexpr std::u16string
-    to_u16string(char16_t const* ptr)
-    {
-        return std::u16string(std::u16string_view{ptr});
-    }
+    std::u16string
+    to_u16string(m::not_null<cu8zstring> ptr);
 
-    constexpr std::u16string
-    to_u16string(char32_t const* ptr)
-    {
-        std::u16string str;
-        utf::transcode(std::u32string_view{ptr}, str);
-        return str;
-    }
+    std::optional<std::u16string>
+    to_u16string(cu16zstring ptr);
+
+    std::u16string
+    to_u16string(m::not_null<cu16zstring> ptr);
+
+    std::optional<std::u16string>
+    to_u16string(cu32zstring ptr);
+
+    std::u16string
+    to_u16string(m::not_null<cu32zstring> ptr);
 
     //
     // std::u8string -> std::u16string
@@ -397,100 +200,41 @@ namespace m
     // std::optional<std::u8string_view> -> std::optional<std::u16string>
     //
 
-    constexpr void
-    to_u16string(std::u8string_view v, std::u16string& str)
-    {
-        utf::transcode(v, str);
-    }
+    void
+    to_u16string(std::u8string_view v, std::u16string& str);
 
-    constexpr std::u16string
-    to_u16string(std::u8string_view v)
-    {
-        std::u16string str;
-        to_u16string(v, str);
-        return str;
-    }
+    std::u16string
+    to_u16string(std::u8string_view v);
 
-    constexpr void
-    to_u16string(std::u8string const& s, std::u16string& str)
-    {
-        utf::transcode(std::u8string_view{s}, str);
-    }
+    void
+    to_u16string(std::u8string const& s, std::u16string& str);
 
-    constexpr std::u16string
-    to_u16string(std::u8string const& s)
-    {
-        std::u16string str;
-        to_u16string(s, str);
-        return str;
-    }
+    std::u16string
+    to_u16string(std::u8string const& s);
 
-    constexpr void
-    to_u16string(std::optional<std::u8string_view> v, std::optional<std::u16string>& str)
-    {
-        if (v)
-        {
-            std::u16string t;
-            utf::transcode(v.value(), t);
-            str = t;
-        }
-        else
-            str = std::nullopt;
-    }
+    void
+    to_u16string(std::optional<std::u8string_view> v, std::optional<std::u16string>& str);
 
-    constexpr std::optional<std::u16string>
-    to_u16string(std::optional<std::u8string_view> v)
-    {
-        if (v)
-            return to_u16string(v.value());
+    std::optional<std::u16string>
+    to_u16string(std::optional<std::u8string_view> v);
 
-        return std::nullopt;
-    }
+    std::u16string
+    to_u16string(std::u16string_view v);
 
-    //
-    // std::u16string -> std::u16string
-    // std::u16string_view -> std::u16string
-    // std::optional<std::u16string_view> -> std::optional<std::u16string>
-    //
+    void
+    to_u16string(std::u16string_view v, std::u16string& str);
 
-    constexpr std::u16string
-    to_u16string(std::u16string_view v)
-    {
-        return std::u16string(v);
-    }
+    std::u16string
+    to_u16string(std::u16string const& s);
 
-    constexpr void
-    to_u16string(std::u16string_view v, std::u16string& str)
-    {
-        str = v;
-    }
+    void
+    to_u16string(std::u16string const& s, std::u16string& str);
 
-    constexpr std::u16string
-    to_u16string(std::u16string const& s)
-    {
-        return s;
-    }
+    std::optional<std::u16string>
+    to_u16string(std::optional<std::u16string_view> v);
 
-    constexpr void
-    to_u16string(std::u16string const& s, std::u16string& str)
-    {
-        str = s;
-    }
-
-    constexpr std::optional<std::u16string>
-    to_u16string(std::optional<std::u16string_view> v)
-    {
-        if (v)
-            return std::u16string(v.value());
-
-        return std::nullopt;
-    }
-
-    constexpr void
-    to_u16string(std::optional<std::u16string_view> v, std::optional<std::u16string>& str)
-    {
-        str = v;
-    }
+    void
+    to_u16string(std::optional<std::u16string_view> v, std::optional<std::u16string>& str);
 
     //
     // std::u32string -> std::u16string
@@ -498,236 +242,90 @@ namespace m
     // std::optional<std::u32string_view> -> std::optional<std::u16string>
     //
 
-    constexpr void
-    to_u16string(std::u32string_view v, std::u16string& str)
-    {
-        utf::transcode(v, str);
-    }
+    void
+    to_u16string(std::u32string_view v, std::u16string& str);
 
-    constexpr std::u16string
-    to_u16string(std::u32string_view v)
-    {
-        std::u16string str;
-        to_u16string(v, str);
-        return str;
-    }
+    std::u16string
+    to_u16string(std::u32string_view v);
 
-    constexpr void
-    to_u16string(std::u32string const& s, std::u16string& str)
-    {
-        utf::transcode(std::u32string_view{s}, str);
-    }
+    void
+    to_u16string(std::u32string const& s, std::u16string& str);
 
-    constexpr std::u16string
-    to_u16string(std::u32string const& s)
-    {
-        std::u16string str;
-        to_u16string(s, str);
-        return str;
-    }
+    std::u16string
+    to_u16string(std::u32string const& s);
 
-    constexpr void
-    to_u16string(std::optional<std::u32string_view> v, std::optional<std::u16string>& str)
-    {
-        if (v)
-        {
-            std::u16string t;
-            utf::transcode(v.value(), t);
-            str = t;
-        }
-        else
-            str = std::nullopt;
-    }
+    void
+    to_u16string(std::optional<std::u32string_view> v, std::optional<std::u16string>& str);
 
-    constexpr std::optional<std::u16string>
-    to_u16string(std::optional<std::u32string_view> v)
-    {
-        std::optional<std::u16string> str;
-        to_u16string(v, str);
-        return str;
-    }
+    std::optional<std::u16string>
+    to_u16string(std::optional<std::u32string_view> v);
 
     //
     // to_u32string
     //
 
-    constexpr void to_u32string(std::nullptr_t) = delete;
+    void to_u32string(std::nullptr_t) = delete;
 
-    constexpr std::u32string
-    to_u32string(char8_t const* ptr)
-    {
-        std::u32string str;
-        utf::transcode(std::u8string_view{ptr}, str);
-        return str;
-    }
-    constexpr std::u32string
-    to_u32string(char16_t const* ptr)
-    {
-        std::u32string str;
-        utf::transcode(std::u16string_view{ptr}, str);
-        return str;
-    }
+    std::u32string
+    to_u32string(char8_t const* ptr);
 
-    constexpr std::u32string
-    to_u32string(char32_t const* ptr)
-    {
-        return std::u32string(std::u32string_view{ptr});
-    }
+    std::u32string
+    to_u32string(char16_t const* ptr);
 
-    //
-    // std::u8string -> std::u32string
-    // std::u8string_view -> std::u32string
-    // std::optional<std::u8string_view> -> std::optional<std::u32string>
-    //
+    std::u32string
+    to_u32string(char32_t const* ptr);
 
-    constexpr void
-    to_u32string(std::u8string_view v, std::u32string& str)
-    {
-        utf::transcode(v, str);
-    }
+    void
+    to_u32string(std::u8string_view v, std::u32string& str);
 
-    constexpr std::u32string
-    to_u32string(std::u8string_view v)
-    {
-        std::u32string str;
-        to_u32string(v, str);
-        return str;
-    }
+    std::u32string
+    to_u32string(std::u8string_view v);
 
-    constexpr void
-    to_u32string(std::u8string const& s, std::u32string& str)
-    {
-        utf::transcode(std::u8string_view{s}, str);
-    }
+    void
+    to_u32string(std::u8string const& s, std::u32string& str);
 
-    constexpr std::u32string
-    to_u32string(std::u8string const& s)
-    {
-        std::u32string str;
-        to_u32string(s, str);
-        return str;
-    }
+    std::u32string
+    to_u32string(std::u8string const& s);
 
-    constexpr void
-    to_u32string(std::optional<std::u8string_view> v, std::optional<std::u32string>& str)
-    {
-        if (v)
-        {
-            std::u32string t;
-            utf::transcode(v.value(), t);
-            str = t;
-        }
-        else
-            str = std::nullopt;
-    }
+    void
+    to_u32string(std::optional<std::u8string_view> v, std::optional<std::u32string>& str);
 
-    constexpr std::optional<std::u32string>
-    to_u32string(std::optional<std::u8string_view> v)
-    {
-        std::optional<std::u32string> str;
-        to_u32string(v, str);
-        return str;
-    }
+    std::optional<std::u32string>
+    to_u32string(std::optional<std::u8string_view> v);
 
-    //
-    // std::u16string -> std::u32string
-    // std::u16string_view -> std::u32string
-    // std::optional<std::u16string_view> -> std::optional<std::u32string>
-    //
+    void
+    to_u32string(std::u16string_view v, std::u32string& str);
 
-    constexpr void
-    to_u32string(std::u16string_view v, std::u32string& str)
-    {
-        utf::transcode(v, str);
-    }
+    std::u32string
+    to_u32string(std::u16string_view v);
 
-    constexpr std::u32string
-    to_u32string(std::u16string_view v)
-    {
-        std::u32string str;
-        to_u32string(v, str);
-        return str;
-    }
+    std::u32string
+    to_u32string(std::u16string const& s);
 
-    constexpr std::u32string
-    to_u32string(std::u16string const& s)
-    {
-        std::u32string str;
-        to_u32string(s, str);
-        return str;
-    }
+    void
+    to_u32string(std::u16string const& s, std::u32string& str);
 
-    constexpr void
-    to_u32string(std::u16string const& s, std::u32string& str)
-    {
-        utf::transcode(std::u16string_view{s}, str);
-    }
+    std::optional<std::u32string>
+    to_u32string(std::optional<std::u16string_view> v);
 
-    constexpr std::optional<std::u32string>
-    to_u32string(std::optional<std::u16string_view> v)
-    {
-        if (v)
-            return to_u32string(v.value());
+    void
+    to_u32string(std::optional<std::u16string_view> v, std::optional<std::u32string>& str);
 
-        return std::nullopt;
-    }
+    std::u32string
+    to_u32string(std::u32string_view v);
 
-    constexpr void
-    to_u32string(std::optional<std::u16string_view> v, std::optional<std::u32string>& str)
-    {
-        if (v)
-        {
-            std::u32string t;
-            utf::transcode(v.value(), t);
-            str = t;
-        }
-        else
-            str = std::nullopt;
-    }
+    void
+    to_u32string(std::u32string_view v, std::u32string& str);
 
-    //
-    // std::u32string -> std::u32string
-    // std::u32string_view -> std::u32string
-    // std::optional<std::u32string_view> -> std::optional<std::u32string>
-    //
+    std::u32string
+    to_u32string(std::u32string const& s);
 
-    constexpr std::u32string
-    to_u32string(std::u32string_view v)
-    {
-        return std::u32string(v);
-    }
+    void
+    to_u32string(std::u32string const& s, std::u32string& str);
 
-    constexpr void
-    to_u32string(std::u32string_view v, std::u32string& str)
-    {
-        str = v;
-    }
+    std::optional<std::u32string>
+    to_u32string(std::optional<std::u32string_view> v);
 
-    constexpr std::u32string
-    to_u32string(std::u32string const& s)
-    {
-        return s;
-    }
-
-    constexpr void
-    to_u32string(std::u32string const& s, std::u32string& str)
-    {
-        str = s;
-    }
-
-    constexpr std::optional<std::u32string>
-    to_u32string(std::optional<std::u32string_view> v)
-    {
-        if (v)
-            return std::u32string(v.value());
-
-        return std::nullopt;
-    }
-
-    constexpr void
-    to_u32string(std::optional<std::u32string_view> v, std::optional<std::u32string>& str)
-    {
-        str = v;
-    }
-
+    void
+    to_u32string(std::optional<std::u32string_view> v, std::optional<std::u32string>& str);
 } // namespace m

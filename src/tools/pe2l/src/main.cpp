@@ -40,10 +40,11 @@ main(int argc, char const* argv[])
     auto commands = m::command_options::command_verb_set<char>();
 
     auto& traverse_verb = commands.add_verb("traverse", m::pe2l::traverse);
-    traverse_verb.add_path_parameter("filename", filename_path);
+    traverse_verb.add_path_parameter("filename"sv);
 
     auto& dump = commands.add_verb("dump", m::pe2l::dump);
-    dump.add_path_parameter("filename", filename_path);
+    dump.add_path_parameter("filename"sv);
+    dump.add_path_option("out"sv);
 
     try
     {

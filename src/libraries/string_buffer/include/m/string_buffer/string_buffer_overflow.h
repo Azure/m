@@ -139,6 +139,15 @@ namespace m
             return spnspn.subspan(0, 1);
         }
 
+        template <typename Fn>
+            requires(std::invocable<Fn, span_type>)
+        void
+        for_each_non_inplace_span(Fn&& fn) const
+        {
+            std::invoke(fn, m_overflow_provider.span());
+        }
+
+
         overflow_provider_type m_overflow_provider;
 
         friend base_type;

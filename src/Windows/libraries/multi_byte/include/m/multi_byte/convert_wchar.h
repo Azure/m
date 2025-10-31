@@ -37,14 +37,12 @@ namespace m
     constexpr std::optional<std::wstring>
     to_wstring(std::optional<std::u8string_view> v)
     {
-        if (v)
-        {
-            std::wstring str;
-            utf::transcode(v.value(), str);
-            return str;
-        }
+        if (!v)
+            return std::nullopt;
 
-        return std::nullopt;
+        std::wstring str;
+        utf::transcode(v.value(), str);
+        return str;
     }
 
     constexpr void
@@ -57,7 +55,9 @@ namespace m
             str = t;
         }
         else
+        {
             str = std::nullopt;
+        }
     }
 
     constexpr std::wstring
@@ -75,16 +75,16 @@ namespace m
     }
 
     constexpr std::wstring
-    to_wstring(m::not_null<char8_t const*> ptr)
+    to_wstring(m::not_null<cu8zstring> ptr)
     {
         return to_wstring(std::u8string_view(ptr));
     }
 
     constexpr std::optional<std::wstring>
-    to_wstring(char8_t const* ptr)
+    to_wstring(cu8zstring ptr)
     {
         if (ptr)
-            return to_wstring(m::not_null<char8_t const*>(ptr));
+            return to_wstring(m::not_null<cu8zstring>(ptr));
 
         return std::nullopt;
     }
@@ -106,14 +106,12 @@ namespace m
     constexpr std::optional<std::wstring>
     to_wstring(std::optional<std::u16string_view> v)
     {
-        if (v)
-        {
-            std::wstring str;
-            utf::transcode(v.value(), str);
-            return str;
-        }
+        if (!v)
+            return std::nullopt;
 
-        return std::nullopt;
+        std::wstring str;
+        utf::transcode(v.value(), str);
+        return str;
     }
 
     constexpr void
@@ -144,18 +142,18 @@ namespace m
     }
 
     constexpr std::wstring
-    to_wstring(m::not_null<char16_t const*> ptr)
+    to_wstring(m::not_null<cu16zstring> ptr)
     {
         return to_wstring(std::u16string_view(ptr));
     }
 
     constexpr std::optional<std::wstring>
-    to_wstring(char16_t const* ptr)
+    to_wstring(cu16zstring ptr)
     {
-        if (ptr)
-            return to_wstring(m::not_null<char16_t const*>(ptr));
+        if (ptr == nullptr)
+            return std::nullopt;
 
-        return std::nullopt;
+        return to_wstring(m::not_null<cu16zstring>(ptr));
     }
 
     constexpr std::wstring
@@ -213,18 +211,18 @@ namespace m
     }
 
     constexpr std::wstring
-    to_wstring(m::not_null<char32_t const*> ptr)
+    to_wstring(m::not_null<cu32zstring> ptr)
     {
         return to_wstring(std::u32string_view(ptr));
     }
 
     constexpr std::optional<std::wstring>
-    to_wstring(char32_t const* ptr)
+    to_wstring(cu32zstring ptr)
     {
-        if (ptr)
-            return to_wstring(m::not_null<char32_t const*>(ptr));
+        if (ptr == nullptr)
+            return std::nullopt;
 
-        return std::nullopt;
+        return to_wstring(m::not_null<cu32zstring>(ptr));
     }
 
     constexpr void
@@ -242,18 +240,18 @@ namespace m
     }
 
     constexpr std::u8string
-    to_u8string(m::not_null<wchar_t const*> ptr)
+    to_u8string(m::not_null<cwzstring> ptr)
     {
         return to_u8string(std::wstring_view(ptr));
     }
 
     constexpr std::optional<std::u8string>
-    to_u8string(wchar_t const* ptr)
+    to_u8string(cwzstring ptr)
     {
-        if (ptr)
-            return to_u8string(m::not_null<wchar_t const*>(ptr));
+        if (!ptr)
+            return std::nullopt;
 
-        return std::nullopt;
+        return to_u8string(m::not_null<cwzstring>(ptr));
     }
 
     constexpr void

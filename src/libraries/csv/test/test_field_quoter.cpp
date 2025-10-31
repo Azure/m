@@ -20,9 +20,7 @@ TEST(FieldQuoterTests, SimpleString)
     std::wstring s;
     auto         iter = std::back_inserter(s);
 
-    auto q = m::csv::field_quoter(iter);
-
-    q.enquote(L"hello"sv);
+    m::csv::field_quoter::enquote(iter, L"hello"sv);
 
     EXPECT_EQ(s, L"hello"s);
 }
@@ -32,9 +30,7 @@ TEST(FieldQuoterTests, SimpleString2)
     std::wstring s;
     auto         iter = std::back_inserter(s);
 
-    auto q = m::csv::field_quoter(iter);
-
-    q.enquote(L"hello \"Mike\" if that's actually your name"sv);
+    m::csv::field_quoter::enquote(iter, L"hello \"Mike\" if that's actually your name"sv);
 
     EXPECT_EQ(s, L"\"hello \"\"Mike\"\" if that's actually your name\""s);
 }
@@ -44,9 +40,7 @@ TEST(FieldQuoterTests, TestCarriageReturn)
     std::wstring s;
     auto         iter = std::back_inserter(s);
 
-    auto q = m::csv::field_quoter(iter);
-
-    q.enquote(L"abc\r123"sv);
+    m::csv::field_quoter::enquote(iter, L"abc\r123"sv);
 
     // Carriage returns and line feeds simply have double quotes put around the fields
     EXPECT_EQ(s, L"\"abc\r123\""s);
@@ -57,9 +51,7 @@ TEST(FieldQuoterTests, TestLineFeed)
     std::wstring s;
     auto         iter = std::back_inserter(s);
 
-    auto q = m::csv::field_quoter(iter);
-
-    q.enquote(L"abc\n123"sv);
+    m::csv::field_quoter::enquote(iter, L"abc\n123"sv);
 
     // Carriage returns and line feeds simply have double quotes put around the fields
     EXPECT_EQ(s, L"\"abc\n123\""s);
@@ -70,9 +62,7 @@ TEST(FieldQuoterTests, TestCRLF)
     std::wstring s;
     auto         iter = std::back_inserter(s);
 
-    auto q = m::csv::field_quoter(iter);
-
-    q.enquote(L"abc\r\n123"sv);
+    m::csv::field_quoter::enquote(iter, L"abc\r\n123"sv);
 
     // Carriage returns and line feeds simply have double quotes put around the fields
     EXPECT_EQ(s, L"\"abc\r\n123\""s);
@@ -83,9 +73,7 @@ TEST(FieldQuoterTests, TestBrace)
     std::wstring s;
     auto         iter = std::back_inserter(s);
 
-    auto q = m::csv::field_quoter(iter);
-
-    q.enquote(L"abc{123"sv);
+    m::csv::field_quoter::enquote(iter, L"abc{123"sv);
 
     //
     // Open brace is mapped to {U+007b} so that { can be fairly safely treated
@@ -100,9 +88,7 @@ TEST(FieldQuoterTests, TestStartingWithQuotedString)
     std::wstring s;
     auto         iter = std::back_inserter(s);
 
-    auto q = m::csv::field_quoter(iter);
-
-    q.enquote(L"\"What\"happens"sv);
+    m::csv::field_quoter::enquote(iter, L"\"What\"happens"sv);
 
     //
     // Expected: Quotes around whole string. Quotes around "What" are doubled.
@@ -115,9 +101,7 @@ TEST(FieldQuoterTests, TestEndingWithQuotedString)
     std::wstring s;
     auto         iter = std::back_inserter(s);
 
-    auto q = m::csv::field_quoter(iter);
-
-    q.enquote(L"What\"happens\""sv);
+    m::csv::field_quoter::enquote(iter, L"What\"happens\""sv);
 
     //
     // Expected: Quotes around whole string. Quotes around "happens" are doubled.
@@ -130,9 +114,7 @@ TEST(FieldQuoterTests, TestBEL)
     std::wstring s;
     auto         iter = std::back_inserter(s);
 
-    auto q = m::csv::field_quoter(iter);
-
-    q.enquote(L"abc\u0007123"sv);
+    m::csv::field_quoter::enquote(iter, L"abc\u0007123"sv);
 
     EXPECT_EQ(s, L"\"abc{U+0007}123\""s);
 }

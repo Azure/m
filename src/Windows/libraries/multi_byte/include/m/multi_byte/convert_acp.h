@@ -9,6 +9,7 @@
 
 #include <m/strings/tstring.h>
 #include <m/utf/transcode.h>
+#include <m/utility/pointers.h>
 
 #include "convert.h"
 
@@ -122,10 +123,16 @@ namespace m
     //
 
     void
-    to_wstring(m::czstring szstr, std::wstring& str);
+    to_wstring(m::czstring szstr, std::optional<std::wstring>& str);
+
+    void
+    to_wstring(m::not_null<m::czstring> szstr, std::wstring& str);
+
+    std::optional<std::wstring>
+    to_wstring(m::czstring szstr);
 
     std::wstring
-    to_wstring(m::czstring szstr);
+    to_wstring(m::not_null<m::czstring> szstr);
 
     void
     to_wstring(std::string_view v, std::wstring& str);
@@ -154,10 +161,16 @@ namespace m
     //
 
     void
-    to_u8string(m::czstring szstr, std::u8string& str);
+    to_u8string(m::czstring szstr, std::optional<std::u8string>& str);
+
+    void
+    to_u8string(m::not_null<m::czstring> szstr, std::u8string& str);
+
+    std::optional<std::u8string>
+    to_u8string(m::czstring szstr);
 
     std::u8string
-    to_u8string(m::czstring szstr);
+    to_u8string(m::not_null<m::czstring> szstr);
 
     void
     to_u8string(std::string_view v, std::u8string& str);
@@ -174,10 +187,16 @@ namespace m
     //
 
     void
-    to_u16string(m::czstring szstr, std::u16string& str);
+    to_u16string(m::czstring szstr, std::optional<std::u16string>& str);
+
+    void
+    to_u16string(m::not_null<m::czstring> szstr, std::u16string& str);
+
+    std::optional<std::u16string>
+    to_u16string(m::czstring szstr);
 
     std::u16string
-    to_u16string(m::czstring szstr);
+    to_u16string(m::not_null<m::czstring> szstr);
 
     void
     to_u16string(std::string_view v, std::u16string& str);
@@ -193,10 +212,16 @@ namespace m
     // char -> char32_t
     //
     void
-    to_u32string(m::czstring szstr, std::u32string& str);
+    to_u32string(m::czstring szstr, std::optional<std::u32string>& str);
+
+    void
+    to_u32string(m::not_null<m::czstring> szstr, std::u32string& str);
+
+    std::optional<std::u32string>
+    to_u32string(m::czstring szstr);
 
     std::u32string
-    to_u32string(m::czstring szstr);
+    to_u32string(m::not_null<m::czstring> szstr);
 
     void
     to_u32string(std::string_view v, std::u32string& str);

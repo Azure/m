@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_multi_byte PRIVATE
-    acp_conversions.cpp
+    "acp_convert.cpp"
     convert_acp.cpp
-    convert_wchar.cpp
+    string_conversion_details.cpp
     multi_byte_to_utf.cpp
     to_acp_string.cpp
     utf16_to_multi_byte.cpp

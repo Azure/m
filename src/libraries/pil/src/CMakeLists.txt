@@ -28,6 +28,7 @@ target_link_libraries(m_pil PUBLIC
     m_chrono
     m_error_handling
     m_math
+    m_platform_adaptive_strings
     m_strings
     m_tracing
 )

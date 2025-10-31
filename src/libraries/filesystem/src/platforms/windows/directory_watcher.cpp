@@ -31,6 +31,8 @@ using namespace std::chrono_literals;
 #undef min
 #undef max
 
+using namespace std::string_literals;
+
 namespace m::filesystem_impl::platform_specific
 {
     template <typename Rep, typename Period>

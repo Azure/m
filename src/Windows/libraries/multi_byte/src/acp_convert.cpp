@@ -74,3 +74,55 @@ namespace m
         return str;
     }
 } // namespace m
+
+namespace m::multi_byte::impl
+{
+    void
+    acp_convert(std::string_view v, std::wstring& str)
+    {
+        acp_to_wstring(v, str);
+    }
+
+    void
+    acp_convert(std::string_view v, std::u8string& str)
+    {
+        acp_to_u8string(v, str);
+    }
+
+    void
+    acp_convert(std::string_view v, std::u16string& str)
+    {
+        acp_to_u16string(v, str);
+    }
+
+    void
+    acp_convert(std::string_view v, std::u32string& str)
+    {
+        acp_to_u32string(v, str);
+    }
+
+    void
+    acp_convert(std::wstring_view v, std::string& str)
+    {
+        to_acp_string(v, str);
+    }
+
+    void
+    acp_convert(std::u8string_view v, std::string& str)
+    {
+        to_acp_string(v, str);
+    }
+
+    void
+    acp_convert(std::u16string_view v, std::string& str)
+    {
+        to_acp_string(v, str);
+    }
+
+    void
+    acp_convert(std::u32string_view v, std::string& str)
+    {
+        to_acp_string(v, str);
+    }
+
+} // namespace m::multi_byte::impl

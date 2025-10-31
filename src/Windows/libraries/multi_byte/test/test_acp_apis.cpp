@@ -8,7 +8,9 @@
 #include <string>
 #include <string_view>
 
+#include <m/strings/convert.h>
 #include <m/multi_byte/convert.h>
+#include <m/multi_byte/convert_acp.h>
 
 #include <Windows.h>
 

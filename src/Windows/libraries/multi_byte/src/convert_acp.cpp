@@ -15,6 +15,7 @@
 
 namespace m
 {
+#if 0
     void
     to_string(std::u8string_view v, std::string& str)
     {
@@ -321,5 +322,5 @@ namespace m
 
         return std::nullopt;
     }
-
+#endif
 } // namespace m

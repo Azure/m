@@ -24,6 +24,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <version>
 
 #include <m/error_handling/macros.h>
 #include <m/exception/exception.h>
@@ -788,6 +789,7 @@ namespace m
             insert(begin(), first, last);
         }
 
+#if __cpp_lib_container_ranges
         template <inplace_vector_impl::container_compatible_range<T> RangeT>
         constexpr inplace_vector(std::from_range_t, RangeT&& rnge)
             requires(std::constructible_from<T, std::ranges::range_reference_t<RangeT>> &&
@@ -795,6 +797,7 @@ namespace m
         {
             insert_range(begin(), std::forward<RangeT&&>(rnge));
         }
+#endif
 
         constexpr iterator
         erase(const_iterator first, const_iterator last)
@@ -804,7 +807,8 @@ namespace m
             iterator new_first = begin() + (first - begin());
             if (first != last)
             {
-                internal_unsafe_destroy(std::move(new_first + (last - first), end(), new_first), end());
+                internal_unsafe_destroy(std::move(new_first + (last - first), end(), new_first),
+                                        end());
                 unsafe_set_size(size() - static_cast<size_type>(last - first));
             }
             return new_first;

@@ -13,6 +13,7 @@
 #include <m/pil/pil.h>
 #include <m/pil/platform.h>
 #include <m/pil/registry.h>
+#include <m/platform_adaptive_strings/convert.h>
 #include <m/strings/convert.h>
 #include <m/tracing/tracing.h>
 #include <m/utility/make_span.h>

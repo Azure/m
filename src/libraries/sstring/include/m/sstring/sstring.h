@@ -468,32 +468,6 @@ namespace m
             return std::nullopt;
         }
 
-#if 0
-        bool
-        operator==(basic_sstring&& other) const noexcept
-        {
-            return view() == other.view();
-        }
-
-        bool
-        operator==(view_type&& other) const noexcept
-        {
-            return view() == other;
-        }
-
-        friend bool
-        operator==(view_type&& l, basic_sstring&& r) noexcept
-        {
-            return l == r.view();
-        }
-
-        friend decltype(auto)
-        operator<=>(basic_sstring&& l, basic_sstring&& r) noexcept
-        {
-            return operator<=>(l.view(), r.view());
-        }
-#endif
-
         bool
         empty() const noexcept
         {
@@ -637,6 +611,33 @@ namespace m
         xlate_to_string(sstring_t const& str)
         {
             return string_t(str.view());
+        }
+    };
+
+    template <typename CharT>
+        requires(m::character<CharT>)
+    struct string_conversion_helper<std::optional<basic_sstring<CharT>>, CharT>
+    {
+        using sstring_t     = basic_sstring<CharT>;
+        using string_t      = std::basic_string<CharT>;
+        using string_view_t = std::basic_string_view<CharT>;
+
+        constexpr static std::optional<string_view_t>
+        xlate_to_view(std::optional<sstring_t> const& str) noexcept
+        {
+            if (!str.has_value())
+                return std::nullopt;
+
+            return str.value().view();
+        }
+
+        static std::optional<string_t>
+        xlate_to_string(std::optional<sstring_t> const& str)
+        {
+            if (!str.has_value())
+                return std::nullopt;
+
+            return string_t(str.value().view());
         }
     };
 

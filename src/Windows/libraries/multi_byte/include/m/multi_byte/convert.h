@@ -13,12 +13,12 @@
 #include <string_view>
 #include <type_traits>
 
+#include <Windows.h>
+
 #include <m/errors/errors.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 #include <m/utility/make_span.h>
-
-#include <Windows.h>
 
 #include "code_page.h"
 #include "convert_acp.h"

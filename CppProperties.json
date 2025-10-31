@@ -34,24 +34,6 @@
       ],
       "compilerSwitches": "/std:c++latest",
       "intelliSenseMode": "windows-msvc-x64"
-    },
-    {
-      "inheritEnvironments": [
-        "msvc_x64"
-      ],
-      "name": "x64 RelWithDebInfo",
-      "includePath": [
-        "${env.INCLUDE}",
-        "${workspaceRoot}\\**"
-      ],
-      "defines": [
-        "WIN32",
-        "NDEBUG",
-        "UNICODE",
-        "_UNICODE"
-      ],
-      "compilerSwitches": "/std:c++latest",
-      "intelliSenseMode": "windows-msvc-x64"
     }
   ]
 }

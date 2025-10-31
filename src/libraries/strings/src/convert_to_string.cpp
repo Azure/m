@@ -11,7 +11,7 @@
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 
-namespace details
+namespace
 {
     template <typename OutIter>
     OutIter
@@ -62,13 +62,67 @@ namespace details
         while (it != last)
         {
             auto [newit, ch] = m::utf::decode_utf8(it, last);
-            outit            = details::write_to_wchar_t(ch, outit);
+            outit            = write_to_wchar_t(ch, outit);
         }
     }
 } // namespace details
 
+namespace m
+{
+    std::optional<std::string>
+    to_string(czstring str)
+    {
+        if (str == nullptr)
+            return std::nullopt;
 
-//
-// to_u8string
-//
+        return to_string(m::not_null(str));
+    }
 
+    std::string
+    to_string(m::not_null<czstring> str)
+    {
+        return std::string(str);
+    }
+
+    std::string
+    to_string(std::string_view v)
+    {
+        return std::string(v);
+    }
+
+    void
+    to_string(std::string_view v, std::string& str)
+    {
+        str = v;
+    }
+
+    std::string
+    to_string(std::string const& s)
+    {
+        return std::string(std::string_view{s});
+    }
+
+    void
+    to_string(std::string const& s, std::string& str)
+    {
+        str = s;
+    }
+
+    std::optional<std::string>
+    to_string(std::optional<std::string_view> v)
+    {
+        if (v)
+            return std::string(v.value());
+
+        return std::nullopt;
+    }
+
+    void
+    to_string(std::optional<std::string_view> v, std::optional<std::string>& str)
+    {
+        if (v)
+            str = v;
+        else
+            str = std::nullopt;
+    }
+}

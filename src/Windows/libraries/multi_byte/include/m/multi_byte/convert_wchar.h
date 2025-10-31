@@ -9,6 +9,7 @@
 
 #include <m/utf/transcode.h>
 #include <m/utility/pointers.h>
+#include <m/utility/zstring.h>
 
 #include "convert.h"
 

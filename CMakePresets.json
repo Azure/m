@@ -15,8 +15,7 @@
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/build/vcpkg/triplets/",
-        "VCPKG_OVERLAY_PORTS": "${sourceDir}/build/vcpkg/ports/",
-        "build_tests": "ON"
+        "VCPKG_OVERLAY_PORTS": "${sourceDir}/build/vcpkg/ports/"
       },
       "environment": {
         "VCPKG_ROOT": "${sourceDir}/vcpkg/"
@@ -28,17 +27,14 @@
       "inherits": [
         "base"
       ],
+      "environment": {
+        "CC": "clang",
+        "CXX": "clang++"
+      },
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_C_COMPILER": "/usr/bin/clang",
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
-        "build_tests": "ON",
         "CMAKE_BUILD_WITH_INSTALL_RPATH": true
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
       },
       "vendor": {
         "microsoft.com/VisualStudioRemoteSettings/CMake/2.0": {
@@ -46,7 +42,10 @@
           "copySourcesOptions": {
             "exclusionList": [
               "buildtrees",
-              ".vs"
+              ".vs",
+              "out",
+              "vcpkg/buildtrees",
+              "vcpkg/downloads"
             ]
           }
         }
@@ -398,8 +397,7 @@
       "inherits": [
         "linux-base",
         "x64",
-        "debug",
-        "clang"
+        "debug"
       ],
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-linux"
@@ -419,8 +417,7 @@
       "inherits": [
         "linux-base",
         "x64",
-        "release",
-        "clang"
+        "release"
       ],
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-linux"

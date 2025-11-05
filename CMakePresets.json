@@ -189,7 +189,7 @@
     },
     {
       "name": "x64-release",
-      "displayName": "x64-windows-release",
+      "displayName": "x64-release",
       "description": "msvc for x64 (release)",
       "inherits": [
         "win-base",
@@ -266,7 +266,7 @@
       }
     },
     {
-      "name": "x64-windows-release-clang",
+      "name": "x64-release-clang",
       "description": "clang-cl for x64 (release)",
       "inherits": [
         "win-base",
@@ -433,7 +433,7 @@
   ],
   "testPresets": [
     {
-      "name": "x64-debug",
+      "name": "x64-windows-debug",
       "configurePreset": "x64-debug"
     },
     {
@@ -453,8 +453,8 @@
       "configurePreset": "x64-windows-debug-clang"
     },
     {
-      "name": "x64-windows-release-clang",
-      "configurePreset": "x64-windows-release-clang"
+      "name": "x64-release-clang",
+      "configurePreset": "x64-release-clang"
     },
     {
       "name": "arm64-windows-debug-clang",

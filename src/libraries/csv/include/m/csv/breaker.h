@@ -4,141 +4,165 @@
 #pragma once
 
 #include <array>
+#include <concepts>
 #include <exception>
 #include <format>
 #include <functional>
 #include <iterator>
 #include <new>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 
-#include <m/io/units.h>
+#include <m/string_buffer/string_buffer.h>
 
 namespace m
 {
+    using namespace std::string_view_literals;
+
     namespace csv
     {
-        enum class break_reason
+        class breaker
         {
-            field,
-            row,
-        };
-
-        //
-        //
-        //
-
-        //
-        // The value cache_line_length should be std::hardware_constructive_interference_size
-        // from the <new> header but it seems to be missing in the clang build so instead of
-        // messing around we'll just define it for now.
-        //
-        // Some ARM64 processors have larger cache line sizes. Intel processors will fetch
-        // two cache lines at a time when loads are aligned on even cache lines, so the
-        // "hardware destructive interference size" should arguably be 128 since they will
-        // interfere with each other in terms of evicting cache lines but our goal here is
-        // to have a "chunky" size that we "know" is going to be in very fast memory that
-        // should be accessed as a unit before moving on to the next.
-        //
-        constexpr std::size_t cache_line_length = 64;
-
-        using cache_line_t = std::array<char8_t, cache_line_length>;
-
-        struct break_parse_context
-        {
-            constexpr break_parse_context() noexcept:
-                m_position{0}, m_in_quote{false}, m_done{false}, m_last_char{0}
-            {}
-
-            m::io::position_t m_position;
-            bool              m_in_quote;
-            bool              m_done;
-            char              m_last_char;
-        };
-
-        template <typename Function, typename... Args>
-        std::size_t
-        find_breaks(break_parse_context& context,
-                    cache_line_t const&  cache_line,
-                    Function             f,
-                    Args... args)
-        {
-            std::size_t       len{};
-            bool              in_quote  = context.m_in_quote;
-            bool              done      = context.m_done;
-            char              last_char = context.m_last_char;
-            m::io::position_t position  = context.m_position;
-
-            // done shouldn't happen!
-
-            if (done)
-                throw std::runtime_error("attempting to break after done!");
-
-            for (char8_t const b: cache_line)
+        public:
+            enum class break_reason
             {
-                if (b == 0)
+                field,
+                row,
+            };
+
+            using span_type = std::span<char8_t const>;
+
+            breaker() noexcept = default;
+            ~breaker()         = default;
+
+            // Needs a concept for InputT that it's span<>/string_view<> like
+            // in that it has .size()/.data()
+            template <typename InputT, typename Function>
+                requires(std::invocable<Function, break_reason, span_type>)
+            void
+            find_breaks(InputT&& input, Function fn, bool implicit_end_of_line = false)
+            {
+                auto        in_quote             = m_in_quote;
+                auto        last_char            = m_last_char;
+                auto        field_size           = m_field_size;
+                std::size_t segment_start_position{};
+
+                for (std::size_t i = 0; i < input.size(); i++)
                 {
-                    context.m_in_quote  = in_quote;
-                    context.m_last_char = last_char;
-                    context.m_done      = true;
-                    return len;
-                }
+                    auto const ch = input.data()[i];
 
-                len++;
-                ++position;
-
-                char ch = static_cast<char>(b);
-
-                switch (ch)
-                {
-                    case '"':
+                    if (ch == '"')
                     {
                         if (last_char == '"')
                         {
                             //
-                            // If we thought the quote had gotten us in to or out of a quote, NOPE!
+                            // If we thought the quote had gotten us in to or out of a quote,
+                            // NOPE!
                             //
                             in_quote = !in_quote;
                         }
 
-                        break;
+                        last_char = ch;
+
+                        continue;
                     }
 
-                    case '\r':
+                    last_char = ch;
+
+                    // If we're in the middle of a quoted string, or if this is
+                    // something other than a carriage return, line feed, or
+                    // comma, advance to the next character.
+                    if (in_quote || ch != '\r' || ch != '\n' || ch != ',')
+                        continue;
+
+                    // We're going to break, so commit any spanned characters
+                    // to the buffer.
+
+                    auto const segment_size = i - segment_start_position;
+
+                    // If there is some data to commit to the buffer, append it.
+                    if (segment_size != 0)
                     {
-                        if (!in_quote)
-                        {
-                            //
-                            // There's a design decision here about what to
-                            // do about sequences like /n/r andn /r/n/r.
-                            // We're going to treat /r/n as a single line
-                            // break otherwise these sequences are multiple.
-                            // Each carriage return is considered a break.
-                            //
-                            std::invoke(std::forward<Function>(f),
-                                        break_reason::row,
-                                        std::forward<Args>(args)...);
-                        }
-                        break;
+                        m_field_buffer.append(
+                            span_type(input.data() + segment_start_position, segment_size));
+                        field_size += segment_size;
                     }
 
-                    case '\n':
+                    // If the buffer has data, call fn and then reset the buffer.
+                    if (field_size != 0)
                     {
-                        if (!in_quote)
-                        {
-                            //
-                        }
-                        break;
+                        std::invoke(fn,
+                                    (ch == ',') ? break_reason::field : break_reason::row,
+                                    get_field_buffer_span());
+                        m_field_buffer.clear();
+                        field_size = 0;
                     }
 
-                    case ',':
-                    {
-                        break;
-                    }
+                    segment_start_position = i + 1;
+
                 }
+
+                if (implicit_end_of_line)
+                {
+                    auto const segment_size = input.size() - segment_start_position;
+
+                    // If there is some data to commit to the buffer, append it.
+                    if (segment_size != 0)
+                    {
+                        m_field_buffer.append(
+                            span_type(input.data() + segment_start_position, segment_size));
+                        field_size += segment_size;
+
+                        // This is ... kind of gross but if the quote was open and we hit the
+                        // logical end of line, what should we do? Nothing? Add an end-of-line
+                        // pair (\r\n)? End-of-transmission? (control-D - {U+0004} a/k/a EOT)?
+                        // End-of-file (control-Z - {U+001A})? Something more ... piquant?
+
+                        constexpr auto end_of_quoted_data_marker = u8"\x0004"sv;
+
+                        m_field_buffer.append(end_of_quoted_data_marker);
+                        field_size += end_of_quoted_data_marker.size();
+                    }
+
+                    // If the buffer has data, call fn and then reset the buffer.
+                    if (field_size != 0)
+                    {
+                        std::invoke(fn,
+                                    break_reason::row,
+                                    get_field_buffer_span());
+                        m_field_buffer.clear();
+                        field_size = 0;
+                    }
+
+                    // Arguably an implicit EOL (which is just a tacit way to indicate end of file)
+                    // is almost certainly an error when a quote is in progress. Still, we'll make
+                    // the state somewhat consistent with what looked like an end-of-line situation.
+                    //
+                    last_char = '\n';
+                }
+
+                // Save state back to the object
+                m_field_size           = field_size;
+                m_in_quote             = in_quote;
+                m_last_char            = last_char;
             }
-        }
+
+        private:
+            span_type
+            get_field_buffer_span()
+            {
+                auto const c_str = m_field_buffer.c_str();
+                auto const view  = std::u8string_view(c_str);
+                return span_type(view.data(), view.size());
+            }
+
+            m::u8string_buffer m_field_buffer;
+            std::size_t        m_field_size{};
+            bool               m_in_quote{};
+            char8_t            m_last_char{};
+        };
 
     } // namespace csv
 } // namespace m

@@ -20,4 +20,6 @@ target_link_libraries(
 
 enable_testing()
 
-gtest_discover_tests(test_math)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()

@@ -2,19 +2,23 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
-add_executable(test_win32
+set(TEST_EXE_NAME test_win32)
+
+add_executable(${TEST_EXE_NAME}
     test_registry_helpers.cpp
     test_win32_threadpool.cpp
 )
 
-target_compile_features(test_win32 PUBLIC ${M_CXX_STD})
+target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 
 target_link_libraries(
-    test_win32
+    ${TEST_EXE_NAME}
     m_win32
     GTest::gtest_main
 )
 
 enable_testing()
 
-gtest_discover_tests(test_win32)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()

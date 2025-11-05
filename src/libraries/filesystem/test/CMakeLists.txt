@@ -52,7 +52,9 @@ target_link_libraries(stress_load_store
 
 enable_testing()
 
-gtest_discover_tests(test_filesystem stress_monitor)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(test_filesystem stress_monitor)
+endif()
 
 list(APPEND m_installation_targets
 )

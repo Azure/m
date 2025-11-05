@@ -21,6 +21,16 @@ project(m
     VERSION ${VERSION}
 )
 
+option(BUILD_TESTING "Build tests" OFF)
+if(BUILD_TESTING)
+  list(APPEND VCPKG_MANIFEST_FEATURES "tests")
+endif()
+
+include(CMakeDependentOption)
+
+cmake_dependent_option(DISCOVER_TESTS "Discover tests within built tests" ON BUILD_TESTING OFF)
+
+
 option(disable_native_wchar_t "Disable the use of wchar_t as a native distinct type" OFF)
 
 if (MSVC)

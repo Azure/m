@@ -1,19 +1,23 @@
 cmake_minimum_required(VERSION 3.23)
 
-    include(GoogleTest)
+include(GoogleTest)
 
-    add_executable(test_sstring
-        test_sstring.cpp
-    )
+set(TEST_EXE_NAME test_sstring)
 
-    target_compile_features(test_sstring PUBLIC ${M_CXX_STD})
+add_executable(${TEST_EXE_NAME}
+    test_sstring.cpp
+)
 
-    target_link_libraries(test_sstring
-        m_sstring
-        m_test_data
-        GTest::gtest_main
-    )
+target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 
-    enable_testing()
+target_link_libraries(${TEST_EXE_NAME}
+    m_sstring
+    m_test_data
+    GTest::gtest_main
+)
 
-    gtest_discover_tests(test_sstring)
+enable_testing()
+
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()

@@ -2,13 +2,15 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
-add_executable(test_pool
+set(TEST_EXE_NAME test_pool)
+
+add_executable(${TEST_EXE_NAME}
     test_pool.cpp
 )
 
-target_compile_features(test_pool PUBLIC ${M_CXX_STD})
+target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 
-target_link_libraries(test_pool
+target_link_libraries(${TEST_EXE_NAME}
     m_inplace_vector
     m_pool
     m_print
@@ -18,4 +20,6 @@ target_link_libraries(test_pool
 
 enable_testing()
 
-gtest_discover_tests(test_pool)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()

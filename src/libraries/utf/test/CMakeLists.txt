@@ -4,7 +4,9 @@ project(m)
 
 include(GoogleTest)
 
-add_executable(test_utf
+set(TEST_EXE_NAME test_utf)
+
+add_executable(${TEST_EXE_NAME}
     test_non_shortest_utf8.cpp
     test_truncated_utf8.cpp
     utf16_typed_decoder.cpp
@@ -16,9 +18,9 @@ add_executable(test_utf
     utf8_typed_decoder.cpp
 )
 
-target_compile_features(test_utf PUBLIC ${M_CXX_STD})
+target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 
-target_link_libraries(test_utf
+target_link_libraries(${TEST_EXE_NAME}
     m_cast
     m_strings
     m_math
@@ -28,4 +30,6 @@ target_link_libraries(test_utf
 
 enable_testing()
 
-gtest_discover_tests(test_utf)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()

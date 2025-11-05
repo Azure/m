@@ -16,7 +16,9 @@ target_link_libraries(test_memory
 
 enable_testing()
 
-gtest_discover_tests(test_memory)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()
 
 list(APPEND m_installation_targets
 )

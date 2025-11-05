@@ -5,7 +5,9 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
-add_executable(test_strings
+set(TEST_EXE_NAME test_strings)
+
+add_executable(${TEST_EXE_NAME}
     compare_optional_wstring_view.cpp
     punning_test.cpp
     test_convert.cpp
@@ -16,10 +18,10 @@ add_executable(test_strings
     verify_to_u32string.cpp
 )
 
-target_compile_features(test_strings PUBLIC ${M_CXX_STD})
+target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 
 target_link_libraries(
-    test_strings
+    ${TEST_EXE_NAME}
     m_cast
     m_strings
     m_math
@@ -28,4 +30,6 @@ target_link_libraries(
 
 enable_testing()
 
-gtest_discover_tests(test_strings)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()

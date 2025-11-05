@@ -2,13 +2,15 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
-add_executable(test_puddle
+set(TEST_EXE_NAME test_puddle)
+
+add_executable(${TEST_EXE_NAME}
     test_puddle.cpp
 )
 
-target_compile_features(test_puddle PUBLIC ${M_CXX_STD})
+target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 
-target_link_libraries(test_puddle
+target_link_libraries(${TEST_EXE_NAME}
     m_inplace_vector
     m_puddle
     m_print
@@ -18,4 +20,6 @@ target_link_libraries(test_puddle
 
 enable_testing()
 
-gtest_discover_tests(test_puddle)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()

@@ -19,5 +19,7 @@ if(0)
 
     enable_testing()
 
-    gtest_discover_tests(test_windows_strings)
+    if(DISCOVER_TESTS)
+        gtest_discover_tests(${TEST_EXE_NAME})
+    endif()
 endif()

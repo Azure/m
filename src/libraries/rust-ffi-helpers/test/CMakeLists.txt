@@ -2,14 +2,16 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
-add_executable(test_rust_ffi_helpers
+set(TEST_EXE_NAME test_rust_ffi_helpers)
+
+add_executable(${TEST_EXE_NAME}
     test_arc_ptr.cpp
     test_string_in.cpp)
 
-target_compile_features(test_rust_ffi_helpers PUBLIC ${M_CXX_STD})
+target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 
 target_link_libraries(
-    test_rust_ffi_helpers
+    ${TEST_EXE_NAME}
     m_rust_ffi_helpers
     m_cast
     m_strings
@@ -18,16 +20,18 @@ target_link_libraries(
 )
 
 if(WIN32)
-target_link_libraries(test_rust_ffi_helpers
+target_link_libraries(${TEST_EXE_NAME}
     m_windows_strings
 )
 else()
-target_link_libraries(test_rust_ffi_helpers
+target_link_libraries(${TEST_EXE_NAME}
     m_linux_strings
 )
 endif()
 
 enable_testing()
 
-gtest_discover_tests(test_rust_ffi_helpers)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()
 

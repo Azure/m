@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
-add_executable(test_utility
+set(TEST_EXE_NAME test_utility)
+
+add_executable(${TEST_EXE_NAME}
     test_pointers.cpp
 )
 
@@ -14,10 +16,11 @@ target_link_libraries(test_utility
 
 enable_testing()
 
-gtest_discover_tests(test_utility)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()
 
-list(APPEND m_installation_targets
-)
+list(APPEND m_installation_targets)
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)
 

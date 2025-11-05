@@ -2,19 +2,23 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
-add_executable(test_bitset
+set(TEST_EXE_NAME test_bitset)
+
+add_executable(${TEST_EXE_NAME}
     test_bitset.cpp
 )
 
-target_compile_features(test_bitset PUBLIC cxx_std_23)
+target_compile_features(${TEST_EXE_NAME} PUBLIC cxx_std_23)
 
-target_link_libraries(test_bitset
+target_link_libraries(${TEST_EXE_NAME}
     m_bitset
     GTest::gtest_main
 )
 
-enable_testing()
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()
 
-gtest_discover_tests(test_bitset)
+enable_testing()
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

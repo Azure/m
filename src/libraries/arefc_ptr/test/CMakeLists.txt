@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
-add_executable(test_arc_ptr
+set(TEST_EXE_NAME test_arc_ptr)
+
+add_executable(${TEST_EXE_NAME}
     test_arefc_ptr.cpp
 )
 
@@ -16,4 +18,6 @@ target_link_libraries(test_arc_ptr
 
 enable_testing()
 
-gtest_discover_tests(test_arc_ptr)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()

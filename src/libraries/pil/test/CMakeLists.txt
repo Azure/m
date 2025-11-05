@@ -24,7 +24,8 @@ target_link_libraries(test_pil_registry
 
 enable_testing()
 
-gtest_discover_tests(test_pil_registry)
-
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()
 
 add_subdirectory(Platforms)

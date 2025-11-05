@@ -2,19 +2,24 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
+set(TEST_EXE_NAME test_rfc3339_clock)
+
 add_executable(
-    test_rfc3339_clock
+    ${TEST_EXE_NAME}
     exercise_clock.cpp
 )
 
-target_compile_features(test_rfc3339_clock PUBLIC ${M_CXX_STD})
+target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 
 target_link_libraries(
-    test_rfc3339_clock
+    ${TEST_EXE_NAME}
     m_rfc3339_clock
     GTest::gtest_main
 )
 
 enable_testing()
 
-gtest_discover_tests(test_rfc3339_clock)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()
+

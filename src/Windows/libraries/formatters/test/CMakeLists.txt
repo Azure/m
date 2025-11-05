@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.23)
 
 include(GoogleTest)
 
-add_executable(test_formatters
+set(TEST_EXE_NAME test_formatters)
+
+add_executable(${TEST_EXE_NAME}
     test_FILETIME.cpp
     test_FILE_ACTION.cpp
     test_FILE_NOTIFY_EXTENDED_INFORMATION.cpp
@@ -13,14 +15,16 @@ add_executable(test_formatters
     test_Win32ErrorCode.cpp
 )
 
-target_compile_features(test_formatters PUBLIC ${M_CXX_STD})
+target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 
 target_link_libraries(
-    test_formatters
+    ${TEST_EXE_NAME}
     m_formatters
     GTest::gtest_main
 )
 
 enable_testing()
 
-gtest_discover_tests(test_formatters)
+if(DISCOVER_TESTS)
+    gtest_discover_tests(${TEST_EXE_NAME})
+endif()

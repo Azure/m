@@ -5,6 +5,11 @@
       "name": "gtest",
       "features": [ "cxx23" ]
     },
+    {
+      "name": "gtest",
+      "features": [ "cxx23" ],
+      "host": true
+    },
     "ms-gsl",
     {
       "name": "ms-gsl",

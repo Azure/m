@@ -1,6 +1,31 @@
 cmake_minimum_required(VERSION 3.23)
 
-set(VERSION 0.0.60)
+find_package(Git)
+
+if(Git_FOUND)
+    message(STATUS "Git Found - getting tag description for source directory \"${CMAKE_SOURCE_DIR}\"")
+    message(STATUS "Git executable: \"${GIT_EXECUTABLE}\"")
+
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --dirty --long --match "v*"
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE FROMGIT_RAW
+        COMMAND_ECHO STDOUT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    message(STATUS "describe reported: \"${FROMGIT_RAW}\"")
+
+    string(REGEX MATCH "v[0-9]+\.[0-9]+\.[0-9]+" FULL_SOURCE_VERSION "${FROMGIT_RAW}")
+    string(REGEX MATCH "[0-9]+\.[0-9]+\.[0-9]+" VERSION "${FROMGIT_RAW}")
+
+    message(STATUS "Found Git - version ${VERSION}, full tag ${FULL_SOURCE_VERSION}")
+else()
+    set(VERSION 0.0.0)
+    set(FULL_SOURCE_VERSION "v0.0.0-not-from-git")
+
+    message(STATUS "Git Not Found - version ${VERSION}, full tag ${FULL_SOURCE_VERSION}")
+endif()
 
 project(m
     LANGUAGES CXX
@@ -133,18 +158,17 @@ install(
 #        DESTINATION ${M_INSTALL_INCLUDEDIR}
 )
 
-set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR}/m
+set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
     CACHE PATH "Location of header files" )
 
-set(SYSCONFIG_INSTALL_DIR ${CMAKE_INSTALL_SYSCONFDIR}/share/m
+set(SYSCONFIG_INSTALL_DIR ${CMAKE_INSTALL_SYSCONFDIR}/share/${PROJECT_NAME}
     CACHE PATH "Location of configuration files" )
 #...
 
-
 configure_package_config_file(
-    m-config.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/m-config.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/share/m
+    ${PROJECT_NAME}-config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+    INSTALL_DESTINATION ${SYSCONFIG_INSTALL_DIR}
     PATH_VARS INCLUDE_INSTALL_DIR SYSCONFIG_INSTALL_DIR
 )
 
@@ -155,9 +179,9 @@ write_basic_package_version_file(
     ARCH_INDEPENDENT
 )
 
-configure_package_config_file(m-config.cmake.in
+configure_package_config_file(${PROJECT_NAME}-config.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/share/${PROJECT_NAME}/
+    INSTALL_DESTINATION ${SYSCONFIG_INSTALL_DIR}
 )
 
 install(
@@ -165,5 +189,5 @@ install(
         ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
     DESTINATION
-        ${CMAKE_INSTALL_LIBDIR}/share/${PROJECT_NAME}
+        ${SYSCONFIG_INSTALL_DIR}
 )

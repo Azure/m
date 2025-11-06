@@ -242,25 +242,25 @@ namespace m
         {}
 
         constexpr char const*
-        file_name() noexcept
+        file_name() const noexcept
         {
             return m_file_name;
         }
 
         constexpr std::uint_least32_t
-        line() noexcept
+        line() const noexcept
         {
             return m_line;
         }
 
         constexpr char const*
-        function_name() noexcept
+        function_name() const noexcept
         {
             return m_function_name;
         }
 
         constexpr std::string_view
-        text() noexcept
+        text() const noexcept
         {
             return std::string_view(m_text.data());
         }

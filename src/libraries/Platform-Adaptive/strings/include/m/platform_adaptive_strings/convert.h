@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <m/strings/convert.h>
+
 #ifdef WIN32
 
 #include <m/windows_strings/convert.h>

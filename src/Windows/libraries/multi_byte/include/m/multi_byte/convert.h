@@ -16,6 +16,7 @@
 #include <Windows.h>
 
 #include <m/errors/errors.h>
+#include <m/strings/convert.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 #include <m/utility/make_span.h>

@@ -16,6 +16,10 @@ if(Git_FOUND)
 
     message(STATUS "describe reported: \"${FROMGIT_RAW}\"")
 
+    if(FROMGIT_RAW STREQUAL "")
+        set(FROMGIT_RAW "v0.0.0-nogithere")
+    endif()
+
     string(REGEX MATCH "v[0-9]+\.[0-9]+\.[0-9]+" FULL_SOURCE_VERSION "${FROMGIT_RAW}")
     string(REGEX MATCH "[0-9]+\.[0-9]+\.[0-9]+" VERSION "${FROMGIT_RAW}")
 

@@ -1,5 +1,21 @@
 cmake_minimum_required(VERSION 3.23)
 
+set(VERSION 0.0.60)
+
+project(m
+    LANGUAGES CXX
+    VERSION ${VERSION}
+)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+include(FetchContent)
+include(FindGTest)
+
+# Add custom CMake module
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+include(Common)
+
 set(M_CXX_STD cxx_std_20)
 
 if(CMAKE_CXX_STANDARD LESS 20)
@@ -11,25 +27,14 @@ endif()
 
 cmake_policy(SET CMP0082 NEW)
 
-set(VERSION_MAJOR "0")
-set(VERSION_MINOR "0")
-set(VERSION_PATCH "10")
-set(VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
-
-project(m
-    LANGUAGES CXX
-    VERSION ${VERSION}
-)
-
 option(BUILD_TESTING "Build tests" OFF)
 if(BUILD_TESTING)
-  list(APPEND VCPKG_MANIFEST_FEATURES "tests")
+    list(APPEND VCPKG_MANIFEST_FEATURES "tests")
 endif()
 
 include(CMakeDependentOption)
 
 cmake_dependent_option(DISCOVER_TESTS "Discover tests within built tests" ON BUILD_TESTING OFF)
-
 
 option(disable_native_wchar_t "Disable the use of wchar_t as a native distinct type" OFF)
 
@@ -72,7 +77,6 @@ add_link_options(
     $<$<CONFIG:DEBUG>:/OPT:NOICF> # No Identical COMDAT folding.
 )
 
-
 else()
     add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas)
     add_compile_options(-Wno-sign-compare)
@@ -82,29 +86,11 @@ endif()
 
 include(CheckLinkerFlag)
 
-check_linker_flag(CXX "LINKER:-natvis" HAS_LINKER_NATVIS)
-
-include(GNUInstallDirs)
-
 set(M_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR}/m CACHE PATH "Root directory for M installed include files" FORCE)
 
-if(DEFINED VCPKG_TARGET_TRIPLET)
-    set(M_VCPKG_MODE true)
-else()
-    set(M_VCPKG_MODE false)
-endif()
-
-message(STATUS "Project M: VCPKG_TARGET_TRIPLET: '${VCPKG_TARGET_TRIPLET}' -> M_VCPKG_MODE: ${M_VCPKG_MODE}")
 message(STATUS "Project M: Using vcpkg toolchain file at ${CMAKE_TOOLCHAIN_FILE}")
 
 set(M_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Add custom CMake module
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-
-
-# Include common settings
-include(Common)
 
 ## Git (and its revision)
 find_package(Git QUIET) # if we don't find git or FindGit.cmake is not on the system we ignore it.
@@ -122,31 +108,7 @@ if(GIT_FOUND)
 endif()
 
 # Dependencies
-include(FetchContent)
-
-if (M_VCPKG_MODE)
-    include(FindGTest)
-    find_package(GTest CONFIG REQUIRED)
-else()
-    FetchContent_Declare(
-        GTest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG v1.16.0
-    )
-
-    # For Windows: Prevent overriding the parent project's compiler/linker settings
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-
-    FetchContent_MakeAvailable(GTest)
-
-    FetchContent_Declare(GSL
-        GIT_REPOSITORY "https://github.com/microsoft/GSL"
-        GIT_TAG "v4.2.0"
-        GIT_SHALLOW ON
-    )
-
-    FetchContent_MakeAvailable(GSL)
-endif()
+find_package(GTest CONFIG REQUIRED)
 
 enable_testing()
 
@@ -178,7 +140,6 @@ set(SYSCONFIG_INSTALL_DIR ${CMAKE_INSTALL_SYSCONFDIR}/share/m
     CACHE PATH "Location of configuration files" )
 #...
 
-include(CMakePackageConfigHelpers)
 
 configure_package_config_file(
     m-config.cmake.in
@@ -188,15 +149,21 @@ configure_package_config_file(
 )
 
 write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/m-config-version.cmake
-  VERSION ${VERSION}
-  COMPATIBILITY SameMajorVersion
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY AnyNewerVersion
+    ARCH_INDEPENDENT
+)
+
+configure_package_config_file(m-config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/share/${PROJECT_NAME}/
 )
 
 install(
     FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/m-config.cmake
-        ${CMAKE_CURRENT_BINARY_DIR}/m-config-version.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
     DESTINATION
-        ${CMAKE_INSTALL_SYSCONFDIR}/share/m )
-
+        ${CMAKE_INSTALL_LIBDIR}/share/${PROJECT_NAME}
+)

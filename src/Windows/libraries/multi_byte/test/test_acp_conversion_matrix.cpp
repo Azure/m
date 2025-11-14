@@ -251,41 +251,101 @@ TEST(AcpConversionMatrix, AcpToChar16)
         // them to the UTF-typed data and back to see if they come back in the
         // same shape they were in originally.
         //
-        auto v_v1   = m::to_u16string(td->m_view);
-        auto v_v1_1 = m::to_string(v_v1);
+        auto v_v1      = m::to_u16string(td->m_view);
+        auto v_v1_1    = m::to_string(v_v1);
+        using v_v1_t   = decltype(v_v1);
+        using v_v1_1_t = decltype(v_v1_1);
+        static_assert(std::is_same_v<v_v1_t, std::u16string>);
+        static_assert(std::is_same_v<v_v1_1_t, std::string>);
         EXPECT_EQ(v_v1_1, td->m_view);
 
-        auto v_v2   = m::to_u16string(td->m_oview);
-        auto v_v2_1 = m::to_string(v_v2);
-        EXPECT_EQ(v_v2_1, td->m_oview);
+        auto v_v2      = m::to_u16string(td->m_oview);
+        auto v_v2_1    = m::to_string(v_v2);
+        using v_v2_t   = decltype(v_v2);
+        using v_v2_1_t = decltype(v_v2_1);
+        static_assert(std::is_same_v<v_v2_t, std::optional<std::u16string>>);
+        static_assert(std::is_same_v<v_v2_1_t, std::optional<std::string>>);
+        EXPECT_EQ(td->m_oview.has_value(), v_v2.has_value());
+        EXPECT_EQ(v_v2.has_value(), v_v2_1.has_value());
 
-        auto v_v3   = m::to_u16string(td->m_oview_nv);
-        auto v_v3_1 = m::to_string(v_v3);
-        EXPECT_EQ(v_v3_1, td->m_oview_nv);
+        if (v_v2_1.has_value())
+        {
+            EXPECT_EQ(v_v2_1.value(), td->m_oview.value());
+        }
 
-        auto s_v1   = m::to_u16string(td->m_string);
-        auto s_v1_1 = m::to_string(s_v1);
+        auto v_v3      = m::to_u16string(td->m_oview_nv);
+        auto v_v3_1    = m::to_string(v_v3);
+        using v_v3_t   = decltype(v_v3);
+        using v_v3_1_t = decltype(v_v3_1);
+        static_assert(std::is_same_v<v_v3_t, std::optional<std::u16string>>);
+        static_assert(std::is_same_v<v_v3_1_t, std::optional<std::string>>);
+        EXPECT_FALSE(td->m_oview_nv.has_value());
+        EXPECT_FALSE(v_v3.has_value());
+        EXPECT_FALSE(v_v3_1.has_value());
+
+        auto s_v1      = m::to_u16string(td->m_string);
+        auto s_v1_1    = m::to_string(s_v1);
+        using s_v1_t   = decltype(s_v1);
+        using s_v1_1_t = decltype(s_v1_1);
+        static_assert(std::is_same_v<s_v1_t, std::u16string>);
+        static_assert(std::is_same_v<s_v1_1_t, std::string>);
         EXPECT_EQ(s_v1_1, td->m_string);
 
-        auto s_v2   = m::to_u16string(td->m_ostring);
-        auto s_v2_1 = m::to_string(s_v2);
-        EXPECT_EQ(s_v2_1, td->m_ostring);
+        auto s_v2      = m::to_u16string(td->m_ostring);
+        auto s_v2_1    = m::to_string(s_v2);
+        using s_v2_t   = decltype(s_v2);
+        using s_v2_1_t = decltype(s_v2_1);
+        static_assert(std::is_same_v<s_v2_t, std::optional<std::u16string>>);
+        static_assert(std::is_same_v<s_v2_1_t, std::optional<std::string>>);
+        EXPECT_EQ(td->m_ostring.has_value(), s_v2.has_value());
+        EXPECT_EQ(s_v2.has_value(), s_v2_1.has_value());
 
-        auto s_v3   = m::to_u16string(td->m_ostring_nv);
-        auto s_v3_1 = m::to_string(s_v3);
-        EXPECT_EQ(s_v3_1, td->m_ostring_nv);
+        if (s_v2_1.has_value())
+        {
+            EXPECT_EQ(s_v2_1.value(), td->m_ostring.value());
+        }
 
-        auto ss_v1   = m::to_u16string(td->m_sstring);
-        auto ss_v1_1 = m::to_sstring(ss_v1);
+        auto s_v3      = m::to_u16string(td->m_ostring_nv);
+        auto s_v3_1    = m::to_string(s_v3);
+        using s_v3_t   = decltype(s_v3);
+        using s_v3_1_t = decltype(s_v3_1);
+        static_assert(std::is_same_v<s_v3_t, std::optional<std::u16string>>);
+        static_assert(std::is_same_v<s_v3_1_t, std::optional<std::string>>);
+        EXPECT_FALSE(td->m_ostring_nv.has_value());
+        EXPECT_FALSE(s_v3.has_value());
+        EXPECT_FALSE(s_v3_1.has_value());
+
+        auto ss_v1      = m::to_u16string(td->m_sstring);
+        auto ss_v1_1    = m::to_sstring(ss_v1);
+        using ss_v1_t   = decltype(ss_v1);
+        using ss_v1_1_t = decltype(ss_v1_1);
+        static_assert(std::is_same_v<ss_v1_t, std::u16string>);
+        static_assert(std::is_same_v<ss_v1_1_t, m::sstring>);
         EXPECT_EQ(ss_v1_1, td->m_sstring);
 
-        auto ss_v2   = m::to_u16string(td->m_osstring);
-        auto ss_v2_1 = m::to_sstring(ss_v2);
-        EXPECT_EQ(ss_v2_1, td->m_osstring);
+        auto ss_v2      = m::to_u16string(td->m_osstring);
+        auto ss_v2_1    = m::to_sstring(ss_v2);
+        using ss_v2_t   = decltype(ss_v2);
+        using ss_v2_1_t = decltype(ss_v2_1);
+        static_assert(std::is_same_v<ss_v2_t, std::optional<std::u16string>>);
+        static_assert(std::is_same_v<ss_v2_1_t, std::optional<m::sstring>>);
+        EXPECT_EQ(td->m_osstring.has_value(), ss_v2.has_value());
+        EXPECT_EQ(ss_v2.has_value(), ss_v2_1.has_value());
 
-        auto ss_v3   = m::to_u16string(td->m_osstring_nv);
-        auto ss_v3_1 = m::to_sstring(ss_v3);
-        EXPECT_EQ(ss_v3_1, td->m_osstring_nv);
+        if (ss_v2_1.has_value())
+        {
+            EXPECT_EQ(ss_v2_1.value(), td->m_osstring.value());
+        }
+
+        auto ss_v3      = m::to_u16string(td->m_osstring_nv);
+        auto ss_v3_1    = m::to_sstring(ss_v3);
+        using ss_v3_t   = decltype(ss_v3);
+        using ss_v3_1_t = decltype(ss_v3_1);
+        static_assert(std::is_same_v<ss_v3_t, std::optional<std::u16string>>);
+        static_assert(std::is_same_v<ss_v3_1_t, std::optional<m::sstring>>);
+        EXPECT_FALSE(td->m_osstring_nv.has_value());
+        EXPECT_FALSE(ss_v3.has_value());
+        EXPECT_FALSE(ss_v3_1.has_value());
     }
 }
 
@@ -305,41 +365,101 @@ TEST(AcpConversionMatrix, AcpToChar32)
         // them to the UTF-typed data and back to see if they come back in the
         // same shape they were in originally.
         //
-        auto v_v1   = m::to_u32string(td->m_view);
-        auto v_v1_1 = m::to_string(v_v1);
+        auto v_v1      = m::to_u32string(td->m_view);
+        auto v_v1_1    = m::to_string(v_v1);
+        using v_v1_t   = decltype(v_v1);
+        using v_v1_1_t = decltype(v_v1_1);
+        static_assert(std::is_same_v<v_v1_t, std::u32string>);
+        static_assert(std::is_same_v<v_v1_1_t, std::string>);
         EXPECT_EQ(v_v1_1, td->m_view);
 
-        auto v_v2   = m::to_u32string(td->m_oview);
-        auto v_v2_1 = m::to_string(v_v2);
-        EXPECT_EQ(v_v2_1, td->m_oview);
+        auto v_v2      = m::to_u32string(td->m_oview);
+        auto v_v2_1    = m::to_string(v_v2);
+        using v_v2_t   = decltype(v_v2);
+        using v_v2_1_t = decltype(v_v2_1);
+        static_assert(std::is_same_v<v_v2_t, std::optional<std::u32string>>);
+        static_assert(std::is_same_v<v_v2_1_t, std::optional<std::string>>);
+        EXPECT_EQ(td->m_oview.has_value(), v_v2.has_value());
+        EXPECT_EQ(v_v2.has_value(), v_v2_1.has_value());
 
-        auto v_v3   = m::to_u32string(td->m_oview_nv);
-        auto v_v3_1 = m::to_string(v_v3);
-        EXPECT_EQ(v_v3_1, td->m_oview_nv);
+        if (v_v2_1.has_value())
+        {
+            EXPECT_EQ(v_v2_1.value(), td->m_oview.value());
+        }
 
-        auto s_v1   = m::to_u32string(td->m_string);
-        auto s_v1_1 = m::to_string(s_v1);
+        auto v_v3      = m::to_u32string(td->m_oview_nv);
+        auto v_v3_1    = m::to_string(v_v3);
+        using v_v3_t   = decltype(v_v3);
+        using v_v3_1_t = decltype(v_v3_1);
+        static_assert(std::is_same_v<v_v3_t, std::optional<std::u32string>>);
+        static_assert(std::is_same_v<v_v3_1_t, std::optional<std::string>>);
+        EXPECT_FALSE(td->m_oview_nv.has_value());
+        EXPECT_FALSE(v_v3.has_value());
+        EXPECT_FALSE(v_v3_1.has_value());
+
+        auto s_v1      = m::to_u32string(td->m_string);
+        auto s_v1_1    = m::to_string(s_v1);
+        using s_v1_t   = decltype(s_v1);
+        using s_v1_1_t = decltype(s_v1_1);
+        static_assert(std::is_same_v<s_v1_t, std::u32string>);
+        static_assert(std::is_same_v<s_v1_1_t, std::string>);
         EXPECT_EQ(s_v1_1, td->m_string);
 
-        auto s_v2   = m::to_u32string(td->m_ostring);
-        auto s_v2_1 = m::to_string(s_v2);
-        EXPECT_EQ(s_v2_1, td->m_ostring);
+        auto s_v2      = m::to_u32string(td->m_ostring);
+        auto s_v2_1    = m::to_string(s_v2);
+        using s_v2_t   = decltype(s_v2);
+        using s_v2_1_t = decltype(s_v2_1);
+        static_assert(std::is_same_v<s_v2_t, std::optional<std::u32string>>);
+        static_assert(std::is_same_v<s_v2_1_t, std::optional<std::string>>);
+        EXPECT_EQ(td->m_ostring.has_value(), s_v2.has_value());
+        EXPECT_EQ(s_v2.has_value(), s_v2_1.has_value());
 
-        auto s_v3   = m::to_u32string(td->m_ostring_nv);
-        auto s_v3_1 = m::to_string(s_v3);
-        EXPECT_EQ(s_v3_1, td->m_ostring_nv);
+        if (s_v2_1.has_value())
+        {
+            EXPECT_EQ(s_v2_1.value(), td->m_ostring.value());
+        }
 
-        auto ss_v1   = m::to_u32string(td->m_sstring);
-        auto ss_v1_1 = m::to_sstring(ss_v1);
+        auto s_v3      = m::to_u32string(td->m_ostring_nv);
+        auto s_v3_1    = m::to_string(s_v3);
+        using s_v3_t   = decltype(s_v3);
+        using s_v3_1_t = decltype(s_v3_1);
+        static_assert(std::is_same_v<s_v3_t, std::optional<std::u32string>>);
+        static_assert(std::is_same_v<s_v3_1_t, std::optional<std::string>>);
+        EXPECT_FALSE(td->m_ostring_nv.has_value());
+        EXPECT_FALSE(s_v3.has_value());
+        EXPECT_FALSE(s_v3_1.has_value());
+
+        auto ss_v1      = m::to_u32string(td->m_sstring);
+        auto ss_v1_1    = m::to_sstring(ss_v1);
+        using ss_v1_t   = decltype(ss_v1);
+        using ss_v1_1_t = decltype(ss_v1_1);
+        static_assert(std::is_same_v<ss_v1_t, std::u32string>);
+        static_assert(std::is_same_v<ss_v1_1_t, m::sstring>);
         EXPECT_EQ(ss_v1_1, td->m_sstring);
 
-        auto ss_v2   = m::to_u32string(td->m_osstring);
-        auto ss_v2_1 = m::to_sstring(ss_v2);
-        EXPECT_EQ(ss_v2_1, td->m_osstring);
+        auto ss_v2      = m::to_u32string(td->m_osstring);
+        auto ss_v2_1    = m::to_sstring(ss_v2);
+        using ss_v2_t   = decltype(ss_v2);
+        using ss_v2_1_t = decltype(ss_v2_1);
+        static_assert(std::is_same_v<ss_v2_t, std::optional<std::u32string>>);
+        static_assert(std::is_same_v<ss_v2_1_t, std::optional<m::sstring>>);
+        EXPECT_EQ(td->m_osstring.has_value(), ss_v2.has_value());
+        EXPECT_EQ(ss_v2.has_value(), ss_v2_1.has_value());
 
-        auto ss_v3   = m::to_u32string(td->m_osstring_nv);
-        auto ss_v3_1 = m::to_sstring(ss_v3);
-        EXPECT_EQ(ss_v3_1, td->m_osstring_nv);
+        if (ss_v2_1.has_value())
+        {
+            EXPECT_EQ(ss_v2_1.value(), td->m_osstring.value());
+        }
+
+        auto ss_v3      = m::to_u32string(td->m_osstring_nv);
+        auto ss_v3_1    = m::to_sstring(ss_v3);
+        using ss_v3_t   = decltype(ss_v3);
+        using ss_v3_1_t = decltype(ss_v3_1);
+        static_assert(std::is_same_v<ss_v3_t, std::optional<std::u32string>>);
+        static_assert(std::is_same_v<ss_v3_1_t, std::optional<m::sstring>>);
+        EXPECT_FALSE(td->m_osstring_nv.has_value());
+        EXPECT_FALSE(ss_v3.has_value());
+        EXPECT_FALSE(ss_v3_1.has_value());
     }
 }
 
@@ -359,41 +479,101 @@ TEST(AcpConversionMatrix, AcpToWChar)
         // them to the UTF-typed data and back to see if they come back in the
         // same shape they were in originally.
         //
-        auto v_v1   = m::to_wstring(td->m_view);
-        auto v_v1_1 = m::to_string(v_v1);
+        auto v_v1      = m::to_wstring(td->m_view);
+        auto v_v1_1    = m::to_string(v_v1);
+        using v_v1_t   = decltype(v_v1);
+        using v_v1_1_t = decltype(v_v1_1);
+        static_assert(std::is_same_v<v_v1_t, std::wstring>);
+        static_assert(std::is_same_v<v_v1_1_t, std::string>);
         EXPECT_EQ(v_v1_1, td->m_view);
 
-        auto v_v2   = m::to_wstring(td->m_oview);
-        auto v_v2_1 = m::to_string(v_v2);
-        EXPECT_EQ(v_v2_1, td->m_oview);
+        auto v_v2      = m::to_wstring(td->m_oview);
+        auto v_v2_1    = m::to_string(v_v2);
+        using v_v2_t   = decltype(v_v2);
+        using v_v2_1_t = decltype(v_v2_1);
+        static_assert(std::is_same_v<v_v2_t, std::optional<std::wstring>>);
+        static_assert(std::is_same_v<v_v2_1_t, std::optional<std::string>>);
+        EXPECT_EQ(td->m_oview.has_value(), v_v2.has_value());
+        EXPECT_EQ(v_v2.has_value(), v_v2_1.has_value());
 
-        auto v_v3   = m::to_wstring(td->m_oview_nv);
-        auto v_v3_1 = m::to_string(v_v3);
-        EXPECT_EQ(v_v3_1, td->m_oview_nv);
+        if (v_v2_1.has_value())
+        {
+            EXPECT_EQ(v_v2_1.value(), td->m_oview.value());
+        }
 
-        auto s_v1   = m::to_wstring(td->m_string);
-        auto s_v1_1 = m::to_string(s_v1);
+        auto v_v3      = m::to_wstring(td->m_oview_nv);
+        auto v_v3_1    = m::to_string(v_v3);
+        using v_v3_t   = decltype(v_v3);
+        using v_v3_1_t = decltype(v_v3_1);
+        static_assert(std::is_same_v<v_v3_t, std::optional<std::wstring>>);
+        static_assert(std::is_same_v<v_v3_1_t, std::optional<std::string>>);
+        EXPECT_FALSE(td->m_oview_nv.has_value());
+        EXPECT_FALSE(v_v3.has_value());
+        EXPECT_FALSE(v_v3_1.has_value());
+
+        auto s_v1      = m::to_wstring(td->m_string);
+        auto s_v1_1    = m::to_string(s_v1);
+        using s_v1_t   = decltype(s_v1);
+        using s_v1_1_t = decltype(s_v1_1);
+        static_assert(std::is_same_v<s_v1_t, std::wstring>);
+        static_assert(std::is_same_v<s_v1_1_t, std::string>);
         EXPECT_EQ(s_v1_1, td->m_string);
 
-        auto s_v2   = m::to_wstring(td->m_ostring);
-        auto s_v2_1 = m::to_string(s_v2);
-        EXPECT_EQ(s_v2_1, td->m_ostring);
+        auto s_v2      = m::to_wstring(td->m_ostring);
+        auto s_v2_1    = m::to_string(s_v2);
+        using s_v2_t   = decltype(s_v2);
+        using s_v2_1_t = decltype(s_v2_1);
+        static_assert(std::is_same_v<s_v2_t, std::optional<std::wstring>>);
+        static_assert(std::is_same_v<s_v2_1_t, std::optional<std::string>>);
+        EXPECT_EQ(td->m_ostring.has_value(), s_v2.has_value());
+        EXPECT_EQ(s_v2.has_value(), s_v2_1.has_value());
 
-        auto s_v3   = m::to_wstring(td->m_ostring_nv);
-        auto s_v3_1 = m::to_string(s_v3);
-        EXPECT_EQ(s_v3_1, td->m_ostring_nv);
+        if (s_v2_1.has_value())
+        {
+            EXPECT_EQ(s_v2_1.value(), td->m_ostring.value());
+        }
 
-        auto ss_v1   = m::to_wstring(td->m_sstring);
-        auto ss_v1_1 = m::to_sstring(ss_v1);
+        auto s_v3      = m::to_wstring(td->m_ostring_nv);
+        auto s_v3_1    = m::to_string(s_v3);
+        using s_v3_t   = decltype(s_v3);
+        using s_v3_1_t = decltype(s_v3_1);
+        static_assert(std::is_same_v<s_v3_t, std::optional<std::wstring>>);
+        static_assert(std::is_same_v<s_v3_1_t, std::optional<std::string>>);
+        EXPECT_FALSE(td->m_ostring_nv.has_value());
+        EXPECT_FALSE(s_v3.has_value());
+        EXPECT_FALSE(s_v3_1.has_value());
+
+        auto ss_v1      = m::to_wstring(td->m_sstring);
+        auto ss_v1_1    = m::to_sstring(ss_v1);
+        using ss_v1_t   = decltype(ss_v1);
+        using ss_v1_1_t = decltype(ss_v1_1);
+        static_assert(std::is_same_v<ss_v1_t, std::wstring>);
+        static_assert(std::is_same_v<ss_v1_1_t, m::sstring>);
         EXPECT_EQ(ss_v1_1, td->m_sstring);
 
-        auto ss_v2   = m::to_wstring(td->m_osstring);
-        auto ss_v2_1 = m::to_sstring(ss_v2);
-        EXPECT_EQ(ss_v2_1, td->m_osstring);
+        auto ss_v2      = m::to_wstring(td->m_osstring);
+        auto ss_v2_1    = m::to_sstring(ss_v2);
+        using ss_v2_t   = decltype(ss_v2);
+        using ss_v2_1_t = decltype(ss_v2_1);
+        static_assert(std::is_same_v<ss_v2_t, std::optional<std::wstring>>);
+        static_assert(std::is_same_v<ss_v2_1_t, std::optional<m::sstring>>);
+        EXPECT_EQ(td->m_osstring.has_value(), ss_v2.has_value());
+        EXPECT_EQ(ss_v2.has_value(), ss_v2_1.has_value());
 
-        auto ss_v3   = m::to_wstring(td->m_osstring_nv);
-        auto ss_v3_1 = m::to_sstring(ss_v3);
-        EXPECT_EQ(ss_v3_1, td->m_osstring_nv);
+        if (ss_v2_1.has_value())
+        {
+            EXPECT_EQ(ss_v2_1.value(), td->m_osstring.value());
+        }
+
+        auto ss_v3      = m::to_wstring(td->m_osstring_nv);
+        auto ss_v3_1    = m::to_sstring(ss_v3);
+        using ss_v3_t   = decltype(ss_v3);
+        using ss_v3_1_t = decltype(ss_v3_1);
+        static_assert(std::is_same_v<ss_v3_t, std::optional<std::wstring>>);
+        static_assert(std::is_same_v<ss_v3_1_t, std::optional<m::sstring>>);
+        EXPECT_FALSE(td->m_osstring_nv.has_value());
+        EXPECT_FALSE(ss_v3.has_value());
+        EXPECT_FALSE(ss_v3_1.has_value());
     }
 }
 

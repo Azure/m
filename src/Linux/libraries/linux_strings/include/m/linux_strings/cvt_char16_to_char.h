@@ -11,35 +11,31 @@
 
 namespace m
 {
-    namespace string_conversion_details
+    template <>
+    struct string_converter<char16_t const*, std::string>
     {
-        template <>
-        struct sch<char16_t const*, std::string>
-        {
-            static std::string
-            make_string(cu16zstring str);
-        };
+        static std::string
+        make_string(cu16zstring str);
+    };
 
-        template <>
-        struct sch<std::u16string_view, std::string>
-        {
-            static std::string
-            make_string(std::u16string_view v);
+    template <>
+    struct string_converter<std::u16string_view, std::string>
+    {
+        static std::string
+        make_string(std::u16string_view v);
 
-            static std::optional<std::string>
-            make_string(std::optional<std::u16string_view> const& v);
-        };
+        static std::optional<std::string>
+        make_string(std::optional<std::u16string_view> const& v);
+    };
 
-        template <>
-        struct sch<std::u16string, std::string>
-        {
-            static std::string
-            make_string(std::u16string const& s);
+    template <>
+    struct string_converter<std::u16string, std::string>
+    {
+        static std::string
+        make_string(std::u16string const& s);
 
-            static std::optional<std::string>
-            make_string(std::optional<std::u16string> const& s);
-        };
-
-    } // namespace string_conversion_details
+        static std::optional<std::string>
+        make_string(std::optional<std::u16string> const& s);
+    };
 
 } // namespace m

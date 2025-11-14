@@ -17,25 +17,27 @@
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::u32string
-    sch<char const*, std::u32string>::make_string(czstring str)
+    string_converter<char const*, std::u32string>::make_string(czstring str)
     {
         if (str == nullptr)
             return std::u32string();
 
-        return sch<std::string_view, std::u32string>::make_string(std::string_view(str));
+        return string_converter<std::string_view, std::u32string>::make_string(
+            std::string_view(str));
     }
 
     std::u32string
-    sch<std::string_view, std::u32string>::make_string(std::string_view view)
+    string_converter<std::string_view, std::u32string>::make_string(std::string_view view)
     {
         return utf::transcode<char32_t>(view);
     }
 
     std::optional<std::u32string>
-    sch<std::string_view, std::u32string>::make_string(std::optional<std::string_view> const& view)
+    string_converter<std::string_view, std::u32string>::make_string(
+        std::optional<std::string_view> const& view)
     {
         if (!view.has_value())
             return std::nullopt;
@@ -44,13 +46,15 @@ namespace m::string_conversion_details
     }
 
     std::u32string
-    sch<std::string, std::u32string>::make_string(std::string const& str)
+    string_converter<std::string, std::u32string>::make_string(std::string const& str)
     {
-        return sch<std::string_view, std::u32string>::make_string(static_cast<std::string_view>(str));
+        return string_converter<std::string_view, std::u32string>::make_string(
+            static_cast<std::string_view>(str));
     }
 
     std::optional<std::u32string>
-    sch<std::string, std::u32string>::make_string(std::optional<std::string> const& str)
+    string_converter<std::string, std::u32string>::make_string(
+        std::optional<std::string> const& str)
     {
         if (!str.has_value())
             return std::nullopt;
@@ -58,4 +62,4 @@ namespace m::string_conversion_details
         return make_string(str.value());
     }
 
-} // namespace m::string_conversion_details
+} // namespace m

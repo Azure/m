@@ -22,6 +22,15 @@ namespace m
     template <typename T>
     concept transparent = is_transparent_v<T>;
 
+    template <typename T, typename CharT>
+    concept has_view = requires(T x) {
+        { x.view() } noexcept -> std::same_as<std::basic_string_view<CharT>>;
+    };
+
+    template <typename T>
+    concept has_some_view = (has_view<T, char> || has_view<T, char8_t> || has_view<T, char16_t> ||
+                             has_view<T, char32_t> || has_view<T, wchar_t>);
+
     template <typename T>
         requires(character<T>)
     class basic_sstring;
@@ -45,5 +54,7 @@ namespace m
 
     template <typename T>
     concept has_value_type = requires { typename T::value_type; };
+
+
 
 } // namespace m

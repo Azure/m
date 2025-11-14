@@ -11,35 +11,30 @@
 
 namespace m
 {
-    namespace string_conversion_details
+    template <>
+    struct string_converter<wchar_t const*, std::u16string>
     {
-        template <>
-        struct sch<wchar_t const*, std::u16string>
-        {
-            static std::u16string
-            make_string(cwzstring str);
-        };
+        static std::u16string
+        make_string(cwzstring str);
+    };
 
-        template <>
-        struct sch<std::wstring_view, std::u16string>
-        {
-            static std::u16string
-            make_string(std::wstring_view v);
+    template <>
+    struct string_converter<std::wstring_view, std::u16string>
+    {
+        static std::u16string
+        make_string(std::wstring_view v);
 
-            static std::optional<std::u16string>
-            make_string(std::optional<std::wstring_view> const& v);
-        };
+        static std::optional<std::u16string>
+        make_string(std::optional<std::wstring_view> const& v);
+    };
 
-        template <>
-        struct sch<std::wstring, std::u16string>
-        {
-            static std::u16string
-            make_string(std::wstring const& s);
+    template <>
+    struct string_converter<std::wstring, std::u16string>
+    {
+        static std::u16string
+        make_string(std::wstring const& s);
 
-            static std::optional<std::u16string>
-            make_string(std::optional<std::wstring> const& s);
-        };
-
-    } // namespace string_conversion_details
-
+        static std::optional<std::u16string>
+        make_string(std::optional<std::wstring> const& s);
+    };
 } // namespace m

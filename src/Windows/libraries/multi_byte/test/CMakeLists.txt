@@ -5,9 +5,10 @@ include(GoogleTest)
 set(TEST_EXE_NAME test_multi_byte)
 
 add_executable(${TEST_EXE_NAME}
+    test_acp_apis.cpp
+    test_acp_conversion_matrix.cpp
     test_multi_byte_to_utf16.cpp
     test_utf16_to_multi_byte.cpp
-    test_acp_apis.cpp
     wchar_decoder.cpp
 )
 
@@ -16,9 +17,10 @@ target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 target_link_libraries(
     ${TEST_EXE_NAME}
     m_cast
-    m_multi_byte
-    m_strings
     m_math
+    m_multi_byte
+    m_sstring
+    m_strings
     GTest::gtest_main
 )
 

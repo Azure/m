@@ -53,7 +53,7 @@ namespace m
         }
 
         basic_string_insert_iterator &
-        operator=(basic_string_insert_iterator&& other)
+        operator=(basic_string_insert_iterator&& other) noexcept
         {
             using std::swap;
             swap(m_string, other.m_string);

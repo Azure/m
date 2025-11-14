@@ -17,25 +17,26 @@
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::wstring
-    sch<char const*, std::wstring>::make_string(czstring str)
+    string_converter<char const*, std::wstring>::make_string(czstring str)
     {
         if (str == nullptr)
             return std::wstring();
 
-        return sch<std::string_view, std::wstring>::make_string(std::string_view(str));
+        return string_converter<std::string_view, std::wstring>::make_string(std::string_view(str));
     }
 
     std::wstring
-    sch<std::string_view, std::wstring>::make_string(std::string_view view)
+    string_converter<std::string_view, std::wstring>::make_string(std::string_view view)
     {
         return utf::transcode<wchar_t>(view);
     }
 
     std::optional<std::wstring>
-    sch<std::string_view, std::wstring>::make_string(std::optional<std::string_view> const& view)
+    string_converter<std::string_view, std::wstring>::make_string(
+        std::optional<std::string_view> const& view)
     {
         if (!view.has_value())
             return std::nullopt;
@@ -44,13 +45,14 @@ namespace m::string_conversion_details
     }
 
     std::wstring
-    sch<std::string, std::wstring>::make_string(std::string const& str)
+    string_converter<std::string, std::wstring>::make_string(std::string const& str)
     {
-        return sch<std::string_view, std::wstring>::make_string(static_cast<std::string_view>(str));
+        return string_converter<std::string_view, std::wstring>::make_string(
+            static_cast<std::string_view>(str));
     }
 
     std::optional<std::wstring>
-    sch<std::string, std::wstring>::make_string(std::optional<std::string> const& str)
+    string_converter<std::string, std::wstring>::make_string(std::optional<std::string> const& str)
     {
         if (!str.has_value())
             return std::nullopt;
@@ -58,4 +60,4 @@ namespace m::string_conversion_details
         return make_string(str.value());
     }
 
-} // namespace m::string_conversion_details
+} // namespace m

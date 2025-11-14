@@ -7,6 +7,9 @@
 #include <string>
 #include <string_view>
 
+#include <m/utility/string_converter.h>
+
+#include <m/sstring/sstring.h>
 #include <m/strings/string_conversion_details.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
@@ -15,10 +18,10 @@
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     template <typename CharT>
-    struct sch<CharT const*, std::basic_string_view<CharT>>
+    struct string_converter<CharT const*, std::basic_string_view<CharT>, void>
     {
         static constexpr std::basic_string_view<CharT>
         make_view(m::basic_zstring<CharT const> str) noexcept
@@ -31,7 +34,7 @@ namespace m::string_conversion_details
     };
 
     template <typename CharT>
-    struct sch<CharT const*, std::basic_string<CharT>>
+    struct string_converter<CharT const*, std::basic_string<CharT>, void>
     {
         static inline std::basic_string<CharT>
         make_string(m::basic_zstring<CharT const> str)
@@ -44,7 +47,7 @@ namespace m::string_conversion_details
     };
 
     template <typename CharT>
-    struct sch<std::basic_string_view<CharT>, std::basic_string<CharT>>
+    struct string_converter<std::basic_string_view<CharT>, std::basic_string<CharT>, void>
     {
         static inline std::basic_string<CharT>
         make_string(std::basic_string_view<CharT> view)
@@ -63,7 +66,7 @@ namespace m::string_conversion_details
     };
 
     template <typename CharT>
-    struct sch<std::basic_string<CharT>, std::basic_string<CharT>>
+    struct string_converter<std::basic_string<CharT>, std::basic_string<CharT>, void>
     {
         static inline std::basic_string<CharT>
         make_string(std::basic_string<CharT> const& str)
@@ -79,7 +82,7 @@ namespace m::string_conversion_details
     };
 
     template <typename CharT>
-    struct sch<std::basic_string_view<CharT>, std::basic_string_view<CharT>>
+    struct string_converter<std::basic_string_view<CharT>, std::basic_string_view<CharT>, void>
     {
         static inline constexpr std::basic_string_view<CharT>
         make_view(std::basic_string_view<CharT> view) noexcept
@@ -94,8 +97,28 @@ namespace m::string_conversion_details
         }
     };
 
+    template <typename CharT>
+    struct string_converter<basic_sstring<CharT>, std::basic_string_view<CharT>, void>
+    {
+        static std::basic_string_view<CharT>
+        make_view(basic_sstring<CharT> str)
+        {
+            return str.view();
+        }
+    };
+
+    template <typename CharT>
+    struct string_converter<basic_sstring<CharT>, std::basic_string<CharT>, void>
+    {
+        static std::basic_string<CharT>
+        make_string(basic_sstring<CharT> str)
+        {
+            return std::basic_string(str.view());
+        }
+    };
+
     template <>
-    struct sch<std::u16string_view, std::u8string>
+    struct string_converter<std::u16string_view, std::u8string, void>
     {
         static std::u8string
         make_string(std::u16string_view view);
@@ -105,7 +128,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<char16_t const*, std::u8string>
+    struct string_converter<char16_t const*, std::u8string, void>
     {
         static std::u8string
         make_string(not_null<cu16zstring> str);
@@ -115,7 +138,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u16string, std::u8string>
+    struct string_converter<std::u16string, std::u8string, void>
     {
         static std::u8string
         make_string(std::u16string const& str);
@@ -125,7 +148,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u32string_view, std::u8string>
+    struct string_converter<std::u32string_view, std::u8string, void>
     {
         static std::u8string
         make_string(std::u32string_view view);
@@ -135,7 +158,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<char32_t const*, std::u8string>
+    struct string_converter<char32_t const*, std::u8string, void>
     {
         static std::u8string
         make_string(not_null<cu32zstring> str);
@@ -145,7 +168,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u32string, std::u8string>
+    struct string_converter<std::u32string, std::u8string, void>
     {
         static std::u8string
         make_string(std::u32string const& str);
@@ -155,7 +178,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u8string_view, std::u16string>
+    struct string_converter<std::u8string_view, std::u16string, void>
     {
         static std::u16string
         make_string(std::u8string_view view);
@@ -165,7 +188,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<char8_t const*, std::u16string>
+    struct string_converter<char8_t const*, std::u16string, void>
     {
         static std::u16string
         make_string(not_null<cu8zstring> str);
@@ -175,7 +198,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u8string, std::u16string>
+    struct string_converter<std::u8string, std::u16string, void>
     {
         static std::u16string
         make_string(std::u8string const& str);
@@ -185,7 +208,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u32string_view, std::u16string>
+    struct string_converter<std::u32string_view, std::u16string, void>
     {
         static std::u16string
         make_string(std::u32string_view view);
@@ -195,7 +218,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<char32_t const*, std::u16string>
+    struct string_converter<char32_t const*, std::u16string, void>
     {
         static std::u16string
         make_string(not_null<cu32zstring> str);
@@ -205,7 +228,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u32string, std::u16string>
+    struct string_converter<std::u32string, std::u16string, void>
     {
         static std::u16string
         make_string(std::u32string const& str);
@@ -219,7 +242,7 @@ namespace m::string_conversion_details
     /// </summary>
 
     template <>
-    struct sch<std::u8string_view, std::u32string>
+    struct string_converter<std::u8string_view, std::u32string, void>
     {
         static std::u32string
         make_string(std::u8string_view view);
@@ -229,7 +252,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<char8_t const*, std::u32string>
+    struct string_converter<char8_t const*, std::u32string, void>
     {
         static std::u32string
         make_string(not_null<cu8zstring> str);
@@ -239,7 +262,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u8string, std::u32string>
+    struct string_converter<std::u8string, std::u32string, void>
     {
         static std::u32string
         make_string(std::u8string const& str);
@@ -249,7 +272,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u16string_view, std::u32string>
+    struct string_converter<std::u16string_view, std::u32string, void>
     {
         static std::u32string
         make_string(std::u16string_view view);
@@ -259,7 +282,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<char16_t const*, std::u32string>
+    struct string_converter<char16_t const*, std::u32string, void>
     {
         static std::u32string
         make_string(not_null<cu16zstring> str);
@@ -269,7 +292,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u16string, std::u32string>
+    struct string_converter<std::u16string, std::u32string, void>
     {
         static std::u32string
         make_string(std::u16string const& str);
@@ -277,20 +300,4 @@ namespace m::string_conversion_details
         static std::optional<std::u32string>
         make_string(std::optional<std::u16string> const& str);
     };
-
-
-    /// <summary>
-    ///
-    /// </summary>
-    namespace testing
-    {
-        inline const char temp[] = "abc";
-
-        using T1 = decltype(temp);
-        using T2 = conversion_strip_t<T1>;
-        static_assert(std::is_same_v<T2, char const*>);
-
-        inline auto x = sch<char const*, std::string_view>::make_view("foo");
-        static_assert(std::is_same_v<decltype(x), std::string_view>);
-    } // namespace testing
 } // namespace m::string_conversion_details

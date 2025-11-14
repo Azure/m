@@ -15,16 +15,18 @@
 // so this is strictly a transcoding exercise.
 //
 
-namespace m::string_conversion_details
+namespace m
 {
     std::u16string
-    sch<std::wstring_view, std::u16string>::make_string(std::wstring_view v)
+    string_converter<std::wstring_view, std::u16string>::make_string(std::wstring_view v)
     {
-        return std::u16string(sch<std::wstring_view, std::u16string_view>::make_view(v));
+        return std::u16string(
+            string_converter<std::wstring_view, std::u16string_view>::make_view(v));
     }
 
     std::optional<std::u16string>
-    sch<std::wstring_view, std::u16string>::make_string(std::optional<std::wstring_view> const& v)
+    string_converter<std::wstring_view, std::u16string>::make_string(
+        std::optional<std::wstring_view> const& v)
     {
         if (!v.has_value())
             return std::nullopt;
@@ -33,13 +35,14 @@ namespace m::string_conversion_details
     }
 
     std::u16string
-    sch<wchar_t const*, std::u16string>::make_string(cwzstring str)
+    string_converter<wchar_t const*, std::u16string>::make_string(cwzstring str)
     {
         return std::u16string(std::u16string_view(reinterpret_cast<char16_t const*>(str)));
     }
 
     std::optional<std::u16string>
-    sch<std::wstring, std::u16string>::make_string(std::optional<std::wstring> const& view)
+    string_converter<std::wstring, std::u16string>::make_string(
+        std::optional<std::wstring> const& view)
     {
         if (!view.has_value())
             return std::nullopt;
@@ -48,10 +51,10 @@ namespace m::string_conversion_details
     }
 
     std::u16string
-    sch<std::wstring, std::u16string>::make_string(std::wstring const& str)
+    string_converter<std::wstring, std::u16string>::make_string(std::wstring const& str)
     {
-        return sch<std::wstring_view, std::u16string>::make_string(
+        return string_converter<std::wstring_view, std::u16string>::make_string(
             std::wstring_view(str.begin(), str.end()));
     }
 
-} // namespace m::string_conversion_details
+} // namespace m

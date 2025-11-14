@@ -11,35 +11,30 @@
 
 namespace m
 {
-    namespace string_conversion_details
+    template <>
+    struct string_converter<char const*, std::wstring>
     {
-        template <>
-        struct sch<char const*, std::wstring>
-        {
-            static std::wstring
-            make_string(czstring str);
-        };
+        static std::wstring
+        make_string(czstring str);
+    };
 
-        template <>
-        struct sch<std::string_view, std::wstring>
-        {
-            static std::wstring
-            make_string(std::string_view v);
+    template <>
+    struct string_converter<std::string_view, std::wstring>
+    {
+        static std::wstring
+        make_string(std::string_view v);
 
-            static std::optional<std::wstring>
-            make_string(std::optional<std::string_view> const& v);
-        };
+        static std::optional<std::wstring>
+        make_string(std::optional<std::string_view> const& v);
+    };
 
-        template <>
-        struct sch<std::string, std::wstring>
-        {
-            static std::wstring
-            make_string(std::string const& s);
+    template <>
+    struct string_converter<std::string, std::wstring>
+    {
+        static std::wstring
+        make_string(std::string const& s);
 
-            static std::optional<std::wstring>
-            make_string(std::optional<std::string> const& s);
-        };
-
-    } // namespace string_conversion_details
-
+        static std::optional<std::wstring>
+        make_string(std::optional<std::string> const& s);
+    };
 } // namespace m

@@ -19,25 +19,27 @@ namespace m::pil
 
     namespace registry_impl
     {
+        using namespace std::string_view_literals;
+
         using P = std::pair<m::u16sstring, predefined_key>;
 
         inline const std::map<m::u16sstring,
                               predefined_key,
                               m::case_insensitive_less<m::u16sstring>>
             predefined_key_names = {{
-                P{u"HKCR", predefined_key::classes_root},
-                P{u"HKEY_CLASSES_ROOT", predefined_key::classes_root},
-                P{u"HKCU", predefined_key::current_user},
-                P{u"HKEY_CURRENT_USER", predefined_key::current_user},
-                P{u"HKLM", predefined_key::local_machine},
-                P{u"HKEY_LOCAL_MACHINE", predefined_key::local_machine},
-                P{u"HKEY_USERS", predefined_key::users},
-                P{u"HKEY_PERFORMANCE_DATA", predefined_key::performance_data},
-                P{u"HKEY_CURRENT_CONFIG", predefined_key::current_config},
-                P{u"HKCC", predefined_key::current_config},
-                P{u"HKEY_CURRENT_USER_LOCAL_SETTINGS", predefined_key::current_user_local_settings},
-                P{u"HKEY_PERFORMANCE_TEXT", predefined_key::performance_text},
-                P{u"HKEY_PERFORMANCE_NLSTEXT", predefined_key::performance_nlstext},
+                P{u"HKCR"sv, predefined_key::classes_root},
+                P{u"HKEY_CLASSES_ROOT"sv, predefined_key::classes_root},
+                P{u"HKCU"sv, predefined_key::current_user},
+                P{u"HKEY_CURRENT_USER"sv, predefined_key::current_user},
+                P{u"HKLM"sv, predefined_key::local_machine},
+                P{u"HKEY_LOCAL_MACHINE"sv, predefined_key::local_machine},
+                P{u"HKEY_USERS"sv, predefined_key::users},
+                P{u"HKEY_PERFORMANCE_DATA"sv, predefined_key::performance_data},
+                P{u"HKEY_CURRENT_CONFIG"sv, predefined_key::current_config},
+                P{u"HKCC"sv, predefined_key::current_config},
+                P{u"HKEY_CURRENT_USER_LOCAL_SETTINGS"sv, predefined_key::current_user_local_settings},
+                P{u"HKEY_PERFORMANCE_TEXT"sv, predefined_key::performance_text},
+                P{u"HKEY_PERFORMANCE_NLSTEXT"sv, predefined_key::performance_nlstext},
             }};
 
         using Q = std::pair<predefined_key, m::u16sstring>;
@@ -48,15 +50,15 @@ namespace m::pil
         /// string values are returned instead of new copies.
         /// </summary>
         inline const std::map<predefined_key, m::u16sstring> pk_to_string_map = {{
-            Q{predefined_key::classes_root, u"HKCR"},
-            Q{predefined_key::current_user, u"HKCU"},
-            Q{predefined_key::local_machine, u"HKLM"},
-            Q{predefined_key::users, u"HKEY_USERS"},
-            Q{predefined_key::performance_data, u"HKEY_PERFORMANCE_DATA"},
-            Q{predefined_key::current_config, u"HKCC"},
-            Q{predefined_key::current_user_local_settings, u"HKEY_CURRENT_USER_LOCAL_SETTINGS"},
-            Q{predefined_key::performance_text, u"HKEY_PERFORMANCE_TEXT"},
-            Q{predefined_key::performance_nlstext, u"HKEY_PERFORMANCE_NLSTEXT"},
+            Q{predefined_key::classes_root, u"HKCR"sv},
+            Q{predefined_key::current_user, u"HKCU"sv},
+            Q{predefined_key::local_machine, u"HKLM"sv},
+            Q{predefined_key::users, u"HKEY_USERS"sv},
+            Q{predefined_key::performance_data, u"HKEY_PERFORMANCE_DATA"sv},
+            Q{predefined_key::current_config, u"HKCC"sv},
+            Q{predefined_key::current_user_local_settings, u"HKEY_CURRENT_USER_LOCAL_SETTINGS"sv},
+            Q{predefined_key::performance_text, u"HKEY_PERFORMANCE_TEXT"sv},
+            Q{predefined_key::performance_nlstext, u"HKEY_PERFORMANCE_NLSTEXT"sv},
         }};
 
     } // namespace registry_impl

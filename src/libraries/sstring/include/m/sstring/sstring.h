@@ -115,6 +115,10 @@ namespace m
             m_c_str.store(m_view.data(), std::memory_order_release);
         }
 
+        basic_sstring(std::basic_string<CharT> const& str):
+            basic_sstring(static_cast<std::basic_string_view<CharT>>(str))
+        {}
+
         basic_sstring(basic_sstring const& other): m_arefc{other.m_arefc}, m_view{other.m_view}
         {
             copy_c_str_state_from_other(other);
@@ -574,26 +578,6 @@ namespace m
         std::basic_string_view<char_type>                m_view;
         mutable arefc_ptr<basic_const_string<char_type>> m_c_str_v;
         mutable std::atomic<char_type const*>            m_c_str;
-    };
-
-    template <typename CharT>
-    struct string_conversion_details::sch<basic_sstring<CharT>, std::basic_string_view<CharT>>
-    {
-        static std::basic_string_view<CharT>
-        make_view(basic_sstring<CharT> str)
-        {
-            return str.view();
-        }
-    };
-
-    template <typename CharT>
-    struct string_conversion_details::sch<basic_sstring<CharT>, std::basic_string<CharT>>
-    {
-        static std::basic_string<CharT>
-        make_string(basic_sstring<CharT> str)
-        {
-            return std::basic_string(str.view());
-        }
     };
 
     using sstring    = basic_sstring<char>;

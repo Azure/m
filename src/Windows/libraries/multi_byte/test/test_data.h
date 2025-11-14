@@ -151,3 +151,6 @@ static inline std::array utf8_nonshortest_4b_1{char8_t{0b1111'0000},
                                                char8_t{0b1000'0000},
                                                char8_t{0b1000'0000},
                                                char8_t{0b1000'0000}};
+
+inline std::array all_data{&empty_data, &hellodata, &rfc3629_ex_1};
+

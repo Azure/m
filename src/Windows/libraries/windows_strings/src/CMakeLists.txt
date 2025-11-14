@@ -7,7 +7,9 @@ target_sources(m_windows_strings PRIVATE
     char_to_wchar.cpp
     char16_to_char.cpp
     char16_to_wchar.cpp
+    char32_to_char.cpp
     char32_to_wchar.cpp
+    char8_to_char.cpp
     char8_to_wchar.cpp 
     lib.cpp
     view_to_u16string.cpp
@@ -24,6 +26,7 @@ target_include_directories(m_windows_strings PUBLIC
 
 target_link_libraries(m_windows_strings PUBLIC
     m_multi_byte
+    m_sstring
 )
 
 list(APPEND m_installation_targets

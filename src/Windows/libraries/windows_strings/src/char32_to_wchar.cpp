@@ -15,16 +15,17 @@
 // so this is strictly a transcoding exercise.
 //
 
-namespace m::string_conversion_details
+namespace m
 {
     std::wstring
-    sch<std::u32string_view, std::wstring>::make_string(std::u32string_view v)
+    string_converter<std::u32string_view, std::wstring>::make_string(std::u32string_view v)
     {
         return utf::transcode<wchar_t>(v);
     }
 
     std::optional<std::wstring>
-    sch<std::u32string_view, std::wstring>::make_string(std::optional<std::u32string_view> const& v)
+    string_converter<std::u32string_view, std::wstring>::make_string(
+        std::optional<std::u32string_view> const& v)
     {
         if (!v.has_value())
             return std::nullopt;
@@ -33,13 +34,15 @@ namespace m::string_conversion_details
     }
 
     std::wstring
-    sch<char32_t const*, std::wstring>::make_string(cu32zstring str)
+    string_converter<char32_t const*, std::wstring>::make_string(cu32zstring str)
     {
-        return czstring_to_basic_string<wchar_t>(str);
+        return string_converter<std::u32string_view, std::wstring>::make_string(view_of(str));
+        // return czstring_to_basic_string<wchar_t>(str);
     }
 
     std::optional<std::wstring>
-    sch<std::u32string, std::wstring>::make_string(std::optional<std::u32string> const& view)
+    string_converter<std::u32string, std::wstring>::make_string(
+        std::optional<std::u32string> const& view)
     {
         if (!view.has_value())
             return std::nullopt;
@@ -48,10 +51,10 @@ namespace m::string_conversion_details
     }
 
     std::wstring
-    sch<std::u32string, std::wstring>::make_string(std::u32string const& str)
+    string_converter<std::u32string, std::wstring>::make_string(std::u32string const& str)
     {
-        return sch<std::u32string_view, std::wstring>::make_string(
+        return string_converter<std::u32string_view, std::wstring>::make_string(
             std::u32string_view(str.begin(), str.end()));
     }
 
-} // namespace m::string_conversion_details
+} // namespace m

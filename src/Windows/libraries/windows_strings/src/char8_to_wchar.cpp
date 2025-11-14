@@ -15,16 +15,17 @@
 // so this is strictly a transcoding exercise.
 //
 
-namespace m::string_conversion_details
+namespace m
 {
     std::wstring
-    sch<std::u8string_view, std::wstring>::make_string(std::u8string_view v)
+    string_converter<std::u8string_view, std::wstring>::make_string(std::u8string_view v)
     {
         return utf::transcode<wchar_t>(v);
     }
 
     std::optional<std::wstring>
-    sch<std::u8string_view, std::wstring>::make_string(std::optional<std::u8string_view> const& v)
+    string_converter<std::u8string_view, std::wstring>::make_string(
+        std::optional<std::u8string_view> const& v)
     {
         if (!v.has_value())
             return std::nullopt;
@@ -33,13 +34,18 @@ namespace m::string_conversion_details
     }
 
     std::wstring
-    sch<char8_t const*, std::wstring>::make_string(cu8zstring str)
+    string_converter<char8_t const*, std::wstring>::make_string(cu8zstring str)
     {
-        return czstring_to_basic_string<wchar_t>(str);
+        if (str == nullptr)
+            return std::wstring();
+
+        return string_converter<std::u8string_view, std::wstring>::make_string(
+            std::u8string_view(str));
     }
 
     std::optional<std::wstring>
-    sch<std::u8string, std::wstring>::make_string(std::optional<std::u8string> const& view)
+    string_converter<std::u8string, std::wstring>::make_string(
+        std::optional<std::u8string> const& view)
     {
         if (!view.has_value())
             return std::nullopt;
@@ -48,10 +54,10 @@ namespace m::string_conversion_details
     }
 
     std::wstring
-    sch<std::u8string, std::wstring>::make_string(std::u8string const& str)
+    string_converter<std::u8string, std::wstring>::make_string(std::u8string const& str)
     {
-        return sch<std::u8string_view, std::wstring>::make_string(
+        return string_converter<std::u8string_view, std::wstring>::make_string(
             std::u8string_view(str.begin(), str.end()));
     }
 
-} // namespace m::string_conversion_details
+} // namespace m

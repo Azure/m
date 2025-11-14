@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <tuple>
 
+#include <m/sstring/sstring.h>
 #include <m/utf/decode.h>
 #include <m/utf/decode_iterator.h>
 #include <m/utf/encode.h>
@@ -72,6 +73,16 @@ namespace m::utf
         // Perhaps these should be std::begin(in)/std::end(in) or
         // std::ranges::begin()/std::ranges::end()?
         return transcode<OutCharT>(in.begin(), in.end());
+    }
+
+    template <typename OutCharT, typename StringishT>
+        requires(m::stringish<StringishT> && m::character<OutCharT>)
+    auto
+    transcode_to_sstring(StringishT&& in)
+    {
+        auto str = transcode<OutCharT>(std::forward<StringishT>(in));
+        m::basic_sstring<OutCharT> ret(static_cast<std::basic_string_view<OutCharT>>(str));
+        return ret;
     }
 
     //

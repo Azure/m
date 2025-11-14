@@ -17,25 +17,26 @@
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::u8string
-    sch<wchar_t const*, std::u8string>::make_string(cwzstring str)
+    string_converter<wchar_t const*, std::u8string>::make_string(cwzstring str)
     {
         if (str == nullptr)
             return std::u8string();
 
-        return sch<std::wstring_view, std::u8string>::make_string(std::wstring_view(str));
+        return string_converter<std::wstring_view, std::u8string>::make_string(
+            std::wstring_view(str));
     }
 
     std::u8string
-    sch<std::wstring_view, std::u8string>::make_string(std::wstring_view view)
+    string_converter<std::wstring_view, std::u8string>::make_string(std::wstring_view view)
     {
         return utf::transcode<char8_t>(view);
     }
 
     std::optional<std::u8string>
-    sch<std::wstring_view, std::u8string>::make_string(
+    string_converter<std::wstring_view, std::u8string>::make_string(
         std::optional<std::wstring_view> const& view)
     {
         if (!view.has_value())
@@ -45,14 +46,15 @@ namespace m::string_conversion_details
     }
 
     std::u8string
-    sch<std::wstring, std::u8string>::make_string(std::wstring const& str)
+    string_converter<std::wstring, std::u8string>::make_string(std::wstring const& str)
     {
-        return sch<std::wstring_view, std::u8string>::make_string(
+        return string_converter<std::wstring_view, std::u8string>::make_string(
             static_cast<std::wstring_view>(str));
     }
 
     std::optional<std::u8string>
-    sch<std::wstring, std::u8string>::make_string(std::optional<std::wstring> const& str)
+    string_converter<std::wstring, std::u8string>::make_string(
+        std::optional<std::wstring> const& str)
     {
         if (!str.has_value())
             return std::nullopt;
@@ -60,4 +62,4 @@ namespace m::string_conversion_details
         return make_string(str.value());
     }
 
-} // namespace m::string_conversion_details
+} // namespace m

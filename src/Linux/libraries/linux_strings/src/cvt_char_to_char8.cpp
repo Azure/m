@@ -18,10 +18,11 @@
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::optional<std::u8string>
-    sch<std::string_view, std::u8string>::make_string(std::optional<std::string_view> const& v)
+    string_converter<std::string_view, std::u8string>::make_string(
+        std::optional<std::string_view> const& v)
     {
         if (!v.has_value())
             return std::nullopt;
@@ -30,19 +31,19 @@ namespace m::string_conversion_details
     }
 
     std::u8string
-    sch<std::string_view, std::u8string>::make_string(std::string_view v)
+    string_converter<std::string_view, std::u8string>::make_string(std::string_view v)
     {
         return utf::transcode<char8_t>(v);
     }
 
     std::u8string
-    sch<std::string, std::u8string>::make_string(std::string const& str)
+    string_converter<std::string, std::u8string>::make_string(std::string const& str)
     {
         return utf::transcode<char8_t>(str);
     }
 
     std::optional<std::u8string>
-    sch<std::string, std::u8string>::make_string(std::optional<std::string> const& v)
+    string_converter<std::string, std::u8string>::make_string(std::optional<std::string> const& v)
     {
         if (!v.has_value())
             return std::nullopt;
@@ -50,4 +51,4 @@ namespace m::string_conversion_details
         return make_string(v.value());
     }
 
-} // namespace m::string_conversion_details
+} // namespace m

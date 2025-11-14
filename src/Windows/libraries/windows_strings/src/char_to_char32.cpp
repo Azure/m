@@ -5,21 +5,22 @@
 #include <m/strings/convert.h>
 #include <m/windows_strings/convert.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::u32string
-    sch<std::string_view, std::u32string>::make_string(std::string_view v)
+    string_converter<std::string_view, std::u32string>::make_string(std::string_view v)
     {
         //
         // There is no direct conversiono from CP_ACP to UTF-32 so
         // instead we must convert to wchar_t and then UTF-32
         //
-        auto t = sch<decltype(v), std::wstring>::make_string(v);
-        return sch<decltype(t), std::u32string>::make_string(t);
+        auto t = string_converter<decltype(v), std::wstring>::make_string(v);
+        return string_converter<decltype(t), std::u32string>::make_string(t);
     }
 
     std::optional<std::u32string>
-    sch<std::string_view, std::u32string>::make_string(std::optional<std::string_view> const& v)
+    string_converter<std::string_view, std::u32string>::make_string(
+        std::optional<std::string_view> const& v)
     {
         if (!v.has_value())
             return std::nullopt;
@@ -28,14 +29,13 @@ namespace m::string_conversion_details
     }
 
     std::u32string
-    sch<std::string, std::u32string>::make_string(std::string const& s)
+    string_converter<std::string, std::u32string>::make_string(std::string const& s)
     {
-        return sch<std::string_view, std::u32string>::make_string(
-            std::string_view(s.begin(), s.end()));
+        return string_converter<std::string_view, std::u32string>::make_string(view_of(s));
     }
 
     std::optional<std::u32string>
-    sch<std::string, std::u32string>::make_string(std::optional<std::string> const& s)
+    string_converter<std::string, std::u32string>::make_string(std::optional<std::string> const& s)
     {
         if (!s.has_value())
             return std::nullopt;
@@ -44,8 +44,8 @@ namespace m::string_conversion_details
     }
 
     std::u32string
-    sch<char const*, std::u32string>::make_string(czstring str)
+    string_converter<char const*, std::u32string>::make_string(czstring str)
     {
-        return czstring_to_basic_string<char32_t>(str);
+        return string_converter<std::string_view, std::u32string>::make_string(view_of(str));
     }
-} // namespace m::string_conversion_details
+} // namespace m

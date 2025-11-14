@@ -13,4 +13,5 @@ target_include_directories(m_utf PUBLIC
 
 target_link_libraries(m_utf PUBLIC
     m_math
+    m_sstring
 )

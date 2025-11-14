@@ -11,17 +11,15 @@
 
 namespace m
 {
-    namespace string_conversion_details
-    {
         template <>
-        struct sch<char8_t const*, std::wstring>
+        struct string_converter<char8_t const*, std::wstring>
         {
             static std::wstring
             make_string(cu8zstring str);
         };
 
         template <>
-        struct sch<std::u8string_view, std::wstring>
+        struct string_converter<std::u8string_view, std::wstring>
         {
             static std::wstring
             make_string(std::u8string_view v);
@@ -31,7 +29,7 @@ namespace m
         };
 
         template <>
-        struct sch<std::u8string, std::wstring>
+        struct string_converter<std::u8string, std::wstring>
         {
             static std::wstring
             make_string(std::u8string const& s);
@@ -39,7 +37,4 @@ namespace m
             static std::optional<std::wstring>
             make_string(std::optional<std::u8string> const& s);
         };
-
-    } // namespace string_conversion_details
-
 } // namespace m

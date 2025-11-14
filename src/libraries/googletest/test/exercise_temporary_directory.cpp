@@ -26,7 +26,7 @@ TEST(TemporaryDirectory, MakeATempDir)
     auto const n = p.native();
     auto const s = n.c_str();
 
-    std::wcout << L"Got temporary path of \"" << m::to_wstring(s).value_or(L""s) << L"\"\n";
+    std::wcout << L"Got temporary path of \"" << m::to_wstring(s) << L"\"\n";
 #else
     std::ignore = p;
 #endif

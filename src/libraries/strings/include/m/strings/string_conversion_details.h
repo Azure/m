@@ -24,8 +24,8 @@ namespace m
         // It makes the task somewhat cumbersome but effective.
         //
 
-        template <typename FromT, typename ToT>
-            requires(m::character<typename ToT::value_type>)
+        template <typename FromT, typename ToType>
+            requires(character<value_type_of_t<ToType>>)
         struct sch; // string conversion helper -- super wordy otherwise
 
         // We assume the null terminated string operations are the "lowest level",
@@ -33,67 +33,17 @@ namespace m
         // forms of the operations for any more intelligence.
         //
 
-        template <typename FromCharT, typename ToCharT>
+        template <typename ToCharT, typename FromCharT>
             requires(m::character<FromCharT> && m::character<ToCharT>)
         std::basic_string<ToCharT>
-        czstring_to_string(m::not_null<m::basic_zstring<FromCharT const>> ptr)
-        {
-            return sch<std::basic_string_view<FromCharT>, std::basic_string<ToCharT>>::xlate(
-                std::basic_string_view<FromCharT>(ptr));
-        }
-
-        template <typename FromCharT, typename ToCharT>
-            requires(m::character<FromCharT> && m::character<ToCharT>)
-        std::optional<std::basic_string<ToCharT>>
-        czstring_to_opt_string(m::basic_zstring<FromCharT const> ptr)
+        czstring_to_basic_string(m::basic_zstring<FromCharT const> ptr)
         {
             if (ptr == nullptr)
-                return std::nullopt;
+                return std::basic_string<ToCharT>();
 
-            return czstring_to_string<FromCharT, ToCharT>(m::not_null(ptr));
+            return sch<std::basic_string_view<FromCharT>, std::basic_string<ToCharT>>::make_string(
+                std::basic_string_view<FromCharT>(ptr));
         }
-
-        template <typename FromCharT, typename ToCharT>
-            requires(m::character<FromCharT> && m::character<ToCharT>)
-        struct sch<FromCharT const*, std::optional<std::basic_string<ToCharT>>>
-        {
-            static std::optional<std::basic_string<ToCharT>>
-            xlate(m::basic_zstring<FromCharT const> str)
-            {
-                return czstring_to_opt_string<FromCharT, ToCharT>(str);
-            }
-        };
-
-        //
-        // This specialization is a bit odd. It satisfies the desire to convert
-        // a null terminated string to std::basic_string<>, but if it doesn't have
-        // the m::not_null<> protection on it, it returns the std::optional<>
-        // wrapper.
-        //
-        template <typename FromCharT, typename ToCharT>
-            requires(m::character<FromCharT> && m::character<ToCharT>)
-        struct sch<FromCharT const*, std::basic_string<ToCharT>>
-        {
-            static std::optional<std::basic_string<ToCharT>>
-            xlate(m::basic_zstring<FromCharT const> str)
-            {
-                if (str == nullptr)
-                    return std::nullopt;
-
-                return czstring_to_opt_string<FromCharT, ToCharT>(str);
-            }
-        };
-
-        template <typename FromCharT, typename ToCharT>
-            requires(m::character<FromCharT> && m::character<ToCharT>)
-        struct sch<m::not_null<FromCharT const*>, std::basic_string<ToCharT>>
-        {
-            static std::basic_string<ToCharT>
-            xlate(m::not_null<m::basic_zstring<FromCharT const>> str)
-            {
-                return czstring_to_string<FromCharT, ToCharT>(str);
-            }
-        };
 
         template <typename FromCharT, typename ToCharT>
             requires(m::character<FromCharT> && m::character<ToCharT>)
@@ -102,92 +52,8 @@ namespace m
 
         template <typename FromCharT, typename ToCharT>
             requires(m::character<FromCharT> && m::character<ToCharT>)
-        struct sch<std::basic_string_view<FromCharT>, std::basic_string<ToCharT>>
-        {
-            static std::basic_string<ToCharT>
-            xlate(std::basic_string_view<FromCharT> const& view)
-            {
-                return string_view_to_string<FromCharT, ToCharT>(view);
-            }
-
-            static void
-            xlate(std::basic_string_view<FromCharT> const& from, std::basic_string<ToCharT>& to)
-            {
-                to = string_view_to_string<FromCharT, ToCharT>(from);
-            }
-        };
-
-        template <typename FromCharT, typename ToCharT>
-            requires(m::character<FromCharT> && m::character<ToCharT>)
-        struct sch<std::optional<std::basic_string_view<FromCharT>>,
-                   std::optional<std::basic_string<ToCharT>>>
-        {
-            static void
-            xlate(std::optional<std::basic_string_view<FromCharT>> const& from,
-                  std::optional<std::basic_string<ToCharT>>&              to)
-            {
-                if (!from.has_value())
-                    to = std::nullopt;
-
-                to = string_view_to_string<FromCharT, ToCharT>(from.value());
-            }
-
-            static std::optional<std::basic_string<ToCharT>>
-            xlate(std::optional<std::basic_string_view<FromCharT>> const& from)
-            {
-                if (!from.has_value())
-                    return std::nullopt;
-
-                return string_view_to_string<FromCharT, ToCharT>(from.value());
-            }
-        };
-
-        template <typename FromCharT, typename ToCharT>
-            requires(m::character<FromCharT> && m::character<ToCharT>)
         std::basic_string<ToCharT>
         string_to_string(std::basic_string<FromCharT> const& str);
-
-        template <typename FromCharT, typename ToCharT>
-            requires(m::character<FromCharT> && m::character<ToCharT>)
-        struct sch<std::basic_string<FromCharT>, std::basic_string<ToCharT>>
-        {
-            static void
-            xlate(std::basic_string<FromCharT> const& from, std::basic_string<ToCharT>& to)
-            {
-                to = string_to_string<FromCharT, ToCharT>(from);
-            }
-
-            static std::basic_string<ToCharT>
-            xlate(std::basic_string<FromCharT> const& from)
-            {
-                return string_to_string<FromCharT, ToCharT>(from);
-            }
-        };
-
-        template <typename FromCharT, typename ToCharT>
-            requires(m::character<FromCharT> && m::character<ToCharT>)
-        struct sch<std::optional<std::basic_string<FromCharT>>,
-                   std::optional<std::basic_string<ToCharT>>>
-        {
-            static void
-            xlate(std::optional<std::basic_string<FromCharT>> const& from,
-                  std::optional<std::basic_string<ToCharT>>&         to)
-            {
-                if (!from.has_value())
-                    to = std::nullopt;
-
-                to = string_to_string<FromCharT, ToCharT>(from.value());
-            }
-
-            static std::optional<std::basic_string<ToCharT>>
-            xlate(std::optional<std::basic_string<FromCharT>> const& from)
-            {
-                if (!from.has_value())
-                    return std::nullopt;
-
-                return string_to_string<FromCharT, ToCharT>(from.value());
-            }
-        };
 
         //
         // Template instantiations for conversions that do not require any kind of
@@ -289,41 +155,76 @@ namespace m
         std::basic_string<char32_t>
         string_to_string(std::basic_string<char32_t> const&);
 
-        // There must be a better way to do this but this brute force means will get the job done.
         template <typename T>
-        using dont_use_t1 =
-            std::conditional_t<std::is_same_v<T, char const*> || std::is_same_v<T, const char*>,
-                               m::basic_zstring<char const>,
-                               T>;
+        using decay_remove_cvref_t = remove_cvref_t<std::decay_t<T>>;
 
         template <typename T>
-        using dont_use_t2 = std::conditional_t<std::is_same_v<T, wchar_t const*> ||
-                                                   std::is_same_v<T, const wchar_t*>,
-                                               m::basic_zstring<wchar_t const>,
-                                               dont_use_t1<T>>;
+        struct is_not_null
+        {
+            static inline constexpr bool value = false;
+        };
 
         template <typename T>
-        using dont_use_t3 = std::conditional_t<std::is_same_v<T, char8_t const*> ||
-                                                   std::is_same_v<T, const char8_t*>,
-                                               m::basic_zstring<char8_t const>,
-                                               dont_use_t2<T>>;
+        struct is_not_null<not_null<T>>
+        {
+            static inline constexpr bool value = true;
+        };
 
         template <typename T>
-        using dont_use_t4 = std::conditional_t<std::is_same_v<T, char16_t const*> ||
-                                                   std::is_same_v<T, const char16_t*>,
-                                               m::basic_zstring<char16_t const>,
-                                               dont_use_t3<T>>;
+        constexpr bool is_not_null_v = is_not_null<T>::value;
 
         template <typename T>
-        using dont_use_t5 = std::conditional_t<std::is_same_v<T, char32_t const*> ||
-                                                   std::is_same_v<T, const char32_t*>,
-                                               m::basic_zstring<char32_t const>,
-                                               dont_use_t4<T>>;
+        struct plain_type
+        {
+            using type = decay_remove_cvref_t<T>;
+        };
 
         template <typename T>
-        using from_type_t =
-            dont_use_t5<std::remove_const_t<std::remove_reference_t<std::remove_const_t<T>>>>;
+        struct not_null_type
+        {
+            using type = typename T::value_type;
+        };
 
+        template <typename T>
+        struct conversion_strip
+        {
+            using type = typename plain_type<T>::type;
+        };
+
+        template <typename T>
+        struct conversion_strip<not_null<T>>
+        {
+            using type = T;
+        };
+
+        template <typename T>
+        struct conversion_strip<std::optional<T> const&>
+        {
+            using type = conversion_strip<T>::type;
+        };
+
+        template <typename T>
+        struct conversion_strip<std::optional<T>&>
+        {
+            using type = conversion_strip<T>::type;
+        };
+
+        template <typename T>
+        struct conversion_strip<T*>
+        {
+            using type = T*;
+        };
+
+        template <typename T>
+        using conversion_strip_t = conversion_strip<T>::type;
+
+        using T1 = const char(&)[100];
+        using T2 = const char;
+        using T3 = conversion_strip_t<T1>;
+
+        inline auto& t3_id = typeid(T3);
+
+        // static_assert(std::is_same_v<T2, T3>);
     } // namespace string_conversion_details
 
 } // namespace m

@@ -8,8 +8,8 @@
 
 #include <m/cast/to.h>
 #include <m/multi_byte/convert.h>
-#include <m/multi_byte/convert_wchar.h>
 #include <m/strings/convert.h>
+#include <m/windows_strings/convert.h>
 
 #include <Windows.h>
 
@@ -101,9 +101,10 @@ m::multi_byte::multi_byte_to_utf16(m::multi_byte::code_page cp,
                                    std::string_view         view,
                                    std::wstring&            string)
 {
-    string.clear();
-    auto it = std::back_inserter(string);
-    multi_byte_to_utf16(cp, view, it);
+    std::wstring t;
+    multi_byte_to_utf16(cp, view, std::back_inserter(t));
+    using std::swap;
+    swap(t, string);
 }
 
 void
@@ -111,9 +112,10 @@ m::multi_byte::multi_byte_to_utf16(m::multi_byte::code_page cp,
                                    std::string_view         view,
                                    std::u16string&          string)
 {
-    string.clear();
-    auto it = std::back_inserter(string);
-    multi_byte_to_utf16(cp, view, it);
+    std::u16string t;
+    multi_byte_to_utf16(cp, view, std::back_inserter(t));
+    using std::swap;
+    swap(t, string);
 }
 
 std::size_t
@@ -145,21 +147,21 @@ m::to_wstring(m::multi_byte::code_page cp, std::string_view view)
 void
 m::to_wstring(m::multi_byte::code_page cp, std::string_view view, std::wstring& str)
 {
-    str.erase();
-    m::multi_byte::multi_byte_to_utf16(cp, view, str);
+    std::wstring t;
+    m::multi_byte::multi_byte_to_utf16(cp, view, t);
+    using std::swap;
+    swap(t, str);
 }
 
 std::optional<std::wstring>
 m::to_wstring(m::multi_byte::code_page cp, std::optional<std::string_view> view)
 {
-    if (view)
-    {
-        std::wstring string;
-        m::multi_byte::multi_byte_to_utf16(cp, view.value(), string);
-        return string;
-    }
+    if (!view.has_value())
+        return std::nullopt;
 
-    return std::nullopt;
+    std::wstring string;
+    m::multi_byte::multi_byte_to_utf16(cp, view.value(), string);
+    return string;
 }
 
 void
@@ -167,21 +169,24 @@ m::to_wstring(m::multi_byte::code_page        cp,
               std::optional<std::string_view> view,
               std::optional<std::wstring>&    str)
 {
-    if (view)
+    if (!view.has_value())
     {
-        std::wstring t;
-        m::multi_byte::multi_byte_to_utf16(cp, view.value(), t);
-        str = t;
-    }
-    else
         str = std::nullopt;
+        return;
+    }
+
+    std::wstring t;
+    m::multi_byte::multi_byte_to_utf16(cp, view.value(), t);
+    str = t;
 }
 
 void
 m::to_u16string(m::multi_byte::code_page cp, std::string_view view, std::u16string& str)
 {
-    str.erase();
-    m::multi_byte::multi_byte_to_utf16(cp, view, str);
+    std::u16string t;
+    m::multi_byte::multi_byte_to_utf16(cp, view, t);
+    using std::swap;
+    swap(t, str);
 }
 
 std::u16string

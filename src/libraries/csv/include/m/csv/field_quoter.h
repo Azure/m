@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <concepts>
 #include <cstdint>
 #include <exception>
 #include <format>
@@ -12,6 +13,9 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+
+#include <m/error_handling/macros.h>
+#include <m/utf/transcode.h>
 
 using namespace std::string_view_literals;
 
@@ -29,64 +33,110 @@ namespace m
         {
             static inline constexpr auto characters_that_require_quotes = ",\r\n\""sv;
 
-            template <typename OutputBackIterT, typename StringishT>
-            static OutputBackIterT
-            enquote(OutputBackIterT iter, StringishT&& input)
+            template <typename InputIt, typename SentinelT, typename OutIt>
+                requires(std::forward_iterator<InputIt> &&
+                         std::sized_sentinel_for<SentinelT, InputIt> &&
+                         // std::output_iterator<char8_t, OutIt>
+                         std::weakly_incrementable<OutIt> &&
+                         std::indirectly_writable<OutIt, char8_t>)
+            static OutIt
+            enquote(InputIt start, SentinelT end, OutIt outit)
             {
-                bool must_quote = false;
+                bool quote       = false;
+                using value_type = typename std::iterator_traits<InputIt>::value_type;
 
-                for (auto const ch: input)
+                if (start != end)
                 {
-                    if ((ch < 32) ||  // space
-                        (ch > 126) || // end of printable ASCII
-                        (ch == ',') || (ch == '"') || (ch == '{'))
+                    auto it = start;
+
+                    for (;;)
                     {
-                        must_quote = true;
-                        break;
+                        auto ch = *it++;
+                        if ((ch < 32) ||  // space
+                            (ch > 126) || // end of printable ASCII
+                            (ch == ',') || (ch == '"') || (ch == '{'))
+                        {
+                            quote = true;
+                            break;
+                        }
+
+                        if (it == end)
+                            break;
                     }
                 }
 
-                if (!must_quote)
+                if (!quote)
                 {
-                    //
-                    // Fast path
-                    //
-                    iter = std::copy(input.begin(), input.end(), iter);
-                }
-                else
-                {
-                    *iter++ = '"';
-
-                    std::ranges::for_each(input, [&](auto ch) {
-                        if ((ch != '\r' && ch != '\n') && ((ch < 32) || (ch > 126) || (ch == '{')))
-                        {
-                            //
-                            // Non-printable characters other than CR and LF are
-                            // mapped to {U+xxxx}
-                            //
-                            // Open braces are mapped to {U+007b}. Sorry.
-                            //
-
-                            // We assume that the characters we're dealing with are not char32_t.
-                            static_assert(sizeof(ch) <= 4);
-                            iter = std::format_to(
-                                iter, "{{U+{:04x}}}", static_cast<uint_least16_t>(ch));
-                        }
-                        else if (ch == '"')
-                        {
-                            *iter++ = '"';
-                            *iter++ = '"';
-                        }
-                        else
-                        {
-                            *iter++ = ch;
-                        }
-                    });
-
-                    *iter++ = '"';
+                    if constexpr (std::is_same_v<value_type, char8_t>)
+                    {
+                        return std::copy(start, end, outit);
+                    }
+                    else
+                    {
+                        return utf::transcode<char8_t>(start, end, outit);
+                    }
                 }
 
-                return iter;
+                if (quote)
+                    *outit++ = '"';
+
+                auto it = start;
+
+                while (it != end)
+                {
+                    auto ch = *it++;
+
+                    if ((ch != '\r' && ch != '\n') && ((ch < 32) || (ch > 126) || (ch == '{')))
+                    {
+                        //
+                        // Non-printable characters other than CR and LF are
+                        // mapped to {U+xxxx}
+                        //
+                        // Open braces are mapped to {U+007b}. Sorry.
+                        //
+
+                        // We assume that the characters we're dealing with are not char32_t.
+                        static_assert(sizeof(ch) <= 2);
+                        outit =
+                            std::format_to(outit, "{{U+{:04x}}}", static_cast<uint_least16_t>(ch));
+                    }
+                    else if (ch == '"')
+                    {
+                        M_INTERNAL_ERROR_CHECK(quote);
+                        *outit++ = '"';
+                        *outit++ = '"';
+                    }
+                    else
+                    {
+                        *outit++ = static_cast<char8_t>(ch);
+                    }
+                }
+
+                if (quote)
+                    *outit++ = '"';
+
+                return outit;
+            }
+
+            template <typename StringishT, typename OutIt>
+                requires(std::indirectly_writable<OutIt, char8_t>
+
+                         //            std::output_iterator<char8_t, OutIt>
+                         )
+            static OutIt
+            enquote(StringishT const& input, OutIt outit)
+            {
+                return enquote(input.begin(), input.end(), outit);
+            }
+
+            template <typename StringishT, typename OutIt>
+                requires(std::indirectly_writable<OutIt, char8_t>
+                         // std::output_iterator<char8_t, OutIt>
+                         )
+            static OutIt
+            enquote(StringishT&& input, OutIt outit)
+            {
+                return enquote(input.begin(), input.end(), outit);
             }
         };
     } // namespace csv

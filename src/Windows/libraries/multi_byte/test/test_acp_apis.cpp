@@ -11,6 +11,7 @@
 #include <m/strings/convert.h>
 #include <m/multi_byte/convert.h>
 #include <m/multi_byte/convert_acp.h>
+#include <m/windows_strings/convert.h>
 
 #include <Windows.h>
 

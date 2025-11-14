@@ -13,66 +13,142 @@
 
 namespace m::string_conversion_details
 {
-    template <>
-    std::basic_string<char16_t>
-    string_view_to_string<wchar_t, char16_t>(std::basic_string_view<wchar_t> const& from)
+    std::u16string
+    sch<std::u8string_view, std::u16string>::make_string(std::u8string_view view)
     {
-        std::u16string to;
-        utf::transcode(from, to);
-        return to;
+        std::u16string ret;
+        utf::transcode(view.begin(), view.end(), m::string_inserter(ret));
+        return ret;
     }
 
-    template <>
-    std::basic_string<char16_t>
-    string_to_string<wchar_t, char16_t>(std::basic_string<wchar_t> const& str)
+    std::optional<std::u16string>
+    sch<std::u8string_view, std::u16string>::make_string(
+        std::optional<std::u8string_view> const& view)
     {
-        return string_view_to_string<wchar_t, char16_t>(std::wstring_view(str));
+        if (!view.has_value())
+            return std::nullopt;
+
+        return make_string(view.value());
     }
 
+#if 0
     template <>
-    std::basic_string<char16_t>
-    string_view_to_string<char8_t, char16_t>(std::basic_string_view<char8_t> const& from)
+    struct sch<std::u8string, std::u16string>
     {
-        std::u16string to;
-        utf::transcode(from, to);
-        return to;
-    }
+        static std::u16string
+        make_string(std::u16string const& str)
+        {
+            std::u16string ret;
+            utf::transcode(str.begin(), str.end(), m::string_inserter(ret));
+            return ret;
+        }
+
+        static std::optional<std::u16string>
+        make_string(std::optional<std::u16string> const& str)
+        {
+            if (!str.has_value())
+                return std::nullopt;
+
+            return make_string(str.value());
+        }
+    };
 
     template <>
-    std::basic_string<char16_t>
-    string_to_string<char8_t, char16_t>(std::basic_string<char8_t> const& str)
+    struct sch<std::u16string_view, std::u16string_view>
     {
-        return string_view_to_string<char8_t, char16_t>(std::u8string_view(str));
-    }
+        static std::u8string_view
+        make_view(std::u8string_view view)
+        {
+            return view;
+        }
+
+        static std::optional<std::u8string_view>
+        make_string(std::optional<std::u8string_view> const& view)
+        {
+            return view;
+        }
+    };
 
     template <>
-    std::basic_string<char16_t>
-    string_view_to_string<char16_t, char16_t>(std::basic_string_view<char16_t> const& from)
+    struct sch<std::u16string_view, std::u16string>
     {
-        return std::basic_string<char16_t>(from);
-    }
+        static std::u16string
+        make_string(std::u16string_view view)
+        {
+            return std::u16string(view);
+        }
+
+        static std::optional<std::u16string>
+        make_string(std::optional<std::u16string_view> const& view)
+        {
+            if (!view.has_value())
+                return std::nullopt;
+
+            return make_string(view.value());
+        }
+    };
 
     template <>
-    std::basic_string<char16_t>
-    string_to_string<char16_t, char16_t>(std::basic_string<char16_t> const& str)
+    struct sch<std::u16string, std::u16string>
     {
-        return str;
-    }
+        static std::u16string
+        make_string(std::u16string const& str)
+        {
+            std::u16string ret;
+            utf::transcode(str.begin(), str.end(), m::string_inserter(ret));
+            return ret;
+        }
+
+        static std::optional<std::u16string>
+        make_string(std::optional<std::u16string> const& str)
+        {
+            if (!str.has_value())
+                return std::nullopt;
+
+            return make_string(str.value());
+        }
+    };
 
     template <>
-    std::basic_string<char16_t>
-    string_view_to_string<char32_t, char16_t>(std::basic_string_view<char32_t> const& from)
+    struct sch<std::u32string_view, std::u16string>
     {
-        std::u16string to;
-        utf::transcode(from, to);
-        return to;
-    }
+        static std::u16string
+        make_string(std::u32string_view view)
+        {
+            std::u16string ret;
+            m::utf::transcode(view.begin(), view.end(), m::string_inserter(ret));
+            return ret;
+        }
+
+        static std::optional<std::u16string>
+        make_string(std::optional<std::u32string_view> const& view)
+        {
+            if (!view.has_value())
+                return std::nullopt;
+
+            return make_string(view.value());
+        }
+    };
 
     template <>
-    std::basic_string<char16_t>
-    string_to_string<char32_t, char16_t>(std::basic_string<char32_t> const& str)
+    struct sch<std::u32string, std::u16string>
     {
-        return string_view_to_string<char32_t, char16_t>(std::u32string_view(str));
-    }
+        static std::u16string
+        make_string(std::u32string const& str)
+        {
+            std::u16string ret;
+            utf::transcode(str.begin(), str.end(), m::string_inserter(ret));
+            return ret;
+        }
 
+        static std::optional<std::u16string>
+        make_string(std::optional<std::u32string> const& str)
+        {
+            if (!str.has_value())
+                return std::nullopt;
+
+            return make_string(str.value());
+        }
+    };
+#endif
 } // namespace m::string_conversion_details

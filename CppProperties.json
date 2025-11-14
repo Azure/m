@@ -1,39 +1,41 @@
 {
-  "configurations": [
-    {
-      "inheritEnvironments": [
-        "msvc_x64"
-      ],
-      "name": "x64 Debug",
-      "includePath": [
-        "${env.INCLUDE}",
-        "${workspaceRoot}\\**"
-      ],
-      "defines": [
-        "WIN32",
-        "UNICODE",
-        "_UNICODE"
-      ],
-      "compilerSwitches": "/std:c++latest",
-      "intelliSenseMode": "windows-msvc-x64"
-    },
-    {
-      "inheritEnvironments": [
-        "msvc_x64"
-      ],
-      "name": "x64 Release",
-      "includePath": [
-        "${env.INCLUDE}",
-        "${workspaceRoot}\\**"
-      ],
-      "defines": [
-        "WIN32",
-        "NDEBUG",
-        "UNICODE",
-        "_UNICODE"
-      ],
-      "compilerSwitches": "/std:c++latest",
-      "intelliSenseMode": "windows-msvc-x64"
-    }
-  ]
+    "configurations": [
+        {
+            "inheritEnvironments": [
+                "msvc_x64"
+            ],
+            "name": "x64 Debug",
+            "includePath": [
+                "${env.INCLUDE}",
+                "${workspaceRoot}\\**",
+                "${env.NugetMachineInstallRoot}\\VisualCppTools.*\\lib\\native\\include"
+            ],
+            "defines": [
+                "WIN32",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerSwitches": "/std:c++latest",
+            "intelliSenseMode": "windows-msvc-x64"
+        },
+        {
+            "inheritEnvironments": [
+                "msvc_x64"
+            ],
+            "name": "x64 Release",
+            "includePath": [
+                "${env.INCLUDE}",
+                "${workspaceRoot}\\**",
+                "${env.NugetMachineInstallRoot}\\VisualCppTools.*\\lib\\native\\include"
+            ],
+            "defines": [
+                "WIN32",
+                "NDEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerSwitches": "/std:c++latest",
+            "intelliSenseMode": "windows-msvc-x64"
+        }
+    ]
 }

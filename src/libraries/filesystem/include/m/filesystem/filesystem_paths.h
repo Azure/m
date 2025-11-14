@@ -8,6 +8,7 @@
 
 #include <m/cast/to.h>
 #include <m/strings/convert.h>
+#include <m/strings/tstring.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 
@@ -16,15 +17,79 @@
 // to have the platform specific conversion libraries in scope.
 //
 #ifdef WIN32
+
 #include <m/windows_strings/convert.h>
+
+#define _M_FILESYSTEM_T(x) L ## x
+
 #else
+
 #include <m/linux_strings/convert.h>
+
+#define _M_FILESYSTEM_T(x) x
+
 #endif
+
+#define M_FILESYSTEM_T(x) _M_FILESYSTEM_T(x)
 
 namespace m
 {
     namespace filesystem
     {
+        using path_value_type = std::filesystem::path::value_type;
+        using path_string_view = std::basic_string_view<path_value_type>;
+        using path_string = std::basic_string<path_value_type>;
+
+        /// <summary>
+        /// Constructs a path by combining:
+        ///
+        /// 1. The current working directory
+        /// 2. An optional base path
+        /// 3. An overlay path
+        ///
+        /// If the base path is present and is absolute, the current
+        /// working directory is not referenced.
+        ///
+        /// The intent of this API is that it can be used
+        /// with, for example, a command line tool in the
+        /// form:
+        ///
+        /// toolname -out .\my\outputs inputfile.xyz
+        ///
+        /// The tool would generate the output filename
+        /// by passing a std::filesystem::path(".\my\outputs")
+        /// in the base_path parameter and "inputfile.out"
+        /// in the overlay_path parameter.
+        ///
+        /// </summary>
+        /// <param name="base_path"></param>
+        /// <param name="overlay_path"></param>
+        /// <returns></returns>
+        std::filesystem::path
+        combine(std::optional<std::filesystem::path>&& base_path,
+                std::filesystem::path const&           overlay_path);
+
+        std::filesystem::path
+        combine(std::optional<std::filesystem::path> const& base_path,
+                std::filesystem::path const&                overlay_path);
+
+        /// <summary>
+        /// Performs path combination, and replaces the extension.
+        /// </summary>
+        /// <param name="base_path"></param>
+        /// <param name="overlay_path"></param>
+        /// <param name="replacement"></param>
+        /// <returns></returns>
+        std::filesystem::path
+        combine(std::optional<std::filesystem::path>&& base_path,
+                std::filesystem::path const&           overlay_path,
+                std::filesystem::path const&           replacement_extension);
+
+        std::filesystem::path
+        combine(std::optional<std::filesystem::path> const& base_path,
+                std::filesystem::path const&                overlay_path,
+                std::filesystem::path const&                replacement_extension);
+
         //
         // Hide the gory details of mapping character sets
         //
@@ -129,6 +194,13 @@ namespace m
 
         std::basic_string<std::filesystem::path::value_type>
         to_native(std::u32string_view v);
+
+        template <typename T>
+        inline decltype(auto)
+        to_path_string(T&& v)
+        {
+            return m::to_string_t<path_value_type>(std::forward<T>(v));
+        }
 
     } // namespace filesystem
 
@@ -244,7 +316,7 @@ struct std::formatter<std::filesystem::path, TChar>
         while (it != end)
         {
             auto [newit, ch] = m::utf::decode_utf(std::filesystem::path::value_type{}, it, end);
-            out              = m::utf::encode_char(TChar{}, ch, out);
+            out              = m::utf::encode_char<TChar>(ch, out);
             it               = newit;
         }
 

@@ -1,14 +1,15 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_filesystem PRIVATE
+    combine.cpp
     filesystem.cpp
     loadstore.cpp
     make_path.cpp
+    monitor.cpp
     path_conversions.cpp
     seekable_input_file.cpp
     seekable_output_file.cpp
     sequential_output_file.cpp
-    monitor.cpp
 )
 
 target_compile_definitions(m_filesystem PRIVATE _CRT_SECURE_NO_WARNINGS)

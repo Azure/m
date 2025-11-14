@@ -12,6 +12,21 @@
 #include <string_view>
 #include <type_traits>
 
+#include <m/linux_strings/cvt_char16_to_char.h>
+#include <m/linux_strings/cvt_char16_to_wchar.h>
+#include <m/linux_strings/cvt_char32_to_char.h>
+#include <m/linux_strings/cvt_char32_to_wchar.h>
+#include <m/linux_strings/cvt_char8_to_char.h>
+#include <m/linux_strings/cvt_char8_to_wchar.h>
+#include <m/linux_strings/cvt_char_to_char16.h>
+#include <m/linux_strings/cvt_char_to_char32.h>
+#include <m/linux_strings/cvt_char_to_char8.h>
+#include <m/linux_strings/cvt_char_to_wchar.h>
+#include <m/linux_strings/cvt_views.h>
+#include <m/linux_strings/cvt_wchar_to_char.h>
+#include <m/linux_strings/cvt_wchar_to_char16.h>
+#include <m/linux_strings/cvt_wchar_to_char32.h>
+#include <m/linux_strings/cvt_wchar_to_char8.h>
 #include <m/strings/convert.h>
 #include <m/strings/tstring.h>
 #include <m/utf/decode.h>
@@ -20,97 +35,3 @@
 #include <m/utility/make_span.h>
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
-
-namespace m
-{
-    namespace string_conversion_details
-    {
-        //
-        template <>
-        std::basic_string<char>
-        string_view_to_string(std::basic_string_view<wchar_t> const&);
-        template <>
-        std::basic_string<char>
-        string_view_to_string(std::basic_string_view<char8_t> const&);
-        template <>
-        std::basic_string<char>
-        string_view_to_string(std::basic_string_view<char16_t> const&);
-        template <>
-        std::basic_string<char>
-        string_view_to_string(std::basic_string_view<char32_t> const&);
-
-        template <>
-        std::basic_string<wchar_t>
-        string_view_to_string(std::basic_string_view<char> const&);
-
-        template <>
-        std::basic_string<char8_t>
-        string_view_to_string(std::basic_string_view<char> const&);
-        template <>
-        std::basic_string<char8_t>
-        string_view_to_string(std::basic_string_view<wchar_t> const&);
-
-        template <>
-        std::basic_string<char16_t>
-        string_view_to_string(std::basic_string_view<char> const&);
-        template <>
-        std::basic_string<char16_t>
-        string_view_to_string(std::basic_string_view<wchar_t> const&);
-
-        template <>
-        std::basic_string<char32_t>
-        string_view_to_string(std::basic_string_view<char> const&);
-        template <>
-        std::basic_string<char32_t>
-        string_view_to_string(std::basic_string_view<wchar_t> const&);
-
-        template <>
-        std::basic_string<char>
-        string_view_to_string(std::basic_string_view<wchar_t> const&);
-        template <>
-        std::basic_string<char>
-        string_view_to_string(std::basic_string_view<char8_t> const&);
-        template <>
-        std::basic_string<char>
-        string_view_to_string(std::basic_string_view<char16_t> const&);
-        template <>
-        std::basic_string<char>
-        string_view_to_string(std::basic_string_view<char32_t> const&);
-
-        template <>
-        std::basic_string<wchar_t>
-        string_to_string(std::basic_string<char> const&);
-        template <>
-        std::basic_string<wchar_t>
-        string_to_string(std::basic_string<char8_t> const&);
-        template <>
-        std::basic_string<wchar_t>
-        string_to_string(std::basic_string<char16_t> const&);
-        template <>
-        std::basic_string<wchar_t>
-        string_to_string(std::basic_string<char32_t> const&);
-
-        template <>
-        std::basic_string<char8_t>
-        string_to_string(std::basic_string<char> const&);
-        template <>
-        std::basic_string<char8_t>
-        string_to_string(std::basic_string<wchar_t> const&);
-
-        template <>
-        std::basic_string<char16_t>
-        string_to_string(std::basic_string<char> const&);
-        template <>
-        std::basic_string<char16_t>
-        string_to_string(std::basic_string<wchar_t> const&);
-
-        template <>
-        std::basic_string<char32_t>
-        string_to_string(std::basic_string<char> const&);
-        template <>
-        std::basic_string<char32_t>
-        string_to_string(std::basic_string<wchar_t> const&);
-
-    } // namespace string_conversion_details
-
-} // namespace m

@@ -17,106 +17,106 @@ using namespace std::string_view_literals;
 
 TEST(FieldQuoterTests, SimpleString)
 {
-    std::wstring s;
+    std::u16string s;
     auto         iter = std::back_inserter(s);
 
-    m::csv::field_quoter::enquote(iter, L"hello"sv);
+    m::csv::field_quoter::enquote(u"hello"sv, iter);
 
-    EXPECT_EQ(s, L"hello"s);
+    EXPECT_EQ(s, u"hello"s);
 }
 
 TEST(FieldQuoterTests, SimpleString2)
 {
-    std::wstring s;
+    std::u16string s;
     auto         iter = std::back_inserter(s);
 
-    m::csv::field_quoter::enquote(iter, L"hello \"Mike\" if that's actually your name"sv);
+    m::csv::field_quoter::enquote(u"hello \"Mike\" if that's actually your name"sv, iter);
 
-    EXPECT_EQ(s, L"\"hello \"\"Mike\"\" if that's actually your name\""s);
+    EXPECT_EQ(s, u"\"hello \"\"Mike\"\" if that's actually your name\""s);
 }
 
 TEST(FieldQuoterTests, TestCarriageReturn)
 {
-    std::wstring s;
+    std::u16string s;
     auto         iter = std::back_inserter(s);
 
-    m::csv::field_quoter::enquote(iter, L"abc\r123"sv);
+    m::csv::field_quoter::enquote(u"abc\r123"sv, iter);
 
     // Carriage returns and line feeds simply have double quotes put around the fields
-    EXPECT_EQ(s, L"\"abc\r123\""s);
+    EXPECT_EQ(s, u"\"abc\r123\""s);
 }
 
 TEST(FieldQuoterTests, TestLineFeed)
 {
-    std::wstring s;
+    std::u16string s;
     auto         iter = std::back_inserter(s);
 
-    m::csv::field_quoter::enquote(iter, L"abc\n123"sv);
+    m::csv::field_quoter::enquote(u"abc\n123"sv, iter);
 
     // Carriage returns and line feeds simply have double quotes put around the fields
-    EXPECT_EQ(s, L"\"abc\n123\""s);
+    EXPECT_EQ(s, u"\"abc\n123\""s);
 }
 
 TEST(FieldQuoterTests, TestCRLF)
 {
-    std::wstring s;
+    std::u16string s;
     auto         iter = std::back_inserter(s);
 
-    m::csv::field_quoter::enquote(iter, L"abc\r\n123"sv);
+    m::csv::field_quoter::enquote(u"abc\r\n123"sv, iter);
 
     // Carriage returns and line feeds simply have double quotes put around the fields
-    EXPECT_EQ(s, L"\"abc\r\n123\""s);
+    EXPECT_EQ(s, u"\"abc\r\n123\""s);
 }
 
 TEST(FieldQuoterTests, TestBrace)
 {
-    std::wstring s;
+    std::u16string s;
     auto         iter = std::back_inserter(s);
 
-    m::csv::field_quoter::enquote(iter, L"abc{123"sv);
+    m::csv::field_quoter::enquote(u"abc{123"sv, iter);
 
     //
     // Open brace is mapped to {U+007b} so that { can be fairly safely treated
     // as the trigger for escaping on parsing. The encoder couples escaping with
     // quoting so if it has an open brace, it also gets quoted.
     //
-    EXPECT_EQ(s, L"\"abc{U+007b}123\""s);
+    EXPECT_EQ(s, u"\"abc{U+007b}123\""s);
 }
 
 TEST(FieldQuoterTests, TestStartingWithQuotedString)
 {
-    std::wstring s;
+    std::u16string s;
     auto         iter = std::back_inserter(s);
 
-    m::csv::field_quoter::enquote(iter, L"\"What\"happens"sv);
+    m::csv::field_quoter::enquote(u"\"What\"happens"sv, iter);
 
     //
     // Expected: Quotes around whole string. Quotes around "What" are doubled.
     //
-    EXPECT_EQ(s, L"\"\"\"What\"\"happens\""s);
+    EXPECT_EQ(s, u"\"\"\"What\"\"happens\""s);
 }
 
 TEST(FieldQuoterTests, TestEndingWithQuotedString)
 {
-    std::wstring s;
+    std::u16string s;
     auto         iter = std::back_inserter(s);
 
-    m::csv::field_quoter::enquote(iter, L"What\"happens\""sv);
+    m::csv::field_quoter::enquote(u"What\"happens\""sv, iter);
 
     //
     // Expected: Quotes around whole string. Quotes around "happens" are doubled.
     //
-    EXPECT_EQ(s, L"\"What\"\"happens\"\"\""s);
+    EXPECT_EQ(s, u"\"What\"\"happens\"\"\""s);
 }
 
 TEST(FieldQuoterTests, TestBEL)
 {
-    std::wstring s;
+    std::u16string s;
     auto         iter = std::back_inserter(s);
 
-    m::csv::field_quoter::enquote(iter, L"abc\u0007123"sv);
+    m::csv::field_quoter::enquote(u"abc\u0007123"sv, iter);
 
-    EXPECT_EQ(s, L"\"abc{U+0007}123\""s);
+    EXPECT_EQ(s, u"\"abc{U+0007}123\""s);
 }
 
 //

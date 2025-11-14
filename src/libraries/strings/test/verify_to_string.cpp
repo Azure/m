@@ -27,7 +27,7 @@ static char8_t const* pu8c_notnullptr = u8"foo";
 // Verify the optionality mechanics are kicking in
 //
 
-static_assert(std::is_same_v<decltype(m::to_u8string(pu8c_nullptr)), std::optional<std::u8string>>);
+static_assert(std::is_same_v<decltype(m::to_u8string(pu8c_nullptr)), std::u8string>);
 static_assert(
     std::is_same_v<decltype(m::to_u8string(m::not_null(pu8c_notnullptr))), std::u8string>);
 

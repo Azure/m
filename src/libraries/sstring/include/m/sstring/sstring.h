@@ -31,6 +31,7 @@
 #include <m/math/math.h>
 #include <m/strings/compare.h>
 #include <m/strings/convert.h>
+#include <m/strings/string_conversion_details.h>
 #include <m/strings/tstring.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
@@ -575,71 +576,31 @@ namespace m
         mutable std::atomic<char_type const*>            m_c_str;
     };
 
+    template <typename CharT>
+    struct string_conversion_details::sch<basic_sstring<CharT>, std::basic_string_view<CharT>>
+    {
+        static std::basic_string_view<CharT>
+        make_view(basic_sstring<CharT> str)
+        {
+            return str.view();
+        }
+    };
+
+    template <typename CharT>
+    struct string_conversion_details::sch<basic_sstring<CharT>, std::basic_string<CharT>>
+    {
+        static std::basic_string<CharT>
+        make_string(basic_sstring<CharT> str)
+        {
+            return std::basic_string(str.view());
+        }
+    };
+
     using sstring    = basic_sstring<char>;
     using wsstring   = basic_sstring<wchar_t>;
     using u8sstring  = basic_sstring<char8_t>;
     using u16sstring = basic_sstring<char16_t>;
     using u32sstring = basic_sstring<char32_t>;
-
-    template <typename CharT>
-        requires(m::character<CharT>)
-    struct string_conversion_helper<basic_sstring<CharT>, CharT>
-    {
-        using sstring_t     = basic_sstring<CharT>;
-        using string_t      = std::basic_string<CharT>;
-        using string_view_t = std::basic_string_view<CharT>;
-
-        constexpr static string_view_t
-        xlate_to_view(sstring_t&& str) noexcept
-        {
-            return str.view();
-        }
-
-        constexpr static string_view_t
-        xlate_to_view(sstring_t const& str) noexcept
-        {
-            return str.view();
-        }
-
-        static string_t
-        xlate_to_string(sstring_t&& str)
-        {
-            return string_t(str.view());
-        }
-
-        static string_t
-        xlate_to_string(sstring_t const& str)
-        {
-            return string_t(str.view());
-        }
-    };
-
-    template <typename CharT>
-        requires(m::character<CharT>)
-    struct string_conversion_helper<std::optional<basic_sstring<CharT>>, CharT>
-    {
-        using sstring_t     = basic_sstring<CharT>;
-        using string_t      = std::basic_string<CharT>;
-        using string_view_t = std::basic_string_view<CharT>;
-
-        constexpr static std::optional<string_view_t>
-        xlate_to_view(std::optional<sstring_t> const& str) noexcept
-        {
-            if (!str.has_value())
-                return std::nullopt;
-
-            return str.value().view();
-        }
-
-        static std::optional<string_t>
-        xlate_to_string(std::optional<sstring_t> const& str)
-        {
-            if (!str.has_value())
-                return std::nullopt;
-
-            return string_t(str.value().view());
-        }
-    };
 
     static_assert(has_view<sstring, char>);
     static_assert(has_view<wsstring, wchar_t>);

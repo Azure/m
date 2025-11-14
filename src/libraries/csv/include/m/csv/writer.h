@@ -50,17 +50,38 @@ namespace m
             void
             write_row(T&& row)
             {
-                auto iter     = std::back_inserter(m_line_buffer);
+                auto outit     = std::back_inserter(m_line_buffer);
                 m_first_field = true;
                 m_line_buffer.clear();
-                std::ranges::for_each(std::forward<T>(row), [this, &iter](auto const& str) {
+                std::ranges::for_each(std::forward<T>(row), [this, &outit](auto const& str) {
                     // Explicit use of `this` because clang gives a warning
                     // for the explicit capture of `this` because it does not
                     // see it used using the toolset on ubuntu-latest on
                     // github, 10/30/2025.
-                    this->write_field(iter, str);
+                    this->write_field(str, outit);
                 });
-                iter = std::ranges::copy(traits_t::line_break, iter).out;
+                outit = std::ranges::copy(traits_t::line_break, outit).out;
+
+                m_line_buffer.for_each_span([this](auto spn) { std::invoke(m_line_writer, spn); });
+
+                std::invoke(m_line_writer, string_buffer_type::span_type());
+            }
+
+            template <typename T>
+            void
+            write_row(T const& row)
+            {
+                auto outit     = std::back_inserter(m_line_buffer);
+                m_first_field = true;
+                m_line_buffer.clear();
+                std::ranges::for_each(row, [this, &outit](auto const& str) {
+                    // Explicit use of `this` because clang gives a warning
+                    // for the explicit capture of `this` because it does not
+                    // see it used using the toolset on ubuntu-latest on
+                    // github, 10/30/2025.
+                    outit = this->write_field(str, outit);
+                });
+                outit = std::ranges::copy(traits_t::line_break, outit).out;
 
                 m_line_buffer.for_each_span([this](auto spn) { std::invoke(m_line_writer, spn); });
 
@@ -68,18 +89,28 @@ namespace m
             }
 
         protected:
-            template <typename IteratorT, typename StringishT>
+            template <typename StringishT, typename IteratorT>
             IteratorT
-            write_field(IteratorT iter, StringishT&& input)
+            write_field(StringishT&& input, IteratorT outit)
             {
                 if (m_first_field)
                     m_first_field = false;
                 else
-                    *iter++ = ',';
+                    *outit++ = ',';
 
-                iter = field_quoter::enquote(iter, std::forward<StringishT>(input));
+                return field_quoter::enquote(std::forward<StringishT>(input), outit);
+            }
 
-                return iter;
+            template <typename StringishT, typename IteratorT>
+            IteratorT
+            write_field(StringishT const& input, IteratorT outit)
+            {
+                if (m_first_field)
+                    m_first_field = false;
+                else
+                    *outit++ = ',';
+
+                return field_quoter::enquote(input, outit);
             }
 
             line_writer_type   m_line_writer;

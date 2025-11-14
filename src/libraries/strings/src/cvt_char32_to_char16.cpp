@@ -11,16 +11,16 @@
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::u16string
-    sch<std::u32string_view, std::u16string>::make_string(std::u32string_view view)
+    string_converter<std::u32string_view, std::u16string>::make_string(std::u32string_view view)
     {
         return utf::transcode<char16_t>(view);
     }
 
     std::optional<std::u16string>
-    sch<std::u32string_view, std::u16string>::make_string(
+    string_converter<std::u32string_view, std::u16string>::make_string(
         std::optional<std::u32string_view> const& view)
     {
         if (!view.has_value())
@@ -30,13 +30,13 @@ namespace m::string_conversion_details
     }
 
     std::u16string
-    sch<std::u32string, std::u16string>::make_string(std::u32string const& str)
+    string_converter<std::u32string, std::u16string>::make_string(std::u32string const& str)
     {
         return utf::transcode<char16_t>(str);
     }
 
     std::optional<std::u16string>
-    sch<std::u32string, std::u16string>::make_string(std::optional<std::u32string> const& str)
+    string_converter<std::u32string, std::u16string>::make_string(std::optional<std::u32string> const& str)
     {
         if (!str.has_value())
             return std::nullopt;

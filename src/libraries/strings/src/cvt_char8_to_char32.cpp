@@ -11,16 +11,16 @@
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::u32string
-    sch<std::u8string_view, std::u32string>::make_string(std::u8string_view view)
+    string_converter<std::u8string_view, std::u32string>::make_string(std::u8string_view view)
     {
         return utf::transcode<char32_t>(view);
     }
 
     std::optional<std::u32string>
-    sch<std::u8string_view, std::u32string>::make_string(
+    string_converter<std::u8string_view, std::u32string>::make_string(
         std::optional<std::u8string_view> const& view)
     {
         if (!view.has_value())
@@ -30,13 +30,13 @@ namespace m::string_conversion_details
     }
 
     std::u32string
-    sch<std::u8string, std::u32string>::make_string(std::u8string const& str)
+    string_converter<std::u8string, std::u32string>::make_string(std::u8string const& str)
     {
-        return sch<std::u8string_view, std::u32string>::make_string(static_cast<std::u8string_view>(str));
+        return string_converter<std::u8string_view, std::u32string>::make_string(static_cast<std::u8string_view>(str));
     }
 
     std::optional<std::u32string>
-    sch<std::u8string, std::u32string>::make_string(std::optional<std::u8string> const& str)
+    string_converter<std::u8string, std::u32string>::make_string(std::optional<std::u8string> const& str)
     {
         if (!str.has_value())
             return std::nullopt;

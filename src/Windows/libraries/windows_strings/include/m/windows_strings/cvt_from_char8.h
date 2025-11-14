@@ -7,17 +7,17 @@
 #include <m/multi_byte/convert_acp.h>
 #include <m/strings/string_conversion_details.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     template <>
-    struct sch<char8_t const*, std::string>
+    struct string_converter<char8_t const*, std::string>
     {
         static std::string
         make_string(cu8zstring str);
     };
 
     template <>
-    struct sch<std::u8string_view, std::string>
+    struct string_converter<std::u8string_view, std::string>
     {
         static std::optional<std::string>
         make_string(std::optional<std::u8string_view> const& view);
@@ -27,14 +27,14 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<char8_t const*, std::wstring>
+    struct string_converter<char8_t const*, std::wstring>
     {
         static std::wstring
         make_string(cu8zstring str);
     };
 
     template <>
-    struct sch<std::u8string_view, std::wstring>
+    struct string_converter<std::u8string_view, std::wstring>
     {
         static std::optional<std::wstring>
         make_string(std::optional<std::u8string_view> const& view);
@@ -44,7 +44,7 @@ namespace m::string_conversion_details
     };
 
     template <>
-    struct sch<std::u8string, std::wstring>
+    struct string_converter<std::u8string, std::wstring>
     {
         static std::optional<std::wstring>
         make_string(std::optional<std::u8string> const& s);
@@ -53,4 +53,4 @@ namespace m::string_conversion_details
         make_string(std::u8string const& s);
     };
 
-} // namespace m::string_conversion_details
+} // namespace m

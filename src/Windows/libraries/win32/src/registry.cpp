@@ -15,23 +15,25 @@ namespace m::win32::registry
 {
     namespace registry_impl
     {
+        using namespace std::string_view_literals;
+
         using P = std::pair<m::wsstring, predefined_key>;
 
         inline const std::map<m::wsstring, predefined_key, m::case_insensitive_less<m::wsstring>>
             predefined_key_names = {{
-                P{L"HKCR", predefined_key::classes_root},
-                P{L"HKEY_CLASSES_ROOT", predefined_key::classes_root},
-                P{L"HKCU", predefined_key::current_user},
-                P{L"HKEY_CURRENT_USER", predefined_key::current_user},
-                P{L"HKLM", predefined_key::local_machine},
-                P{L"HKEY_LOCAL_MACHINE", predefined_key::local_machine},
-                P{L"HKEY_USERS", predefined_key::users},
-                P{L"HKEY_PERFORMANCE_DATA", predefined_key::performance_data},
-                P{L"HKEY_CURRENT_CONFIG", predefined_key::current_config},
-                P{L"HKCC", predefined_key::current_config},
-                P{L"HKEY_CURRENT_USER_LOCAL_SETTINGS", predefined_key::current_user_local_settings},
-                P{L"HKEY_PERFORMANCE_TEXT", predefined_key::performance_text},
-                P{L"HKEY_PERFORMANCE_NLSTEXT", predefined_key::performance_nlstext},
+                P{L"HKCR"sv, predefined_key::classes_root},
+                P{L"HKEY_CLASSES_ROOT"sv, predefined_key::classes_root},
+                P{L"HKCU"sv, predefined_key::current_user},
+                P{L"HKEY_CURRENT_USER"sv, predefined_key::current_user},
+                P{L"HKLM"sv, predefined_key::local_machine},
+                P{L"HKEY_LOCAL_MACHINE"sv, predefined_key::local_machine},
+                P{L"HKEY_USERS"sv, predefined_key::users},
+                P{L"HKEY_PERFORMANCE_DATA"sv, predefined_key::performance_data},
+                P{L"HKEY_CURRENT_CONFIG"sv, predefined_key::current_config},
+                P{L"HKCC"sv, predefined_key::current_config},
+                P{L"HKEY_CURRENT_USER_LOCAL_SETTINGS"sv, predefined_key::current_user_local_settings},
+                P{L"HKEY_PERFORMANCE_TEXT"sv, predefined_key::performance_text},
+                P{L"HKEY_PERFORMANCE_NLSTEXT"sv, predefined_key::performance_nlstext},
             }};
 
     } // namespace registry_impl

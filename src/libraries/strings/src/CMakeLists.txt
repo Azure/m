@@ -22,6 +22,7 @@ target_include_directories(m_strings PRIVATE
 
 target_link_libraries(m_strings PUBLIC
     m_math
+    m_sstring
     m_utf
 )
 

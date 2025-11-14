@@ -5,6 +5,7 @@ target_sources(m_strings PUBLIC FILE_SET HEADERS FILES
     m/strings/convert.h 
     m/strings/literal_string_view.h 
     m/strings/ordinal_compare.h 
+    m/strings/platform_independent_string_conversions.h
     m/strings/punning.h
     m/strings/split.h
     m/strings/static_string.h

@@ -19,10 +19,14 @@ namespace impl
     utf16_to_multi_byte_length_fn(m::multi_byte::code_page                        cp,
                                   std::basic_string_view<Utf16CharT, CharTraitsT> view)
     {
+        auto const view_size = view.size();
+        if (view_size == 0)
+            return 0;
+
         auto i = ::WideCharToMultiByte(std::to_underlying(cp),
                                        WC_NO_BEST_FIT_CHARS,
                                        reinterpret_cast<wchar_t const*>(view.data()),
-                                       m::to<int>(view.size()),
+                                       m::to<int>(view_size),
                                        nullptr,
                                        0,
                                        nullptr,  // lpDefaultChar
@@ -39,6 +43,17 @@ namespace impl
                                std::basic_string_view<Utf16CharT, CharTraitsT> view,
                                std::span<char>&                                buffer)
     {
+        auto const view_size = view.size();
+        if (view_size == 0)
+        {
+            //
+            // The WideCharToMultiByte() API is not happy getting an
+            // input of 0 length so we handle it separately.
+            //
+            buffer = buffer.subspan(0, 0);
+            return m::windows::win32_error_code::success;
+        }
+
         auto i = ::WideCharToMultiByte(std::to_underlying(cp),
                                        WC_NO_BEST_FIT_CHARS,
                                        reinterpret_cast<wchar_t const*>(view.data()),
@@ -135,27 +150,31 @@ namespace m::multi_byte
     }
 
     void
-    utf16_to_multi_byte(code_page cp, std::wstring_view view, std::string& string)
+    utf16_to_multi_byte(code_page cp, std::wstring_view view, std::string& str)
     {
-        string.clear();
+        std::string t;
         auto length = utf16_to_multi_byte_length(cp, view);
-        string.resize_and_overwrite(length, [&](auto buffer, auto buffer_size) -> auto {
+        t.resize_and_overwrite(length, [&](auto buffer, auto buffer_size) -> auto {
             auto span = m::make_span(buffer, buffer_size);
             utf16_to_multi_byte(cp, view, span);
             return span.size();
         });
+        using std::swap;
+        swap(t, str);
     }
 
     void
-    utf16_to_multi_byte(code_page cp, std::u16string_view view, std::string& string)
+    utf16_to_multi_byte(code_page cp, std::u16string_view view, std::string& str)
     {
-        string.clear();
+        std::string t;
         auto length = utf16_to_multi_byte_length(cp, view);
-        string.resize_and_overwrite(length, [&](auto buffer, auto buffer_size) -> auto {
+        t.resize_and_overwrite(length, [&](auto buffer, auto buffer_size) -> auto {
             auto span = m::make_span(buffer, buffer_size);
             utf16_to_multi_byte(cp, view, span);
             return span.size();
         });
+        using std::swap;
+        swap(t, str);
     }
 
     void
@@ -175,7 +194,6 @@ namespace m::multi_byte
 void
 m::to_string(m::multi_byte::code_page cp, std::wstring_view view, std::string& str)
 {
-    str.erase();
     m::multi_byte::utf16_to_multi_byte(cp, view, str);
 }
 
@@ -206,7 +224,6 @@ m::to_string(m::multi_byte::code_page cp, std::u8string_view view)
 void
 m::to_string(m::multi_byte::code_page cp, std::u16string_view view, std::string& str)
 {
-    str.erase();
     m::multi_byte::utf16_to_multi_byte(cp, view, str);
 }
 

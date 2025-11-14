@@ -17,25 +17,26 @@
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::string
-    sch<char32_t const*, std::string>::make_string(cu32zstring str)
+    string_converter<char32_t const*, std::string>::make_string(cu32zstring str)
     {
         if (str == nullptr)
             return std::string();
 
-        return sch<std::u32string_view, std::string>::make_string(std::u32string_view(str));
+        return string_converter<std::u32string_view, std::string>::make_string(
+            std::u32string_view(str));
     }
 
     std::string
-    sch<std::u32string_view, std::string>::make_string(std::u32string_view view)
+    string_converter<std::u32string_view, std::string>::make_string(std::u32string_view view)
     {
         return utf::transcode<char>(view);
     }
 
     std::optional<std::string>
-    sch<std::u32string_view, std::string>::make_string(
+    string_converter<std::u32string_view, std::string>::make_string(
         std::optional<std::u32string_view> const& view)
     {
         if (!view.has_value())
@@ -45,14 +46,15 @@ namespace m::string_conversion_details
     }
 
     std::string
-    sch<std::u32string, std::string>::make_string(std::u32string const& str)
+    string_converter<std::u32string, std::string>::make_string(std::u32string const& str)
     {
-        return sch<std::u32string_view, std::string>::make_string(
+        return string_converter<std::u32string_view, std::string>::make_string(
             static_cast<std::u32string_view>(str));
     }
 
     std::optional<std::string>
-    sch<std::u32string, std::string>::make_string(std::optional<std::u32string> const& str)
+    string_converter<std::u32string, std::string>::make_string(
+        std::optional<std::u32string> const& str)
     {
         if (!str.has_value())
             return std::nullopt;
@@ -60,4 +62,4 @@ namespace m::string_conversion_details
         return make_string(str.value());
     }
 
-} // namespace m::string_conversion_details
+} // namespace m

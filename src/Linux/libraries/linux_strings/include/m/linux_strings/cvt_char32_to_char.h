@@ -11,17 +11,15 @@
 
 namespace m
 {
-    namespace string_conversion_details
-    {
         template <>
-        struct sch<char32_t const*, std::string>
+        struct string_converter<char32_t const*, std::string>
         {
             static std::string
             make_string(cu32zstring str);
         };
 
         template <>
-        struct sch<std::u32string_view, std::string>
+        struct string_converter<std::u32string_view, std::string>
         {
             static std::string
             make_string(std::u32string_view v);
@@ -31,7 +29,7 @@ namespace m
         };
 
         template <>
-        struct sch<std::u32string, std::string>
+        struct string_converter<std::u32string, std::string>
         {
             static std::string
             make_string(std::u32string const& s);
@@ -39,7 +37,5 @@ namespace m
             static std::optional<std::string>
             make_string(std::optional<std::u32string> const& s);
         };
-
-    } // namespace string_conversion_details
 
 } // namespace m

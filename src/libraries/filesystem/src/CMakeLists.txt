@@ -21,6 +21,7 @@ target_link_libraries(m_filesystem PUBLIC
     m_chrono
     m_math
     m_memory
+    m_sstring
     m_strings
     m_tracing
 )

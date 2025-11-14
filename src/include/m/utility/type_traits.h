@@ -36,16 +36,21 @@ namespace m
     {};
 
     template <typename T>
-    using remove_optional_t =
-        std::conditional_t<std::is_same_v<T, std::optional<typename T::value_type>>,
-                           typename T::value_type,
-                           T>;
-
-    template <typename T>
-    using value_type_of_t = remove_optional_t<T>::value_type;
-
-    template <typename T>
     using remove_cvref_t = std::remove_const_t<std::remove_volatile_t<std::remove_reference_t<T>>>;
 
+    template <typename T>
+    struct remove_optional
+    {
+        using type = T;
+    };
+
+    template <typename T>
+    struct remove_optional<std::optional<T>>
+    {
+        using type = T;
+    };
+
+    template <typename T>
+    using remove_optional_t = remove_optional<T>::type;
 } // namespace m
 

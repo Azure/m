@@ -18,25 +18,28 @@
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::wstring
-    sch<char32_t const*, std::wstring>::make_string(cu32zstring str)
+    string_converter<char32_t const*, std::wstring>::make_string(cu32zstring str)
     {
         if (str == nullptr)
             return std::wstring();
 
-        return sch<std::u32string_view, std::wstring>::make_string(std::u32string_view(str));
+        return string_converter<std::u32string_view, std::wstring>::make_string(
+            std::u32string_view(str));
     }
- 
+
     std::wstring
-    sch<std::u32string_view, std::wstring>::make_string(std::u32string_view v)
+    string_converter<std::u32string_view, std::wstring>::make_string(std::u32string_view v)
     {
-        return std::wstring(std::wstring_view(reinterpret_cast<wchar_t const*>(v.data()), v.size()));
+        return std::wstring(
+            std::wstring_view(reinterpret_cast<wchar_t const*>(v.data()), v.size()));
     }
 
     std::optional<std::wstring>
-    sch<std::u32string_view, std::wstring>::make_string(std::optional<std::u32string_view> const& v)
+    string_converter<std::u32string_view, std::wstring>::make_string(
+        std::optional<std::u32string_view> const& v)
     {
         if (!v.has_value())
             return std::nullopt;
@@ -45,14 +48,15 @@ namespace m::string_conversion_details
     }
 
     std::wstring
-    sch<std::u32string, std::wstring>::make_string(std::u32string const& str)
+    string_converter<std::u32string, std::wstring>::make_string(std::u32string const& str)
     {
-        return sch<std::u32string_view, std::wstring>::make_string(
+        return string_converter<std::u32string_view, std::wstring>::make_string(
             static_cast<std::u32string_view>(str));
     }
 
     std::optional<std::wstring>
-    sch<std::u32string, std::wstring>::make_string(std::optional<std::u32string> const& str)
+    string_converter<std::u32string, std::wstring>::make_string(
+        std::optional<std::u32string> const& str)
     {
         if (!str.has_value())
             return std::nullopt;
@@ -60,4 +64,4 @@ namespace m::string_conversion_details
         return make_string(str.value());
     }
 
-} // namespace m::string_conversion_details
+} // namespace m

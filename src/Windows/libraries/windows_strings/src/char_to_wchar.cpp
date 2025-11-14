@@ -5,10 +5,10 @@
 #include <m/strings/convert.h>
 #include <m/windows_strings/convert.h>
 
-namespace m::string_conversion_details
+namespace m
 {
     std::wstring
-    sch<std::string_view, std::wstring>::make_string(std::string_view v)
+    string_converter<std::string_view, std::wstring>::make_string(std::string_view v)
     {
         std::wstring t;
         m::multi_byte::multi_byte_to_utf16(m::multi_byte::cp_acp, v, t);
@@ -16,7 +16,8 @@ namespace m::string_conversion_details
     }
 
     std::optional<std::wstring>
-    sch<std::string_view, std::wstring>::make_string(std::optional<std::string_view> const& v)
+    string_converter<std::string_view, std::wstring>::make_string(
+        std::optional<std::string_view> const& v)
     {
         if (!v.has_value())
             return std::nullopt;
@@ -25,14 +26,14 @@ namespace m::string_conversion_details
     }
 
     std::wstring
-    sch<std::string, std::wstring>::make_string(std::string const& s)
+    string_converter<std::string, std::wstring>::make_string(std::string const& s)
     {
-        return sch<std::string_view, std::wstring>::make_string(
+        return string_converter<std::string_view, std::wstring>::make_string(
             std::string_view(s.begin(), s.end()));
     }
 
     std::optional<std::wstring>
-    sch<std::string, std::wstring>::make_string(std::optional<std::string> const& s)
+    string_converter<std::string, std::wstring>::make_string(std::optional<std::string> const& s)
     {
         if (!s.has_value())
             return std::nullopt;
@@ -41,9 +42,9 @@ namespace m::string_conversion_details
     }
 
     std::wstring
-    sch<char const*, std::wstring>::make_string(czstring str)
+    string_converter<char const*, std::wstring>::make_string(czstring str)
     {
-        return sch<std::string_view, std::wstring>::make_string(
-            sch<decltype(str), std::string_view>::make_view(str));
+        return string_converter<std::string_view, std::wstring>::make_string(
+            string_converter<decltype(str), std::string_view>::make_view(str));
     }
-} // namespace m::string_conversion_details
+} // namespace m

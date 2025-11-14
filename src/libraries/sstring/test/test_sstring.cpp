@@ -23,10 +23,10 @@ TEST(TestSString, SimpleAssign) { m::wsstring x{L"foo"}; }
 
 TEST(TestSString, TryConcat)
 {
-    m::wsstring x{L"foo"};
-    m::wsstring y{L"bar"};
+    m::wsstring x{L"foo"sv};
+    m::wsstring y{L"bar"sv};
     auto        z = x + y;
-    m::wsstring e(L"foobar");
+    m::wsstring e(L"foobar"sv);
 
     EXPECT_EQ(z, e);
 }

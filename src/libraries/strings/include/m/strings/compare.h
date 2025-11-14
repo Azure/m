@@ -9,6 +9,8 @@
 #include <string_view>
 #include <type_traits>
 
+#include <m/utility/concepts.h>
+
 namespace m::strings::impl::ordinal_case_insensitive
 {
     //
@@ -32,15 +34,6 @@ namespace m
 {
     template <typename StringT>
     struct case_insensitive_less;
-
-    template <typename T, typename CharT>
-    concept has_view = requires(T x) {
-        { x.view() } noexcept -> std::same_as<std::basic_string_view<CharT>>;
-    };
-
-    template <typename T>
-    concept has_some_view = (has_view<T, char> || has_view<T, char8_t> || has_view<T, char16_t> ||
-                             has_view<T, char32_t> || has_view<T, wchar_t>);
 
     template <typename T>
         requires(std::is_same_v<T, std::string> || std::is_same_v<T, std::string_view> ||

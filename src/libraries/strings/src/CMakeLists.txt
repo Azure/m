@@ -1,11 +1,14 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_strings PRIVATE
-    convert_to_string.cpp
-    convert_to_u8string.cpp
-    convert_to_u16string.cpp
-    convert_to_u32string.cpp
-    convert_to_wstring.cpp
+    cvt_char16_to_char16.cpp
+    cvt_char16_to_char32.cpp
+    cvt_char16_to_char8.cpp
+    cvt_char32_to_char16.cpp
+    cvt_char32_to_char8.cpp
+    cvt_char8_to_char16.cpp
+    cvt_char8_to_char32.cpp
+    cvt_char8_to_char8.cpp
     punning.cpp
 )
 

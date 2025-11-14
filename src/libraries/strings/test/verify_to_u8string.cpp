@@ -78,6 +78,35 @@ verify_to_u8string_convert(utf_data_set const& data)
 
     auto result6 = m::to_u8string(data.m_u32_sv);
     EXPECT_EQ(ref, result6);
+
+    auto r7 = m::to_u8string(data.m_ou8_sv);
+    EXPECT_TRUE(r7.has_value());
+    EXPECT_EQ(ref, r7.value());
+
+    auto r8 = m::to_u8string(data.m_ou16le_sv);
+    EXPECT_TRUE(r8.has_value());
+    EXPECT_EQ(ref, r8.value());
+
+    auto r9 = m::to_u8string(data.m_ou32_sv);
+    EXPECT_TRUE(r9.has_value());
+    EXPECT_EQ(ref, r9.value());
+
+    std::optional<std::u8string> ou8s;
+    std::optional<std::u16string> ou16s;
+    std::optional<std::u32string> ou32s;
+
+    EXPECT_FALSE(ou8s.has_value());
+    EXPECT_FALSE(ou16s.has_value());
+    EXPECT_FALSE(ou32s.has_value());
+
+    auto r10 = m::to_u8string(ou8s);
+    EXPECT_FALSE(r10.has_value());
+
+    auto r11 = m::to_u8string(ou16s);
+    EXPECT_FALSE(r11.has_value());
+
+    auto r12 = m::to_u8string(ou32s);
+    EXPECT_FALSE(r12.has_value());
 }
 
 TEST(VerifyConvertToU8, TestEmpty) { verify_to_u8string_convert(empty_data); }

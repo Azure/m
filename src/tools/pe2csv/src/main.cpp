@@ -95,9 +95,7 @@ main(int argc, char const* argv[])
         for (auto const& e: decoded_pe.m_image_export_directory.m_names)
         {
             auto const utf8_export_name      = m::to_u8string(e.c_str());
-            auto const utf8_export_name_view = utf8_export_name.has_value() ?
-                                                   std::u8string_view(utf8_export_name.value()) :
-                                                   std::u8string_view();
+            auto const utf8_export_name_view = std::u8string_view(utf8_export_name);
             auto const cols = {u8"EXPORT"sv, utf8_path_name_view, utf8_export_name_view};
             csv_writer.write_row(cols);
         }

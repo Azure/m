@@ -34,26 +34,26 @@ struct monitor_sink : public m::pil::iregistry_monitor_change_notification
     }
 
     std::optional<requeue_key_access_attempt>
-    on_key_access_failure(m::utc_time_point             when,
-                          m::pil::key_path const& key,
-                          std::system_error const&      ec) override
+    on_key_access_failure(m::utc_time_point        when,
+                          m::pil::key_path const&  key,
+                          std::system_error const& ec) override
     {
         m::wtrace_error(L"on_key_access_failure({}, {}, {})",
                         when,
-                        m::to_wstring(key.c_str()).value_or(L"-empty-"s),
+                        m::to_wstring(key.c_str()),
                         ec.code().value());
         m_on_key_access_failures++;
         return std::nullopt;
     }
 
     std::optional<requeue_change_notification_attempt>
-    on_change_notification_attempt_failure(m::utc_time_point             when,
-                                           m::pil::key_path const& key,
-                                           std::system_error const&      ec) override
+    on_change_notification_attempt_failure(m::utc_time_point        when,
+                                           m::pil::key_path const&  key,
+                                           std::system_error const& ec) override
     {
         m::wtrace_error(L"on_change_notification_attempt_failure({}, {}, {})",
                         when,
-                        m::to_wstring(key.c_str()).value_or(L"-none-"s),
+                        m::to_wstring(key.c_str()),
                         ec.code().value());
         m_on_change_notification_attempt_failures++;
         return std::nullopt;
@@ -62,8 +62,7 @@ struct monitor_sink : public m::pil::iregistry_monitor_change_notification
     void
     on_change(m::utc_time_point when, m::pil::key_path const& key) override
     {
-        m::wtrace_error(
-            L"on_change({}, {})", when, m::to_wstring(key.c_str()).value_or(L"-none-"s));
+        m::wtrace_error(L"on_change({}, {})", when, m::to_wstring(key.c_str()));
         m_on_changes++;
     }
 
@@ -89,7 +88,7 @@ TEST(DirectRegistryMonitoring, MonitorKey)
     m::wtrace_error(L"This is just a test");
 
     using namespace m::pil;
-    auto p        = make_platform();
+    auto p = make_platform();
 
     auto r  = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);

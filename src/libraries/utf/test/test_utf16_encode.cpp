@@ -30,7 +30,7 @@ namespace
         auto it = std::back_inserter(buffer);
 
         for (auto&& ch: data.m_u32_sv)
-            it = m::utf::encode_utf16(char16_t{}, ch, it);
+            it = m::utf::encode_utf16<char16_t>(ch, it);
 
         EXPECT_EQ(data.m_u16le_sv.compare(buffer), 0);
     }

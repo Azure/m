@@ -24,9 +24,7 @@ namespace m::string_conversion_details
     std::basic_string<ToCharT>
     transcode_to(FromT&& from)
     {
-        std::basic_string<ToCharT> to{};
-        utf::transcode(std::forward<FromT>(from), to);
-        return to;
+        return utf::transcode<ToCharT>(from);
     }
 
     template <>

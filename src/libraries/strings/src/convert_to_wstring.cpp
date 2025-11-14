@@ -13,66 +13,61 @@
 
 namespace m::string_conversion_details
 {
-    template <>
-    std::basic_string<wchar_t>
-    string_view_to_string<wchar_t, wchar_t>(std::basic_string_view<wchar_t> const& from)
+    std::wstring_view
+    sch<wchar_t const*, std::wstring_view>::make_view(not_null<cwzstring> str)
     {
-        return std::basic_string<wchar_t>(from);
+        return std::wstring_view(str);
     }
 
-    template <>
-    std::basic_string<wchar_t>
-    string_to_string<wchar_t, wchar_t>(std::basic_string<wchar_t> const& str)
+    std::optional<std::wstring_view>
+    sch<wchar_t const*, std::wstring_view>::make_view(cwzstring str)
+    {
+        if (str == nullptr)
+            return std::nullopt;
+
+        return std::wstring_view(str);
+    }
+
+    std::wstring
+    sch<wchar_t const*, std::wstring>::make_string(not_null<cwzstring> str)
+    {
+        return std::wstring(str);
+    }
+
+    std::optional<std::wstring>
+    sch<wchar_t const*, std::wstring>::make_string(cwzstring str)
+    {
+        if (str == nullptr)
+            return std::nullopt;
+
+        return std::wstring(str);
+    }
+
+    std::wstring
+    sch<std::wstring_view, std::wstring>::make_string(std::wstring_view view)
+    {
+        return std::wstring(view);
+    }
+
+    std::optional<std::wstring>
+    sch<std::wstring_view, std::wstring>::make_string(std::optional<std::wstring_view> const& view)
+    {
+        if (!view.has_value())
+            return std::nullopt;
+
+        return std::wstring(view.value());
+    }
+
+    std::wstring
+    sch<std::wstring, std::wstring>::make_string(std::wstring const& str)
     {
         return str;
     }
 
-    template <>
-    std::basic_string<wchar_t>
-    string_view_to_string<char8_t, wchar_t>(std::basic_string_view<char8_t> const& from)
+    std::optional<std::wstring>
+    sch<std::wstring, std::wstring>::make_string(std::optional<std::wstring> const& str)
     {
-        std::basic_string<wchar_t> to;
-        utf::transcode(from, to);
-        return to;
-    }
-
-    template <>
-    std::basic_string<wchar_t>
-    string_to_string<char8_t, wchar_t>(std::basic_string<char8_t> const& str)
-    {
-        return string_view_to_string<char8_t, wchar_t>(std::basic_string_view<char8_t>(str));
-    }
-
-    template <>
-    std::basic_string<wchar_t>
-    string_view_to_string<char16_t, wchar_t>(std::basic_string_view<char16_t> const& from)
-    {
-        std::basic_string<wchar_t> to;
-        utf::transcode(from, to);
-        return to;
-    }
-
-    template <>
-    std::basic_string<wchar_t>
-    string_to_string<char16_t, wchar_t>(std::basic_string<char16_t> const& str)
-    {
-        return string_view_to_string<char16_t, wchar_t>(std::basic_string_view<char16_t>(str));
-    }
-
-    template <>
-    std::basic_string<wchar_t>
-    string_view_to_string<char32_t, wchar_t>(std::basic_string_view<char32_t> const& from)
-    {
-        std::basic_string<wchar_t> to;
-        utf::transcode(from, to);
-        return to;
-    }
-
-    template <>
-    std::basic_string<wchar_t>
-    string_to_string<char32_t, wchar_t>(std::basic_string<char32_t> const& str)
-    {
-        return string_view_to_string<char32_t, wchar_t>(std::basic_string_view<char32_t>(str));
+        return str;
     }
 
 } // namespace m::string_conversion_details

@@ -86,45 +86,41 @@ namespace impl
 
 namespace m::multi_byte
 {
-    namespace details
+    std::size_t
+    utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer)
     {
-        std::size_t
-        utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer)
-        {
-            return impl::utf16_to_multi_byte_fn(cp, view, buffer);
-        }
+        return impl::utf16_to_multi_byte_fn(cp, view, buffer);
+    }
 
-        std::size_t
-        utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer)
-        {
-            return impl::utf16_to_multi_byte_fn(cp, view, buffer);
-        }
+    std::size_t
+    utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer)
+    {
+        return impl::utf16_to_multi_byte_fn(cp, view, buffer);
+    }
 
-        windows::win32_error_code
-        try_utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer)
-        {
-            return impl::try_utf16_to_multi_byte_fn(cp, view, buffer);
-        }
+    windows::win32_error_code
+    try_utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer)
+    {
+        return impl::try_utf16_to_multi_byte_fn(cp, view, buffer);
+    }
 
-        windows::win32_error_code
-        try_utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer)
-        {
-            return impl::try_utf16_to_multi_byte_fn(cp, view, buffer);
-        }
+    windows::win32_error_code
+    try_utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer)
+    {
+        return impl::try_utf16_to_multi_byte_fn(cp, view, buffer);
+    }
 
-        std::string
-        utf16_to_multi_byte_fn(code_page cp, std::wstring_view view)
-        {
-            return impl::utf16_view_to_multi_byte_fn(cp, view);
-        }
+    std::string
+    utf16_to_multi_byte_fn(code_page cp, std::wstring_view view)
+    {
+        return impl::utf16_view_to_multi_byte_fn(cp, view);
+    }
 
-        std::string
-        utf16_to_multi_byte_fn(code_page cp, std::u16string_view view)
-        {
-            return impl::utf16_view_to_multi_byte_fn(cp, view);
-        }
-
-    } // namespace details
+    std::string
+    utf16_to_multi_byte_fn(code_page cp, std::u16string_view view)
+    {
+        return impl::utf16_view_to_multi_byte_fn(cp, view);
+    }
 
     std::size_t
     utf16_to_multi_byte_length(code_page cp, std::wstring_view view)

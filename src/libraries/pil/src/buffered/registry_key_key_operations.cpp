@@ -451,8 +451,7 @@ namespace m::pil::impl::buffered
                 auto const  ws              = m::to_wstring(c_str);
 
                 using namespace std::string_literals;
-                m::wtrace(L"Attempt to unmirror subkey {} left the subkey mirrored",
-                          ws.value_or(L">empty<"s));
+                m::wtrace(L"Attempt to unmirror subkey {} left the subkey mirrored", ws);
                 return false;
             }
         }

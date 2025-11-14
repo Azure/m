@@ -64,13 +64,13 @@ m::pe2l::traverse(m::not_null<m::command_options::parsed_command<char>*> pc)
     if (loader.unresolved_count() == 0)
     {
         std::wcout << std::format(L"All imports of {} successfully resolved.\n",
-                                  m::to_wstring(path.c_str()).value_or(L""s));
+                                  m::to_wstring(path.c_str()));
     }
     else
     {
         std::wcout << std::format(L"{} imported DLLs of {} not found\n\n",
                                   loader.unresolved_count(),
-                                  m::to_wstring(path.c_str()).value_or(L""s));
+                                  m::to_wstring(path.c_str()));
 
         loader.for_each_not_found([](auto n) { std::wcout << n << "\n"; });
     }

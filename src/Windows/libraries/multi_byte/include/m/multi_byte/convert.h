@@ -28,35 +28,29 @@ namespace m
 {
     namespace multi_byte
     {
-        namespace details
-        {
-            std::size_t
-            utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer);
+        std::size_t
+        utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer);
 
-            std::size_t
-            utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer);
+        std::size_t
+        utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer);
 
-            windows::win32_error_code
-            try_utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer);
+        windows::win32_error_code
+        try_utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer);
 
-            windows::win32_error_code
-            try_utf16_to_multi_byte(code_page           cp,
-                                    std::u16string_view view,
-                                    std::span<char>&    buffer);
+        windows::win32_error_code
+        try_utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer);
 
-            std::string
-            utf16_to_multi_byte_fn(code_page cp, std::wstring_view view);
+        std::string
+        utf16_to_multi_byte_fn(code_page cp, std::wstring_view view);
 
-            std::string
-            utf16_to_multi_byte_fn(code_page cp, std::u16string_view view);
+        std::string
+        utf16_to_multi_byte_fn(code_page cp, std::u16string_view view);
 
-            std::size_t
-            utf16_to_acp(std::wstring_view view, std::span<char>& buffer);
+        std::size_t
+        utf16_to_acp(std::wstring_view view, std::span<char>& buffer);
 
-            std::size_t
-            utf16_to_acp(std::u16string_view view, std::span<char>& buffer);
-
-        } // namespace details
+        std::size_t
+        utf16_to_acp(std::u16string_view view, std::span<char>& buffer);
 
         std::size_t
         multi_byte_to_utf16_length(code_page cp, std::string_view view);
@@ -194,7 +188,7 @@ namespace m
                             std::basic_string_view<Utf16CharT, CharTraitsT> view,
                             std::span<char>&                                buffer)
         {
-            return details::utf16_to_multi_byte(cp, view, buffer);
+            return utf16_to_multi_byte(cp, view, buffer);
         }
 
         template <typename Utf16CharT  = wchar_t,
@@ -205,7 +199,7 @@ namespace m
                                 std::span<char>&                                buffer)
             requires std::is_same_v<Utf16CharT, wchar_t> || std::is_same_v<Utf16CharT, char16_t>
         {
-            return details::try_utf16_to_multi_byte(cp, view, buffer);
+            return try_utf16_to_multi_byte(cp, view, buffer);
         }
 
         template <typename OutIter,
@@ -273,7 +267,7 @@ namespace m
         std::string
         utf16_to_multi_byte(code_page cp, std::basic_string_view<Utf16CharT, CharTraitsT> view)
         {
-            return details::utf16_to_multi_byte_fn(cp, view);
+            return utf16_to_multi_byte_fn(cp, view);
         }
 
         void
@@ -293,7 +287,7 @@ namespace m
         std::size_t
         utf16_to_acp(std::basic_string_view<Utf16CharT, CharTraitsT> view, std::span<char>& buffer)
         {
-            return details::utf16_to_acp(view, buffer);
+            return utf16_to_acp(view, buffer);
         }
 
         template <typename InputIt,
@@ -365,7 +359,9 @@ namespace m
     to_string(multi_byte::code_page cp, std::optional<std::wstring_view> view);
 
     void
-    to_string(multi_byte::code_page cp, std::optional<std::wstring_view> view, std::optional<std::string>& str);
+    to_string(multi_byte::code_page            cp,
+              std::optional<std::wstring_view> view,
+              std::optional<std::string>&      str);
 
     std::string
     to_string(multi_byte::code_page cp, std::u8string_view view);
@@ -383,7 +379,9 @@ namespace m
     to_string(multi_byte::code_page cp, std::optional<std::u8string_view> view);
 
     void
-    to_string(multi_byte::code_page cp, std::optional<std::u8string_view> view, std::optional<std::string>& str);
+    to_string(multi_byte::code_page             cp,
+              std::optional<std::u8string_view> view,
+              std::optional<std::string>&       str);
 
     std::string
     to_string(multi_byte::code_page cp, std::u16string_view view);
@@ -401,7 +399,9 @@ namespace m
     to_string(multi_byte::code_page cp, std::optional<std::u16string_view> view);
 
     void
-    to_string(multi_byte::code_page cp, std::optional<std::u16string_view> view, std::optional<std::string>& str);
+    to_string(multi_byte::code_page              cp,
+              std::optional<std::u16string_view> view,
+              std::optional<std::string>&        str);
 
     std::string
     to_string(multi_byte::code_page cp, std::u32string_view view);
@@ -419,7 +419,9 @@ namespace m
     to_string(multi_byte::code_page cp, std::optional<std::u32string_view> view);
 
     void
-    to_string(multi_byte::code_page cp, std::optional<std::u32string_view> view, std::optional<std::string>& str);
+    to_string(multi_byte::code_page              cp,
+              std::optional<std::u32string_view> view,
+              std::optional<std::string>&        str);
 
     //
     std::wstring
@@ -432,7 +434,9 @@ namespace m
     to_wstring(multi_byte::code_page cp, std::optional<std::string_view> view);
 
     void
-    to_wstring(multi_byte::code_page cp, std::optional<std::string_view> view, std::optional<std::wstring>& str);
+    to_wstring(multi_byte::code_page           cp,
+               std::optional<std::string_view> view,
+               std::optional<std::wstring>&    str);
 
     std::wstring
     to_wstring(multi_byte::code_page cp, std::string const& s);
@@ -514,15 +518,6 @@ namespace m
     acp_to_u8string(std::string_view view, std::u8string& str);
 
     //
-    // to_u8string
-    //
-    constexpr std::u8string
-    to_u8string(std::wstring_view view);
-
-    constexpr void
-    to_u8string(std::wstring_view view, std::u8string& str);
-
-    //
     // acp_to_u16string
     //
     std::u16string
@@ -530,15 +525,6 @@ namespace m
 
     void
     acp_to_u16string(std::string_view view, std::u16string& str);
-
-    //
-    // to_u16string
-    //
-    constexpr std::u16string
-    to_u16string(std::wstring_view view);
-
-    constexpr void
-    to_u16string(std::wstring_view view, std::u16string& str);
 
     //
     // acp_to_u32string

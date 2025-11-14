@@ -19,9 +19,10 @@ TEST(path_formatting, wide_formatting)
     EXPECT_EQ(s, L"abc123");
 }
 
-TEST(path_formatting, narrow_formatting)
-{
-    auto p = m::filesystem::make_path("abc123");
-    auto s = std::format("{}", p);
-    EXPECT_EQ(s, "abc123");
-}
+//
+// There used to be a "narrow formatting" test but it has been removed.
+// 
+// This is because formatting to "char" requires platofrm-specific encoding. On
+// Windows, char == CP_ACP, on Linux, char == UTF-8 and we're not hooked up here
+// sufficiently to make the path formatting go through this transcoding.
+//

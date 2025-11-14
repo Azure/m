@@ -79,7 +79,7 @@ namespace m::pil
 
         m_platform->save(iplatform::save_contents::change_log, platform_element);
 
-        doc.save_file(m::to_wstring(p.c_str()).value_or(L""s).c_str());
+        doc.save_file(m::to_wstring(p.c_str()).c_str());
     }
 
 } // namespace m::pil

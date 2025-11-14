@@ -18,6 +18,8 @@ namespace m
     class not_null
     {
     public:
+        using value_type = T;
+
         not_null() = delete;
 
         constexpr not_null(T v): m_v(v)

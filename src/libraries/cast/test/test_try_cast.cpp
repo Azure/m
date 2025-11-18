@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include <m/cast/try_cast.h>
+#include <m/googletest/printing_helpers.h>
 #include <m/utility/to_underlying.h>
 
 template <typename T>

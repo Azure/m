@@ -16,6 +16,7 @@ target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 target_link_libraries(
     ${TEST_EXE_NAME}
     m_cast
+    m_googletest
     m_math
     GTest::gtest_main
 )

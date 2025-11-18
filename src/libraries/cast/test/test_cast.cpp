@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include <m/cast/cast.h>
+#include <m/googletest/printing_helpers.h>
 
 //
 // Testing m::cast<>() is kind of boring; it either compiles

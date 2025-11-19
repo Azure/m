@@ -4,7 +4,10 @@ add_library(m_chonk STATIC)
 
 add_subdirectory(include)
 add_subdirectory(src)
+
+if(BUILD_TESTING)
 add_subdirectory(test)
+endif()
 
 list(APPEND m_installation_targets
     m_chonk

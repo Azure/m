@@ -6,7 +6,9 @@ target_compile_features(m_const_string PUBLIC ${M_CXX_STD})
 
 add_subdirectory(include)
 add_subdirectory(src)
+if(BUILD_TESTING)
 add_subdirectory(test)
+endif()
 
 list(APPEND m_installation_targets
     m_const_string

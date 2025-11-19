@@ -7,6 +7,9 @@ target_compile_features(m_linux_strings PUBLIC ${M_CXX_STD})
 add_subdirectory(include)
 add_subdirectory(src)
 # add_subdirectory(test)
+if(BUILD_TESTING)
+# add_subdirectory(test)
+endif()
 
 list(APPEND m_installation_targets
     m_linux_strings

@@ -25,6 +25,7 @@ vcpkg_cmake_configure(
     SOURCE_PATH ${SOURCE_PATH}
     OPTIONS
         -DBUILD_GMOCK=ON
+        -DGTEST_LINKED_AS_SHARED_LIBRARY=1
         -Dgtest_force_shared_crt=${GTEST_FORCE_SHARED_CRT}
         ${GTEST_USE_CXX23_OPTION}
 )

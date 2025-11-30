@@ -7,11 +7,12 @@ target_sources(m_tracing PUBLIC FILE_SET HEADERS FILES
     m/tracing/envelope.h 
     m/tracing/event_context.h 
     m/tracing/event_kind.h
+    m/tracing/imessage.h
     m/tracing/may_forward_message_option.h
     m/tracing/message.h
     m/tracing/message_allocator.h
-    m/tracing/message_queue.h 
     m/tracing/message_processor.h
+    m/tracing/message_queue.h 
     m/tracing/message_source.h
     m/tracing/monitor_class.h
     m/tracing/monitor_class_var.h 

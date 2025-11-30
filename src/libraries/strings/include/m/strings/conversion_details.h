@@ -7,13 +7,11 @@
 #include <string>
 #include <string_view>
 
-#include <m/utility/string_converter.h>
-
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
 
-namespace m::string_conversion_details
+namespace m::conversion_details
 {
     template <typename T>
     using decay_remove_cvref_t = remove_cvref_t<std::decay_t<T>>;
@@ -65,6 +63,12 @@ namespace m::string_conversion_details
 
     template <typename T>
     struct conversion_strip<std::optional<T>&>
+    {
+        using type = conversion_strip<T>::type;
+    };
+
+    template <typename T>
+    struct conversion_strip<std::optional<T>>
     {
         using type = conversion_strip<T>::type;
     };
@@ -136,4 +140,4 @@ namespace m::string_conversion_details
     template <typename CharT, typename FromT>
     using basic_sstring_with_equivalent_optionality_t =
         basic_sstring_with_equivalent_optionality<CharT, FromT>::type;
-} // namespace m::string_conversion_details
+} // namespace m::conversion_details

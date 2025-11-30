@@ -7,7 +7,8 @@
 #include <string>
 #include <string_view>
 
-#include <m/strings/string_conversion_details.h>
+#include <m/strings/conversion_details.h>
+#include <m/strings/string_conversions.h>
 
 namespace m
 {

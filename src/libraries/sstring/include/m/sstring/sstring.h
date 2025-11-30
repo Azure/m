@@ -31,7 +31,7 @@
 #include <m/math/math.h>
 #include <m/strings/compare.h>
 #include <m/strings/convert.h>
-#include <m/strings/string_conversion_details.h>
+#include <m/strings/conversion_details.h>
 #include <m/strings/tstring.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>

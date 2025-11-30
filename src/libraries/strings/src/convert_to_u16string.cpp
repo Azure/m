@@ -6,12 +6,12 @@
 #include <numeric>
 #include <utility>
 
-#include <m/utility/string_converter.h>
-
 #include <m/cast/to.h>
 #include <m/strings/convert.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
+#include <m/utility/string_converter.h>
+#include <m/utility/view_converter.h>
 
 namespace m
 {
@@ -56,7 +56,7 @@ namespace m
     };
 
     template <>
-    struct string_converter<std::u16string_view, std::u16string_view, void>
+    struct view_converter<std::u16string_view, std::u16string_view, void>
     {
         static std::u8string_view
         make_view(std::u8string_view view)

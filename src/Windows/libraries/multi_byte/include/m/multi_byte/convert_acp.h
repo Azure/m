@@ -8,7 +8,7 @@
 #include <string_view>
 
 #include <m/strings/convert.h>
-#include <m/strings/string_conversion_details.h>
+#include <m/strings/conversion_details.h>
 #include <m/strings/tstring.h>
 #include <m/utf/transcode.h>
 #include <m/utility/pointers.h>
@@ -26,8 +26,8 @@
 
 namespace m
 {
-    namespace string_conversion_details
+    namespace conversion_details
     {
 
-    } // namespace string_conversion_details
+    } // namespace conversion_details
 } // namespace m

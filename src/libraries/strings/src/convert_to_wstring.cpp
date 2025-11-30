@@ -10,17 +10,19 @@
 #include <m/strings/convert.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
+#include <m/utility/string_converter.h>
+#include <m/utility/view_converter.h>
 
 namespace m
 {
     std::wstring_view
-    string_converter<wchar_t const*, std::wstring_view>::make_view(not_null<cwzstring> str)
+    view_converter<wchar_t const*, std::wstring_view>::make_view(not_null<cwzstring> str)
     {
         return std::wstring_view(str);
     }
 
     std::optional<std::wstring_view>
-    string_converter<wchar_t const*, std::wstring_view>::make_view(cwzstring str)
+    view_converter<wchar_t const*, std::wstring_view>::make_view(cwzstring str)
     {
         if (str == nullptr)
             return std::nullopt;
@@ -70,4 +72,4 @@ namespace m
         return str;
     }
 
-} // namespace m::string_conversion_details
+} // namespace m::conversion_details

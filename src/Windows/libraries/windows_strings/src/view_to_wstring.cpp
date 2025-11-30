@@ -1,12 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <m/utility/string_converter.h>
+#include <m/utility/view_converter.h>
 #include <m/windows_strings/convert.h>
 
 namespace m
 {
     std::wstring_view
-    string_converter<char16_t const*, std::wstring_view>::make_view(cu16zstring str)
+    view_converter<char16_t const*, std::wstring_view>::make_view(cu16zstring str)
     {
         if (str == nullptr)
             return std::wstring_view();
@@ -15,13 +17,13 @@ namespace m
     }
 
     std::wstring_view
-    string_converter<std::u16string_view, std::wstring_view>::make_view(std::u16string_view view)
+    view_converter<std::u16string_view, std::wstring_view>::make_view(std::u16string_view view)
     {
         return std::wstring_view(reinterpret_cast<wchar_t const*>(view.data()), view.size());
     }
 
     std::optional<std::wstring_view>
-    string_converter<std::u16string_view, std::wstring_view>::make_view(
+    view_converter<std::u16string_view, std::wstring_view>::make_view(
         std::optional<std::u16string_view> const& view)
     {
         if (!view.has_value())
@@ -31,13 +33,13 @@ namespace m
     }
 
     std::wstring_view
-    string_converter<std::u16string, std::wstring_view>::make_view(std::u16string const& str)
+    view_converter<std::u16string, std::wstring_view>::make_view(std::u16string const& str)
     {
         return std::wstring_view(reinterpret_cast<wchar_t const*>(str.data()), str.size());
     }
 
     std::optional<std::wstring_view>
-    string_converter<std::u16string, std::wstring_view>::make_view(
+    view_converter<std::u16string, std::wstring_view>::make_view(
         std::optional<std::u16string> const& str)
     {
         if (!str.has_value())

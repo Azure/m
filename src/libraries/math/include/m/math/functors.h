@@ -9,8 +9,8 @@
 #include <utility>
 
 #include <m/cast/to.h>
-#include <m/type_traits/type_traits.h>
 #include <m/utility/to_underlying.h>
+#include <m/utility/type_traits.h>
 
 #include "math.h"
 

@@ -43,4 +43,4 @@ namespace m
 
         return make_string(str.value());
     }
-} // namespace m::string_conversion_details
+} // namespace m::conversion_details

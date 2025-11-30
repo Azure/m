@@ -15,7 +15,7 @@
 #include <mutex>
 #include <type_traits>
 
-#include <m/type_traits/type_traits.h>
+#include <m/utility/type_traits.h>
 
 //
 // Various safe casts

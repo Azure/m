@@ -13,11 +13,13 @@
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 #include <m/utility/zstring.h>
+#include <m/utility/string_converter.h>
+#include <m/utility/view_converter.h>
 
 namespace m
 {
     std::string_view
-    string_converter<std::string_view, std::string_view, void>::make_view(std::string_view view)
+    view_converter<std::string_view, std::string_view, void>::make_view(std::string_view view)
     {
         return view;
     }

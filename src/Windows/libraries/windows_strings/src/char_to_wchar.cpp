@@ -3,6 +3,8 @@
 
 #include <m/multi_byte/convert.h>
 #include <m/strings/convert.h>
+#include <m/utility/string_converter.h>
+#include <m/utility/view_converter.h>
 #include <m/windows_strings/convert.h>
 
 namespace m
@@ -45,6 +47,6 @@ namespace m
     string_converter<char const*, std::wstring>::make_string(czstring str)
     {
         return string_converter<std::string_view, std::wstring>::make_string(
-            string_converter<decltype(str), std::string_view>::make_view(str));
+            view_converter<char const*, std::string_view>::make_view(str));
     }
 } // namespace m

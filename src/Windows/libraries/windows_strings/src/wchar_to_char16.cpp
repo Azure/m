@@ -7,6 +7,8 @@
 
 #include <m/multi_byte/convert.h>
 #include <m/strings/convert.h>
+#include <m/utility/string_converter.h>
+#include <m/utility/view_converter.h>
 #include <m/windows_strings/convert.h>
 
 //
@@ -20,8 +22,7 @@ namespace m
     std::u16string
     string_converter<std::wstring_view, std::u16string>::make_string(std::wstring_view v)
     {
-        return std::u16string(
-            string_converter<std::wstring_view, std::u16string_view>::make_view(v));
+        return std::u16string(view_converter<std::wstring_view, std::u16string_view>::make_view(v));
     }
 
     std::optional<std::u16string>

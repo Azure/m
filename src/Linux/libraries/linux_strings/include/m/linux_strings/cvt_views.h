@@ -7,19 +7,21 @@
 #include <string>
 #include <string_view>
 
-#include <m/strings/string_conversion_details.h>
+#include <m/strings/conversion_details.h>
+#include <m/utility/string_converter.h>
+#include <m/utility/view_converter.h>
 
 namespace m
 {
     template <>
-    struct string_converter<char8_t const*, std::string_view>
+    struct view_converter<char8_t const*, std::string_view>
     {
         static std::string_view
         make_view(cu8zstring str);
     };
 
     template <>
-    struct string_converter<std::u8string_view, std::string_view>
+    struct view_converter<std::u8string_view, std::string_view>
     {
         static std::string_view
         make_view(std::u8string_view view);
@@ -29,14 +31,14 @@ namespace m
     };
 
     template <>
-    struct string_converter<char const*, std::u8string_view>
+    struct view_converter<char const*, std::u8string_view>
     {
         static std::u8string_view
         make_view(czstring str);
     };
 
     template <>
-    struct string_converter<std::string_view, std::u8string_view>
+    struct view_converter<std::string_view, std::u8string_view>
     {
         static std::u8string_view
         make_view(std::string_view view);
@@ -46,14 +48,14 @@ namespace m
     };
 
     template <>
-    struct string_converter<wchar_t const*, std::u32string_view>
+    struct view_converter<wchar_t const*, std::u32string_view>
     {
         static std::u32string_view
         make_view(cwzstring str);
     };
 
     template <>
-    struct string_converter<std::wstring_view, std::u32string_view>
+    struct view_converter<std::wstring_view, std::u32string_view>
     {
         static std::u32string_view
         make_view(std::wstring_view view);
@@ -63,14 +65,14 @@ namespace m
     };
 
     template <>
-    struct string_converter<char32_t const*, std::wstring_view>
+    struct view_converter<char32_t const*, std::wstring_view>
     {
         static std::wstring_view
         make_view(cu32zstring str);
     };
 
     template <>
-    struct string_converter<std::u32string_view, std::wstring_view>
+    struct view_converter<std::u32string_view, std::wstring_view>
     {
         static std::wstring_view
         make_view(std::u32string_view view);

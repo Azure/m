@@ -6,6 +6,8 @@
 #include <m/utility/compiler.h>
 
 #include <concepts>
+#include <string>
+#include <string_view>
 #include <type_traits>
 
 #include <m/utility/type_traits.h>

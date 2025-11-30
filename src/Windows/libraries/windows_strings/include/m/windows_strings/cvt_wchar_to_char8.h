@@ -6,7 +6,7 @@
 #include <m/multi_byte/convert.h>
 #include <m/multi_byte/convert_acp.h>
 #include <m/sstring/sstring.h>
-#include <m/strings/string_conversion_details.h>
+#include <m/strings/conversion_details.h>
 
 namespace m
 {

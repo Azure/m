@@ -5,10 +5,11 @@ target_sources(m_strings PUBLIC FILE_SET HEADERS FILES
     m/strings/convert.h 
     m/strings/literal_string_view.h 
     m/strings/ordinal_compare.h 
-    m/strings/platform_independent_string_conversions.h
     m/strings/punning.h
     m/strings/split.h
     m/strings/static_string.h
-    m/strings/string_conversion_details.h
+    "m/strings/conversion_details.h"
+    m/strings/string_conversions.h
     m/strings/tstring.h
+    m/strings/view_conversions.h
 )

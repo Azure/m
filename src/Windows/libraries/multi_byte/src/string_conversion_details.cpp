@@ -14,7 +14,7 @@
 
 #include "acp_convert.h"
 
-namespace m::string_conversion_details
+namespace m::conversion_details
 {
     using m::multi_byte::impl::acp_convert;
 
@@ -24,4 +24,4 @@ namespace m::string_conversion_details
 
 
 
-} // namespace m::string_conversion_details
+} // namespace m::conversion_details

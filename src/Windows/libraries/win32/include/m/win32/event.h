@@ -78,6 +78,12 @@ namespace m::win32
         using base_type::is_valid;
         using base_type::reset;
 
+        constexpr
+        operator HANDLE() const
+        {
+            return m_handle;
+        }
+
         void
         create(create_event_flags flags, DWORD desired_access = SYNCHRONIZE | EVENT_MODIFY_STATE);
 

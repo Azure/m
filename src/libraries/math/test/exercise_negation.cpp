@@ -12,7 +12,7 @@
 #include <string_view>
 
 #include <m/math/math.h>
-#include <m/type_traits/type_traits.h>
+#include <m/utility/type_traits.h>
 
 namespace
 {

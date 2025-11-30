@@ -5,7 +5,9 @@
 
 #include <m/multi_byte/convert.h>
 #include <m/multi_byte/convert_acp.h>
-#include <m/strings/string_conversion_details.h>
+#include <m/strings/conversion_details.h>
+#include <m/utility/string_converter.h>
+#include <m/utility/view_converter.h>
 
 namespace m
 {
@@ -14,14 +16,14 @@ namespace m
     //
 
     template <>
-    struct string_converter<char16_t const*, std::wstring_view>
+    struct view_converter<char16_t const*, std::wstring_view>
     {
         static std::wstring_view
         make_view(cu16zstring str);
     };
 
     template <>
-    struct string_converter<std::u16string_view, std::wstring_view>
+    struct view_converter<std::u16string_view, std::wstring_view>
     {
         static std::wstring_view
         make_view(std::u16string_view view);
@@ -31,7 +33,7 @@ namespace m
     };
 
     template <>
-    struct string_converter<std::u16string, std::wstring_view>
+    struct view_converter<std::u16string, std::wstring_view>
     {
         static std::wstring_view
         make_view(std::u16string const& str);

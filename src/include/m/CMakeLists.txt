@@ -12,10 +12,6 @@ install(DIRECTORY exception
         DESTINATION ${M_INSTALL_INCLUDEDIR}
 )
 
-install(DIRECTORY type_traits
-        DESTINATION ${M_INSTALL_INCLUDEDIR}
-)
-
 install(DIRECTORY utility
         DESTINATION ${M_INSTALL_INCLUDEDIR}
 )

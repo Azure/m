@@ -11,8 +11,9 @@
 #include <m/utility/string_converter.h>
 
 #include <m/sstring/sstring.h>
-#include <m/strings/platform_independent_string_conversions.h>
-#include <m/strings/string_conversion_details.h>
+#include <m/strings/string_conversions.h>
+#include <m/strings/conversion_details.h>
+#include <m/strings/view_conversions.h>
 #include <m/strings/tstring.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
@@ -35,7 +36,7 @@ namespace m
     {
         auto const view = view_of(std::forward<FromT>(from));
         using view_t    = remove_optional_t<remove_cvref_t<decltype(view)>>;
-        // using conversion_from_t = string_conversion_details::conversion_strip_t<FromT>;
+        // using conversion_from_t = conversion_details::conversion_strip_t<FromT>;
         using sch_t = string_converter<view_t, std::basic_string<ToCharT>>;
         return sch_t::make_string(view);
     }
@@ -47,7 +48,7 @@ namespace m
     {
         auto const view = view_of(std::forward<FromT>(from));
         using view_t    = remove_optional_t<remove_cvref_t<decltype(view)>>;
-        // using conversion_from_t = string_conversion_details::conversion_strip_t<FromT>;
+        // using conversion_from_t = conversion_details::conversion_strip_t<FromT>;
         using sch_t = string_converter<view_t, std::basic_string<ToCharT>, void>;
         auto ret    = sch_t::make_string(view);
         using std::swap;
@@ -154,12 +155,12 @@ namespace m
 
     template <typename ToCharT, typename FromT>
         requires(m::character<ToCharT>)
-    string_conversion_details::basic_sstring_with_equivalent_optionality_t<ToCharT, m::remove_cvref_t<FromT>>
+    conversion_details::basic_sstring_with_equivalent_optionality_t<ToCharT, m::remove_cvref_t<FromT>>
     to_basic_sstring(FromT&& from)
     {
         auto const view = view_of(std::forward<FromT>(from));
         using view_t    = remove_optional_t<remove_cvref_t<decltype(view)>>;
-        // using conversion_from_t = string_conversion_details::conversion_strip_t<FromT>;
+        // using conversion_from_t = conversion_details::conversion_strip_t<FromT>;
         using sch_t         = string_converter<view_t, std::basic_string<ToCharT>, void>;
         auto temp_string    = sch_t::make_string(view);
 

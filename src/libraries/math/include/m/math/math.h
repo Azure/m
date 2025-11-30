@@ -18,7 +18,7 @@
 #include <m/cast/cast.h>
 #include <m/cast/to.h>
 #include <m/cast/try_cast.h>
-#include <m/type_traits/type_traits.h>
+#include <m/utility/type_traits.h>
 
 //
 // This library gives a framework for "safe" mathematics.

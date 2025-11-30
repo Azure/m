@@ -12,6 +12,7 @@
 #include <string_view>
 #include <thread>
 
+#include <m/strings/compare.h>
 #include <m/sstring/sstring.h>
 #include <m/test_data/test_data.h>
 
@@ -72,4 +73,13 @@ TEST(TestSString, TestRight)
     auto x = m::sstring(m::test_data::alpha_num_sv);
     auto y = x.right(7);
     EXPECT_EQ(y, "3456789");
+}
+
+TEST(TestSString, TestCaseInsensitiveLess)
+{
+    auto x = m::sstring(m::test_data::alpha_num_sv);
+    auto y = std::string("flarb");
+
+    auto z = m::case_insensitive_less<m::sstring>{};
+    EXPECT_EQ(z(y, x), false);
 }

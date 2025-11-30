@@ -17,7 +17,7 @@
 #include <m/utility/pointers.h>
 #include <m/utility/zstring.h>
 
-namespace m::string_conversion_details
+namespace m::conversion_details
 {
     template <typename ToCharT, typename FromT>
         requires(m::character<ToCharT>)
@@ -27,4 +27,4 @@ namespace m::string_conversion_details
         return utf::transcode<ToCharT>(from);
     }
 
-} // namespace m::string_conversion_details
+} // namespace m::conversion_details

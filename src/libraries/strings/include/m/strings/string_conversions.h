@@ -10,29 +10,17 @@
 #include <m/utility/string_converter.h>
 
 #include <m/sstring/sstring.h>
-#include <m/strings/string_conversion_details.h>
+#include <m/strings/conversion_details.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 #include <m/utf/transcode.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
+#include <m/utility/string_converter.h>
 #include <m/utility/zstring.h>
 
 namespace m
 {
-    template <typename CharT>
-    struct string_converter<CharT const*, std::basic_string_view<CharT>, void>
-    {
-        static constexpr std::basic_string_view<CharT>
-        make_view(m::basic_zstring<CharT const> str) noexcept
-        {
-            if (str == nullptr)
-                return std::basic_string_view<CharT>();
-
-            return std::basic_string_view<CharT>(str);
-        }
-    };
-
     template <typename CharT>
     struct string_converter<CharT const*, std::basic_string<CharT>, void>
     {
@@ -78,32 +66,6 @@ namespace m
         make_string(std::optional<std::basic_string<CharT>> const& str)
         {
             return str;
-        }
-    };
-
-    template <typename CharT>
-    struct string_converter<std::basic_string_view<CharT>, std::basic_string_view<CharT>, void>
-    {
-        static inline constexpr std::basic_string_view<CharT>
-        make_view(std::basic_string_view<CharT> view) noexcept
-        {
-            return view;
-        }
-
-        static inline constexpr std::optional<std::basic_string_view<CharT>>
-        make_view(std::optional<std::basic_string_view<CharT>> const& view) noexcept
-        {
-            return view;
-        }
-    };
-
-    template <typename CharT>
-    struct string_converter<basic_sstring<CharT>, std::basic_string_view<CharT>, void>
-    {
-        static std::basic_string_view<CharT>
-        make_view(basic_sstring<CharT> str)
-        {
-            return str.view();
         }
     };
 
@@ -300,4 +262,4 @@ namespace m
         static std::optional<std::u32string>
         make_string(std::optional<std::u16string> const& str);
     };
-} // namespace m::string_conversion_details
+} // namespace m

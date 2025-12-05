@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include <m/platform_adaptive_strings/convert.h>
 #include <m/strings/convert.h>
 
 using namespace std::string_literals;
@@ -24,7 +25,6 @@ TEST(StringConvertTests, TestToString)
     EXPECT_EQ(s, "foo"sv);
 }
 
-#if 0
 TEST(StringConvertTests, TestWToString)
 {
     std::string s;
@@ -51,4 +51,3 @@ TEST(StringConvertTests, TestWToWString)
 
     EXPECT_EQ(s, L"foo"sv);
 }
-#endif

@@ -23,8 +23,9 @@ target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 target_link_libraries(
     ${TEST_EXE_NAME}
     m_cast
-    m_strings
     m_math
+    m_platform_adaptive_strings
+    m_strings
     GTest::gtest_main
 )
 

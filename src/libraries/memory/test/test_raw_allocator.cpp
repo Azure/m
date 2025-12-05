@@ -79,7 +79,7 @@ namespace
         std::byte m_b;
     };
 
-    #if 0
+    #if 0 // complete some day?
     constexpr bool
     operator==(owc const& l, owc const& r) noexcept
     {

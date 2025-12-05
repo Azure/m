@@ -133,9 +133,4 @@ namespace m::pil
         code_type  m_code;
         flags_type m_flags;
     };
-
-#if 0
-    template <typename T, typename U>
-    constexpr disposition<T, U> disposition<T, U>::nominal = disposition<T, U>{};
-#endif
 } // namespace m::pil

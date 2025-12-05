@@ -82,13 +82,6 @@ namespace m
         static constexpr int64_t
         julian_date(int64_t y, int64_t m, int64_t d)
         {
-#if 0
-            m = (m + 9ll) % 12ll;
-            y = y - m / 10ll;
-
-            return 365ll * y + y / 4ll - y / 100ll + y / 400ll + (m * 306ll + 5ll) / 10ll +
-                   (d - 1ll)
-#else
             // From:
             // https://quasar.as.utexas.edu/BillInfo/JulianDatesG.html#:~:text=1%29%20Express%20the%20date%20as%20Y%20M%20D%2C,to%20the%20month%20to%20get%20a%20new%20M.
 
@@ -124,7 +117,6 @@ namespace m
             auto jd = (c + d + e + f) - 1524.5;
 
             return static_cast<int64_t>(jd);
-#endif
         }
 
         static inline int64_t julian_zero = julian_date(0, 1, 1);

@@ -187,8 +187,7 @@ namespace m::pil
     }
 
     void
-    key::do_rename_key(pil::key_path const& old_key_name,
-                       pil::key_path const& new_key_name)
+    key::do_rename_key(pil::key_path const& old_key_name, pil::key_path const& new_key_name)
     {
         auto const d = m_key->rename_key(ikey::rename_key_flags{}, old_key_name, new_key_name);
         M_INTERNAL_ERROR_CHECK(!d);
@@ -373,43 +372,6 @@ namespace m::pil
 
         m_key->set_value(ikey::set_value_flags{}, value_name, reg_value_type::uint32, s2);
     }
-
-#if 0
-    std::vector < std::byte>
-    key::to_null_terminated_utf16_as_byte_vector(std::u16string_view view)
-    {
-        std::vector<std::byte> result((view.size() + 1) * sizeof(char16_t));
-
-        std::size_t size = view.size();
-
-        result.resize((size + 1) * sizeof(char16_t));
-
-        auto inspan1 = std::span(view.begin(), view.end());
-        auto inspan2 = std::as_bytes(inspan1);
-
-        auto outspan1 = std::span(result.begin(), result.end());
-        auto outspan2 =
-            std::as_writable_bytes(outspan1); // outspan1 is probably already span<byte> but this
-                                              // makes it explicit and symmetric
-
-        // outspan is supposed to be one (UTF-16) character larger than inspan.
-        M_INTERNAL_ERROR_CHECK(outspan2.size() == (inspan2.size() + sizeof(char16_t)));
-
-        auto outit = std::copy_n(inspan2.begin(), inspan2.size(), outspan2.begin());
-
-        M_INTERNAL_ERROR_CHECK(outit != outspan2.end());
-
-        *outit++ = std::byte{0};
-
-        M_INTERNAL_ERROR_CHECK(outit != outspan2.end());
-
-        *outit++ = std::byte{0};
-
-        M_INTERNAL_ERROR_CHECK(outit == outspan2.end());
-
-        return result;
-    }
-#endif
 
     key::bytes_and_value_type
     key::get_value_as_bytes_and_value_type(std::u16string_view value_name)

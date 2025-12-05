@@ -181,7 +181,7 @@ namespace m
                 return iid;
             }
 
-#if 0
+#if 0 // unsure why removed
             template <typename SourceT>
             static image_import_descriptor
             load_from(SourceT                                 s,

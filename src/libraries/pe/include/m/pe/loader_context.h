@@ -145,19 +145,11 @@ namespace m
             void
             for_each_not_found(Fn fn)
             {
-#if 0
-                std::ranges::for_each(m_resolved,
-                                      [&](auto pair) {
-                                          if (pair.second.not_found())
-                                              std::invoke(std::forward<Fn>(fn), pair.second.name());
-                                      });
-#else
                 for (auto&& p: m_resolved)
                 {
                     if (p.second.not_found())
                         std::invoke(fn, p.second.name());
                 }
-#endif
             }
 
         protected:

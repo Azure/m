@@ -92,28 +92,4 @@ namespace m
         return m::try_cast<TTo>(v);
     }
 
-#if 0
-    template <typename TTo, typename TFrom>
-        requires (std::is_enum_v<TFrom>)
-    TTo
-    to(TFrom const& v)
-    {
-        return m::try_cast<TTo>(to_underlying(v));
-    }
-
-    template <typename TTo, typename Rep, typename Period>
-    TTo
-    to(std::chrono::duration<Rep, Period> const& d)
-    {
-        return m::try_cast<TTo>(d);
-    }
-
-    template <typename TTo, typename Clock, typename Duration>
-    TTo
-    to(std::chrono::time_point<Clock, Duration> const& tp)
-    {
-        return m::try_cast<TTo>(tp);
-    }
-#endif
-
 } // namespace m

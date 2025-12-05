@@ -21,7 +21,7 @@ namespace m
 //
 // It makes the task somewhat cumbersome but effective.
 //
-#if 0
+#if 0 // left for commenting
     template <typename FromT, typename ToType, typename Enable = void>
     struct string_converter
     {

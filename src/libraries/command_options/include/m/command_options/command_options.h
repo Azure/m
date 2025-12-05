@@ -908,7 +908,7 @@ namespace m
                 return *m::try_cast<path_parameter<char_t>*>(m_parameters[index].get());
             }
 
-#if 0
+#if 0 // unsure why this is removed, left for now
             option_t&
             add_option(string_view_t name)
             {

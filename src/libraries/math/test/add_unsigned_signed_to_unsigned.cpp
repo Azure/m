@@ -76,7 +76,7 @@ namespace
         //constexpr auto rdigits = std::numeric_limits<RightType>::digits + 1; // CHEATING!! :-)
         // constexpr auto sdigits = std::numeric_limits<SumType>::digits;
 
-#if 0
+#if 0 // expand tests some day
         std::cout << std::format(
             "LeftType: {}, ldigits = {}, RightType: {} rdigits = {}, SumType: {}, sdigits = {}\n", typeid(LeftType).name(), ldigits, typeid(RightType).name(), rdigits, typeid(SumType).name(), sdigits);
 

@@ -30,21 +30,6 @@ namespace m
         }
     };
 
-#if 0
-    template <typename T, typename OnHasValueT, typename OnNotHasValueT>
-        requires(std::invocable<OnHasValueT, T const&> &&
-                 std::is_invocable_r_v<void, OnHasValueT, T const&> &&
-                 std::invocable<OnNotHasValueT> && std::is_invocable_r_v<void, OnNotHasValueT>)
-    void
-    match(std::optional<T> const& o, OnHasValueT&& on_has_value, OnNotHasValueT&& on_not_has_value)
-    {
-        if (o.has_value())
-            std::invoke(std::forward<OnHasValueT>(on_has_value), o.value());
-        else
-            std::invoke(std::forward<OnNotHasValueT>(on_not_has_value));
-    }
-#endif
-
     template <typename ReturnT, typename T, typename OnHasValueT, typename OnNotHasValueT>
         requires(std::invocable<OnHasValueT, T const&> &&
                  std::is_invocable_r_v<ReturnT, OnHasValueT, T const&> &&

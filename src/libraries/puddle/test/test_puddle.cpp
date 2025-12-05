@@ -31,7 +31,7 @@ TEST(TestPool, CreateAInplaceVectorPool)
     x.reset();
 }
 
-#if 0
+#if 0 // unsure why if-d out
 TEST(TestPool, AllocateAndDeallocateChar)
 {
     using puddle_type       = m::puddle<char, 8>;

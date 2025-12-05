@@ -198,15 +198,6 @@ TEST(Monitor, first)
     change_notification_sink cns;
 
     auto const token = monitor->register_watch(temporary_path, &cns);
-#if 0
-    // No test asserts, just execution.
-    auto p     = m::filesystem::make_path("temporary_file");
-    auto bytes = std::as_bytes(std::span(contents.begin(), contents.end()));
-
-    m::filesystem::store(p, bytes);
-
-    std::filesystem::remove(p);
-#endif
 }
 
 TEST(Monitor, VerifyNoChange)
@@ -243,15 +234,6 @@ TEST(Monitor, VerifyNoChange)
     // testing but since we're not actually insulated against changes going on otherwise
     // on the system,
 
-#if 0
-    // No test asserts, just execution.
-    auto p     = m::filesystem::make_path("temporary_file");
-    auto bytes = std::as_bytes(std::span(contents.begin(), contents.end()));
-
-    m::filesystem::store(p, bytes);
-
-    std::filesystem::remove(p);
-#endif
 }
 
 TEST(Monitor, MonitorNonExistentFile)

@@ -55,32 +55,32 @@ namespace m::win32
         }
 
         HANDLE*
-        addressof()
+        addressof() noexcept
         {
             return &m_handle;
         }
 
         constexpr HANDLE
-        get() const
+        get() const noexcept
         {
             return m_handle;
         }
 
         constexpr
-        operator HANDLE() const
+        operator HANDLE() const noexcept
         {
             return m_handle;
         }
 
         constexpr bool
-        is_valid() const
+        is_valid() const noexcept
         {
             return closable_handle(m_handle);
         }
 
     protected:
         static constexpr bool
-        closable_handle(HANDLE h)
+        closable_handle(HANDLE h) noexcept
         {
             return h != HANDLE{} && h != INVALID_HANDLE_VALUE;
         }

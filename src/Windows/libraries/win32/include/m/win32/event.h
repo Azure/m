@@ -15,8 +15,16 @@
 
 namespace m::win32
 {
+    /// <summary>
+    /// The create_event_flags enumeration directly corresponds with the
+    /// DWORD flags passed in to the Win32 CreateEvent call. These may be
+    /// value-wise ORed together using the OR operation ("|") to combine
+    /// the flags, subject to the Win32 limits. (e.g. the logic of an
+    /// initially set auto-reset event is unclear.)
+    /// </summary>
     enum class create_event_flags : uint32_t
     {
+        zero         = 0x00000000,
         initial_set  = 0x00000002, // CREATE_EVENT_INITIAL_SET
         manual_reset = 0x00000001, // CREATE_EVENT_MANUAL_RESET
     };
@@ -32,6 +40,7 @@ namespace m::win32
 
         enum class event_kind
         {
+            none,
             automatic,
             manual,
         };
@@ -56,6 +65,7 @@ namespace m::win32
         {
             using std::swap;
             swap(m_handle, other.m_handle);
+            swap(m_event_kind, other.m_event_kind);
             return *this;
         }
 
@@ -68,18 +78,26 @@ namespace m::win32
         swap(event& other) noexcept
         {
             using std::swap;
-
             swap(m_handle, other.m_handle);
+            swap(m_event_kind, other.m_event_kind);
+        }
+
+        constexpr event_kind
+        get_event_kind() const noexcept
+        {
+            return m_event_kind;
         }
 
         using base_type::addressof;
         using base_type::get;
         using base_type::handle;
         using base_type::is_valid;
-        using base_type::reset;
+
+        void
+        reset();
 
         constexpr
-        operator HANDLE() const
+        operator HANDLE() const noexcept
         {
             return m_handle;
         }
@@ -100,7 +118,9 @@ namespace m::win32
         set_event_state(event_state state);
 
     private:
-        event_kind m_event_kind;
+        event_kind m_event_kind{event_kind::none};
     };
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(event::event_kind);
 
 } // namespace m::win32

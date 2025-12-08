@@ -6,6 +6,7 @@ set(TEST_EXE_NAME test_win32)
 
 add_executable(${TEST_EXE_NAME}
     test_registry_helpers.cpp
+    test_win32_event.cpp
     test_win32_threadpool.cpp
 )
 

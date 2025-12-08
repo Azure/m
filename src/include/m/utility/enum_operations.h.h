@@ -45,26 +45,26 @@
 
 #define M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(T)                                                        \
     static_assert(std::is_enum_v<T>);                                                              \
-    constexpr bool operator!(T x) { return m::to_underlying(x) == 0; }                                       \
-    constexpr T    operator~(T x) { return static_cast<T>(~m::to_underlying(x)); }                           \
-    constexpr T    operator|(T l, T r)                                                             \
+    constexpr bool operator!(T x) noexcept { return m::to_underlying(x) == 0; }                    \
+    constexpr T    operator~(T x) noexcept { return static_cast<T>(~m::to_underlying(x)); }        \
+    constexpr T    operator|(T l, T r) noexcept                                                    \
     {                                                                                              \
         return static_cast<T>(m::to_underlying(l) | m::to_underlying(r));                          \
-    } \
-    constexpr T operator&(T l, T r)                                                                \
+    }                                                                                              \
+    constexpr T operator&(T l, T r) noexcept                                                       \
     {                                                                                              \
         return static_cast<T>(m::to_underlying(l) & m::to_underlying(r));                          \
-    } \
-    constexpr T operator^(T l, T r)                                                                \
+    }                                                                                              \
+    constexpr T operator^(T l, T r) noexcept                                                       \
     {                                                                                              \
         return static_cast<T>(m::to_underlying(l) ^ m::to_underlying(r));                          \
-    } \
-    constexpr T& operator|=(T& l, T r)                                                                     \
+    }                                                                                              \
+    constexpr T& operator|=(T& l, T r) noexcept                                                    \
     {                                                                                              \
         l = static_cast<T>(m::to_underlying(l) | m::to_underlying(r));                             \
         return l;                                                                                  \
     }                                                                                              \
-    constexpr T& operator&=(T& l, T r)                                                                       \
+    constexpr T& operator&=(T& l, T r) noexcept                                                    \
     {                                                                                              \
         l = static_cast<T>(m::to_underlying(l) & m::to_underlying(r));                             \
         return l;                                                                                  \

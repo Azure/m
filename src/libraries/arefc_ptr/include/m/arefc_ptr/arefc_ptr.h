@@ -473,7 +473,7 @@ namespace m
             m_ptr.store(ptr, std::memory_order_release);
         }
 
-        std::atomic<T*> m_ptr{};
+        std::atomic<T*> m_ptr{nullptr};
 
         template <typename T1, typename... Args>
             requires(arefc_ptr_requirements<T1>)

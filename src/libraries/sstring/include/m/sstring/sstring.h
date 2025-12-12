@@ -30,8 +30,8 @@
 #include <m/error_handling/macros.h>
 #include <m/math/math.h>
 #include <m/strings/compare.h>
-#include <m/strings/convert.h>
 #include <m/strings/conversion_details.h>
+#include <m/strings/convert.h>
 #include <m/strings/tstring.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
@@ -80,48 +80,60 @@ namespace m
 
         static inline constexpr auto npos = view_type::npos;
 
-        basic_sstring() = default;
+        //
+        // To save space in the basic_sstring proper, we use
+        // only an offset and size instead of a full
+        // basic_string_view<>. This type encapsulates the
+        // two instead of keeping them loose since keeping
+        // them loose leaves you with random size_types
+        // as parameters which can be mis-ordered easily.
+        //
+        struct offset_and_size
+        {
+            size_type m_offset;
+            size_type m_size;
+        };
+
+        constexpr basic_sstring() noexcept: m_offset_and_size{.m_offset = 0, .m_size = 0} {}
 
         basic_sstring(std::initializer_list<view_type> il)
         {
-            m_arefc = make_basic_const_string<char_type>(il);
-            m_view  = m_arefc->view();
-            // Since we know that the string is null-terminated,
-            // just populate the c_str now to avoid any of the
-            // fuss later.
-            m_c_str_v = m_arefc;
-            m_c_str.store(m_view.data(), std::memory_order_release);
+            m_arefc                    = make_basic_const_string<char_type>(il);
+            m_offset_and_size.m_offset = 0;
+            m_offset_and_size.m_size   = m_arefc->view().size();
+            m_c_str.store(view().data(), std::memory_order_release);
+            self_validate();
         }
 
         basic_sstring(std::span<view_type const> spn)
         {
-            m_arefc = make_basic_const_string<char_type>(spn);
-            m_view  = m_arefc->view();
-            // Since we know that the string is null-terminated,
-            // just populate the c_str now to avoid any of the
-            // fuss later.
-            m_c_str_v = m_arefc;
-            m_c_str.store(m_view.data(), std::memory_order_release);
+            m_arefc                    = make_basic_const_string<char_type>(spn);
+            m_offset_and_size.m_offset = 0;
+            m_offset_and_size.m_size   = m_arefc->view().size();
+            m_c_str.store(view().data(), std::memory_order_release);
+            self_validate();
         }
 
         basic_sstring(view_type v)
         {
-            m_arefc = make_basic_const_string<char_type>(v);
-            m_view  = m_arefc->view();
-            // Since we know that the string is null-terminated,
-            // just populate the c_str now to avoid any of the
-            // fuss later.
-            m_c_str_v = m_arefc;
-            m_c_str.store(m_view.data(), std::memory_order_release);
+            m_arefc                    = make_basic_const_string<char_type>(v);
+            m_offset_and_size.m_offset = 0;
+            m_offset_and_size.m_size   = m_arefc->view().size();
+            m_c_str.store(view().data(), std::memory_order_release);
+            self_validate();
         }
 
         basic_sstring(std::basic_string<CharT> const& str):
             basic_sstring(static_cast<std::basic_string_view<CharT>>(str))
-        {}
-
-        basic_sstring(basic_sstring const& other): m_arefc{other.m_arefc}, m_view{other.m_view}
         {
-            copy_c_str_state_from_other(other);
+            self_validate();
+        }
+
+        basic_sstring(basic_sstring const& other):
+            m_arefc{other.m_arefc}, m_offset_and_size(other.m_offset_and_size)
+        {
+            m_c_str.store(nullptr, std::memory_order_release);
+            self_validate();
         }
 
         /// <summary>
@@ -139,56 +151,43 @@ namespace m
             requires(character<OtherCharT> && !std::is_same_v<OtherCharT, char_type>)
         basic_sstring(basic_sstring<OtherCharT> const& other):
             basic_sstring(to_string_view_t<char_type>(other.view()))
-        {}
+        {
+            self_validate();
+        }
 
-        basic_sstring(basic_sstring&& other) noexcept
+        basic_sstring(basic_sstring&& other) noexcept: m_offset_and_size{.m_offset = 0, .m_size = 0}
         {
             using std::swap;
             swap(m_arefc, other.m_arefc);
-            swap(m_view, other.m_view);
-            swap(m_c_str_v, other.m_c_str_v);
+            swap(m_offset_and_size, other.m_offset_and_size);
+            m_c_str.store(nullptr, std::memory_order_release);
+
+            auto t = other.m_c_str.exchange(nullptr, std::memory_order_acq_rel);
+            auto u = m_c_str.exchange(t, std::memory_order_acq_rel);
+            other.m_c_str.exchange(u, std::memory_order_acq_rel);
+            self_validate();
         }
 
         ~basic_sstring()
         {
-            // Strictly speaking, the default destructor is sufficient.
-            //
-            // However, there's a lot to be said for razing your state as
-            // you destroy. Perhaps in the future this could be some kind
-            // of compile time option or such, but at this time, it's
-            // just done.
-            //
-            m_view = view_type{};
-            m_c_str.store(nullptr, std::memory_order_relaxed);
-            m_arefc.reset();
-            m_c_str_v.reset();
+            self_validate();
+
+            unmake_c_str();
         }
 
         basic_sstring&
         operator=(basic_sstring const& other)
         {
-            // We take great care with the atomicity around the `.c_str()`
-            // member function's mutation of state because it is intended
-            // to be an observer, so callers have no expectation that they
-            // will synchronize access to the basic_sstring object.
-            //
-            // However, at the same time, for assignment, the caller is
-            // mutating the basic_sstring, so there is no need to be so
-            // concerned with the state of `this`. On the other hand,
-            // the state of `other` is of concern, so we need to take care
-            // as we did in the copy constructor.
+            self_validate();
 
             if (this != &other)
             {
-                // The m_v and m_view members are immutable past construction
-                // and so we don't have to worry about how to read them from
-                // `other`.
-                m_arefc = other.m_arefc;
-                m_view  = other.m_view;
-                m_c_str.store(nullptr, std::memory_order_release);
-                m_c_str_v.reset();
-                copy_c_str_state_from_other(other);
+                m_arefc           = other.m_arefc;
+                m_offset_and_size = other.m_offset_and_size;
+                unmake_c_str();
             }
+
+            self_validate();
 
             return *this;
         }
@@ -196,11 +195,17 @@ namespace m
         basic_sstring&
         operator=(basic_sstring&& other) noexcept
         {
+            self_validate();
+
             using std::swap;
             swap(m_arefc, other.m_arefc);
-            swap(m_view, other.m_view);
-            swap(m_c_str_v, other.m_c_str_v);
-            m_c_str.store(nullptr, std::memory_order_release);
+            swap(m_offset_and_size, other.m_offset_and_size);
+
+            auto t = other.m_c_str.exchange(nullptr, std::memory_order_acq_rel);
+            auto u = m_c_str.exchange(t, std::memory_order_acq_rel);
+            other.m_c_str.exchange(u, std::memory_order_acq_rel);
+
+            self_validate();
 
             return *this;
         }
@@ -208,16 +213,27 @@ namespace m
         basic_sstring&
         operator+=(basic_sstring const& other)
         {
+            self_validate();
+
             basic_sstring temp = *this + other;
             using std::swap;
             swap(temp, *this);
+
+            self_validate();
+
             return *this;
         }
 
         constexpr view_type
         view() const noexcept
         {
-            return m_view;
+            view_type v{};
+
+            if (m_arefc)
+                v = view_type(m_arefc->view().data() + m_offset_and_size.m_offset,
+                              m_offset_and_size.m_size);
+
+            return v;
         }
 
         constexpr
@@ -295,57 +311,34 @@ namespace m
         c_str() const
         {
             auto local_c_str_ptr = m_c_str.load(std::memory_order_acquire);
-            if (local_c_str_ptr)
+            if (local_c_str_ptr != nullptr)
                 return local_c_str_ptr;
 
+            self_validate();
+
             if (!m_arefc)
-                return nullptr;
+                return make_c_str(nullptr, 0);
 
-            arefc_ptr<basic_const_string<char_type>> expected; // for the compare-exchange
+            if (m_offset_and_size.m_size == 0)
+                return make_c_str(nullptr, 0);
 
-            // We didn't have one. Make one.
-            auto [new_const_str, new_c_str_ptr] = make_c_str();
+            auto const v = m_arefc->view();
 
-            // Attempt to swap the (possibly newly created) null terminated constant
-            // string into place, with allowance for another thread racing against
-            // us. If we "lose" the race, the one we had created will be deallocated
-            // when new_const_str goes out of scope.
-            if (m_c_str_v.compare_exchange_strong(expected, new_const_str))
+            //
+            // If the end of v aligns with the end of the base_view, we can use it as
+            // the c_str value. This is invariant, since basic_sstring instances are
+            // immutable, so if this is true, we will store the computed c_str into
+            // the m_c_str ptr into the member and leave it there into the future.
+            //
+
+            if ((m_offset_and_size.m_offset + m_offset_and_size.m_size) == v.size())
             {
-                m_c_str.store(new_c_str_ptr, std::memory_order_release);
-                m_c_str.notify_all();
-            }
-            else
-            {
-                //
-                // MSVC std::atomic<>::wait() appears to not quite meet the
-                // contract specified in the standard. If the value is already
-                // not nullptr, the wait does not immediately exit.
-                // 
-                // This is terrible, but here we are.
-                // 
-
-                for (;;)
-                {
-                    using namespace std::chrono_literals;
-
-                    if (m_c_str.load(std::memory_order_acquire) != nullptr)
-                        break;
-
-                    std::this_thread::sleep_for(50ms);
-                }
-
-                // 
-                // 
-                // We were not the thread that made the exchange.
-                // Wait for the other thread to put the pointer in place.
-                // m_c_str.wait(nullptr, std::memory_order_acquire);
+                local_c_str_ptr = v.data() + m_offset_and_size.m_offset;
+                m_c_str.store(local_c_str_ptr, std::memory_order_release);
+                return local_c_str_ptr;
             }
 
-            local_c_str_ptr = m_c_str.load(std::memory_order_acquire);
-
-            M_INTERNAL_ERROR_CHECK(local_c_str_ptr != nullptr);
-            return local_c_str_ptr;
+            return make_c_str(v.data() + m_offset_and_size.m_offset, m_offset_and_size.m_size);
         }
 
         basic_sstring
@@ -357,7 +350,7 @@ namespace m
             if (other.view().size() == 0)
                 return *this;
 
-            return basic_sstring({m_view, other.view()});
+            return basic_sstring({view(), other.view()});
         }
 
         template <typename StringishT>
@@ -372,7 +365,7 @@ namespace m
             if (rhs.size() == 0)
                 return *this;
 
-            return basic_sstring({m_view, rhs});
+            return basic_sstring({view(), rhs});
         }
 
         friend basic_sstring
@@ -398,7 +391,7 @@ namespace m
             if (length == 0)
                 return basic_sstring{};
 
-            return basic_sstring{m_arefc, view_type(v.data() + start, length)};
+            return basic_sstring{m_arefc, offset_and_size{.m_offset = start, .m_size = length}};
         }
 
         basic_sstring
@@ -407,7 +400,7 @@ namespace m
             auto const v = view();
             if (count > v.size())
                 count = v.size();
-            return basic_sstring(m_arefc, view_type(v.data(), count));
+            return basic_sstring{m_arefc, offset_and_size{.m_offset = 0, .m_size = count}};
         }
 
         basic_sstring
@@ -417,7 +410,7 @@ namespace m
             if (count > v.size())
                 count = v.size();
             auto const offset = v.size() - count;
-            return basic_sstring(m_arefc, view_type(v.data() + offset, count));
+            return basic_sstring{m_arefc, offset_and_size{.m_offset = offset, .m_size = count}};
         }
 
         std::pair<basic_sstring, basic_sstring>
@@ -502,22 +495,22 @@ namespace m
         char_type
         operator[](std::size_t index) const
         {
-            M_INTERNAL_ERROR_CHECK(index < m_view.size());
-            return m_view.data()[index];
+            M_INTERNAL_ERROR_CHECK(index < view().size());
+            return view().data()[index];
         }
 
         char_type
         first() const
         {
-            M_INTERNAL_ERROR_CHECK(m_view.size() > 0);
-            return m_view.data()[0];
+            M_INTERNAL_ERROR_CHECK(view().size() > 0);
+            return view().data()[0];
         }
 
         char_type
         last() const
         {
-            M_INTERNAL_ERROR_CHECK(m_view.size() > 0);
-            return m_view.data()[m_view.size() - 1];
+            M_INTERNAL_ERROR_CHECK(view().size() > 0);
+            return view().data()[view().size() - 1];
         }
 
         template <typename StringishT>
@@ -556,48 +549,161 @@ namespace m
 
     private:
         void
-        copy_c_str_state_from_other(basic_sstring const& other)
+        self_validate() const
         {
-            if (auto const other_ptr = other.m_c_str.load(std::memory_order_acquire);
-                other_ptr != nullptr)
+#if M_DEBUG
+            if (m_arefc)
             {
-                m_c_str_v = other.m_c_str_v;
-                m_c_str.store(other_ptr, std::memory_order_release);
+                auto const v = m_arefc->view();
+
+                // The size of the substring can't be larger than the whole
+                M_INTERNAL_ERROR_CHECK(m_offset_and_size.m_size <= v.size());
+
+                // The offset can't be beyond the whole size of the string
+                M_INTERNAL_ERROR_CHECK(m_offset_and_size.m_offset <= v.size());
+
+                // And the offset can't be beyond the size of the whole string
+                // minus the size of the substring.
+                M_INTERNAL_ERROR_CHECK(m_offset_and_size.m_offset <=
+                                       v.size() - m_offset_and_size.m_size);
+
+                if (v.size() - m_offset_and_size.m_size == m_offset_and_size.m_offset)
+                {
+                    // If the end of the substring lines up with the end of
+                    // the whole string, if there is a m_c_str value, it
+                    // has to be from the view.
+                    auto cstr = m_c_str.load(std::memory_order_acquire);
+
+                    if (cstr != nullptr)
+                        M_INTERNAL_ERROR_CHECK(cstr == v.data() + m_offset_and_size.m_offset);
+                }
             }
+            else
+            {
+                M_INTERNAL_ERROR_CHECK(m_offset_and_size.m_size == 0);
+                M_INTERNAL_ERROR_CHECK(m_offset_and_size.m_offset == 0);
+
+                auto cstr = m_c_str.load(std::memory_order_acquire);
+
+                if (cstr != nullptr)
+                    M_INTERNAL_ERROR_CHECK(cstr[0] == 0);
+            }
+#endif
         }
 
-        std::pair<arefc_ptr<basic_const_string<char_type>>, char_type const*>
-        make_c_str() const
+        char_type const*
+        make_c_str(char_type const* ptr, std::size_t size) const
         {
-            auto const v_view = m_arefc->view();
+            auto cstr = m_c_str.load(std::memory_order_acquire);
+            if (cstr != nullptr)
+                return cstr;
 
-            // If the end of `this`'s view coincides with the end of m_v's
-            // view, then we don't need to allocate a new basic_const_string<>.
+            auto up = std::make_unique<char_type[]>(size + 1);
+
+            if (size != 0)
+                std::copy_n(ptr, size, up.get());
+
+            up.get()[size] = 0;
+
+            //
+            // Now in this case the value we are storing in m_c_str is "racy" in that
+            // multiple threads could have computed different copies simultaneously
+            // so we need to use compare_exchange_strong() to put the value into
+            // place.
             //
 
-            if (v_view.data() + v_view.size() == m_view.data() + m_view.size())
-            {
-                return std::make_pair(m_arefc, m_view.data());
-            }
+            char_type const* expected = nullptr;
+            char_type const* desired  = up.get();
 
-            // We must allocate a new basic_const_string<>
+            //
+            // Normally compare_exchange_*() is called in a loop because of spurious
+            // failures so we do so here. In practice this should "almost never happen"
+            // and the first try will either "succeed" in that we "won" the race to be
+            // first to exchange into place or we "lost" to another thread and we will
+            // deallocate our copy of the string.
             //
 
-            auto new_string = make_basic_const_string<char_type>(m_view);
-            return std::make_pair(new_string, new_string->view().data());
+            for (;;)
+            {
+                if (m_c_str.compare_exchange_strong(expected, desired, std::memory_order_acq_rel))
+                {
+                    // We "won", so the std::unique_ptr<> needs to relinquish its control
+                    // and we can proceed.
+                    up.release();
+                    expected = desired;
+                    break;
+                }
+
+                // `expected` will be updated with the new value stored in m_c_str.
+                // If it's not nullptr, then we're good.
+                if (expected != nullptr)
+                    break;
+
+                // Otherwise, something unusual happened (we did not succeed in the
+                // compare exchange but no other thread did either - this should
+                // only happen usually with compare_exchange_weak but technically
+                // it's possible - the "spurious failures") so just go around the
+                // loop again.
+            }
+
+            return expected;
         }
 
-        basic_sstring(arefc_ptr<basic_const_string<char_type>> const& arefc, view_type view):
-            m_arefc(arefc), m_view(view)
+        void
+        unmake_c_str()
         {
-            // Populate c_str() if possible
-            // c_str();
+            //
+            // Note! This function uses the proper atomic operations on
+            // m_c_str, but it is the caller's responsibility to ensure
+            // that there is no concurrent execution.
+            //
+            // Specifically there are two cases where this is known to be
+            // used: destruction and assignment. Only one thread of execution
+            // may be performing either of these at a time.
+            //
+            // The .m_c_str() handles multithreaded construction of its
+            // cached value as a "convenience". The overal basic_sstring<>
+            // object itself is not atomic or thread safe or any of those kinds
+            // of things.
+            //
+            auto const cstr = m_c_str.load(std::memory_order_acquire);
+            if (cstr == nullptr)
+                return;
+
+            if (m_arefc)
+            {
+                if (cstr == m_arefc->view().data() + m_offset_and_size.m_offset)
+                {
+                    //
+                    // This is the case that we *don't* have to do
+                    // anything, so just exit early.
+                    //
+                    return;
+                }
+            }
+
+            deallocate_c_str(cstr);
+            m_c_str.store(nullptr, std::memory_order_release);
         }
 
-        arefc_ptr<basic_const_string<char_type>>         m_arefc;
-        std::basic_string_view<char_type>                m_view;
-        mutable arefc_ptr<basic_const_string<char_type>> m_c_str_v;
-        mutable std::atomic<char_type const*>            m_c_str;
+        static void
+        deallocate_c_str(char_type const* ptr)
+        {
+            char_type*                   mptr = const_cast<char_type*>(ptr);
+            std::unique_ptr<char_type[]> up;
+            up.reset(mptr);
+        }
+
+        basic_sstring(arefc_ptr<basic_const_string<char_type>> const& arefc,
+                      offset_and_size                                 o_and_s):
+            m_arefc(arefc), m_offset_and_size(o_and_s)
+        {
+            self_validate();
+        }
+
+        arefc_ptr<basic_const_string<char_type>> m_arefc;
+        offset_and_size                          m_offset_and_size{.m_offset = 0, .m_size = 0};
+        mutable std::atomic<char_type const*>    m_c_str{nullptr};
     };
 
     using sstring    = basic_sstring<char>;

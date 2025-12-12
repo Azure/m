@@ -319,7 +319,7 @@ namespace m
             {
                 // We were not the thread that made the exchange.
                 // Wait for the other thread to put the pointer in place.
-                m_c_str.wait(nullptr, std::memory_order_release);
+                m_c_str.wait(nullptr, std::memory_order_acquire);
             }
 
             local_c_str_ptr = m_c_str.load(std::memory_order_acquire);

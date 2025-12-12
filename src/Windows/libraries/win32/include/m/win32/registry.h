@@ -34,6 +34,12 @@ namespace m::win32::registry
     std::optional<predefined_key>
     try_map_string_to_predefined_key(m::wsstring str);
 
+    std::optional<predefined_key>
+    try_map_hkey_to_predefined_key(HKEY hkey) noexcept;
+
+    bool
+    is_predefined_hkey(HKEY hkey) noexcept;
+
     // In a constant evaluated context, reinterpret_cast<> is not permitted so
     // use this instead.
     //
@@ -73,6 +79,8 @@ namespace m::win32::registry
     public:
         constexpr hkey() noexcept: m_hkey{} {}
 
+        explicit constexpr hkey(HKEY hkey) noexcept: m_hkey(hkey) {}
+
         constexpr hkey(hkey&& other) noexcept: m_hkey{}
         {
             using std::swap;
@@ -83,7 +91,7 @@ namespace m::win32::registry
 
         ~hkey() { reset(); }
 
-        hkey&
+        constexpr hkey&
         operator=(hkey&& other) noexcept
         {
             using std::swap;
@@ -94,8 +102,8 @@ namespace m::win32::registry
         hkey&
         operator=(hkey const&) = delete;
 
-        void
-        swap(hkey& other)
+        constexpr void
+        swap(hkey& other) noexcept
         {
             using std::swap;
             swap(m_hkey, other.m_hkey);
@@ -109,27 +117,39 @@ namespace m::win32::registry
         }
 
         HKEY*
-        addressof()
+        addressof() noexcept
+        {
+            return &m_hkey;
+        }
+
+        HKEY const*
+        addressof() const noexcept
         {
             return &m_hkey;
         }
 
         constexpr HKEY
-        get() const
+        get() const noexcept
         {
             return m_hkey;
         }
 
         constexpr
-        operator HKEY() const
+        operator HKEY() const noexcept
         {
             return m_hkey;
         }
 
         constexpr bool
-        is_valid() const
+        is_valid() const noexcept
         {
             return closable_hkey(m_hkey);
+        }
+
+        constexpr
+        operator bool() const noexcept
+        {
+            return is_valid();
         }
 
         void
@@ -208,12 +228,18 @@ namespace m::win32::registry
 
     private:
         static constexpr bool
-        closable_hkey(HKEY h)
+        closable_hkey(HKEY h) noexcept
         {
-            return h != HKEY{} && h != HKEY_CLASSES_ROOT && h != HKEY_CURRENT_CONFIG &&
-                   h != HKEY_CURRENT_USER && h != HKEY_CURRENT_USER_LOCAL_SETTINGS &&
-                   h != HKEY_LOCAL_MACHINE && h != HKEY_PERFORMANCE_DATA &&
-                   h != HKEY_PERFORMANCE_NLSTEXT && h != HKEY_PERFORMANCE_TEXT && h != HKEY_USERS;
+            return h != HKEY{} && h != INVALID_HANDLE_VALUE && !predefined_hkey(h);
+        }
+
+        static constexpr bool
+        predefined_hkey(HKEY h) noexcept
+        {
+            return h == HKEY_CLASSES_ROOT || h == HKEY_CURRENT_CONFIG || h == HKEY_CURRENT_USER ||
+                   h == HKEY_CURRENT_USER_LOCAL_SETTINGS || h == HKEY_LOCAL_MACHINE ||
+                   h == HKEY_PERFORMANCE_DATA || h == HKEY_PERFORMANCE_NLSTEXT ||
+                   h == HKEY_PERFORMANCE_TEXT || h == HKEY_USERS;
         }
 
         static void

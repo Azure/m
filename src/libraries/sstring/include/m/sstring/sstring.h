@@ -317,9 +317,29 @@ namespace m
             }
             else
             {
+                //
+                // MSVC std::atomic<>::wait() appears to not quite meet the
+                // contract specified in the standard. If the value is already
+                // not nullptr, the wait does not immediately exit.
+                // 
+                // This is terrible, but here we are.
+                // 
+
+                for (;;)
+                {
+                    using namespace std::chrono_literals;
+
+                    if (m_c_str.load(std::memory_order_acquire) != nullptr)
+                        break;
+
+                    std::this_thread::sleep_for(50ms);
+                }
+
+                // 
+                // 
                 // We were not the thread that made the exchange.
                 // Wait for the other thread to put the pointer in place.
-                m_c_str.wait(nullptr, std::memory_order_acquire);
+                // m_c_str.wait(nullptr, std::memory_order_acquire);
             }
 
             local_c_str_ptr = m_c_str.load(std::memory_order_acquire);

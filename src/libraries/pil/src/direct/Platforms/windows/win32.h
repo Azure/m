@@ -331,8 +331,8 @@ namespace m::pil::impl::win32
         tp_wait                                         m_tp_wait;
 
         m::not_null<iregistry_monitor_change_notification*> m_change_notification_ptr;
-        std::shared_ptr<timer>                              m_timer;
-        std::shared_ptr<timer>                              m_notification_timer;
+        std::unique_ptr<timer>                              m_timer;
+        std::unique_ptr<timer>                              m_notification_timer;
         utc_time_point                                      m_notification_time;
     };
 

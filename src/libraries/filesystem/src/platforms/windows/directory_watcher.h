@@ -325,6 +325,6 @@ namespace m::filesystem_impl::platform_specific
         READ_DIRECTORY_NOTIFY_INFORMATION_CLASS m_information_class;
         bool                                    m_is_valid;
         file_notify_buffer                      m_buffer;
-        std::shared_ptr<m::timer>               m_directory_probe_timer;
+        std::unique_ptr<m::timer>               m_directory_probe_timer;
     };
 } // namespace m::filesystem_impl::platform_specific

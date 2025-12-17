@@ -23,24 +23,24 @@ namespace m::threadpool_impl
         swap(threadpool& other) noexcept;
 
     protected:
-        std::shared_ptr<m::timer>
+        std::unique_ptr<m::timer>
         do_create_timer(std::packaged_task<timer_normal_callable>&& task) override;
 
-        std::shared_ptr<m::timer>
+        std::unique_ptr<m::timer>
         do_create_timer(std::packaged_task<timer_normal_callable>&& task,
                         std::wstring                                description) override;
 
-        std::shared_ptr<m::timer>
+        std::unique_ptr<m::timer>
         do_create_cancellable_timer(std::packaged_task<timer_cancellable_callable>&& task) override;
 
-        std::shared_ptr<m::timer>
+        std::unique_ptr<m::timer>
         do_create_cancellable_timer(std::packaged_task<timer_cancellable_callable>&& task,
                                     std::wstring description) override;
 
-        std::shared_ptr<m::periodic_timer>
+        std::unique_ptr<m::periodic_timer>
         do_create_periodic_timer(std::packaged_task<timer_normal_callable>&& task) override;
 
-        std::shared_ptr<m::periodic_timer>
+        std::unique_ptr<m::periodic_timer>
         do_create_periodic_timer(std::packaged_task<timer_normal_callable>&& task,
                                  std::wstring                                description) override;
 

@@ -52,8 +52,7 @@ namespace m
             do_set(std::chrono::duration_cast<duration>(dur));
         }
 
-    protected:
-        virtual ~timer() {}
+        virtual ~timer() = default;
 
     private:
         virtual bool

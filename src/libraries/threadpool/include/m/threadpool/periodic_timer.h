@@ -41,7 +41,6 @@ namespace m
             do_stop();
         }
 
-    protected:
         virtual ~periodic_timer() = default;
 
     private:

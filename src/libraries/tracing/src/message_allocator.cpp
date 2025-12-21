@@ -8,6 +8,13 @@
 #include <m/tracing/message_processor.h>
 #include <m/tracing/message_source.h>
 
+#include "tracing_internal.h"
+
+namespace
+{
+    using m::tracing_impl::tr_frame;
+}
+
 namespace m::tracing
 {
     message_allocator::message_allocator(m::not_null<message_source*> source, event_kind kind):
@@ -25,7 +32,9 @@ namespace m::tracing
     void
     message_allocator::release()
     {
-        m_envelope.message(nullptr);
+        tr_frame frame(__FUNCTION__, this);
+        m_envelope.return_to_sender();
+        frame.succeeded();
     }
 
     envelope&

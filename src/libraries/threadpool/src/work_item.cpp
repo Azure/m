@@ -7,9 +7,10 @@
 #include <m/error_handling/macros.h>
 #include <m/threadpool/threadpool.h>
 #include <m/threadpool/work_item_state.h>
+#include <m/threadpool/work_queue.h>
 #include <m/threadpool/work_queue_execution_policy.h>
 
-#include "work_queue_impl.h"
+#include "work_queue_base.h"
 
 namespace m::work_queue_impl
 {

@@ -14,7 +14,7 @@
 using namespace std::string_view_literals;
 
 std::array const byte_array_abc{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
-auto const              byte_span_abc = std::span(byte_array_abc);
+auto const       byte_span_abc = std::span(byte_array_abc);
 
 TEST(MemoryUniqueSpan, ByteSpan1)
 {
@@ -30,6 +30,239 @@ TEST(MemoryUniqueSpan, ByteSpan2)
 
     EXPECT_EQ(us.size(), byte_array_abc.size());
     EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, VerifyOperators)
+{
+    auto const us = m::unique_span(byte_array_abc);
+
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+
+    EXPECT_EQ(us[0], std::byte{'a'});
+    EXPECT_EQ(us[1], std::byte{'b'});
+    EXPECT_EQ(us[2], std::byte{'c'});
+
+    auto t = us.span();
+    EXPECT_EQ(t.size(), us.size());
+    EXPECT_EQ(reinterpret_cast<void*>(const_cast<std::byte*>(t.data())),
+              reinterpret_cast<void*>(const_cast<std::byte*>(us.data())));
+}
+
+TEST(MemoryUniqueSpan, VerifySpanCast)
+{
+    auto const us = m::unique_span(byte_array_abc);
+
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+
+    auto t = us.span();
+    EXPECT_EQ(t.size(), us.size());
+    EXPECT_EQ(reinterpret_cast<void*>(const_cast<std::byte*>(t.data())),
+              reinterpret_cast<void*>(const_cast<std::byte*>(us.data())));
+
+    auto u = static_cast<std::span<std::byte const>>(us);
+
+    //
+    // The explicit call to span() and the cast to the same type
+    // should produce the same results.
+    //
+    EXPECT_EQ(u.data(), t.data());
+    EXPECT_EQ(u.size(), t.size());
+}
+
+//
+// Ensure that the various operators are set up correctly
+// so that the usual return value optimizations etc. work
+// as expected.
+//
+
+namespace
+{
+    m::unique_span<std::byte const>
+    naive_byte_span_maker_1()
+    {
+        return m::unique_span(byte_array_abc);
+    }
+
+    decltype(auto)
+    naive_byte_span_maker_2()
+    {
+        return m::unique_span(byte_array_abc);
+    }
+
+    m::unique_span<std::byte const>
+    naive_byte_span_passer_1a()
+    {
+        return naive_byte_span_maker_1();
+    }
+
+    m::unique_span<std::byte const>
+    naive_byte_span_passer_1b()
+    {
+        return naive_byte_span_maker_2();
+    }
+
+    decltype(auto)
+    naive_byte_span_passer_2a()
+    {
+        return naive_byte_span_maker_1();
+    }
+
+    decltype(auto)
+    naive_byte_span_passer_2b()
+    {
+        return naive_byte_span_maker_2();
+    }
+} // namespace
+
+TEST(MemoryUniqueSpan, TestNaiveMaker1)
+{
+    auto const us = naive_byte_span_maker_1();
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaiveMaker2)
+{
+    auto const us = naive_byte_span_maker_2();
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaivePasser1a)
+{
+    auto const us = naive_byte_span_passer_1a();
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaivePasser1b)
+{
+    auto const us = naive_byte_span_passer_1b();
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaivePasser2a)
+{
+    auto const us = naive_byte_span_passer_2a();
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaivePasser2b)
+{
+    auto const us = naive_byte_span_passer_2b();
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaiveMaker1_alt)
+{
+    auto const us{naive_byte_span_maker_1()};
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaiveMaker2_alt)
+{
+    auto const us{naive_byte_span_maker_2()};
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaivePasser1a_alt)
+{
+    auto const us{naive_byte_span_passer_1a()};
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaivePasser1b_alt)
+{
+    auto const us{naive_byte_span_passer_1b()};
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaivePasser2a_alt)
+{
+    auto const us{naive_byte_span_passer_2a()};
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, TestNaivePasser2b_alt)
+{
+    auto const us{naive_byte_span_passer_2b()};
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+}
+
+TEST(MemoryUniqueSpan, VerifyAt)
+{
+    auto const us = m::unique_span(byte_array_abc);
+
+    EXPECT_EQ(us.size(), byte_array_abc.size());
+    EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
+
+    EXPECT_EQ(us.at(0), std::byte{'a'});
+    EXPECT_EQ(us.at(1), std::byte{'b'});
+    EXPECT_EQ(us.at(2), std::byte{'c'});
+
+    EXPECT_THROW(us.at(3), std::out_of_range);
+}
+
+TEST(MemoryUniqueSpan, VerifySwap1)
+{
+    auto us1 = m::unique_span(byte_span_abc);
+    auto us2 = m::unique_span(byte_array_abc);
+
+    EXPECT_EQ(us1.size(), us2.size());
+
+    auto const p1 = us1.data();
+    auto const p2 = us2.data();
+
+    EXPECT_EQ(us1.data(), p1);
+    EXPECT_EQ(us2.data(), p2);
+
+    using std::swap;
+
+    swap(us1, us2);
+
+    EXPECT_EQ(us1.size(), us2.size());
+
+    EXPECT_EQ(us1.data(), p2);
+    EXPECT_EQ(us2.data(), p1);
+}
+
+std::array const byte_array_abcd{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}, std::byte{'d'}};
+auto const       byte_span_abcd = std::span(byte_array_abcd);
+
+TEST(MemoryUniqueSpan, VerifySwap2)
+{
+    auto us1 = m::unique_span(byte_span_abc);
+    auto us2 = m::unique_span(byte_span_abcd);
+
+    EXPECT_EQ(us1.size(), byte_span_abc.size());
+    EXPECT_EQ(us2.size(), byte_span_abcd.size());
+
+    auto const p1 = us1.data();
+    auto const p2 = us2.data();
+
+    EXPECT_EQ(us1.data(), p1);
+    EXPECT_EQ(us2.data(), p2);
+
+    using std::swap;
+
+    swap(us1, us2);
+
+    EXPECT_EQ(us1.size(), byte_span_abcd.size());
+    EXPECT_EQ(us2.size(), byte_span_abc.size());
+
+    EXPECT_EQ(us1.data(), p2);
+    EXPECT_EQ(us2.data(), p1);
 }
 
 namespace
@@ -182,12 +415,12 @@ TEST(MemoryUniqueSpan, CountOps1)
     diff1 = stats2 - stats1;
 
     m::println("diff1: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
-                 diff1.m_dccnt_delta,
-                 diff1.m_cccnt_delta,
-                 diff1.m_mvccnt_delta,
-                 diff1.m_aocnt_delta,
-                 diff1.m_mvocnt_delta,
-                 diff1.m_dcnt_delta);
+               diff1.m_dccnt_delta,
+               diff1.m_cccnt_delta,
+               diff1.m_mvccnt_delta,
+               diff1.m_aocnt_delta,
+               diff1.m_mvocnt_delta,
+               diff1.m_dcnt_delta);
 
     EXPECT_EQ(diff1.m_dccnt_delta, 3);
     EXPECT_EQ(diff1.m_cccnt_delta, 0);
@@ -199,12 +432,12 @@ TEST(MemoryUniqueSpan, CountOps1)
     diff2 = stats3 - stats2;
 
     m::println("diff2: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
-                 diff2.m_dccnt_delta,
-                 diff2.m_cccnt_delta,
-                 diff2.m_mvccnt_delta,
-                 diff2.m_aocnt_delta,
-                 diff2.m_mvocnt_delta,
-                 diff2.m_dcnt_delta);
+               diff2.m_dccnt_delta,
+               diff2.m_cccnt_delta,
+               diff2.m_mvccnt_delta,
+               diff2.m_aocnt_delta,
+               diff2.m_mvocnt_delta,
+               diff2.m_dcnt_delta);
 
     EXPECT_EQ(diff2.m_dccnt_delta, 0);
     EXPECT_EQ(diff2.m_cccnt_delta, 3);
@@ -216,12 +449,12 @@ TEST(MemoryUniqueSpan, CountOps1)
     diff3 = stats4 - stats3;
 
     m::println("diff3: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
-                 diff3.m_dccnt_delta,
-                 diff3.m_cccnt_delta,
-                 diff3.m_mvccnt_delta,
-                 diff3.m_aocnt_delta,
-                 diff3.m_mvocnt_delta,
-                 diff3.m_dcnt_delta);
+               diff3.m_dccnt_delta,
+               diff3.m_cccnt_delta,
+               diff3.m_mvccnt_delta,
+               diff3.m_aocnt_delta,
+               diff3.m_mvocnt_delta,
+               diff3.m_dcnt_delta);
 
     EXPECT_EQ(diff3.m_dccnt_delta, 0);
     EXPECT_EQ(diff3.m_cccnt_delta, 0);
@@ -236,12 +469,12 @@ TEST(MemoryUniqueSpan, CountOps1)
     diff4 = stats5 - stats4;
 
     m::println("diff4: dccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
-                 diff4.m_dccnt_delta,
-                 diff4.m_cccnt_delta,
-                 diff4.m_mvccnt_delta,
-                 diff4.m_aocnt_delta,
-                 diff4.m_mvocnt_delta,
-                 diff4.m_dcnt_delta);
+               diff4.m_dccnt_delta,
+               diff4.m_cccnt_delta,
+               diff4.m_mvccnt_delta,
+               diff4.m_aocnt_delta,
+               diff4.m_mvocnt_delta,
+               diff4.m_dcnt_delta);
 
     EXPECT_EQ(diff4.m_dccnt_delta, 0);
     EXPECT_EQ(diff4.m_cccnt_delta, 0);

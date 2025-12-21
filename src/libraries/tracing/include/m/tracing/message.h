@@ -23,6 +23,7 @@
 #include <m/cast/to.h>
 #include <m/string_buffer/string_buffer.h>
 #include <m/strings/literal_string_view.h>
+#include <m/tracing/debugging.h>
 #include <m/tracing/event_context.h>
 #include <m/tracing/event_kind.h>
 #include <m/tracing/safe_array_iterator.h>
@@ -39,7 +40,8 @@ namespace m
         class message : public imessage
         {
         public:
-            message(std::shared_ptr<wpooled_string_buffer::pool_type> const& pool): m_buffer(pool)
+            message(std::shared_ptr<wpooled_string_buffer::pool_type> const& pool):
+                m_event_kind{}, m_unique_id{get_next_gdsn()}, m_buffer(pool)
             {}
             ~message()              = default;
             message(message const&) = delete;
@@ -69,6 +71,9 @@ namespace m
             void
             copy_into(m::not_null<imessage*> msg) override;
 
+            gdsn
+            unique_id() override;
+
             template <typename FormatStringT, typename FormatArgsT>
             void
             vformat(FormatStringT&& fmt, FormatArgsT&& format_args)
@@ -80,6 +85,7 @@ namespace m
 
             // private:
             event_kind                m_event_kind;
+            gdsn                      m_unique_id;
             m::wpooled_string_buffer  m_buffer;
             m::tracing::event_context m_event_context;
         };

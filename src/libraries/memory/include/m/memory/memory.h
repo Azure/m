@@ -234,16 +234,16 @@ namespace m
     class unique_span
     {
     public:
-        using element_type     = T;
-        using value_type       = std::decay_t<T>;
-        using const_value_type = std::add_const_t<value_type>;
-        using size_type        = std::size_t;
-        using difference_type  = std::ptrdiff_t;
-        using pointer          = T*;
-        using const_pointer    = T const*;
-        using reference        = T&;
-        using const_reference  = T const&;
         using span_type        = std::span<T, std::dynamic_extent>;
+        using element_type     = typename span_type::element_type;
+        using value_type       = typename span_type::value_type;
+        using const_value_type = std::add_const_t<value_type>;
+        using size_type        = typename span_type::size_type;
+        using difference_type  = typename span_type::difference_type;
+        using pointer          = typename span_type::pointer;
+        using const_pointer    = typename span_type::const_pointer;
+        using reference        = typename span_type::reference;
+        using const_reference  = typename span_type::const_reference;
         using iterator         = typename span_type::iterator;
         using reverse_iterator = typename span_type::reverse_iterator;
 
@@ -257,11 +257,15 @@ namespace m
         constexpr unique_span(unique_span&& other): m_span()
         {
             using std::swap;
-
             swap(m_span, other.m_span);
         }
 
-        unique_span(std::size_t n): m_span()
+        //
+        // One could imagine copy operations but not at this time.
+        //
+        unique_span(unique_span const&) = delete;
+
+        unique_span(size_type n): m_span()
         {
             m::raw_array_allocator<value_type> ra(n);
             ra.default_construct();
@@ -269,11 +273,11 @@ namespace m
         }
 
         template <typename Fn>
-        unique_span(std::size_t n, Fn&& fn): m_span()
+        unique_span(size_type n, Fn&& fn): m_span()
         {
             m::raw_array_allocator<value_type> ra(n);
 
-            for (std::size_t i = 0; i < n; i++)
+            for (size_type i = 0; i < n; i++)
                 std::invoke(fn, i, ra[i]);
 
             m_span = ra.release();
@@ -328,13 +332,34 @@ namespace m
         template <typename RangeT>
         unique_span(RangeT&& r)
         {
-            auto size = static_cast<std::size_t>(std::ranges::size(r));
+            auto size = static_cast<size_type>(std::ranges::size(r));
             m::raw_array_allocator<value_type> ra(size);
             std::ranges::uninitialized_copy(r, ra);
             m_span = ra.release();
         }
 
         ~unique_span() { reset(); }
+
+        void
+        swap(unique_span&& other) noexcept
+        {
+            using std::swap;
+            swap(m_span, other.m_span);
+        }
+
+        unique_span&
+        operator=(unique_span&& other) noexcept
+        {
+            using std::swap;
+            swap(m_span, other.m_span);
+            return *this;
+        }
+
+        //
+        // One could imagine copy operations but not at this time.
+        //
+        unique_span&
+        operator=(unique_span const& other) = delete;
 
         void
         reset()
@@ -376,13 +401,28 @@ namespace m
                 const_cast<const_value_type*>(m_span.data()), m_span.size());
         }
 
-        constexpr T*
+        constexpr reference
+        operator[](size_type i) const noexcept
+        {
+            return m_span.data()[i];
+        }
+
+        constexpr reference
+        at(size_type i) const
+        {
+            if (i >= m_span.size())
+                throw std::out_of_range("i");
+
+            return m_span.data()[i];
+        }
+
+        constexpr pointer
         data() const noexcept
         {
             return m_span.data();
         }
 
-        constexpr std::size_t
+        constexpr size_type
         size() const noexcept
         {
             return m_span.size();
@@ -413,7 +453,7 @@ namespace m
         }
 
     private:
-        std::span<value_type> m_span;
+        std::span<value_type> m_span{};
     };
 
     template <typename T>

@@ -54,17 +54,17 @@ namespace m
             tracing::imessage*
             message() const;
 
-            tracing::imessage*
-            message(tracing::imessage* msg);
+            void
+            return_to_sender();
 
-            m::not_null<tracing::message_source*>
+            tracing::message_source*
             message_source() const;
 
             ~envelope();
 
         private:
-            m::not_null<tracing::message_source*> m_message_source;
-            tracing::imessage*                    m_imessage{};
+            tracing::message_source* m_message_source{};
+            tracing::imessage*       m_imessage{};
         };
     } // namespace tracing
 } // namespace m

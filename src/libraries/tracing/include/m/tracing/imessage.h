@@ -22,6 +22,7 @@
 
 #include <m/cast/to.h>
 #include <m/strings/literal_string_view.h>
+#include <m/tracing/debugging.h>
 #include <m/tracing/event_context.h>
 #include <m/tracing/event_kind.h>
 #include <m/tracing/safe_array_iterator.h>
@@ -71,6 +72,9 @@ namespace m
 
             virtual void
             copy_into(m::not_null<imessage*> msg) = 0;
+
+            virtual tracing::gdsn
+            unique_id() = 0;
         };
 
     } // namespace tracing

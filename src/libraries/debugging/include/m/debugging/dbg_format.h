@@ -4,8 +4,8 @@
 #pragma once
 
 #include <algorithm>
-#include <atomic>
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <format>
 #include <ios>
@@ -265,12 +265,12 @@ namespace m
     {
         if constexpr (std::is_same_v<CharT, char>)
         {
-            auto formatArgs = std::make_format_args(args...);
+            auto format_args = std::make_format_args(args...);
 
             dbg_format_details::output_debug_string_buffer<char, 512> buffer;
             auto                                                      iter = buffer.begin();
 
-            iter    = std::vformat_to(iter, fmt.get(), formatArgs);
+            iter    = std::vformat_to(iter, fmt.get(), format_args);
             *iter++ = 0;
 
             dbg_format_details::write_to_debugger(buffer.data());
@@ -281,12 +281,12 @@ namespace m
         }
         else
         {
-            auto formatArgs = std::make_wformat_args(args...);
+            auto format_args = std::make_wformat_args(args...);
 
             dbg_format_details::output_debug_string_buffer<wchar_t, 512> buffer;
             auto                                                         iter = buffer.begin();
 
-            iter    = std::vformat_to(iter, fmt.get(), formatArgs);
+            iter    = std::vformat_to(iter, fmt.get(), format_args);
             *iter++ = L'\0';
 
             dbg_format_details::write_to_debugger(buffer.data());
@@ -296,4 +296,117 @@ namespace m
                 std::wcout << buffer.data() << L'\n';
         }
     }
+
+    //
+    // New names that do/don't imply newline usage.
+    //
+
+    inline void
+    dbg_print_v(std::string_view fmt, const std::format_args args)
+    {
+        dbg_format_details::output_debug_string_buffer<char, 512> buffer;
+        auto                                                      iter = buffer.begin();
+
+        iter    = std::vformat_to(iter, fmt, args);
+        *iter++ = 0;
+
+        dbg_format_details::write_to_debugger(buffer.data());
+
+        if (dbg_format_details::try_allocate_std_out_message())
+            std::cout << buffer.data();
+    }
+
+    template <typename... Types>
+    void
+    dbg_print(std::basic_format_string<char, Types...> fmt, Types const&... args)
+    {
+        auto format_args = std::make_format_args(args...);
+
+        dbg_format_details::output_debug_string_buffer<char, 512> buffer;
+        auto                                                      iter = buffer.begin();
+
+        iter    = std::vformat_to(iter, fmt.get(), format_args);
+        *iter++ = 0;
+
+        dbg_format_details::write_to_debugger(buffer.data());
+
+        if (dbg_format_details::try_allocate_std_out_message())
+            std::cout << buffer.data();
+    }
+
+    template <typename... Types>
+    inline void
+    dbg_wprint_v(std::wstring_view fmt, std::wformat_args args)
+    {
+        dbg_format_details::output_debug_string_buffer<wchar_t, 512> buffer;
+        auto                                                         iter = buffer.begin();
+
+        iter    = std::vformat_to(iter, fmt, args);
+        *iter++ = 0;
+
+        dbg_format_details::write_to_debugger(buffer.data());
+
+        if (dbg_format_details::try_allocate_std_out_message())
+            std::wcout << buffer.data();
+    }
+
+    template <typename... Types>
+    inline void
+    dbg_wprint(std::wformat_string<Types...> fmt, Types const&... args)
+    {
+        auto format_args = std::make_wformat_args(args...);
+        dbg_wprint_v(fmt.get(), format_args);
+    }
+
+    template <typename... Types>
+    inline void
+    dbg_wprintln_v(std::wformat_string<Types...> fmt, Types&&... args)
+    {
+        dbg_format_details::output_debug_string_buffer<wchar_t, 512> buffer;
+        auto                                                         iter = buffer.begin();
+        auto format_args = std::make_wformat_args(args...);
+
+        iter    = std::vformat_to(iter, fmt.get(), format_args);
+        *iter++ = '\n';
+        *iter++ = 0;
+
+        dbg_format_details::write_to_debugger(buffer.data());
+
+        if (dbg_format_details::try_allocate_std_out_message())
+            std::wcout << buffer.data();
+    }
+
+
+    template <typename... Types>
+    inline void
+    dbg_wprintln(std::basic_format_string<wchar_t, Types...> fmt, Types const&... args)
+    {
+        auto format_args = std::make_wformat_args(args...);
+        dbg_wprintln_v(fmt.get(), format_args);
+    }
+
+    inline void
+    dbg_println_v(std::string_view fmt, const std::format_args args)
+    {
+        dbg_format_details::output_debug_string_buffer<char, 512> buffer;
+        auto                                                      iter = buffer.begin();
+
+        iter    = std::vformat_to(iter, fmt, args);
+        *iter++ = '\n';
+        *iter++ = 0;
+
+        dbg_format_details::write_to_debugger(buffer.data());
+
+        if (dbg_format_details::try_allocate_std_out_message())
+            std::cout << buffer.data();
+    }
+
+    template <typename... Types>
+    void
+    dbg_println(std::basic_format_string<char, Types...> fmt, Types const&... args)
+    {
+        auto format_args = std::make_format_args(args...);
+        dbg_println_v(fmt.get(), format_args);
+    }
+
 } // namespace m

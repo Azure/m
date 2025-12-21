@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_threadpool PRIVATE
-    linux_threadpool_timer_impl.cpp
-    linux_work_queue_impl.cpp
-    threadpool_impl.cpp
+    timer.cpp
+    work_queue.cpp
+    threadpool.cpp
 )
 
 target_link_libraries(m_threadpool PUBLIC

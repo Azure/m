@@ -14,53 +14,24 @@ namespace m
         struct monitor_class_var
         {
             m::not_null<monitor_class*>
-            operator->() const
+            inline operator->() const noexcept
             {
-                return ms_private_state.get();
+                return get();
             }
 
             m::not_null<monitor_class*>
-            get() const
+            inline get() const noexcept
             {
-                return ms_private_state.get();
+                return static_get();
             }
 
-            operator m::not_null<monitor_class*>() const { return ms_private_state; }
+            inline operator m::not_null<monitor_class*>() const noexcept { return get(); }
 
-        private:
-            struct private_state
-            {
-                private_state(): m_monitor{make_monitor_class()} {}
-
-                m::not_null<monitor_class*>
-                operator->() const
-                {
-                    return m_monitor;
-                }
-
-                m::not_null<monitor_class*>
-                get() const
-                {
-                    return m_monitor;
-                }
-
-                operator m::not_null<monitor_class*>() const { return m_monitor; }
-
-                m::not_null<monitor_class*> m_monitor;
-            };
-
-            inline static private_state ms_private_state;
+            private:
+            static m::not_null<monitor_class*>
+            static_get() noexcept;
         };
 
-        inline monitor_class_var monitor;
-
-#if 0
-        inline m::atomic_pointer_with_initializer<monitor_class*,
-                                                  [] {
-                                                      return static_cast<monitor_class*>(
-                                                          make_monitor_class());
-                                                  }>
-            monitor;
-#endif
+        extern monitor_class_var monitor;
     } // namespace tracing
 } // namespace m

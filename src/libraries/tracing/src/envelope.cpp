@@ -46,13 +46,27 @@ namespace m::tracing
         return m_imessage;
     }
 
-    tracing::imessage*
-    envelope::message(tracing::imessage* msg)
+    // tracing::imessage*
+    // envelope::message(tracing::imessage* msg)
+    //{
+    //     return std::exchange(m_imessage, msg);
+    // }
+
+    void
+    envelope::return_to_sender()
     {
-        return std::exchange(m_imessage, msg);
+        if (m_imessage == nullptr)
+            return;
+
+        M_INTERNAL_ERROR_CHECK(m_message_source != nullptr);
+
+        m_message_source->deallocate_message(m_imessage);
+
+        m_imessage       = nullptr;
+        m_message_source = nullptr;
     }
 
-    m::not_null<tracing::message_source*>
+    tracing::message_source*
     envelope::message_source() const
     {
         return m_message_source;

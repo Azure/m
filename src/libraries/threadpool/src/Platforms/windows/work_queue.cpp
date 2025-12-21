@@ -11,13 +11,13 @@
 #include <m/threadpool/work_item_state.h>
 #include <m/threadpool/work_queue_execution_policy.h>
 
-#include "../../work_queue_impl.h"
-#include "windows_work_queue_impl.h"
+#include "../../work_queue_base.h"
+#include "work_queue.h"
 
-namespace m::windows_threadpool_impl
+namespace m::threadpool_impl
 {
     work_queue::work_queue(work_queue_execution_policy wqep, std::wstring description):
-        m::threadpool_impl::work_queue(wqep, description)
+        m::threadpool_impl::work_queue_base(wqep, description)
     {}
 
     void
@@ -83,4 +83,4 @@ namespace m::windows_threadpool_impl
         m_cv.notify_all();
     }
 
-} // namespace m::windows_threadpool_impl
+} // namespace m::threadpool_impl

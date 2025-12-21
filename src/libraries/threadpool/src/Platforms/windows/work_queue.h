@@ -12,10 +12,16 @@
 #include <m/threadpool/work_item_source.h>
 #include <m/threadpool/work_queue.h>
 #include <m/threadpool/work_queue_execution_policy.h>
+#include <m/win32/threadpool.h>
 
-#include "../../work_queue_impl.h"
+#undef NOMINMAX
+#define NOMINMAX
 
-namespace m::linux_threadpool_impl
+#include <Windows.h>
+
+#include "../../work_queue_base.h"
+
+namespace m::threadpool_impl
 {
     /// <summary>
     /// A `threadpool_impl::work_queue` is a proxy between a queue of work
@@ -43,8 +49,8 @@ namespace m::linux_threadpool_impl
     ///
     /// </summary>
     class work_queue :
-        public m::threadpool_impl::work_queue,
-        public std::enable_shared_from_this<m::linux_threadpool_impl::work_queue>
+        public m::threadpool_impl::work_queue_base,
+        public std::enable_shared_from_this<m::threadpool_impl::work_queue>
     {
     public:
         work_queue()                      = default;
@@ -67,5 +73,21 @@ namespace m::linux_threadpool_impl
 
         void
         on_new_work_item(std::shared_ptr<m::work_queue_impl::work_item> const& wi) override;
+
+        struct callback_context
+        {
+            std::weak_ptr<m::threadpool_impl::work_queue> m_work_queue;
+        };
+
+        static void
+        static_tp_work_callback(PTP_CALLBACK_INSTANCE instance,
+                                PVOID                 context,
+                                PTP_WORK              work) noexcept;
+
+        void
+        tp_work_callback() noexcept;
+
+        win32::threadpool::tp_work        m_tp_work;
+        std::unique_ptr<callback_context> m_callback_context;
     };
-} // namespace m::linux_threadpool_impl
+} // namespace m::threadpool_impl

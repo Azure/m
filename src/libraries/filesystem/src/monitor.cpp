@@ -8,6 +8,7 @@
 #include <type_traits>
 
 #include <m/utility/pointers.h>
+#include <m/tracing/tracing.h>
 
 #include "monitor.h"
 
@@ -45,7 +46,11 @@ namespace m::filesystem_impl
         std::initializer_list<watch_policy>&&            policies)
     {
         if (!path.is_absolute())
+        {
+            wtrace_error(
+                L"{}: path \"{}\" should have been absolute", m::to_wstring(__FUNCTION__), path);
             throw std::runtime_error("Path must be absolute");
+        }
 
         std::ignore = policies;
 
@@ -89,9 +94,7 @@ namespace m::filesystem_impl
 std::shared_ptr<m::filesystem::monitor>
 m::filesystem::get_monitor()
 {
-    std::shared_ptr<m::filesystem::monitor> return_value{};
-
-    return_value = m::filesystem_impl::monitor::ms_monitor.load(std::memory_order_acquire);
+    auto return_value = m::filesystem_impl::monitor::ms_monitor.load(std::memory_order_acquire);
     if (return_value)
         return return_value;
 
@@ -101,12 +104,15 @@ m::filesystem::get_monitor()
     {
         if (m::filesystem_impl::monitor::ms_monitor.compare_exchange_strong(
                 return_value, new_monitor, std::memory_order_acq_rel))
-        {
             break;
-        }
 
         if (return_value)
             break;
+
+        //
+        // It would be extremely unusual to reach this point, as in like essentially
+        // unheard of, but there's no reason not to just try again.
+        //
     }
 
     return m::filesystem_impl::monitor::ms_monitor.load(std::memory_order_acquire);

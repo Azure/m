@@ -127,6 +127,17 @@ namespace m
         }
     };
 
+    template <typename CharT, std::size_t N>
+        requires m::character<CharT>
+    struct view_of_helper<CharT[N]>
+    {
+        static std::basic_string_view<CharT>
+        get_view_of(CharT const* ptr)
+        {
+            return std::basic_string_view<CharT>(ptr, N);
+        }
+    };
+
     template <typename T>
     auto
     view_of(T&& v)

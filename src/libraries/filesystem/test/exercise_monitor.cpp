@@ -12,6 +12,7 @@
 #include <m/debugging/dbg_format.h>
 #include <m/filesystem/filesystem.h>
 #include <m/googletest/temporary_directory.h>
+#include <m/tracing/ostream_sink.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_view_literals;
@@ -233,7 +234,6 @@ TEST(Monitor, VerifyNoChange)
     // particular expectations on it. It probably *shouldn't* be firing during unit
     // testing but since we're not actually insulated against changes going on otherwise
     // on the system,
-
 }
 
 TEST(Monitor, MonitorNonExistentFile)
@@ -271,9 +271,31 @@ TEST(Monitor, MonitorNonExistentFile)
 
 #ifdef WIN32
 
-TEST(Monitor, MonitorNonExistentSubdirectory)
+TEST(Monitor, SetUpMonitorNonExistentSubdirectory1)
 {
     auto const td = m::googletest::create_temporary_directory();
+
+    auto const path1 = m::filesystem::make_path(td->path(), L"path1");
+    // Note that path2 is a subdirectory of path1, not a peer
+    auto const path2 = m::filesystem::make_path(path1, L"path2");
+}
+
+TEST(Monitor, SetUpMonitorNonExistentSubdirectory2)
+{
+    auto const td = m::googletest::create_temporary_directory();
+
+    auto const path1 = m::filesystem::make_path(td->path(), L"path1");
+    // Note that path2 is a subdirectory of path1, not a peer
+    auto const path2 = m::filesystem::make_path(path1, L"path2");
+
+    auto const monitor = m::filesystem::get_monitor();
+
+    change_notification_sink cns;
+}
+
+TEST(Monitor, MonitorNonExistentSubdirectory)
+{
+    auto const td       = m::googletest::create_temporary_directory();
 
     auto const path1 = m::filesystem::make_path(td->path(), L"path1");
     // Note that path2 is a subdirectory of path1, not a peer

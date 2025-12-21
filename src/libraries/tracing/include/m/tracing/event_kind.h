@@ -31,6 +31,12 @@ struct std::formatter<m::tracing::event_kind, CharT>
         auto       it  = ctx.begin();
         auto const end = ctx.end();
 
+        if (it != end && *it == 'b')
+        {
+            it++;
+            m_brief = true;
+        }
+
         if (it != end && *it != '}')
             throw std::format_error("Invalid format string");
 
@@ -43,20 +49,27 @@ struct std::formatter<m::tracing::event_kind, CharT>
     {
         auto out = ctx.out();
 
-        string_view kind_sv = "<unmapped>"sv;
+        string_view kind_sv = m_brief ? "?"sv : "<unmapped>"sv;
 
         switch (kind)
         {
-            case m::tracing::event_kind::critical: kind_sv = "critical"sv; break;
-            case m::tracing::event_kind::error: kind_sv = "error"sv; break;
-            case m::tracing::event_kind::information: kind_sv = "information"sv; break;
-            case m::tracing::event_kind::tracing: kind_sv = "tracing"sv; break;
-            case m::tracing::event_kind::verbose: kind_sv = "verbose"sv; break;
-            default: kind_sv = "<unmapped>"sv; break;
+            case m::tracing::event_kind::critical: kind_sv = m_brief ? "!!"sv : "critical"sv; break;
+            case m::tracing::event_kind::error: kind_sv = m_brief ? "!"sv : "error"sv; break;
+            case m::tracing::event_kind::information:
+                kind_sv = m_brief ? "-"sv : "information"sv;
+                break;
+            case m::tracing::event_kind::tracing: kind_sv = m_brief ? "tr"sv : "tracing"sv; break;
+            case m::tracing::event_kind::verbose: kind_sv = m_brief ? "v"sv : "verbose"sv; break;
+            default: kind_sv = m_brief ? "?"sv : "<unmapped>"sv; break;
         }
 
-        out = std::format_to(out, "{{ m::tracing::event_kind::{} }}", kind_sv);
+        if (m_brief)
+            out = std::format_to(out, "{}", kind_sv);
+        else
+            out = std::format_to(out, "{{ m::tracing::event_kind::{} }}", kind_sv);
 
         return out;
     }
+
+    bool m_brief{false};
 };

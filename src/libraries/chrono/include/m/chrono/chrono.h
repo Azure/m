@@ -19,5 +19,12 @@ namespace m
     /// </summary>
     using time_point = clock::time_point;
 
+    template <typename Clock, typename Duration>
+    m::time_point
+    time_point_cast(std::chrono::time_point<Clock, Duration> tp)
+    {
+        return std::chrono::time_point_cast<m::time_point>(tp);
+    }
+
     using utc_time_point = time_point;
 }

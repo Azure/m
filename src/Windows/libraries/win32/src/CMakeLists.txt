@@ -2,8 +2,10 @@ cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_win32 PRIVATE
     event.cpp
+    filetime_clock.cpp
     registry.cpp
     tp_io.cpp
+    tp_timer.cpp
     tp_wait.cpp
     tp_work.cpp
     win32_threadpool.cpp

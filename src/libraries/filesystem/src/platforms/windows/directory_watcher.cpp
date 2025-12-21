@@ -23,6 +23,8 @@ using namespace std::chrono_literals;
 #include <m/formatters/Win32ErrorCode.h>
 #include <m/strings/convert.h>
 #include <m/threadpool/threadpool.h>
+#include <m/tracing/format_view.h>
+#include <m/tracing/frame.h>
 #include <m/tracing/tracing.h>
 #include <m/utility/pointers.h>
 
@@ -32,6 +34,63 @@ using namespace std::chrono_literals;
 #undef max
 
 using namespace std::string_literals;
+
+namespace
+{
+    struct trace_frame
+    {
+        trace_frame(char const* function_name, std::uintptr_t thisptr) noexcept:
+            m_function_name(function_name), m_thisptr(thisptr)
+        {
+            m::wtrace_verbose(L"Entering {:x}->{}", thisptr, m_function_name);
+        }
+
+        trace_frame(char const* function_name) noexcept:
+            m_function_name(function_name), m_thisptr(std::nullopt)
+        {
+            m::wtrace_verbose(L"Entering {}", m_function_name);
+        }
+
+        ~trace_frame()
+        {
+            if (m_succeeded)
+            {
+                if (m_thisptr.has_value())
+                    m::wtrace_verbose(L"Exiting {:x}->{}", m_thisptr.value(), m_function_name);
+                else
+                    m::wtrace_verbose(L"Exiting {}", m_function_name);
+            }
+            else
+            {
+                if (m_thisptr.has_value())
+                    m::wtrace_error(
+                        L"Failed! Exiting {:x}->{}", m_thisptr.value(), m_function_name);
+                else
+                    m::wtrace_error(L"Failed! Exiting {}", m_function_name);
+            }
+        }
+
+        template <typename T>
+        decltype(auto)
+        succeeded(T&& v)
+        {
+            m_succeeded = true;
+            return v;
+        }
+
+        void
+        succeeded()
+        {
+            m_succeeded = true;
+        }
+
+    private:
+        m::tracing::format_view<char> m_function_name;
+        std::optional<std::uintptr_t> m_thisptr;
+        bool                          m_succeeded{false};
+    };
+
+} // namespace
 
 namespace m::filesystem_impl::platform_specific
 {
@@ -107,11 +166,19 @@ namespace m::filesystem_impl::platform_specific
 
         using std::swap;
         swap(sp, m_directory_probe_timer);
+
+        wtrace_verbose(L"{} constructed {:x}",
+                       tracing::format_view(__FUNCTION__),
+                       reinterpret_cast<uintptr_t>(this));
     }
+
+    directory_watcher::~directory_watcher() {}
 
     void
     directory_watcher::on_directory_probe_timer()
     {
+        tracing::frame frame(__FUNCTION__, this);
+
         //
         // The directory probe timer is where we attempt to access the
         // directory and if we cannot, ask the client what to do next.
@@ -120,7 +187,7 @@ namespace m::filesystem_impl::platform_specific
 
         // If everything looks healthy, there's no reason to be here.
         if (m_directory)
-            return;
+            return frame.succeeded();
 
         auto const issue_time = std::chrono::utc_clock::now();
 
@@ -162,13 +229,17 @@ namespace m::filesystem_impl::platform_specific
             retry_duration = std::max(retry_duration, m_minimum_retry_delay);
 
             m_directory_probe_timer->set(retry_duration);
+            frame.succeeded();
+            return;
         }
 
-        m_io.reset(::CreateThreadpoolIo(
-            m_directory.get(), &read_directory_changes_ex_callback, this, nullptr));
-        if (m_io.get() == nullptr)
+        win32::threadpool::tp_io new_io(
+            m_directory.get(), &read_directory_changes_ex_callback, this);
+        if (new_io.get() == nullptr)
         {
             auto const last_error = ::GetLastError();
+
+            m_io.reset();
 
             wtrace_error(L"Call to ::CreateThreadpoolIo() on {:#x} (from \"{}\") failed with {}",
                          reinterpret_cast<uintptr_t>(m_directory.get()),
@@ -202,11 +273,15 @@ namespace m::filesystem_impl::platform_specific
             retry_duration = std::max(retry_duration, m_minimum_retry_delay);
 
             m_directory_probe_timer->set(retry_duration);
+            frame.succeeded();
+            return;
         }
 
-        // TODO: Make the two error paths above common.
+        using std::swap;
+        swap(new_io, m_io);
 
         enqueue_async_read_directory_changes(issue_time);
+        frame.succeeded();
     }
 
     std::unique_ptr<m::filesystem::change_notification_registration_token>
@@ -217,7 +292,12 @@ namespace m::filesystem_impl::platform_specific
         auto filename = p.filename();
 
         if (p.has_parent_path())
+        {
+            wtrace_error(L"{}: path \"{}\" - .has_parent_path() must be true",
+                         m::to_wstring(__FUNCTION__),
+                         p);
             throw std::runtime_error("path must be leaf only");
+        }
 
         auto l = std::unique_lock(m_mutex);
 
@@ -248,7 +328,11 @@ namespace m::filesystem_impl::platform_specific
         auto const result     = std::ranges::find_if(m_registered_watches,
                                                  [key](auto const& w) { return w.m_key == key; });
         if (result == m_registered_watches.end())
+        {
+            wtrace_error(L"directory_watcher::remove_watch(): unable to remove key {:x}", key);
+
             throw std::runtime_error("No matching watch found for key");
+        }
 
         result->m_change_notification->on_cancelled(issue_time);
 

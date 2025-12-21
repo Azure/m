@@ -122,7 +122,7 @@ namespace m
         bool
         wait_until(std::chrono::time_point<Clock, Duration> const& tp)
         {
-            return do_wait_until(std::chrono::time_point_cast<m::time_point>(tp));
+            return do_wait_until(m::time_point_cast(tp));
         }
 
     private:
@@ -154,10 +154,10 @@ namespace m
         do_wait() = 0;
 
         virtual bool
-        do_wait_for(std::chrono::milliseconds const d) = 0;
+        do_wait_for(std::chrono::milliseconds d) = 0;
 
         virtual bool
-        do_wait_until(m::time_point const tp) = 0;
+        do_wait_until(m::time_point tp) = 0;
     };
 
     namespace work_queue_impl
@@ -440,7 +440,7 @@ namespace m
         bool
         wait_until(std::chrono::time_point<Clock, Duration> when)
         {
-            return do_wait_until(std::chrono::clock_cast<m::clock>(when));
+            return do_wait_until(m::time_point_cast(when));
         }
 
     private:
@@ -454,7 +454,7 @@ namespace m
         do_wait_for(std::chrono::milliseconds dur) = 0;
 
         virtual bool
-        do_wait_until(utc_time_point when) = 0;
+        do_wait_until(m::time_point when) = 0;
 
         virtual void
         do_enqueue(std::shared_ptr<m::work_queue_impl::work_item> wi) = 0;

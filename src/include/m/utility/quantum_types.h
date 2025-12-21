@@ -34,4 +34,11 @@ namespace m
     /// </summary>
     using duration = std::chrono::milliseconds;
 
+    template <typename Rep, typename Period>
+    m::duration
+    duration_cast(std::chrono::duration<Rep, Period> dur)
+    {
+        return std::chrono::duration_cast<m::duration>(dur);
+    }
+
 }

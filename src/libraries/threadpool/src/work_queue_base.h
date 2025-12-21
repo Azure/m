@@ -40,23 +40,23 @@ namespace m::threadpool_impl
     /// we shall concern ourselves with at this time).
     ///
     /// </summary>
-    class work_queue : public m::work_queue
+    class work_queue_base : public m::work_queue
     {
     protected:
-        work_queue()                      = default;
-        ~work_queue()                     = default;
-        work_queue(work_queue const&)     = delete;
-        work_queue(work_queue&&) noexcept = delete;
-        work_queue(work_queue_execution_policy wqep, std::wstring description);
+        work_queue_base()                      = default;
+        ~work_queue_base()                     = default;
+        work_queue_base(work_queue_base const&)     = delete;
+        work_queue_base(work_queue_base&&) noexcept = delete;
+        work_queue_base(work_queue_execution_policy wqep, std::wstring description);
 
         void
-        operator=(work_queue const&) = delete;
+        operator=(work_queue_base const&) = delete;
 
-        work_queue&
-        operator=(work_queue&&) noexcept = delete;
+        work_queue_base&
+        operator=(work_queue_base&&) noexcept = delete;
 
         void
-        swap(work_queue& other) noexcept = delete;
+        swap(work_queue_base& other) noexcept = delete;
 
         std::size_t
         do_queue_size() override;
@@ -68,7 +68,7 @@ namespace m::threadpool_impl
         do_wait_for(std::chrono::milliseconds dur) override;
 
         bool
-        do_wait_until(utc_time_point when) override;
+        do_wait_until(m::time_point when) override;
 
         void
         do_enqueue(std::shared_ptr<m::work_queue_impl::work_item> wi) override;

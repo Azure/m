@@ -5,12 +5,14 @@ target_sources(m_tracing PRIVATE
     cout_sink.cpp
     envelope.cpp
     event_context.cpp
+    gdsn.cpp
     helper_functions.cpp
     message.cpp
     message_allocator.cpp
     message_queue.cpp
     message_source.cpp
     monitor_class_impl.cpp
+    monitor_class_var.cpp
     multiplexor_impl.cpp
     sink.cpp
     sink_registration_impl.cpp

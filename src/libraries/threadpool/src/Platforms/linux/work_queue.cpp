@@ -11,13 +11,13 @@
 #include <m/threadpool/work_item_state.h>
 #include <m/threadpool/work_queue_execution_policy.h>
 
-#include "../../work_queue_impl.h"
-#include "linux_work_queue_impl.h"
+#include "../../work_queue_base.h"
+#include "work_queue.h"
 
-namespace m::linux_threadpool_impl
+namespace m::threadpool_impl
 {
     work_queue::work_queue(work_queue_execution_policy wqep, std::wstring description):
-        m::threadpool_impl::work_queue(wqep, description)
+        m::threadpool_impl::work_queue_base(wqep, description)
     {}
 
     void
@@ -32,4 +32,4 @@ namespace m::linux_threadpool_impl
         M_NOT_IMPLEMENTED("sorry no linux work queue");
     }
 
-} // namespace m::linux_threadpool_impl
+} // namespace m::threadpool_impl

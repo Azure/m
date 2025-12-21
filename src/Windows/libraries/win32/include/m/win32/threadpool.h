@@ -2,9 +2,14 @@
 
 #pragma once
 
+#include <chrono>
+#include <optional>
+#include <system_error>
+
 #include <m/chrono/chrono.h>
 #include <m/utility/pointers.h>
 #include <m/win32/event.h>
+#include <m/win32/filetime_clock.h>
 
 #undef NOMINMAX
 #define NOMINMAX
@@ -264,6 +269,7 @@ namespace m::win32::threadpool
 
             friend class tp_io;
         };
+
         /// <summary>
         /// Calls StartThreadpoolIo() on the managed PTP_IO. If *this is not managing a
         /// PTP_IO, will fail with a precondition failure.
@@ -290,4 +296,60 @@ namespace m::win32::threadpool
     private:
         PTP_IO m_pio{PTP_IO{}};
     };
+
+    class tp_timer
+    {
+    public:
+        tp_timer() = default;
+        tp_timer(tp_timer&& other) noexcept;
+        tp_timer(tp_timer const& other) = delete;
+
+        tp_timer(PTP_TIMER_CALLBACK   pfnwk,
+                 PVOID                pv   = nullptr,
+                 PTP_CALLBACK_ENVIRON pcbe = PTP_CALLBACK_ENVIRON{});
+
+        ~tp_timer();
+
+        tp_timer&
+        operator=(tp_timer&&) noexcept;
+
+        tp_timer&
+        operator=(tp_timer const&) = delete;
+
+        constexpr
+        operator PTP_TIMER() const noexcept
+        {
+            return m_ptp_timer;
+        }
+
+        constexpr explicit
+        operator bool() const noexcept
+        {
+            return m_ptp_timer != PTP_TIMER{};
+        }
+
+        void
+        reset(PTP_TIMER ptp_timer = PTP_TIMER{}) noexcept;
+
+        bool
+        is_set();
+
+        void
+        set(PFILETIME pftDueTime, DWORD msPeriod, DWORD msWindowLength);
+
+        void
+        set(FILETIME                                 due_time,
+            std::optional<std::chrono::milliseconds> period        = std::nullopt,
+            std::optional<std::chrono::milliseconds> window_length = std::nullopt);
+
+        void
+        cancel();
+
+        void
+        wait_for_callbacks(bool cancel_pending_callbacks);
+
+    private:
+        PTP_TIMER m_ptp_timer{PTP_TIMER{}};
+    };
+
 } // namespace m::win32::threadpool

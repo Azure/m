@@ -66,4 +66,9 @@ namespace m::tracing
         return &m_event_context;
     }
 
+    gdsn
+    message::unique_id()
+    {
+        return m_unique_id;
+    }
 } // namespace m::tracing

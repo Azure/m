@@ -18,21 +18,9 @@ namespace m
     {
     public:
         bool
-        cancel_requested()
+        is_set()
         {
-            return do_cancel_requested();
-        }
-
-        bool
-        done()
-        {
-            return do_done();
-        }
-
-        void
-        try_cancel()
-        {
-            do_try_cancel();
+            return do_is_set();
         }
 
         /// <summary>
@@ -49,23 +37,41 @@ namespace m
         void
         set(std::chrono::duration<Rep, Period> dur)
         {
-            do_set(std::chrono::duration_cast<duration>(dur));
+            do_set(m::duration_cast(dur));
+        }
+
+        void
+        set()
+        {
+            do_set(m::duration(0));
+        }
+
+        void
+        cancel()
+        {
+            do_cancel();
+        }
+
+        void
+        wait()
+        {
+            do_wait();
         }
 
         virtual ~timer() = default;
 
     private:
         virtual bool
-        do_cancel_requested() = 0;
-
-        virtual bool
-        do_done() = 0;
-
-        virtual void
-        do_try_cancel() = 0;
+        do_is_set() = 0;
 
         virtual void
         do_set(duration dur) = 0;
+
+        virtual void
+        do_cancel() = 0;
+
+        virtual void
+        do_wait() = 0;
     };
 
 } // namespace m

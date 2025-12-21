@@ -42,12 +42,9 @@ using namespace m::string_view_literals;
 
 namespace m::tracing
 {
-    inline auto src = monitor->make_source();
-
+    inline auto src = monitor->make_source(event_kind::verbose);
     inline constexpr auto diagnostic_channel_name = L"diagnostic"_sl;
-
     inline auto diagnostic_channel = monitor->make_channel(diagnostic_channel_name);
-
     // inline auto operational_channel = monitor->make_channel(L"operational"_sl);
 }
 
@@ -72,6 +69,20 @@ namespace m
     wtrace_error(const std::wformat_string<Types...> fmt, Types&&... args)
     {
         tracing::src->wlog(tracing::event_kind::error, fmt, std::forward<Types>(args)...);
+    }
+
+    template <typename... Types>
+    void
+    wtrace_information(const std::wformat_string<Types...> fmt, Types&&... args)
+    {
+        tracing::src->wlog(tracing::event_kind::information, fmt, std::forward<Types>(args)...);
+    }
+
+    template <typename... Types>
+    void
+    wtrace_verbose(const std::wformat_string<Types...> fmt, Types&&... args)
+    {
+        tracing::src->wlog(tracing::event_kind::verbose, fmt, std::forward<Types>(args)...);
     }
 
     template <typename... Types>

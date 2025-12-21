@@ -25,7 +25,7 @@ namespace m
         std::unique_ptr<timer>
         create_timer(F&& f)
         {
-            return do_create_timer(std::packaged_task<timer_normal_callable>(std::forward<F>(f)));
+            return do_create_timer(std::packaged_task<timer_callable>(std::forward<F>(f)));
         }
 
         template <typename F, typename... Args>
@@ -34,27 +34,8 @@ namespace m
         {
             auto description = std::format(std::forward<std::wformat_string<Args...>>(fmt),
                                            std::forward<Args>(args)...);
-            return do_create_timer(std::packaged_task<timer_normal_callable>(std::forward<F>(f)),
+            return do_create_timer(std::packaged_task<timer_callable>(std::forward<F>(f)),
                                    std::move(description));
-        }
-
-        template <typename F>
-        std::unique_ptr<timer>
-        create_cancellable_timer(F&& f)
-        {
-            return do_create_cancellable_timer(
-                std::packaged_task<timer_cancellable_callable>(std::forward<F>(f)));
-        }
-
-        template <typename F, typename... Args>
-        std::unique_ptr<timer>
-        create_cancellable_timer(F&& f, std::wformat_string<Args...>&& fmt, Args&&... args)
-        {
-            auto description = std::format(std::forward<std::wformat_string<Args...>>(fmt),
-                                           std::forward<Args>(args)...);
-            return do_create_cancellable_timer(
-                std::packaged_task<timer_cancellable_callable>(std::forward<F>(f)),
-                std::move(description));
         }
 
         template <typename F>
@@ -62,7 +43,7 @@ namespace m
         create_periodic_timer(F&& f)
         {
             return do_create_periodic_timer(
-                std::packaged_task<timer_normal_callable>(std::forward<F>(f)));
+                std::packaged_task<timer_callable>(std::forward<F>(f)));
         }
 
         template <typename F, typename... Args>
@@ -72,7 +53,7 @@ namespace m
             auto description = std::format(std::forward<std::wformat_string<Args...>>(fmt),
                                            std::forward<Args>(args)...);
             return do_create_periodic_timer(
-                std::packaged_task<timer_normal_callable>(std::forward<F>(f)),
+                std::packaged_task<timer_callable>(std::forward<F>(f)),
                 std::move(description));
         }
 
@@ -99,24 +80,17 @@ namespace m
         virtual ~threadpool_class() = default;
 
         virtual std::unique_ptr<timer>
-        do_create_timer(std::packaged_task<timer_normal_callable>&& task) = 0;
+        do_create_timer(std::packaged_task<timer_callable>&& task) = 0;
 
         virtual std::unique_ptr<timer>
-        do_create_timer(std::packaged_task<timer_normal_callable>&& task,
+        do_create_timer(std::packaged_task<timer_callable>&& task,
                         std::wstring                                description) = 0;
 
-        virtual std::unique_ptr<timer>
-        do_create_cancellable_timer(std::packaged_task<timer_cancellable_callable>&& task) = 0;
-
-        virtual std::unique_ptr<timer>
-        do_create_cancellable_timer(std::packaged_task<timer_cancellable_callable>&& task,
-                                    std::wstring description) = 0;
+        virtual std::unique_ptr<periodic_timer>
+        do_create_periodic_timer(std::packaged_task<timer_callable>&& task) = 0;
 
         virtual std::unique_ptr<periodic_timer>
-        do_create_periodic_timer(std::packaged_task<timer_normal_callable>&& task) = 0;
-
-        virtual std::unique_ptr<periodic_timer>
-        do_create_periodic_timer(std::packaged_task<timer_normal_callable>&& task,
+        do_create_periodic_timer(std::packaged_task<timer_callable>&& task,
                                  std::wstring                                description) = 0;
 
         virtual std::shared_ptr<work_queue>

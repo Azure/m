@@ -37,12 +37,20 @@ namespace m
         // Restores the thread description that was saved in `state`.
         void
         restore_thread_description(saved_thread_state& state) noexcept;
-    }
+    } // namespace thread_description_impl
 
     class thread_description
     {
     public:
+        thread_description() = default;
+
         explicit thread_description(std::wstring_view description)
+        {
+            thread_description_impl::set_thread_description(description, m_saved_state);
+        }
+
+        void
+        set(std::wstring_view description)
         {
             thread_description_impl::set_thread_description(description, m_saved_state);
         }
@@ -55,6 +63,5 @@ namespace m
     private:
         thread_description_impl::saved_thread_state m_saved_state;
     };
-
 
 } // namespace m

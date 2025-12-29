@@ -12,7 +12,7 @@ target_sources(m_tracing PRIVATE
     message_queue.cpp
     message_source.cpp
     monitor_class_impl.cpp
-    monitor_class_var.cpp
+    monitor_var.cpp
     multiplexor_impl.cpp
     sink.cpp
     sink_registration_impl.cpp

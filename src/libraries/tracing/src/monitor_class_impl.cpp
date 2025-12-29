@@ -179,9 +179,9 @@ namespace m::tracing_impl
 
 namespace m::tracing
 {
-    m::not_null<monitor_class*>
+    std::unique_ptr<monitor_class>
     make_monitor_class()
     {
-        return new m::tracing_impl::monitor();
+        return std::make_unique<m::tracing_impl::monitor>();
     }
 } // namespace m::tracing

@@ -30,7 +30,7 @@
 #include <m/tracing/event_kind.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/monitor_class.h>
-#include <m/tracing/monitor_class_var.h>
+#include <m/tracing/monitor_var.h>
 #include <m/tracing/multiplexor.h>
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink.h>

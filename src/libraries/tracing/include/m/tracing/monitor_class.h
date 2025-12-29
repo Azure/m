@@ -11,6 +11,7 @@
 #include <functional>
 #include <initializer_list>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -96,7 +97,7 @@ namespace m
         /// Allocates a new monitor class instance.
         /// </summary>
         /// <returns></returns>
-        m::not_null<monitor_class*>
+        std::unique_ptr<monitor_class>
         make_monitor_class();
     } // namespace tracing
 } // namespace m

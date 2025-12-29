@@ -18,7 +18,7 @@ target_sources(m_tracing PUBLIC FILE_SET HEADERS FILES
     m/tracing/message_queue.h 
     m/tracing/message_source.h
     m/tracing/monitor_class.h
-    m/tracing/monitor_class_var.h 
+    "m/tracing/monitor_var.h" 
     m/tracing/multiplexor.h 
     m/tracing/on_message_disposition.h 
     m/tracing/ostream_sink.h

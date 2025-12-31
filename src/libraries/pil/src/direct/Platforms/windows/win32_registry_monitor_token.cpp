@@ -9,6 +9,7 @@
 #include <m/pil/common.h>
 #include <m/pil/registry.h>
 #include <m/strings/convert.h>
+#include <m/tracing/tracing.h>
 
 #include "pcwstr.h"
 #include "win32.h"

@@ -22,6 +22,7 @@
 #include <m/pil/registry.h>
 #include <m/pil/registry_interfaces.h>
 #include <m/strings/compare.h>
+#include <m/utility/locked.h>
 
 using namespace std::string_view_literals;
 
@@ -71,7 +72,7 @@ namespace m::pil::impl::redirecting
     {
     public:
         registry() = delete;
-        registry(std::shared_ptr<iregistry> const&                      underlying_registry,
+        registry(std::shared_ptr<iregistry> const&                       underlying_registry,
                  std::initializer_list<std::pair<view_type, view_type>>* il);
         registry(registry&& other) noexcept = delete;
         registry(registry const&)           = delete;

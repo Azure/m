@@ -113,6 +113,7 @@ else()
     add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unknown-pragmas)
     add_compile_options(-Wno-sign-compare)
     add_compile_options(-Wno-unneeded-internal-declaration)
+    add_compile_options(-Wno-unused-variable)
 #    add_compile_options(-wno-unused-local-typedef)          # error : unused type alias 'x'
 endif()
 

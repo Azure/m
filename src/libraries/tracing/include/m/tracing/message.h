@@ -26,6 +26,7 @@
 #include <m/tracing/debugging.h>
 #include <m/tracing/event_context.h>
 #include <m/tracing/event_kind.h>
+#include <m/tracing/imessage.h>
 #include <m/tracing/safe_array_iterator.h>
 
 using namespace m::string_view_literals;

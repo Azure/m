@@ -8,7 +8,7 @@
 #include <span>
 #include <string_view>
 
-#include <m/memory/memory.h>
+#include <m/memory/raw_array_allocator.h>
 #include <m/print/print.h>
 
 using namespace std::string_view_literals;
@@ -20,7 +20,7 @@ TEST(MemoryRawAllocator, ByteSpanUnconstructed)
 {
     m::raw_array_allocator<std::byte> ra(byte_array_abc.size());
     EXPECT_EQ(ra.size(), byte_array_abc.size());
-    EXPECT_EQ(ra.constructed(), 0);
+    EXPECT_EQ(ra.constructed(), false);
 }
 
 TEST(MemoryRawAllocator, ByteSpanConstructed)
@@ -28,7 +28,7 @@ TEST(MemoryRawAllocator, ByteSpanConstructed)
     m::raw_array_allocator<std::byte> ra(byte_array_abc.size());
     ra.default_construct();
     EXPECT_EQ(ra.size(), byte_array_abc.size());
-    EXPECT_EQ(ra.constructed(), ra.size());
+    EXPECT_EQ(ra.constructed(), true);
 }
 
 namespace
@@ -180,7 +180,7 @@ TEST(MemoryRawAllocator, CountOpsUnconstructed)
     m::raw_array_allocator<owc> ra(owc_array.size());
     owc_stats             stats2;
     EXPECT_EQ(ra.size(), owc_array.size());
-    EXPECT_EQ(ra.constructed(), 0);
+    EXPECT_EQ(ra.constructed(), false);
 
     //
     // No construction, so no deltas expected
@@ -211,7 +211,7 @@ TEST(MemoryRawAllocator, CountOpsConstructed)
     m::raw_array_allocator<owc> ra(owc_array.size());
     owc_stats             stats2;
     EXPECT_EQ(ra.size(), owc_array.size());
-    EXPECT_EQ(ra.constructed(), 0);
+    EXPECT_EQ(ra.constructed(), false);
     ra.default_construct();
     owc_stats stats3;
     ra.reset();

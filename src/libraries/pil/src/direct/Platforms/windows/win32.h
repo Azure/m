@@ -21,6 +21,7 @@
 #include <m/pil/registry.h>
 #include <m/pil/registry_interfaces.h>
 #include <m/threadpool/threadpool.h>
+#include <m/utility/locked.h>
 #include <m/win32/registry.h>
 #include <m/win32/threadpool.h>
 

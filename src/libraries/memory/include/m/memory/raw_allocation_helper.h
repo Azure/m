@@ -97,18 +97,19 @@ namespace m
     template <typename T>
     struct basic_base_raw_allocation_helper_traits
     {
-        using size_type  = std::size_t;
-        using value_type = T;
+        using size_type       = std::size_t;
+        using value_type      = T;
+        using value_span_type = std::span<value_type>;
 
         constexpr static void
-        uninitialized_default_construct_n(std::span<T> s) noexcept
+        uninitialized_default_construct_n(value_span_type s) noexcept
         {
             std::uninitialized_default_construct_n(s.data(), s.size());
         }
 
         template <typename U>
         constexpr static void
-        uninitialized_fill_n(std::span<T> s, U const& u) noexcept
+        uninitialized_fill_n(value_span_type s, U const& u) noexcept
         {
             std::uninitialized_fill_n(s.data(), s.size(), u);
         }
@@ -120,7 +121,7 @@ namespace m
         }
 
         constexpr static void
-        destroy_n(std::span<T> s)
+        destroy_n(value_span_type s)
         {
             std::destroy_n(s.data(), s.size());
         }
@@ -170,15 +171,18 @@ namespace m
 
     template <typename T>
     using basic_raw_allocation_helper_traits =
-        std::conditional_t<requires_aligned_allocator_t<T>,
+        std::conditional_t<requires_aligned_allocator_v<T>,
                            basic_aligned_raw_allocation_helper_traits<T>,
                            basic_minaligned_raw_allocation_helper_traits<T>>;
 
     template <typename T>
     struct raw_allocation_result
     {
-        std::span<T> m_value_span;
-        byte_span    m_remainder_span;
+        using value_type      = T;
+        using value_span_type = std::span<value_type>;
+
+        value_span_type m_value_span;
+        byte_span       m_remainder_span;
     };
 
     template <typename RawAllocationTraitsT>
@@ -244,6 +248,14 @@ namespace m
 
             if (remainder_span.size() != 0)
                 traits_type::destroy_remainder(remainder_span);
+
+            deallocate(raw_byte_span);
+        }
+
+        static void
+        deallocate(byte_span span)
+        {
+            traits_type::deallocate(span);
         }
 
     private:

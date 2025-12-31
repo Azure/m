@@ -64,9 +64,9 @@ namespace m
         struct aggregate_deleter
         {
             constexpr void
-            operator()(aggregate<T>* ptr) const noexcept
+            operator()(aggregate<T>* aggptr) const noexcept
             {
-                aggregate<T>::on_delete(ptr);
+                aggregate<T>::destroy_object(aggptr);
             }
         };
 
@@ -110,6 +110,17 @@ namespace m
             get_destroyer_fn() const noexcept
             {
                 return m_destroyer_fn;
+            }
+
+            byte_span
+            get_allocated_span() const noexcept
+            {
+                //
+                // The base implementation returns an empty span since
+                // we do not record the span. The aggregate can compute it if
+                // the control area does not return a more exact span.
+                //
+                return byte_span{};
             }
 
         private:
@@ -168,7 +179,7 @@ namespace m
                 m_allocated_span = s;
             }
 
-            inline byte_span
+            byte_span
             get_allocated_span() const noexcept
             {
                 return m_allocated_span;
@@ -184,16 +195,6 @@ namespace m
         template <typename T>
         using control_area_t = std::
             conditional_t<uses_big_control_area_v<T>, big_control_area<T>, small_control_area<T>>;
-
-        template <typename T>
-        struct aggregate_raw_allocator_traits : basic_raw_allocation_helper_traits<aggregate<T>>
-        {
-            constexpr static void
-            uninitialized_default_construct_n(std::span<T>) noexcept
-            {
-                // do nothing
-            }
-        };
 
         /// <summary>
         /// aggregate is a struct that allows us to find a size for an
@@ -216,11 +217,24 @@ namespace m
         class aggregate
         {
         public:
-            using value_type             = T;
+            using value_type      = T;
+            using value_span_type = std::span<value_type>;
+
+            struct aggregate_raw_allocator_traits : basic_raw_allocation_helper_traits<aggregate>
+            {
+                constexpr static void
+                uninitialized_default_construct_n(std::span<aggregate>) noexcept
+                {
+                    // do nothing
+                }
+            };
+
             using aggregate_deleter_type = aggregate_deleter<value_type>;
             using control_area_type      = control_area_t<value_type>;
             using destroyer_fn_type      = typename control_area_type::destroyer_fn_type;
             using unique_ptr_type        = std::unique_ptr<aggregate, aggregate_deleter_type>;
+            using raw_allocation_helper_type =
+                raw_allocation_helper<aggregate_raw_allocator_traits>;
 
             // static_assert(std::is_trivially_default_constructible_v<control_area_type>);
             static_assert(std::is_trivially_destructible_v<control_area_type>);
@@ -242,16 +256,15 @@ namespace m
             inline static unique_ptr_type
             allocate(destroyer_fn_type destroyer, std::size_t extra_bytes = 0)
             {
-                using rah_t = raw_allocation_helper<basic_raw_allocation_helper_traits<aggregate>>;
+                typename raw_allocation_helper_type::parameters_t parameters{
+                    .n = 1, .additional_bytes = extra_bytes};
 
-                typename rah_t::parameters_t parameters{.n = 1, .additional_bytes = extra_bytes};
-
-                rah_t      rah(parameters);
-                auto const aggptr  = rah.get().m_value_span.data();
-                auto const objptr  = aggptr->get_object().get();
-                auto const uobjptr = reinterpret_cast<uintptr_t>(objptr);
-                auto const ucaptr  = uobjptr - sizeof(control_area_type);
-                auto const captr   = reinterpret_cast<control_area_type*>(ucaptr);
+                raw_allocation_helper_type rah(parameters);
+                auto const                 aggptr  = rah.get().m_value_span.data();
+                auto const                 objptr  = aggptr->get_object().get();
+                auto const                 uobjptr = reinterpret_cast<uintptr_t>(objptr);
+                auto const                 ucaptr  = uobjptr - sizeof(control_area_type);
+                auto const                 captr   = reinterpret_cast<control_area_type*>(ucaptr);
 
                 captr->initialize(1, destroyer);
 
@@ -266,24 +279,16 @@ namespace m
                 return std::as_writable_bytes(std::span(&m_faux_object, 1));
             }
 
-            inline static void
-            on_delete(value_type* ptr)
-            {
-                std::ignore = ptr;
-                //
-            }
-
-            inline static void
-            on_delete(aggregate* aggptr)
-            {
-                std::ignore = aggptr;
-                //
-            }
-
             static void
             destroy_object(value_type* ptr)
             {
-                on_delete(ptr);
+                deallocate(ptr, true);
+            }
+
+            static void
+            destroy_object(aggregate* aggptr)
+            {
+                deallocate(aggptr, true);
             }
 
         private:
@@ -317,8 +322,7 @@ namespace m
                     }
                 }
 
-                unique_ptr_type up(aggptr);
-                up.reset(); // unneeded but gives a place to set a breakpoint
+                raw_allocation_helper_type::deallocate(aggptr->get_allocated_span());
             }
 
             m::not_null<T*>
@@ -390,6 +394,25 @@ namespace m
             {
                 if (auto const ca = get_control_area(); ca->decrement_ref())
                     deallocate();
+            }
+
+            //
+            // The raw byte span is needed for deallocation so provide a way to
+            // get it.
+            //
+            byte_span
+            get_allocated_span()
+            {
+                auto const captr          = get_control_area();
+                auto       allocated_span = captr->get_allocated_span();
+
+                if (allocated_span.size() == 0)
+                {
+                    allocated_span =
+                        byte_span(reinterpret_cast<std::byte*>(this), sizeof(aggregate));
+                }
+
+                return allocated_span;
             }
 
             //
@@ -672,22 +695,6 @@ namespace m
 
             auto const agg = get_aggregate(ptr);
             agg->decrement_ref();
-#if 0
-            if (auto const ca = get_control_area(ptr); ca->decrement_ref())
-            {
-                // If the type's destructor is trivial it may not have a destructor and so
-                // it may be entirely omitted.
-                auto const destroyer = ca->m_destroyer_fn;
-                if (destroyer)
-                {
-                    std::atomic_thread_fence(std::memory_order_acquire);
-                    (destroyer)(ptr);
-                }
-
-                arefc_ptr_impl::aggregate<T>::deallocate(
-                    std::span(reinterpret_cast<std::byte*>(ptr), sizeof(T)));
-            }
-#endif // 0
         }
 
         /// <summary>

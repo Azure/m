@@ -5,6 +5,7 @@
 
 #include <m/utility/compiler.h>
 
+#include <functional>
 #include <optional>
 
 namespace m

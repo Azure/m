@@ -23,36 +23,176 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
 #include <m/error_handling/macros.h>
 #include <m/math/math.h>
 #include <m/memory/memory.h>
+#include <m/memory/raw_allocation_helper.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
 
 namespace m
 {
-    // A destroyer_fn is a function pointer that takes a void* which is the
+    // A destroyer_fn_t is a function pointer that takes a T* which is the
     // pointer to the object that is to be destroyed. Note that the destroyer
     // does *not* deallocate the memory, it just tears down the state of
     // the object.
     //
-    using destroyer_fn = void (*)(void*);
+    template <typename T>
+    using destroyer_fn_t = void (*)(T*);
+
+    inline static constexpr std::size_t arefc_max_alignment = 512;
+
+    template <typename T>
+    concept arefc_ptr_requirements =
+        (std::is_standard_layout_v<T> && (alignof(T) <= arefc_max_alignment));
+
+    template <typename T>
+        requires(arefc_ptr_requirements<T>)
+    class arefc_ptr;
 
     namespace arefc_ptr_impl
     {
-        struct control_area
+        template <typename T>
+            requires(std::is_standard_layout_v<T>)
+        class aggregate;
+
+        template <typename T>
+        struct aggregate_deleter
         {
+            constexpr void
+            operator()(aggregate<T>* ptr) const noexcept
+            {
+                aggregate<T>::on_delete(ptr);
+            }
+        };
+
+        template <typename T>
+        class base_control_area
+        {
+        public:
+            using value_type        = T;
+            using destroyer_fn_type = destroyer_fn_t<value_type>;
+
+            base_control_area()                         = default;
+            base_control_area(base_control_area const&) = delete;
+            base_control_area(base_control_area&&)      = delete;
+            ~base_control_area()                        = default;
+
             void
-            increment_ref();
+            operator=(base_control_area const&) = delete;
+            void
+            operator=(base_control_area&&) = delete;
+
+            void
+            initialize(uint64_t refcount, destroyer_fn_type destroyer_fn) noexcept
+            {
+                m_refcount.store(refcount, std::memory_order_relaxed);
+                m_destroyer_fn = destroyer_fn;
+            }
+
+            void
+            increment_ref() noexcept
+            {
+                m_refcount.fetch_add(1, std::memory_order_acq_rel);
+            }
 
             bool
-            decrement_ref();
+            decrement_ref() noexcept
+            {
+                return m_refcount.fetch_sub(1, std::memory_order_acq_rel) == 1;
+            }
 
+            constexpr destroyer_fn_type
+            get_destroyer_fn() const noexcept
+            {
+                return m_destroyer_fn;
+            }
+
+        private:
             std::atomic<uint64_t> m_refcount;
-            destroyer_fn          m_destroyer;
+            destroyer_fn_type     m_destroyer_fn;
+        };
+
+        template <typename T>
+        class small_control_area : public base_control_area<T>
+        {
+        public:
+            small_control_area()                          = default;
+            small_control_area(small_control_area const&) = delete;
+            small_control_area(small_control_area&&)      = delete;
+            ~small_control_area()                         = default;
+
+            void
+            operator=(small_control_area const&) = delete;
+            void
+            operator=(small_control_area&&) = delete;
+
+            void
+            record_allocation(byte_span) noexcept
+            {}
+
+            using base_control_area<T>::decrement_ref;
+            using base_control_area<T>::increment_ref;
+            using base_control_area<T>::initialize;
+        };
+
+        //
+        // The big_control_area includes the original byte_span
+        // that was acquired for the aligned_alloc() of the aligned bytes.
+        //
+        template <typename T>
+        class big_control_area : public base_control_area<T>
+        {
+        public:
+            big_control_area()                        = default;
+            big_control_area(big_control_area const&) = delete;
+            big_control_area(big_control_area&&)      = delete;
+            ~big_control_area()                       = default;
+
+            void
+            operator=(big_control_area const&) = delete;
+            void
+            operator=(big_control_area&&) = delete;
+
+            using base_control_area<T>::decrement_ref;
+            using base_control_area<T>::increment_ref;
+            using base_control_area<T>::initialize;
+
+            void
+            record_allocation(byte_span s) noexcept
+            {
+                m_allocated_span = s;
+            }
+
+            inline byte_span
+            get_allocated_span() const noexcept
+            {
+                return m_allocated_span;
+            }
+
+        private:
+            byte_span m_allocated_span;
+        };
+
+        template <typename T>
+        constexpr bool uses_big_control_area_v = alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+
+        template <typename T>
+        using control_area_t = std::
+            conditional_t<uses_big_control_area_v<T>, big_control_area<T>, small_control_area<T>>;
+
+        template <typename T>
+        struct aggregate_raw_allocator_traits : basic_raw_allocation_helper_traits<aggregate<T>>
+        {
+            constexpr static void
+            uninitialized_default_construct_n(std::span<T>) noexcept
+            {
+                // do nothing
+            }
         };
 
         /// <summary>
@@ -73,121 +213,211 @@ namespace m
         /// <typeparam name="T"></typeparam>
         template <typename T>
             requires(std::is_standard_layout_v<T>)
-        struct aggregate
+        class aggregate
         {
-            control_area m_control_area;
-            T            m_object;
+        public:
+            using value_type             = T;
+            using aggregate_deleter_type = aggregate_deleter<value_type>;
+            using control_area_type      = control_area_t<value_type>;
+            using destroyer_fn_type      = typename control_area_type::destroyer_fn_type;
+            using unique_ptr_type        = std::unique_ptr<aggregate, aggregate_deleter_type>;
 
-            control_area*
-            get_control_area() const;
+            // static_assert(std::is_trivially_default_constructible_v<control_area_type>);
+            static_assert(std::is_trivially_destructible_v<control_area_type>);
 
-            static void
-            destroyer(void* ptr)
+            constexpr aggregate() noexcept {};
+            aggregate(aggregate const&) = delete;
+            aggregate(aggregate&&)      = delete;
+            ~aggregate()                = default;
+
+            void
+            operator=(aggregate const&) = delete;
+
+            void
+            operator=(aggregate&&) = delete;
+
+            void
+            swap(aggregate&) = delete;
+
+            inline static unique_ptr_type
+            allocate(destroyer_fn_type destroyer, std::size_t extra_bytes = 0)
             {
-                std::destroy_n(reinterpret_cast<T*>(ptr), 1);
+                using rah_t = raw_allocation_helper<basic_raw_allocation_helper_traits<aggregate>>;
+
+                typename rah_t::parameters_t parameters{.n = 1, .additional_bytes = extra_bytes};
+
+                rah_t      rah(parameters);
+                auto const aggptr  = rah.get().m_value_span.data();
+                auto const objptr  = aggptr->get_object().get();
+                auto const uobjptr = reinterpret_cast<uintptr_t>(objptr);
+                auto const ucaptr  = uobjptr - sizeof(control_area_type);
+                auto const captr   = reinterpret_cast<control_area_type*>(ucaptr);
+
+                captr->initialize(1, destroyer);
+
+                auto result = rah.release();
+
+                return unique_ptr_type(result.m_value_span.data());
             }
 
-            struct allocate_helper
+            auto
+            get_object_byte_span()
             {
-                allocate_helper() = default;
-
-                allocate_helper(std::span<std::byte> s): m_span(s) {}
-
-                // no copy operations to avoid possible multiple ownership
-                allocate_helper(allocate_helper&& other)
-                {
-                    using std::swap;
-                    swap(m_span, other.m_span);
-                }
-
-                allocate_helper&
-                operator=(allocate_helper&& other)
-                {
-                    using std::swap;
-                    swap(m_span, other.m_span);
-                }
-
-                ~allocate_helper()
-                {
-                    if (auto const s = std::exchange(m_span, std::span<std::byte>{}); s.size() != 0)
-                        aggregate::deallocate(s);
-                }
-
-                aggregate*
-                operator->() const
-                {
-                    return reinterpret_cast<aggregate*>(m_span.data());
-                }
-
-                operator aggregate*() const { return reinterpret_cast<aggregate*>(m_span.data()); }
-
-                void
-                release()
-                {
-                    m_span = std::span<std::byte>{};
-                }
-
-                std::span<std::byte> m_span{};
-            };
-
-            inline static allocate_helper
-            allocate(std::size_t bytes)
-            {
-                if constexpr (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)
-                {
-                    return allocate_helper{std::span(new std::byte[bytes], bytes)};
-                }
-                else
-                {
-                    return allocate_helper{m::aligned_alloc(std::align_val_t{alignof(T)}, bytes)};
-                }
+                return std::as_writable_bytes(std::span(&m_faux_object, 1));
             }
 
             inline static void
-            deallocate(std::span<std::byte> s)
+            on_delete(value_type* ptr)
             {
-                auto const agg_ptr = s.data() - offsetof(aggregate, m_object);
-                // Depending on whether T is aligned greater than the default
-                // alignment or not, use the default deallocation strategy or not.
-                if constexpr (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)
-                {
-                    delete[] agg_ptr;
-                }
-                else
-                {
-                    m::aligned_free(std::span(agg_ptr, sizeof(aggregate)));
-                }
+                std::ignore = ptr;
+                //
             }
+
+            inline static void
+            on_delete(aggregate* aggptr)
+            {
+                std::ignore = aggptr;
+                //
+            }
+
+            static void
+            destroy_object(value_type* ptr)
+            {
+                on_delete(ptr);
+            }
+
+        private:
+            void
+            deallocate(bool do_destroy = true)
+            {
+                deallocate(this, do_destroy);
+            }
+
+            inline static void
+            deallocate(T* ptr, bool do_destroy = true)
+            {
+                auto const uptr     = reinterpret_cast<uintptr_t>(ptr);
+                auto const uagg_ptr = uptr - offsetof(aggregate, m_faux_object);
+                deallocate(reinterpret_cast<aggregate*>(uagg_ptr), do_destroy);
+            }
+
+            inline static void
+            deallocate(aggregate* aggptr, bool do_destroy = true)
+            {
+                if (do_destroy)
+                {
+                    auto const ca = get_control_area(aggptr);
+                    if (auto const destroyer = ca->get_destroyer_fn(); destroyer != nullptr)
+                    {
+                        // We don't want to force the fence when there is no destructor (e.g.
+                        // wchar_t array which is a common case) so we do it here which may be
+                        // pessimistic.
+                        std::atomic_thread_fence(std::memory_order_acquire);
+                        (*destroyer)(aggptr->get_object());
+                    }
+                }
+
+                unique_ptr_type up(aggptr);
+                up.reset(); // unneeded but gives a place to set a breakpoint
+            }
+
+            m::not_null<T*>
+            get_object()
+            {
+                return reinterpret_cast<T*>(&m_faux_object);
+            }
+
+            static m::not_null<T*>
+            get_object(aggregate* aggptr)
+            {
+                return aggptr->get_object();
+            }
+
+            static m::not_null<T*>
+            get_object(control_area_type* captr)
+            {
+                auto const ucaptr = reinterpret_cast<uintptr_t>(captr);
+                return reinterpret_cast<T*>(ucaptr + sizeof(control_area_type));
+            }
+
+            m::not_null<control_area_type*>
+            get_control_area()
+            {
+                return get_control_area(get_object());
+            }
+
+            static m::not_null<control_area_type*>
+            get_control_area(T* ptr)
+            {
+                // Should be true by construction but verify.
+                static_assert(offsetof(aggregate, m_faux_control_area) <
+                              offsetof(aggregate, m_faux_object));
+
+                // Again should be true by construction but this ensures
+                // that the pointer subtraction does not go before the
+                // possible beginning of the `aggregate<T>` object.
+                static_assert(sizeof(control_area_type) <= offsetof(aggregate, m_faux_object));
+
+                auto const uptr = reinterpret_cast<std::uintptr_t>(ptr);
+                return reinterpret_cast<control_area_type*>(uptr - sizeof(control_area_type));
+            }
+
+            inline static m::not_null<control_area_type*>
+            get_control_area(aggregate* aggptr)
+            {
+                // Should be true by construction but verify.
+                static_assert(offsetof(aggregate, m_faux_control_area) <
+                              offsetof(aggregate, m_faux_object));
+
+                // Again should be true by construction but this ensures
+                // that the pointer subtraction does not go before the
+                // possible beginning of the `aggregate<T>` object.
+                static_assert(sizeof(control_area_type) <= offsetof(aggregate, m_faux_object));
+
+                return get_control_area(aggptr->get_object());
+            }
+
+            inline static m::not_null<aggregate*>
+            get_aggregate(T* ptr)
+            {
+                auto const uptr    = reinterpret_cast<std::uintptr_t>(ptr);
+                auto const uaggptr = uptr - offsetof(aggregate, m_faux_object);
+                return reinterpret_cast<aggregate*>(uaggptr);
+            }
+
+            void
+            decrement_ref()
+            {
+                if (auto const ca = get_control_area(); ca->decrement_ref())
+                    deallocate();
+            }
+
+            //
+            // This reserves space for the control area but obviously is not the
+            // the control area. The control area always _immediately_ preceeds the
+            // actual object in the aggregate, so that it can be discovered trivially
+            // from the object pointer at run time, by subtracting the size of the
+            // control area from the pointer to the object.
+            //
+            struct faux_control_area_t
+            {
+                alignas(control_area_type) std::array<std::byte, sizeof(control_area_type)> m_data;
+            } m_faux_control_area;
+
+            //
+            // Uninitialized storage for the object itself, properly aligned.
+            //
+            struct faux_object_t
+            {
+                alignas(value_type) std::array<std::byte, sizeof(value_type)> m_data;
+            } m_faux_object;
+
+            static_assert(alignof(faux_control_area_t) >= alignof(control_area_type));
+            static_assert(alignof(faux_object_t) >= alignof(value_type));
+
+            friend class arefc_ptr<value_type>;
         };
 
-        /// <summary>
-        /// Returns a pointer to the control area for *this.
-        ///
-        /// Depending on alignof(T), may not be at offsetof(aggregate, m_control_area).
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <returns></returns>
-        template <typename T>
-            requires(std::is_standard_layout_v<T>)
-        control_area*
-        aggregate<T>::get_control_area() const
-        {
-            if constexpr (alignof(T) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__)
-            {
-                return const_cast<control_area*>(&m_control_area);
-            }
-            else
-            {
-                // just some dumb assertions but they are kind of assumed
-                // in the below pointer math
-                static_assert(offsetof(aggregate, m_control_area) == 0);
-                static_assert(offsetof(aggregate, m_object) > offsetof(aggregate, m_control_area));
-                auto const cobjptr = &m_object;
-                auto const uobjptr = reinterpret_cast<uintptr_t>(cobjptr);
-                auto const uca     = uobjptr - sizeof(control_area);
-                return reinterpret_cast<control_area*>(uca);
-            }
-        }
         /// <summary>
         /// Returns the control_area* for any given pointer.
         ///
@@ -199,21 +429,15 @@ namespace m
         /// <param name="ptr"></param>
         /// <returns></returns>
         template <typename T>
-        control_area*
-        get_control_area(T* ptr)
+        control_area_t<T>*
+        get_control_area(T* ptr) noexcept
         {
             auto const uptr = reinterpret_cast<uintptr_t>(ptr);
-            auto const uca  = uptr - sizeof(control_area);
-            return reinterpret_cast<control_area*>(uca);
+            auto const uca  = uptr - sizeof(control_area_t<T>);
+            return reinterpret_cast<control_area_t<T>*>(uca);
         }
 
     } // namespace arefc_ptr_impl
-
-    constexpr std::size_t arefc_max_alignment = 512; // __STDCPP_DEFAULT_NEW_ALIGNMENT__??
-
-    template <typename T>
-    concept arefc_ptr_requirements =
-        (std::is_standard_layout_v<T> && (alignof(T) <= arefc_max_alignment));
 
     template <typename T>
         requires(arefc_ptr_requirements<T>)
@@ -225,11 +449,11 @@ namespace m
     mmake_arefc(Args&&... args);
 
     template <typename T, typename Fn, typename... Args>
-        requires(arefc_ptr_requirements<T> && std::invocable<Fn, std::span<std::byte>, Args && ...>)
+        requires(arefc_ptr_requirements<T> && std::invocable<Fn, byte_span, Args && ...>)
     arefc_ptr<T>
-    mmake_arefc_ex(std::size_t  extra_bytes_required,
-                   destroyer_fn destroyer,
-                   Fn&&         fn,
+    mmake_arefc_ex(std::size_t       extra_bytes_required,
+                   destroyer_fn_t<T> destroyer,
+                   Fn&&              fn,
                    Args&&... args);
 
     /// <summary>
@@ -252,11 +476,11 @@ namespace m
     public:
         arefc_ptr() = default;
 
-        arefc_ptr(arefc_ptr const& other): m_ptr{other.addref()} {}
+        arefc_ptr(arefc_ptr const& other) noexcept: m_ptr{other.addref()} {}
 
         template <typename U>
             requires(arefc_ptr_requirements<U> && std::convertible_to<U*, T*>)
-        arefc_ptr(arefc_ptr<U> const& other): m_ptr{other.addref()}
+        arefc_ptr(arefc_ptr<U> const& other) noexcept: m_ptr{other.addref()}
         {}
 
         arefc_ptr(arefc_ptr&& other) noexcept
@@ -270,7 +494,7 @@ namespace m
         ~arefc_ptr() { reset(); }
 
         arefc_ptr&
-        operator=(arefc_ptr& other)
+        operator=(arefc_ptr& other) noexcept
         {
             if (this != &other)
             {
@@ -284,7 +508,7 @@ namespace m
         template <typename U>
             requires(arefc_ptr_requirements<U> && std::convertible_to<U*, T*>)
         arefc_ptr&
-        operator=(arefc_ptr<U> const& other)
+        operator=(arefc_ptr<U> const& other) noexcept
         {
             if (this != &other)
             {
@@ -306,38 +530,38 @@ namespace m
         }
 
         explicit
-        operator bool() const
+        operator bool() const noexcept
         {
             return get() != nullptr;
         }
 
         bool
-        operator!() const
+        operator!() const noexcept
         {
             return get() == nullptr;
         }
 
         void
-        reset(T* ptr_in = nullptr)
+        reset(T* ptr_in = nullptr) noexcept
         {
             auto const ptr = m_ptr.exchange(increment_ref(ptr_in), std::memory_order_acq_rel);
             decrement_ref(ptr);
         }
 
         T&
-        operator*() const
+        operator*() const noexcept
         {
             return *get();
         }
 
         T*
-        operator->() const
+        operator->() const noexcept
         {
             return get();
         }
 
         T*
-        get() const
+        get() const noexcept
         {
             return m_ptr.load(std::memory_order_acquire);
         }
@@ -352,14 +576,14 @@ namespace m
         template <typename U>
             requires(arefc_ptr_requirements<U> && std::convertible_to<T*, U*>)
         arefc_ptr<U>
-        to() const
+        to() const noexcept
         {
             arefc_ptr<U> v(*this);
             return v;
         }
 
         bool
-        compare_exchange_strong(arefc_ptr& expected, arefc_ptr const& desired)
+        compare_exchange_strong(arefc_ptr& expected, arefc_ptr const& desired) noexcept
         {
             // The trick here is to not mess up the reference counting!
             //
@@ -393,10 +617,7 @@ namespace m
     private:
         constexpr arefc_ptr(T* ptr) noexcept: m_ptr(ptr) {}
 
-        constexpr static inline auto control_area_offset =
-            offsetof(arefc_ptr_impl::aggregate<T>, m_object);
-
-        arefc_ptr_impl::control_area*
+        arefc_ptr_impl::control_area_t<T>*
         get_control_area() const
         {
             auto const ptr = get();
@@ -406,12 +627,18 @@ namespace m
             return get_control_area(ptr);
         }
 
-        static arefc_ptr_impl::control_area*
+        static arefc_ptr_impl::control_area_t<T>*
         get_control_area(T* ptr)
         {
             auto const uptr    = reinterpret_cast<uintptr_t>(ptr);
-            auto const ca_uptr = uptr - control_area_offset;
-            return reinterpret_cast<arefc_ptr_impl::control_area*>(ca_uptr);
+            auto const ca_uptr = uptr - sizeof(arefc_ptr_impl::control_area_t<T>);
+            return reinterpret_cast<arefc_ptr_impl::control_area_t<T>*>(ca_uptr);
+        }
+
+        static arefc_ptr_impl::aggregate<T>*
+        get_aggregate(T* ptr)
+        {
+            return arefc_ptr_impl::aggregate<T>::get_aggregate(ptr);
         }
 
         T*
@@ -443,24 +670,24 @@ namespace m
             if (ptr == nullptr)
                 return;
 
+            auto const agg = get_aggregate(ptr);
+            agg->decrement_ref();
+#if 0
             if (auto const ca = get_control_area(ptr); ca->decrement_ref())
             {
-                std::atomic_thread_fence(std::memory_order_acquire);
-
                 // If the type's destructor is trivial it may not have a destructor and so
                 // it may be entirely omitted.
-                auto const destroyer = ca->m_destroyer;
+                auto const destroyer = ca->m_destroyer_fn;
                 if (destroyer)
                 {
-                    auto const objptr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ca) +
-                                                                control_area_offset);
-
-                    (destroyer)(objptr);
+                    std::atomic_thread_fence(std::memory_order_acquire);
+                    (destroyer)(ptr);
                 }
 
                 arefc_ptr_impl::aggregate<T>::deallocate(
                     std::span(reinterpret_cast<std::byte*>(ptr), sizeof(T)));
             }
+#endif // 0
         }
 
         /// <summary>
@@ -481,36 +708,32 @@ namespace m
         mmake_arefc(Args&&... args);
 
         template <typename T1, typename Fn, typename... Args>
-            requires(arefc_ptr_requirements<T1> &&
-                     std::invocable<Fn, std::span<std::byte>, Args && ...>)
+            requires(arefc_ptr_requirements<T1> && std::invocable<Fn, byte_span, Args && ...>)
         friend arefc_ptr<T1>
-        mmake_arefc_ex(std::size_t  extra_bytes_required,
-                       destroyer_fn destroyer,
-                       Fn&&         fn,
+        mmake_arefc_ex(std::size_t        extra_bytes_required,
+                       destroyer_fn_t<T1> destroyer,
+                       Fn&&               fn,
                        Args&&... args);
     };
 
     template <typename T, typename Fn, typename... Args>
-        requires(arefc_ptr_requirements<T> && std::invocable<Fn, std::span<std::byte>, Args && ...>)
+        requires(arefc_ptr_requirements<T> && std::invocable<Fn, byte_span, Args && ...>)
     arefc_ptr<T>
-    mmake_arefc_ex(std::size_t  extra_bytes_required,
-                   destroyer_fn destroyer,
-                   Fn&&         fn,
+    mmake_arefc_ex(std::size_t       extra_bytes_required,
+                   destroyer_fn_t<T> destroyer,
+                   Fn&&              fn,
                    Args&&... args)
     {
         using aggregate_type = arefc_ptr_impl::aggregate<T>;
 
-        auto const bytes_required =
-            m::math::add(offsetof(aggregate_type, m_object), extra_bytes_required, std::size_t{});
+        auto a = aggregate_type::allocate(destroyer, extra_bytes_required);
 
-        auto a = aggregate_type::allocate(bytes_required);
-        a->m_control_area.m_refcount.store(1, std::memory_order_relaxed);
-        a->m_control_area.m_destroyer = destroyer;
+        auto const object_span = a->get_object_byte_span();
+        auto const extended_span =
+            std::span(object_span.data(), object_span.size() + extra_bytes_required);
 
-        auto const ptr = std::invoke<Fn, std::span<std::byte>, Args...>(
-            std::forward<Fn>(fn),
-            std::span(reinterpret_cast<std::byte*>(&a->m_object), extra_bytes_required),
-            std::forward<Args>(args)...);
+        auto const ptr = std::invoke<Fn, byte_span, Args...>(
+            std::forward<Fn>(fn), a->get_object_byte_span(), std::forward<Args>(args)...);
 
         a.release();
         arefc_ptr<T> retval(ptr);
@@ -524,8 +747,8 @@ namespace m
     {
         return mmake_arefc_ex<T>(
             sizeof(T),
-            &arefc_ptr_impl::aggregate<T>::destroyer,
-            [](std::span<std::byte> s, Args&&... args1) {
+            &arefc_ptr_impl::aggregate<T>::destroy_object,
+            [](byte_span s, Args&&... args1) {
                 M_INTERNAL_ERROR_CHECK(s.size() >= sizeof(T));
                 return ::new (s.data()) T(std::forward<Args>(args1)...);
             },

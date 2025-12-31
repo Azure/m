@@ -6,6 +6,7 @@
 
 #include <m/tracing/debugging.h>
 #include <m/tracing/message.h>
+#include <m/tracing/monitor_var.h>
 
 namespace m::tracing
 {

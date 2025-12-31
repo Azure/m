@@ -17,9 +17,10 @@
 #include <m/pil/registry_base_types.h>
 #include <m/pil/registry_interfaces.h>
 #include <m/strings/compare.h>
+#include <m/utility/locked.h>
 
-#include <pugixml.hpp>
 #include "../pugihelp.h"
+#include <pugixml.hpp>
 
 namespace m::pil::impl::buffered
 {

@@ -24,6 +24,7 @@
 #include <m/pil/registry.h>
 #include <m/pil/registry_interfaces.h>
 #include <m/strings/compare.h>
+#include <m/utility/locked.h>
 
 using namespace std::string_view_literals;
 

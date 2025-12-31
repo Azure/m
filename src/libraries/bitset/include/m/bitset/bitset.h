@@ -11,6 +11,7 @@
 #include <bit>
 #include <climits>
 #include <cstdint>
+#include <functional>
 #include <new>
 #include <optional>
 #include <ranges>

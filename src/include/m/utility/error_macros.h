@@ -422,7 +422,7 @@ namespace m::error_macros
         if (!m_m_internal_value)                                                                   \
         {                                                                                          \
             m::error_macros::on_error(std::source_location::current(),                             \
-                                      "Test failed: {}; not implementetd. {}",                     \
+                                      "Test failed: {}; not implemented. {}",                      \
                                       #expr,                                                       \
                                       text);                                                       \
             throw m::not_implemented(text);                                                        \

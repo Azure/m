@@ -353,7 +353,7 @@ namespace m::error_macros
 // RAII destructor invocation. This may be tricky because to get the correct
 // semantics, the object must be a l-value, e.g. a named variable, the value
 // of which is preserved until the scope terminates. But there is no way to
-// have multiple macro invocations define multiple vaariables.
+// have multiple macro invocations define multiple variables.
 //
 
 #define M_VERIFY_PRECONDITION(c)                                                                   \

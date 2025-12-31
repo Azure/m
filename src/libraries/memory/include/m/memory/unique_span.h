@@ -99,7 +99,7 @@ namespace m
 
             std::uninitialized_copy_n(il.begin(), il.size(), ra.get());
 
-            m_span = ra.release_span();
+            m_span = ra.release();
         }
 
         /// <summary>

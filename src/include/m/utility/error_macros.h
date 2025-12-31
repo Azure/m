@@ -292,7 +292,7 @@ namespace m::error_macros
     do                                                                                             \
     {                                                                                              \
         /* m::tracing::monitor->close(m::tracing::close_flush_option::expedite); */                \
-        m::error_macros::on_fatal(std::source_location::current(), nullptr);                       \
+        m::error_macros::on_fatal(std::source_location::current(), "");                            \
     } while (false)
 
 //

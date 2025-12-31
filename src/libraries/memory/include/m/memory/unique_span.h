@@ -125,7 +125,7 @@ namespace m
             requires(std::random_access_iterator<IteratorT>)
         unique_span(IteratorT it, EndIteratorT end)
         {
-            constexpr auto                     size = std::distance(it, end);
+            auto                               size = std::distance(it, end);
             m::raw_array_allocator<value_type> ra(size);
             std::uninitialized_copy(it, end, ra.get());
             m_span = ra.release();

@@ -5,6 +5,7 @@ include(GoogleTest)
 set(TEST_EXE_NAME test_sstring)
 
 add_executable(${TEST_EXE_NAME}
+    leak_test.cpp
     test_sstring.cpp
 )
 

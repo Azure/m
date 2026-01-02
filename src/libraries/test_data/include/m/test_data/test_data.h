@@ -20,41 +20,41 @@ namespace m::test_data
     using namespace std::string_view_literals;
 
     // char
-    auto nato_alphabet_s = {"Alfa"s,   "Bravo"s,    "Charlie"s, "Delta"s,   "Echo"s,    "Foxtrot"s,
-                            "Golf"s,   "Hotel"s,    "India"s,   "Juliett"s, "Kilo"s,    "Lima"s,
-                            "Mike"s,   "November"s, "Oscar"s,   "Papa"s,    "Quebec"s,  "Romeo"s,
-                            "Sierra"s, "Tango"s,    "Uniform"s, "Victor"s,  "Whiskey"s, "Xray"s,
-                            "Yankee"s, "Zulu"s};
+    inline auto nato_alphabet_s = {
+        "Alfa"s,   "Bravo"s,   "Charlie"s, "Delta"s,  "Echo"s,   "Foxtrot"s, "Golf"s,
+        "Hotel"s,  "India"s,   "Juliett"s, "Kilo"s,   "Lima"s,   "Mike"s,    "November"s,
+        "Oscar"s,  "Papa"s,    "Quebec"s,  "Romeo"s,  "Sierra"s, "Tango"s,   "Uniform"s,
+        "Victor"s, "Whiskey"s, "Xray"s,    "Yankee"s, "Zulu"s};
 
-    auto nato_alphabet_sv = {
+    inline auto nato_alphabet_sv = {
         "Alfa"sv,   "Bravo"sv,   "Charlie"sv, "Delta"sv,  "Echo"sv,   "Foxtrot"sv, "Golf"sv,
         "Hotel"sv,  "India"sv,   "Juliett"sv, "Kilo"sv,   "Lima"sv,   "Mike"sv,    "November"sv,
         "Oscar"sv,  "Papa"sv,    "Quebec"sv,  "Romeo"sv,  "Sierra"sv, "Tango"sv,   "Uniform"sv,
         "Victor"sv, "Whiskey"sv, "Xray"sv,    "Yankee"sv, "Zulu"sv};
 
     // wchar_t
-    auto nato_alphabet_ws = {
+    inline auto nato_alphabet_ws = {
         L"Alfa"s,   L"Bravo"s,   L"Charlie"s, L"Delta"s,  L"Echo"s,   L"Foxtrot"s, L"Golf"s,
         L"Hotel"s,  L"India"s,   L"Juliett"s, L"Kilo"s,   L"Lima"s,   L"Mike"s,    L"November"s,
         L"Oscar"s,  L"Papa"s,    L"Quebec"s,  L"Romeo"s,  L"Sierra"s, L"Tango"s,   L"Uniform"s,
         L"Victor"s, L"Whiskey"s, L"Xray"s,    L"Yankee"s, L"Zulu"s};
 
-    auto nato_alphabet_wsv = {L"Alfa"sv,    L"Bravo"sv,  L"Charlie"sv, L"Delta"sv,    L"Echo"sv,
-                              L"Foxtrot"sv, L"Golf"sv,   L"Hotel"sv,   L"India"sv,    L"Juliett"sv,
-                              L"Kilo"sv,    L"Lima"sv,   L"Mike"sv,    L"November"sv, L"Oscar"sv,
-                              L"Papa"sv,    L"Quebec"sv, L"Romeo"sv,   L"Sierra"sv,   L"Tango"sv,
-                              L"Uniform"sv, L"Victor"sv, L"Whiskey"sv, L"Xray"sv,     L"Yankee"sv,
-                              L"Zulu"sv};
+    inline auto nato_alphabet_wsv = {
+        L"Alfa"sv,   L"Bravo"sv,    L"Charlie"sv, L"Delta"sv,   L"Echo"sv,    L"Foxtrot"sv,
+        L"Golf"sv,   L"Hotel"sv,    L"India"sv,   L"Juliett"sv, L"Kilo"sv,    L"Lima"sv,
+        L"Mike"sv,   L"November"sv, L"Oscar"sv,   L"Papa"sv,    L"Quebec"sv,  L"Romeo"sv,
+        L"Sierra"sv, L"Tango"sv,    L"Uniform"sv, L"Victor"sv,  L"Whiskey"sv, L"Xray"sv,
+        L"Yankee"sv, L"Zulu"sv};
 
     // char8_t
-    auto nato_alphabet_u8s = {u8"Alfa"s,    u8"Bravo"s,  u8"Charlie"s, u8"Delta"s,    u8"Echo"s,
-                              u8"Foxtrot"s, u8"Golf"s,   u8"Hotel"s,   u8"India"s,    u8"Juliett"s,
-                              u8"Kilo"s,    u8"Lima"s,   u8"Mike"s,    u8"November"s, u8"Oscar"s,
-                              u8"Papa"s,    u8"Quebec"s, u8"Romeo"s,   u8"Sierra"s,   u8"Tango"s,
-                              u8"Uniform"s, u8"Victor"s, u8"Whiskey"s, u8"Xray"s,     u8"Yankee"s,
-                              u8"Zulu"s};
+    inline auto nato_alphabet_u8s = {
+        u8"Alfa"s,   u8"Bravo"s,    u8"Charlie"s, u8"Delta"s,   u8"Echo"s,    u8"Foxtrot"s,
+        u8"Golf"s,   u8"Hotel"s,    u8"India"s,   u8"Juliett"s, u8"Kilo"s,    u8"Lima"s,
+        u8"Mike"s,   u8"November"s, u8"Oscar"s,   u8"Papa"s,    u8"Quebec"s,  u8"Romeo"s,
+        u8"Sierra"s, u8"Tango"s,    u8"Uniform"s, u8"Victor"s,  u8"Whiskey"s, u8"Xray"s,
+        u8"Yankee"s, u8"Zulu"s};
 
-    auto nato_alphabet_u8sv = {
+    inline auto nato_alphabet_u8sv = {
         u8"Alfa"sv,   u8"Bravo"sv,    u8"Charlie"sv, u8"Delta"sv,   u8"Echo"sv,    u8"Foxtrot"sv,
         u8"Golf"sv,   u8"Hotel"sv,    u8"India"sv,   u8"Juliett"sv, u8"Kilo"sv,    u8"Lima"sv,
         u8"Mike"sv,   u8"November"sv, u8"Oscar"sv,   u8"Papa"sv,    u8"Quebec"sv,  u8"Romeo"sv,
@@ -62,43 +62,43 @@ namespace m::test_data
         u8"Yankee"sv, u8"Zulu"sv};
 
     // char16_t
-    auto nato_alphabet_us = {
+    inline auto nato_alphabet_us = {
         u"Alfa"s,   u"Bravo"s,   u"Charlie"s, u"Delta"s,  u"Echo"s,   u"Foxtrot"s, u"Golf"s,
         u"Hotel"s,  u"India"s,   u"Juliett"s, u"Kilo"s,   u"Lima"s,   u"Mike"s,    u"November"s,
         u"Oscar"s,  u"Papa"s,    u"Quebec"s,  u"Romeo"s,  u"Sierra"s, u"Tango"s,   u"Uniform"s,
         u"Victor"s, u"Whiskey"s, u"Xray"s,    u"Yankee"s, u"Zulu"s};
 
-    auto nato_alphabet_usv = {u"Alfa"sv,    u"Bravo"sv,  u"Charlie"sv, u"Delta"sv,    u"Echo"sv,
-                              u"Foxtrot"sv, u"Golf"sv,   u"Hotel"sv,   u"India"sv,    u"Juliett"sv,
-                              u"Kilo"sv,    u"Lima"sv,   u"Mike"sv,    u"November"sv, u"Oscar"sv,
-                              u"Papa"sv,    u"Quebec"sv, u"Romeo"sv,   u"Sierra"sv,   u"Tango"sv,
-                              u"Uniform"sv, u"Victor"sv, u"Whiskey"sv, u"Xray"sv,     u"Yankee"sv,
-                              u"Zulu"sv};
+    inline auto nato_alphabet_usv = {
+        u"Alfa"sv,   u"Bravo"sv,    u"Charlie"sv, u"Delta"sv,   u"Echo"sv,    u"Foxtrot"sv,
+        u"Golf"sv,   u"Hotel"sv,    u"India"sv,   u"Juliett"sv, u"Kilo"sv,    u"Lima"sv,
+        u"Mike"sv,   u"November"sv, u"Oscar"sv,   u"Papa"sv,    u"Quebec"sv,  u"Romeo"sv,
+        u"Sierra"sv, u"Tango"sv,    u"Uniform"sv, u"Victor"sv,  u"Whiskey"sv, u"Xray"sv,
+        u"Yankee"sv, u"Zulu"sv};
 
     // char32_t
-    auto nato_alphabet_u32s = {
+    inline auto nato_alphabet_u32s = {
         U"Alfa"s,   U"Bravo"s,   U"Charlie"s, U"Delta"s,  U"Echo"s,   U"Foxtrot"s, U"Golf"s,
         U"Hotel"s,  U"India"s,   U"Juliett"s, U"Kilo"s,   U"Lima"s,   U"Mike"s,    U"November"s,
         U"Oscar"s,  U"Papa"s,    U"Quebec"s,  U"Romeo"s,  U"Sierra"s, U"Tango"s,   U"Uniform"s,
         U"Victor"s, U"Whiskey"s, U"Xray"s,    U"Yankee"s, U"Zulu"s};
 
-    auto nato_alphabet_u32sv = {
+    inline auto nato_alphabet_u32sv = {
         U"Alfa"sv,   U"Bravo"sv,    U"Charlie"sv, U"Delta"sv,   U"Echo"sv,    U"Foxtrot"sv,
         U"Golf"sv,   U"Hotel"sv,    U"India"sv,   U"Juliett"sv, U"Kilo"sv,    U"Lima"sv,
         U"Mike"sv,   U"November"sv, U"Oscar"sv,   U"Papa"sv,    U"Quebec"sv,  U"Romeo"sv,
         U"Sierra"sv, U"Tango"sv,    U"Uniform"sv, U"Victor"sv,  U"Whiskey"sv, U"Xray"sv,
         U"Yankee"sv, U"Zulu"sv};
 
-    auto alpha_num_s     = "abcdefghijklmnopqrstuvwxyz0123456789"s;
-    auto alpha_num_sv    = "abcdefghijklmnopqrstuvwxyz0123456789"sv;
-    auto alpha_num_ws    = L"abcdefghijklmnopqrstuvwxyz0123456789"s;
-    auto alpha_num_wsv   = L"abcdefghijklmnopqrstuvwxyz0123456789"sv;
-    auto alpha_num_u8s   = u8"abcdefghijklmnopqrstuvwxyz0123456789"s;
-    auto alpha_num_u8sv  = u8"abcdefghijklmnopqrstuvwxyz0123456789"sv;
-    auto alpha_num_u16s  = u"abcdefghijklmnopqrstuvwxyz0123456789"s;
-    auto alpha_num_u16sv = u"abcdefghijklmnopqrstuvwxyz0123456789"sv;
-    auto alpha_num_u32s  = U"abcdefghijklmnopqrstuvwxyz0123456789"s;
-    auto alpha_num_u32sv = U"abcdefghijklmnopqrstuvwxyz0123456789"sv;
+    inline auto alpha_num_s     = "abcdefghijklmnopqrstuvwxyz0123456789"s;
+    inline auto alpha_num_sv    = "abcdefghijklmnopqrstuvwxyz0123456789"sv;
+    inline auto alpha_num_ws    = L"abcdefghijklmnopqrstuvwxyz0123456789"s;
+    inline auto alpha_num_wsv   = L"abcdefghijklmnopqrstuvwxyz0123456789"sv;
+    inline auto alpha_num_u8s   = u8"abcdefghijklmnopqrstuvwxyz0123456789"s;
+    inline auto alpha_num_u8sv  = u8"abcdefghijklmnopqrstuvwxyz0123456789"sv;
+    inline auto alpha_num_u16s  = u"abcdefghijklmnopqrstuvwxyz0123456789"s;
+    inline auto alpha_num_u16sv = u"abcdefghijklmnopqrstuvwxyz0123456789"sv;
+    inline auto alpha_num_u32s  = U"abcdefghijklmnopqrstuvwxyz0123456789"s;
+    inline auto alpha_num_u32sv = U"abcdefghijklmnopqrstuvwxyz0123456789"sv;
 
     namespace utf_data
     {

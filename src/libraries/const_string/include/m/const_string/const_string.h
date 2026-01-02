@@ -24,9 +24,9 @@
 #include <type_traits>
 #include <utility>
 
+#include <m/arefc_ptr/arefc_ptr.h>
 #include <m/error_handling/macros.h>
 #include <m/math/math.h>
-#include <m/arefc_ptr/arefc_ptr.h>
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
 
@@ -207,8 +207,7 @@ namespace m
 
         return m::mmake_arefc_ex<basic_const_string<CharT>>(
             bytes_needed,
-            nullptr,
-            [](std::span<std::byte> s, StringishT const& str2) {
+            [](byte_span s, StringishT const& str2) {
                 return ::new (s.data()) basic_const_string<CharT>(str2);
             },
             str);
@@ -237,8 +236,7 @@ namespace m
 
         return m::mmake_arefc_ex<basic_const_string<CharT>>(
             bytes_needed,
-            nullptr,
-            [](std::span<std::byte> s, std::initializer_list<StringishT> il2) {
+            [](byte_span s, std::initializer_list<StringishT> il2) {
                 return ::new (s.data()) basic_const_string<CharT>(il2);
             },
             il);
@@ -267,8 +265,7 @@ namespace m
 
         return m::mmake_arefc_ex<basic_const_string<CharT>>(
             bytes_needed,
-            nullptr,
-            [](std::span<std::byte> s, std::span<StringishT const> spn2) {
+            [](byte_span s, std::span<StringishT const> spn2) {
                 return ::new (s.data()) basic_const_string<CharT>(spn2);
             },
             spn);

@@ -53,32 +53,8 @@ namespace m
     //
     // Convert a byte_span to a span of Ts.
     //
-    // Also returns the count of leftover bytes in an out reference parameter.
+    // Also returns the span of what was not included as a remainder span.
     //
-    template <typename T>
-    std::span<T const>
-    as_ts(byte_span span, std::size_t& remainder)
-    {
-        remainder = span.size() % sizeof(T);
-        return std::span<T const>(reinterpret_cast<T*>(span.data()), span.size() / sizeof(T));
-    }
-
-    template <typename T>
-    std::span<T const>
-    as_ts(const_byte_span span, std::size_t& remainder)
-    {
-        remainder = span.size() % sizeof(T);
-        return std::span<T const>(reinterpret_cast<T const*>(span.data()), span.size() / sizeof(T));
-    }
-
-    template <typename T>
-    std::span<T>
-    as_writable_ts(byte_span span, std::size_t& remainder)
-    {
-        remainder = span.size() % sizeof(T);
-        return std::span<T>(reinterpret_cast<T*>(span.data()), span.size() / sizeof(T));
-    }
-
     template <typename T>
     std::span<T const>
     as_ts(byte_span span, byte_span& remainder)
@@ -179,30 +155,51 @@ namespace m
     //
     template <typename T>
     std::span<T const>
-    as_ts(byte_span span, std::size_t* remainder)
+    as_ts(byte_span span, byte_span* remainder)
     {
         if (remainder != nullptr)
-            *remainder = span.size() % sizeof(T);
+        {
+            auto const remainder_bytes = span.size() % sizeof(T);
+
+            if (remainder_bytes != 0)
+                *remainder = span.subspan(span.size() - remainder_bytes);
+            else
+                *remainder = byte_span{};
+        }
 
         return std::span<T const>(reinterpret_cast<T*>(span.data()), span.size() / sizeof(T));
     }
 
     template <typename T>
     std::span<T const>
-    as_ts(const_byte_span span, std::size_t* remainder)
+    as_ts(const_byte_span span, const_byte_span* remainder)
     {
         if (remainder != nullptr)
-            *remainder = span.size() % sizeof(T);
+        {
+            auto const remainder_bytes = span.size() % sizeof(T);
+
+            if (remainder_bytes != 0)
+                *remainder = span.subspan(span.size() - remainder_bytes);
+            else
+                *remainder = const_byte_span{};
+        }
 
         return std::span<T const>(reinterpret_cast<T const*>(span.data()), span.size() / sizeof(T));
     }
 
     template <typename T>
     std::span<T>
-    as_writable_ts(byte_span span, std::size_t* remainder)
+    as_writable_ts(byte_span span, byte_span* remainder)
     {
         if (remainder != nullptr)
-            *remainder = span.size() % sizeof(T);
+        {
+            auto const remainder_bytes = span.size() % sizeof(T);
+
+            if (remainder_bytes != 0)
+                *remainder = span.subspan(span.size() - remainder_bytes);
+            else
+                *remainder = byte_span{};
+        }
 
         return std::span<T>(reinterpret_cast<T*>(span.data()), span.size() / sizeof(T));
     }
@@ -261,3 +258,4 @@ namespace m
         return std::span<T>(reinterpret_cast<T*>(span.data()), n);
     }
 } // namespace m
+

@@ -36,14 +36,6 @@
 
 namespace m
 {
-    // A destroyer_fn_t is a function pointer that takes a T* which is the
-    // pointer to the object that is to be destroyed. Note that the destroyer
-    // does *not* deallocate the memory, it just tears down the state of
-    // the object.
-    //
-    template <typename T>
-    using destroyer_fn_t = void (*)(T*);
-
     inline static constexpr std::size_t arefc_max_alignment = 512;
 
     template <typename T>
@@ -66,7 +58,7 @@ namespace m
             constexpr void
             operator()(aggregate<T>* aggptr) const noexcept
             {
-                aggregate<T>::destroy_object(aggptr);
+                aggregate<T>::deallocate(aggptr);
             }
         };
 
@@ -74,8 +66,7 @@ namespace m
         class base_control_area
         {
         public:
-            using value_type        = T;
-            using destroyer_fn_type = destroyer_fn_t<value_type>;
+            using value_type = T;
 
             base_control_area()                         = default;
             base_control_area(base_control_area const&) = delete;
@@ -88,10 +79,9 @@ namespace m
             operator=(base_control_area&&) = delete;
 
             void
-            initialize(uint64_t refcount, destroyer_fn_type destroyer_fn) noexcept
+            initialize(uint64_t refcount) noexcept
             {
                 m_refcount.store(refcount, std::memory_order_relaxed);
-                m_destroyer_fn = destroyer_fn;
             }
 
             void
@@ -104,12 +94,6 @@ namespace m
             decrement_ref() noexcept
             {
                 return m_refcount.fetch_sub(1, std::memory_order_acq_rel) == 1;
-            }
-
-            constexpr destroyer_fn_type
-            get_destroyer_fn() const noexcept
-            {
-                return m_destroyer_fn;
             }
 
             byte_span
@@ -125,7 +109,6 @@ namespace m
 
         private:
             std::atomic<uint64_t> m_refcount;
-            destroyer_fn_type     m_destroyer_fn;
         };
 
         template <typename T>
@@ -231,7 +214,6 @@ namespace m
 
             using aggregate_deleter_type = aggregate_deleter<value_type>;
             using control_area_type      = control_area_t<value_type>;
-            using destroyer_fn_type      = typename control_area_type::destroyer_fn_type;
             using unique_ptr_type        = std::unique_ptr<aggregate, aggregate_deleter_type>;
             using raw_allocation_helper_type =
                 raw_allocation_helper<aggregate_raw_allocator_traits>;
@@ -254,7 +236,7 @@ namespace m
             swap(aggregate&) = delete;
 
             inline static unique_ptr_type
-            allocate(destroyer_fn_type destroyer, std::size_t extra_bytes = 0)
+            allocate(std::size_t extra_bytes = 0)
             {
                 typename raw_allocation_helper_type::parameters_t parameters{
                     .n = 1, .additional_bytes = extra_bytes};
@@ -266,7 +248,7 @@ namespace m
                 auto const                 ucaptr  = uobjptr - sizeof(control_area_type);
                 auto const                 captr   = reinterpret_cast<control_area_type*>(ucaptr);
 
-                captr->initialize(1, destroyer);
+                captr->initialize(1);
 
                 auto result = rah.release();
 
@@ -276,19 +258,34 @@ namespace m
             auto
             get_object_byte_span()
             {
-                return std::as_writable_bytes(std::span(&m_faux_object, 1));
+                return std::span(m_faux_object.m_data.data(), m_faux_object.m_data.size());
+            }
+
+            //
+            // Remember that "destroy" means "invoke destructors", not
+            // "deallocate"
+            //
+            static void
+            destroy(value_type* ptr)
+            {
+                auto const aggptr = get_aggregate(ptr);
+                destroy(aggptr);
             }
 
             static void
-            destroy_object(value_type* ptr)
+            destroy(aggregate* aggptr)
             {
-                deallocate(ptr, true);
+                aggptr->destroy();
             }
 
-            static void
-            destroy_object(aggregate* aggptr)
+            // Would better to be called "delete" but that's a reserved word
+            inline static void
+            deallocate(aggregate* aggptr, bool do_destroy = true)
             {
-                deallocate(aggptr, true);
+                if (do_destroy)
+                    aggptr->destroy();
+
+                raw_allocation_helper_type::deallocate(aggptr->get_allocated_span());
             }
 
         private:
@@ -306,23 +303,12 @@ namespace m
                 deallocate(reinterpret_cast<aggregate*>(uagg_ptr), do_destroy);
             }
 
-            inline static void
-            deallocate(aggregate* aggptr, bool do_destroy = true)
+            void
+            destroy()
             {
-                if (do_destroy)
-                {
-                    auto const ca = get_control_area(aggptr);
-                    if (auto const destroyer = ca->get_destroyer_fn(); destroyer != nullptr)
-                    {
-                        // We don't want to force the fence when there is no destructor (e.g.
-                        // wchar_t array which is a common case) so we do it here which may be
-                        // pessimistic.
-                        std::atomic_thread_fence(std::memory_order_acquire);
-                        (*destroyer)(aggptr->get_object());
-                    }
-                }
-
-                raw_allocation_helper_type::deallocate(aggptr->get_allocated_span());
+                std::atomic_thread_fence(std::memory_order_acquire);
+                auto const object_ptr = get_object();
+                std::destroy_at(object_ptr.get());
             }
 
             m::not_null<T*>
@@ -474,10 +460,7 @@ namespace m
     template <typename T, typename Fn, typename... Args>
         requires(arefc_ptr_requirements<T> && std::invocable<Fn, byte_span, Args && ...>)
     arefc_ptr<T>
-    mmake_arefc_ex(std::size_t       extra_bytes_required,
-                   destroyer_fn_t<T> destroyer,
-                   Fn&&              fn,
-                   Args&&... args);
+    mmake_arefc_ex(std::size_t extra_bytes_required, Fn&& fn, Args&&... args);
 
     /// <summary>
     /// The arefc_ptr type is pointer to a reference counted object, it is
@@ -717,30 +700,21 @@ namespace m
         template <typename T1, typename Fn, typename... Args>
             requires(arefc_ptr_requirements<T1> && std::invocable<Fn, byte_span, Args && ...>)
         friend arefc_ptr<T1>
-        mmake_arefc_ex(std::size_t        extra_bytes_required,
-                       destroyer_fn_t<T1> destroyer,
-                       Fn&&               fn,
-                       Args&&... args);
+        mmake_arefc_ex(std::size_t extra_bytes_required, Fn&& fn, Args&&... args);
     };
 
     template <typename T, typename Fn, typename... Args>
         requires(arefc_ptr_requirements<T> && std::invocable<Fn, byte_span, Args && ...>)
     arefc_ptr<T>
-    mmake_arefc_ex(std::size_t       extra_bytes_required,
-                   destroyer_fn_t<T> destroyer,
-                   Fn&&              fn,
-                   Args&&... args)
+    mmake_arefc_ex(std::size_t extra_bytes_required, Fn&& fn, Args&&... args)
     {
         using aggregate_type = arefc_ptr_impl::aggregate<T>;
 
-        auto a = aggregate_type::allocate(destroyer, extra_bytes_required);
+        auto a = aggregate_type::allocate(extra_bytes_required);
 
         auto const object_span = a->get_object_byte_span();
-        auto const extended_span =
-            std::span(object_span.data(), object_span.size() + extra_bytes_required);
-
-        auto const ptr = std::invoke<Fn, byte_span, Args...>(
-            std::forward<Fn>(fn), a->get_object_byte_span(), std::forward<Args>(args)...);
+        auto const ptr =
+            std::invoke(std::forward<Fn>(fn), object_span, std::forward<Args>(args)...);
 
         a.release();
         arefc_ptr<T> retval(ptr);
@@ -753,8 +727,7 @@ namespace m
     mmake_arefc(Args&&... args)
     {
         return mmake_arefc_ex<T>(
-            sizeof(T),
-            &arefc_ptr_impl::aggregate<T>::destroy_object,
+            0,
             [](byte_span s, Args&&... args1) {
                 M_INTERNAL_ERROR_CHECK(s.size() >= sizeof(T));
                 return ::new (s.data()) T(std::forward<Args>(args1)...);

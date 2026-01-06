@@ -23,6 +23,7 @@
 #include <m/pil/security_attributes.h>
 #include <m/sstring/sstring.h>
 #include <m/strings/convert.h>
+#include <m/strings/tstring.h>
 #include <m/utility/enum_operations.h.h>
 #include <m/utility/utility.h>
 
@@ -102,6 +103,16 @@ namespace m::pil
             return returned_key;
         }
 
+        std::shared_ptr<ikey>
+        create_key(key_path const& path)
+        {
+            std::shared_ptr<ikey> returned_key;
+            auto const            d = create_key(
+                create_key_flags{}, path, sam::default_create_key, std::nullopt, returned_key);
+            M_INTERNAL_ERROR_CHECK(!d);
+            return returned_key;
+        }
+
         //
         //  delete_key
         //
@@ -127,6 +138,13 @@ namespace m::pil
         delete_key(key_path const& path)
         {
             auto const d = delete_key(delete_key_flags{}, path, sam::default_delete_key);
+            M_INTERNAL_ERROR_CHECK(!d);
+        }
+
+        void
+        delete_key(key_path const& path, sam sam_desired)
+        {
+            auto const d = delete_key(delete_key_flags{}, path, sam_desired);
             M_INTERNAL_ERROR_CHECK(!d);
         }
 
@@ -375,6 +393,14 @@ namespace m::pil
         {
             auto const d = delete_value(delete_value_flags{}, value_name);
             M_INTERNAL_ERROR_CHECK(!d);
+        }
+
+        template <typename TChar>
+        void
+        delete_value(TChar const* ptr)
+        {
+            value_name_string_type str{m::to_string_t<value_name_char_type>(ptr)};
+            delete_value(str);
         }
 
         //

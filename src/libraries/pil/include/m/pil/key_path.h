@@ -76,7 +76,7 @@ namespace m::pil
         template <typename CharT>
             requires(m::character<CharT>)
         key_path(std::basic_string_view<CharT> value):
-            m_value(m::to_string_view_t<char_type>(value))
+            m_value(m::to_string_t<char_type>(value))
         {}
 
         template <typename CharT>

@@ -34,19 +34,19 @@ test_cvt_acp_iter_to_wstring(test_data const& data)
 {
     std::wstring out;
 
-    m::multi_byte::acp_to_utf16(data.m_asv.begin(), data.m_asv.end(), out);
+    m::acp_to_utf16(data.m_asv.begin(), data.m_asv.end(), out);
 
     EXPECT_EQ(out, data.m_wstring);
 
     out.clear();
 
-    m::multi_byte::acp_to_utf16(data.m_asv, out);
+    m::acp_to_utf16(data.m_asv, out);
 
     EXPECT_EQ(out, data.m_wstring);
 
     out.clear();
 
-    m::multi_byte::acp_to_utf16(data.m_astring, out);
+    m::acp_to_utf16(data.m_astring, out);
 
     EXPECT_EQ(out, data.m_wstring);
     out.clear();
@@ -55,7 +55,7 @@ test_cvt_acp_iter_to_wstring(test_data const& data)
 void
 test_multibyte_length(mb_test_data const& data)
 {
-    auto const length = m::multi_byte::multi_byte_to_utf16_length(data.m_cp, data.m_view);
+    auto const length = m::multi_byte_to_utf16_length(data.m_cp, data.m_view);
     EXPECT_EQ(length, data.m_wview.size());
 }
 
@@ -70,7 +70,7 @@ test_multibyte_to_span(mb_test_data const& data)
 
     auto span = m::make_span(buffer);
 
-    m::multi_byte::multi_byte_to_utf16(data.m_cp, data.m_view, span);
+    m::multi_byte_to_utf16(data.m_cp, data.m_view, span);
 
     EXPECT_EQ(span.size(), data.m_wview.size());
     EXPECT_EQ(data.m_wview.compare(std::wstring_view(span.data(), span.size())), 0);
@@ -103,7 +103,7 @@ test_multibyte_to_outiter(mb_test_data const& data)
 
     auto outit = std::back_inserter(buffer);
 
-    m::multi_byte::multi_byte_to_utf16(data.m_cp, data.m_view, outit);
+    m::multi_byte_to_utf16(data.m_cp, data.m_view, outit);
 
     EXPECT_EQ(buffer.size(), data.m_wview.size());
     EXPECT_EQ(data.m_wview.compare(std::wstring_view(buffer)), 0);

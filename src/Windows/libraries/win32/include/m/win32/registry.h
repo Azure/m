@@ -170,8 +170,8 @@ namespace m::win32::registry
         [[nodiscard]] std::error_code
         openq(predefined_key pk, m::basic_sstring<CharT> const& str, REGSAM sam_desired)
         {
-            m::wsstring temp{str};
-            return openq(pk, temp.c_str(), sam_desired);
+            m::wsstring wstr{str};
+            return openq(pk, wstr.c_str(), sam_desired);
         }
 
         void

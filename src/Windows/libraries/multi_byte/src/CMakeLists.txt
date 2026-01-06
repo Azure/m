@@ -6,6 +6,7 @@ target_sources(m_multi_byte PRIVATE
     string_conversion_details.cpp
     multi_byte_to_utf.cpp
     to_acp_string.cpp
+    to_span.cpp
     utf16_to_multi_byte.cpp
 )
 

@@ -6,13 +6,14 @@ target_include_directories(m_pil PUBLIC
 
 target_sources(m_pil PRIVATE
     create_platform.cpp
+    key_path.cpp
     pil.cpp
     platform.cpp
     registry.cpp
     registry_base_types.cpp
     registry_key.cpp
     registry_monitor.cpp
-    key_path.cpp
+    security_attributes.cpp
 )
 
 add_subdirectory(buffered)

@@ -16,7 +16,7 @@
             "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
             "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/build/vcpkg/triplets/",
             "VCPKG_OVERLAY_PORTS": "${sourceDir}/build/vcpkg/ports/",
-            "BUILD_TESTING": true
+            "BUILD_TESTS": true
         },
       "environment": {
         "VCPKG_ROOT": "${sourceDir}/vcpkg/"
@@ -163,7 +163,7 @@
       "name": "asan",
       "cacheVariables": {
         "BUILD_FUZZING": true,
-        "BUILD_TESTING": false
+        "BUILD_TESTS": false
       },
       "hidden": true
     },

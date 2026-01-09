@@ -6,6 +6,7 @@ target_compile_features(m_errors PUBLIC ${M_CXX_STD})
 
 add_subdirectory(include)
 add_subdirectory(src)
+add_subdirectory(test)
 
 list(APPEND m_installation_targets
     m_errors

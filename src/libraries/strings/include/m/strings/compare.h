@@ -89,7 +89,7 @@ namespace m
     };
 
     template <typename T>
-    struct case_insensitive_less<T, std::enable_if_t<stringish<T> || has_some_view<T>>>
+    struct case_insensitive_less<T, std::enable_if_t<any_stringish<T> || has_some_view<T>>>
     {
         using is_transparent  = char;
         using value_type      = typename T::value_type;

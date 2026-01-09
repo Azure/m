@@ -7,41 +7,21 @@
 #include <type_traits>
 
 #include <m/cast/to.h>
+#include <m/error_handling/macros.h>
 #include <m/multi_byte/convert.h>
 #include <m/utility/make_span.h>
 
 #include <Windows.h>
 
-namespace impl
+namespace m::multi_byte::impl
 {
-    template <typename Utf16CharT, typename CharTraitsT = std::char_traits<Utf16CharT>>
-    std::size_t
-    utf16_to_multi_byte_length_fn(m::multi_byte::code_page                        cp,
-                                  std::basic_string_view<Utf16CharT, CharTraitsT> view)
-    {
-        auto const view_size = view.size();
-        if (view_size == 0)
-            return 0;
-
-        auto i = ::WideCharToMultiByte(std::to_underlying(cp),
-                                       WC_NO_BEST_FIT_CHARS,
-                                       reinterpret_cast<wchar_t const*>(view.data()),
-                                       m::to<int>(view_size),
-                                       nullptr,
-                                       0,
-                                       nullptr,  // lpDefaultChar
-                                       nullptr); // lpUsedDefaultChar
-        if (i < 1)
-            m::throw_last_win32_error();
-
-        return m::to<std::size_t>(i);
-    }
-
-    template <typename Utf16CharT, typename CharTraitsT = std::char_traits<Utf16CharT>>
-    m::windows::win32_error_code
-    try_utf16_to_multi_byte_fn(m::multi_byte::code_page                        cp,
-                               std::basic_string_view<Utf16CharT, CharTraitsT> view,
-                               std::span<char>&                                buffer)
+    template <typename TCharIn>
+    requires m::utf16_character<TCharIn>
+    void
+    utf16_to_multi_byte_fn(code_page                          cp,
+                           std::basic_string_view<TCharIn> view,
+                           std::span<char>&                   buffer,
+                           std::error_code&                   ec)
     {
         auto const view_size = view.size();
         if (view_size == 0)
@@ -51,109 +31,177 @@ namespace impl
             // input of 0 length so we handle it separately.
             //
             buffer = buffer.subspan(0, 0);
-            return m::windows::win32_error_code::success;
+            return;
         }
 
-        auto i = ::WideCharToMultiByte(std::to_underlying(cp),
+        auto i = ::WideCharToMultiByte(to_underlying(cp),
                                        WC_NO_BEST_FIT_CHARS,
                                        reinterpret_cast<wchar_t const*>(view.data()),
-                                       m::to<int>(view.size()),
+                                       to<int>(view.size()),
                                        buffer.data(),
-                                       m::to<int>(buffer.size()),
+                                       to<int>(buffer.size()),
                                        nullptr,  // lpDefaultChar
                                        nullptr); // lpUsedDefaultChar
         if (i < 1)
-            return m::windows::get_last_error();
+        {
+            ec = get_last_win32_error();
+            return;
+        }
 
         buffer = buffer.subspan(0, i);
-        return m::windows::win32_error_code::success;
     }
 
-    //
-    template <typename Utf16CharT, typename CharTraitsT = std::char_traits<Utf16CharT>>
-    std::size_t
-    utf16_to_multi_byte_fn(m::multi_byte::code_page                        cp,
-                           std::basic_string_view<Utf16CharT, CharTraitsT> view,
-                           std::span<char>&                                buffer)
+    template <typename TCharIn>
+    void
+    utf16_to_multi_byte_fn(code_page                          cp,
+                           std::basic_string_view<TCharIn> view,
+                           std::span<char>&                   buffer)
     {
-        m::throw_if_failed(impl::try_utf16_to_multi_byte_fn(cp, view, buffer));
-        return buffer.size();
+        auto const view_size = view.size();
+        if (view_size == 0)
+        {
+            //
+            // The WideCharToMultiByte() API is not happy getting an
+            // input of 0 length so we handle it separately.
+            //
+            buffer = buffer.subspan(0, 0);
+            return;
+        }
+
+        auto i = ::WideCharToMultiByte(to_underlying(cp),
+                                       WC_NO_BEST_FIT_CHARS,
+                                       reinterpret_cast<wchar_t const*>(view.data()),
+                                       to<int>(view.size()),
+                                       buffer.data(),
+                                       to<int>(buffer.size()),
+                                       nullptr,  // lpDefaultChar
+                                       nullptr); // lpUsedDefaultChar
+        if (i < 1)
+            m::throw_last_win32_error();
+
+        buffer = buffer.subspan(0, i);
     }
 
-    template <typename Utf16CharT, typename CharTraitsT = std::char_traits<Utf16CharT>>
+    template <typename TCharIn>
+        requires utf16_character<TCharIn>
+    [[nodiscard]]
     std::string
-    utf16_view_to_multi_byte_fn(m::multi_byte::code_page                        cp,
-                                std::basic_string_view<Utf16CharT, CharTraitsT> view)
+    utf16_view_to_multi_byte_fn(code_page cp, std::basic_string_view<TCharIn> view)
     {
         std::string result;
 
-        auto length = utf16_to_multi_byte_length(cp, view);
+        auto length = m::utf16_to_multi_byte_length(cp, view);
         result.resize_and_overwrite(length, [&](auto buffer, auto size) -> auto {
-            auto span       = m::make_span(buffer, size);
-            auto error_code = try_utf16_to_multi_byte(cp, view, span);
-            m::throw_if_failed(error_code);
+            auto span = make_span(buffer, size);
+            multi_byte::impl::utf16_to_multi_byte_fn(cp, view, span);
             return span.size();
         });
         return result;
     }
+} // namespace m::multi_byte::impl
 
-} // namespace impl
-
-namespace m::multi_byte
+namespace m
 {
-    std::size_t
-    utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer)
-    {
-        return impl::utf16_to_multi_byte_fn(cp, view, buffer);
-    }
-
-    std::size_t
-    utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer)
-    {
-        return impl::utf16_to_multi_byte_fn(cp, view, buffer);
-    }
-
-    windows::win32_error_code
-    try_utf16_to_multi_byte(code_page cp, std::wstring_view view, std::span<char>& buffer)
-    {
-        return impl::try_utf16_to_multi_byte_fn(cp, view, buffer);
-    }
-
-    windows::win32_error_code
-    try_utf16_to_multi_byte(code_page cp, std::u16string_view view, std::span<char>& buffer)
-    {
-        return impl::try_utf16_to_multi_byte_fn(cp, view, buffer);
-    }
-
-    std::string
-    utf16_to_multi_byte_fn(code_page cp, std::wstring_view view)
-    {
-        return impl::utf16_view_to_multi_byte_fn(cp, view);
-    }
-
-    std::string
-    utf16_to_multi_byte_fn(code_page cp, std::u16string_view view)
-    {
-        return impl::utf16_view_to_multi_byte_fn(cp, view);
-    }
-
-    std::size_t
-    utf16_to_multi_byte_length(code_page cp, std::wstring_view view)
-    {
-        return impl::utf16_to_multi_byte_length_fn(cp, view);
-    }
-
-    std::size_t
-    utf16_to_multi_byte_length(code_page cp, std::u16string_view view)
-    {
-        return impl::utf16_to_multi_byte_length_fn(cp, view);
-    }
-
+    template <>
     void
-    utf16_to_multi_byte(code_page cp, std::wstring_view view, std::string& str)
+    utf16_to_multi_byte(multi_byte::code_page cp, std::wstring_view view, std::span<char>& buffer)
+    {
+        multi_byte::impl::utf16_to_multi_byte_fn(cp, view, buffer);
+    }
+
+    template <>
+    void
+    utf16_to_multi_byte(multi_byte::code_page cp, std::u16string_view view, std::span<char>& buffer)
+    {
+        multi_byte::impl::utf16_to_multi_byte_fn(cp, view, buffer);
+    }
+
+    template <>
+    void
+    utf16_to_multi_byte(multi_byte::code_page cp,
+                        std::wstring_view     view,
+                        std::span<char>&      buffer,
+                        std::error_code&      ec)
+    {
+        multi_byte::impl::utf16_to_multi_byte_fn(cp, view, buffer, ec);
+    }
+
+    template <>
+    void
+    utf16_to_multi_byte(multi_byte::code_page cp,
+                        std::u16string_view   view,
+                        std::span<char>&      buffer,
+                        std::error_code&      ec)
+    {
+        multi_byte::impl::utf16_to_multi_byte_fn(cp, view, buffer, ec);
+    }
+
+    template <>
+    void
+    utf16_to_multi_byte(multi_byte::code_page cp, std::wstring_view in, std::string& out)
+    {
+        auto const length = utf16_to_multi_byte_length(cp, in);
+        out.resize_and_overwrite(length, [cp, in](auto buffer, auto buffer_size) -> auto {
+            auto span = make_span(buffer, buffer_size);
+            utf16_to_multi_byte(cp, in, span);
+            return span.size();
+        });
+    }
+
+    template <>
+    void
+    utf16_to_multi_byte(multi_byte::code_page cp, std::u16string_view in, std::string& out)
+    {
+        auto const length = utf16_to_multi_byte_length(cp, in);
+        out.resize_and_overwrite(length, [cp, in](auto buffer, auto buffer_size) -> auto {
+            auto span = make_span(buffer, buffer_size);
+            utf16_to_multi_byte(cp, in, span);
+            return span.size();
+        });
+    }
+
+    template <>
+    void
+    utf16_to_multi_byte(multi_byte::code_page cp,
+                        std::u16string_view   in,
+                        std::string&          out,
+                        std::error_code&      ec)
+    {
+        auto const length = utf16_to_multi_byte_length(cp, in, ec);
+        if (failed(ec))
+            return;
+
+        out.resize_and_overwrite(length, [cp, in, &ec](auto buffer, auto buffer_size) -> auto {
+            auto span = make_span(buffer, buffer_size);
+            utf16_to_multi_byte(cp, in, span, ec);
+            return span.size();
+        });
+    }
+
+    template <>
+    void
+    utf16_to_multi_byte(multi_byte::code_page cp,
+                        std::wstring_view     in,
+                        std::string&          out,
+                        std::error_code&      ec)
+    {
+        auto const length = utf16_to_multi_byte_length(cp, in, ec);
+        if (failed(ec))
+            return;
+
+        out.resize_and_overwrite(length, [cp, in, &ec](auto buffer, auto buffer_size) -> auto {
+            auto span = make_span(buffer, buffer_size);
+            utf16_to_multi_byte(cp, in, span, ec);
+            return span.size();
+        });
+    }
+
+#if 0
+    std::size_t
+    utf16_to_multi_byte(multi_byte::code_page cp, std::u16string_view view, std::string& str)
     {
         std::string t;
-        auto length = utf16_to_multi_byte_length(cp, view);
+        auto        length = utf16_to_multi_byte_length(cp, view);
         t.resize_and_overwrite(length, [&](auto buffer, auto buffer_size) -> auto {
             auto span = m::make_span(buffer, buffer_size);
             utf16_to_multi_byte(cp, view, span);
@@ -161,92 +209,20 @@ namespace m::multi_byte
         });
         using std::swap;
         swap(t, str);
+        return str.size();
     }
 
+    template <>
     void
-    utf16_to_multi_byte(code_page cp, std::u16string_view view, std::string& str)
+    utf16_to_multi_byte(multi_byte::code_page cp,
+                        std::wstring_view     in,
+                        std::span<char>&      out,
+                        std::error_code&      ec)
     {
-        std::string t;
-        auto length = utf16_to_multi_byte_length(cp, view);
-        t.resize_and_overwrite(length, [&](auto buffer, auto buffer_size) -> auto {
-            auto span = m::make_span(buffer, buffer_size);
-            utf16_to_multi_byte(cp, view, span);
-            return span.size();
-        });
-        using std::swap;
-        swap(t, str);
+        multi_byte::impl::utf16_to_multi_byte_fn(cp, in, out, ec);
     }
+#endif
 
-    void
-    utf16_to_acp(std::wstring_view view, std::string& string)
-    {
-        utf16_to_multi_byte(cp_acp, view, string);
-    }
 
-    void
-    utf16_to_acp(std::u16string_view view, std::string& string)
-    {
-        utf16_to_multi_byte(cp_acp, view, string);
-    }
 
-} // namespace m::multi_byte
-
-void
-m::to_string(m::multi_byte::code_page cp, std::wstring_view view, std::string& str)
-{
-    m::multi_byte::utf16_to_multi_byte(cp, view, str);
-}
-
-std::string
-m::to_string(m::multi_byte::code_page cp, std::wstring_view view)
-{
-    std::string str;
-    to_string(cp, view, str);
-    return str;
-}
-
-void
-m::to_string(m::multi_byte::code_page /* cp*/, std::u8string_view /* view*/, std::string& str)
-{
-    str.erase();
-    throw std::runtime_error("not yet implemented");
-    // m::multi_byte::utf8_to_multi_byte(cp, view, str);
-}
-
-std::string
-m::to_string(m::multi_byte::code_page cp, std::u8string_view view)
-{
-    std::string str;
-    to_string(cp, view, str);
-    return str;
-}
-
-void
-m::to_string(m::multi_byte::code_page cp, std::u16string_view view, std::string& str)
-{
-    m::multi_byte::utf16_to_multi_byte(cp, view, str);
-}
-
-std::string
-m::to_string(m::multi_byte::code_page cp, std::u16string_view view)
-{
-    std::string str;
-    to_string(cp, view, str);
-    return str;
-}
-
-void
-m::to_string(m::multi_byte::code_page, std::u32string_view, std::string& str)
-{
-    str.erase();
-    throw std::runtime_error("not yet implemented");
-    // m::multi_byte::utf32_to_multi_byte(cp, view, str);
-}
-
-std::string
-m::to_string(m::multi_byte::code_page cp, std::u32string_view view)
-{
-    std::string str;
-    to_string(cp, view, str);
-    return str;
-}
+} // namespace m

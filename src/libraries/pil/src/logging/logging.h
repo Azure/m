@@ -61,7 +61,7 @@ namespace m::pil::impl::logging
         }
         else
         {
-            auto s = m::to_string_t<pugi::char_t>(name);
+            auto s = m::to_basic_string_t<pugi::char_t>(name);
             a      = n.append_attribute(pugi::string_view_t(s.data(), s.size()));
         }
 
@@ -85,7 +85,7 @@ namespace m::pil::impl::logging
             }
             else
             {
-                auto value_string = m::to_string_t<pugi::char_t>(value);
+                auto value_string = m::to_basic_string_t<pugi::char_t>(value);
                 a.set_value(value_string.data(), value_string.size());
             }
         }
@@ -128,7 +128,7 @@ namespace m::pil::impl::logging
         {
             auto a = append_attribute(n, name);
             a.set_value(
-                pugi::string_view_t(m::to_string_t<pugi::char_t>(path.value().native().view())));
+                pugi::string_view_t(m::to_basic_string_t<pugi::char_t>(path.value().native().view())));
         }
     }
 

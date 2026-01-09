@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
+add_subdirectory(cp_acp)
 add_subdirectory(errors)
 add_subdirectory(formatters)
 add_subdirectory(multi_byte)

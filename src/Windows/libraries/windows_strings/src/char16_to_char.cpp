@@ -11,7 +11,7 @@ namespace m
     string_converter<std::u16string_view, std::string>::make_string(std::u16string_view v)
     {
         std::string t;
-        m::multi_byte::utf16_to_multi_byte(m::multi_byte::cp_acp, v, t);
+        m::utf16_to_multi_byte(m::multi_byte::cp_acp, v, t);
         return t;
     }
 

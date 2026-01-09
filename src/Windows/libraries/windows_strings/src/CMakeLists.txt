@@ -25,6 +25,7 @@ target_include_directories(m_windows_strings PUBLIC
 )
 
 target_link_libraries(m_windows_strings PUBLIC
+    m_cp_acp
     m_multi_byte
     m_sstring
 )

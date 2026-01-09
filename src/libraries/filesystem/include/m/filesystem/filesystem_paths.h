@@ -199,7 +199,7 @@ namespace m
         inline decltype(auto)
         to_path_string(T&& v)
         {
-            return m::to_string_t<path_value_type>(std::forward<T>(v));
+            return m::to_basic_string_t<path_value_type>(std::forward<T>(v));
         }
 
     } // namespace filesystem

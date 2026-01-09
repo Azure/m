@@ -8,12 +8,13 @@
 #include <iterator>
 #include <span>
 #include <stdexcept>
+#include <system_error>
 #include <tuple>
 
 #include <m/utility/compiler.h>
 
-#include "decode_result.h"
-#include "exceptions.h"
+#include <m/utf/decode_result.h>
+#include <m/utf/exceptions.h>
 
 //
 // For UTF-8 encoding and decoding, char, std::byte, and char8_t have
@@ -118,8 +119,9 @@ namespace m
         {
             char32_t ch{};
 
-            if (first == last)
-                throw utf_sequence_truncated_error("read past end of iterator");
+            // Don't call this with first == last.
+            M_INTERNAL_ERROR_CHECK(first != last);
+
             auto const b1 = details::to_byte(*first++);
             if ((b1 & std::byte{0x80}) == std::byte{0x00})
             {
@@ -301,12 +303,352 @@ namespace m
         template <typename It>
             requires std::input_iterator<It>
         constexpr iter_decode_result<It>
+        decode_utf8(It first, It last, std::error_code& ec)
+        {
+            char32_t ch{};
+
+            // Don't call this with first == last.
+            M_INTERNAL_ERROR_CHECK(first != last);
+
+            auto const b1 = details::to_byte(*first++);
+            if ((b1 & std::byte{0x80}) == std::byte{0x00})
+            {
+                ch = std::to_integer<char32_t>(b1);
+            }
+            else if ((b1 & std::byte{0xe0}) == std::byte{0xc0})
+            {
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    //                    throw utf_sequence_truncated_error("read past end of
+                    //                    iterator");
+                }
+
+                auto const b2 = details::to_byte(*first++);
+
+                if ((b2 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                ch = std::to_integer<char32_t>(b1 & std::byte{0x1f}) << 6 |
+                     std::to_integer<char32_t>(b2 & std::byte{0x3f});
+
+                // Check for non-shortest-length encoding
+                if (ch < 0x00000080)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("Non-shortest Utf-8 encoding");
+                }
+            }
+            else if ((b1 & std::byte{0xf0}) == std::byte{0xe0})
+            {
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+
+                auto const b2 = details::to_byte(*first++);
+                if ((b2 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+
+                auto const b3 = details::to_byte(*first++);
+                if ((b3 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                ch = (((std::to_integer<char32_t>(b1 & std::byte{0x0f}) << 6) |
+                       std::to_integer<char32_t>(b2 & std::byte{0x3f}))
+                      << 6) |
+                     std::to_integer<char32_t>(b3 & std::byte{0x3f});
+
+                // Check for non-shortest-length encoding
+                if (ch < 0x00000800)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("Non-shortest Utf-8 encoding");
+                }
+            }
+            else if ((b1 & std::byte{0xf8}) == std::byte{0xf0})
+            {
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+
+                auto const b2 = details::to_byte(*first++);
+
+                if ((b2 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+
+                auto const b3 = details::to_byte(*first++);
+
+                if ((b3 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+
+                auto const b4 = details::to_byte(*first++);
+
+                if ((b4 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                ch = (((((std::to_integer<char32_t>(b1 & std::byte{0x07}) << 6) |
+                         std::to_integer<char32_t>(b2 & std::byte{0x3f}))
+                        << 6) |
+                       std::to_integer<char32_t>(b3 & std::byte{0x3f}))
+                      << 6) |
+                     std::to_integer<char32_t>(b4 & std::byte{0x3f});
+
+                if (ch < 0x00010000)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("Non-shortest Utf-8 encoding");
+                }
+            }
+            else if ((b1 & std::byte{0xfc}) == std::byte{0xf8})
+            {
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+
+                auto const b2 = details::to_byte(*first++);
+                if ((b2 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+
+                auto const b3 = details::to_byte(*first++);
+                if ((b3 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+
+                auto const b4 = details::to_byte(*first++);
+                if ((b4 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+
+                auto const b5 = details::to_byte(*first++);
+
+                if ((b5 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                ch = (((((((std::to_integer<char32_t>(b1 & std::byte{0x03}) << 6) |
+                           std::to_integer<char32_t>(b2 & std::byte{0x3f}))
+                          << 6) |
+                         std::to_integer<char32_t>(b3 & std::byte{0x3f}))
+                        << 6) |
+                       std::to_integer<char32_t>(b4 & std::byte{0x3f}))
+                      << 6) |
+                     std::to_integer<char32_t>(b5 & std::byte{0x3f});
+
+                if (ch < 0x00200000)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+
+                    // throw utf_invalid_encoding_error("non-shortest Utf-8 encoding");
+                }
+            }
+            else if ((b1 & std::byte{0xfe}) == std::byte{0xfc})
+            {
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+                auto const b2 = details::to_byte(*first++);
+                if ((b2 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+                auto const b3 = details::to_byte(*first++);
+                if ((b3 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+                auto const b4 = details::to_byte(*first++);
+                if ((b4 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+                auto const b5 = details::to_byte(*first++);
+                if ((b5 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_sequence_truncated_error("read past end of iterator");
+                }
+                auto const b6 = details::to_byte(*first++);
+                if ((b6 & std::byte{0xc0}) != std::byte{0x80})
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+                }
+
+                ch = (((((((((std::to_integer<char32_t>(b1 & std::byte{0x01}) << 6) |
+                             std::to_integer<char32_t>(b2 & std::byte{0x3f}))
+                            << 6) |
+                           std::to_integer<char32_t>(b3 & std::byte{0x3f}))
+                          << 6) |
+                         std::to_integer<char32_t>(b4 & std::byte{0x3f}))
+                        << 6) |
+                       std::to_integer<char32_t>(b5 & std::byte{0x3f}))
+                      << 6) |
+                     std::to_integer<char32_t>(b6 & std::byte{0x3f});
+
+                if (ch < 0x04000000)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw utf_invalid_encoding_error("non-shortest Utf-8 encoding");
+                }
+            }
+            else
+            {
+                ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                return iter_decode_result<It>{};
+                // throw utf_invalid_encoding_error("invalid Utf-8 encoding");
+            }
+
+            return iter_decode_result<It>{.it = first, .ch = ch};
+        }
+
+        template <typename It>
+            requires std::input_iterator<It>
+        constexpr iter_decode_result<It>
         decode_utf16(It first, It last)
         {
             char32_t ch{};
 
-            if (first == last)
-                throw std::runtime_error("read past end of iterator");
+            // Don't call this with first == last.
+            M_INTERNAL_ERROR_CHECK(first != last);
 
             auto const ch1 = details::to_utf16le(*first++);
             if (ch1 < 0xd800)
@@ -336,14 +678,80 @@ namespace m
         template <typename It>
             requires std::input_iterator<It>
         constexpr iter_decode_result<It>
+        decode_utf16(It first, It last, std::error_code& ec)
+        {
+            char32_t ch{};
+
+            // Don't call this with first == last.
+            M_INTERNAL_ERROR_CHECK(first != last);
+
+            auto const ch1 = details::to_utf16le(*first++);
+            if (ch1 < 0xd800)
+            {
+                ch = ch1;
+            }
+            else if (ch1 <= 0xdbff)
+            {
+                if (first == last)
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw std::runtime_error("utf-16 sequence truncated");
+                }
+
+                auto const ch2 = details::to_utf16le(*first++);
+
+                if ((ch2 < 0xdc00) || (ch2 > 0xdfff))
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
+                    // throw std::runtime_error("utf-16 invalid surrogate pair");
+                }
+
+                ch = ((((ch1 - 0xd800) * 1024) + (ch2 - 0xdc00)) + 0x10000);
+            }
+            else if (ch1 <= 0xdfff)
+            {
+                ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                return iter_decode_result<It>{};
+                // throw std::runtime_error("utf-16 invalid surrogate pair");
+            }
+            else
+                ch = ch1;
+
+            return iter_decode_result<It>{.it = first, .ch = ch};
+        }
+
+        template <typename It>
+            requires std::input_iterator<It>
+        constexpr iter_decode_result<It>
         decode_utf32(It first, It last)
         {
-            if (first == last)
-                throw std::runtime_error("read past end of iterator");
+            // Don't call this with first == last.
+            M_INTERNAL_ERROR_CHECK(first != last);
 
             auto const ch = details::to_utf32le(*first++);
             if (ch > 0x10ffff)
                 throw std::runtime_error("invalid UTF-32 character");
+
+            return iter_decode_result<It>{.it = first, .ch = ch};
+        }
+
+        template <typename It>
+            requires std::input_iterator<It>
+        constexpr iter_decode_result<It>
+        decode_utf32(It first, It last, std::error_code& ec)
+        {
+            // Don't call this with first == last.
+            M_INTERNAL_ERROR_CHECK(first != last);
+
+            auto const ch = details::to_utf32le(*first++);
+            if (ch > 0x10ffff)
+            {
+                ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                return iter_decode_result<It>{};
+                // throw std::runtime_error("invalid UTF-32 character");
+            }
 
             return iter_decode_result<It>{.it = first, .ch = ch};
         }
@@ -358,10 +766,32 @@ namespace m
 
         template <typename SourceCharT, typename It>
             requires std::is_integral_v<SourceCharT> && std::input_iterator<It> &&
+                     (sizeof(SourceCharT) == sizeof(char8_t))
+        constexpr iter_decode_result<It> decode_utf(SourceCharT,
+                                                    It               first,
+                                                    It               last,
+                                                    std::error_code& ec)
+        {
+            return decode_utf8(first, last, ec);
+        }
+
+        template <typename SourceCharT, typename It>
+            requires std::is_integral_v<SourceCharT> && std::input_iterator<It> &&
                      (sizeof(SourceCharT) == sizeof(char16_t))
         constexpr iter_decode_result<It> decode_utf(SourceCharT, It first, It last)
         {
             return decode_utf16(first, last);
+        }
+
+        template <typename SourceCharT, typename It>
+            requires std::is_integral_v<SourceCharT> && std::input_iterator<It> &&
+                     (sizeof(SourceCharT) == sizeof(char16_t))
+        constexpr iter_decode_result<It> decode_utf(SourceCharT,
+                                                    It               first,
+                                                    It               last,
+                                                    std::error_code& ec)
+        {
+            return decode_utf16(first, last, ec);
         }
 
         template <typename SourceCharT, typename It>
@@ -372,17 +802,28 @@ namespace m
             return decode_utf32(first, last);
         }
 
+        template <typename SourceCharT, typename It>
+            requires std::is_integral_v<SourceCharT> && std::input_iterator<It> &&
+                     (sizeof(SourceCharT) == sizeof(char32_t))
+        constexpr iter_decode_result<It> decode_utf(SourceCharT,
+                                                    It               first,
+                                                    It               last,
+                                                    std::error_code& ec)
+        {
+            return decode_utf32(first, last, ec);
+        }
+
         //
         // Non-iterator-based UTF decoding. Takes a minimal input signature
         // that usually can be enregistered and returns the return character
         // and (new) offset into the input span, indicating the number of
         // bytes consumed.
-        // 
+        //
         // The anticipated utility of these functions is to operate on byte-
         // buffers whereas the iterator-based patterns is to operate on "well
         // known types" that define the encodings via the type, like how
         // char16_t denotes UTF-16.
-        // 
+        //
         // The code could be more shared but the hope is that by being more
         // "pure C++" and type-based, the type-ful code can be better
         // optimized and // flow into the caller via the optimizer so that

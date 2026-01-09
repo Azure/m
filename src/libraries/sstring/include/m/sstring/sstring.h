@@ -150,7 +150,7 @@ namespace m
         template <typename OtherCharT>
             requires(character<OtherCharT> && !std::is_same_v<OtherCharT, char_type>)
         basic_sstring(basic_sstring<OtherCharT> const& other):
-            basic_sstring(to_string_view_t<char_type>(other.view()))
+            basic_sstring(to_basic_string_view_t<char_type>(other.view()))
         {
             self_validate();
         }
@@ -517,13 +517,13 @@ namespace m
         constexpr bool
         operator==(StringishT&& r) const noexcept
         {
-            return compare(m::to_string_view_t<char_type>(std::forward<StringishT>(r))) == 0;
+            return compare(m::to_basic_string_view_t<char_type>(std::forward<StringishT>(r))) == 0;
         }
 
         [[nodiscard]] constexpr comparison_category_type
         operator<=>(basic_sstring const& r) const noexcept
         {
-            auto const v              = m::to_string_view_t<char_type>(r);
+            auto const v              = m::to_basic_string_view_t<char_type>(r);
             auto const compare_result = compare(v);
 
             return static_cast<comparison_category_type>(compare_result <=> 0);
@@ -532,7 +532,7 @@ namespace m
         [[nodiscard]] constexpr comparison_category_type
         operator<=>(view_type const& r) const noexcept
         {
-            auto const v              = m::to_string_view_t<char_type>(r);
+            auto const v              = m::to_basic_string_view_t<char_type>(r);
             auto const compare_result = compare(v);
 
             return static_cast<comparison_category_type>(compare_result <=> 0);
@@ -541,7 +541,7 @@ namespace m
         [[nodiscard]] constexpr comparison_category_type
         operator<=>(char_type const* str) const noexcept
         {
-            auto const v              = m::to_string_view_t<char_type>(str);
+            auto const v              = m::to_basic_string_view_t<char_type>(str);
             auto const compare_result = compare(v);
 
             return static_cast<comparison_category_type>(compare_result <=> 0);

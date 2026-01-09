@@ -13,7 +13,7 @@ namespace m
     string_converter<std::string_view, std::wstring>::make_string(std::string_view v)
     {
         std::wstring t;
-        m::multi_byte::multi_byte_to_utf16(m::multi_byte::cp_acp, v, t);
+        m::multi_byte_to_utf16(m::multi_byte::cp_acp, v, t);
         return t;
     }
 

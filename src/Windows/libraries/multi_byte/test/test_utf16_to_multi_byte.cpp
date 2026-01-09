@@ -21,8 +21,8 @@ using namespace std::string_view_literals;
 void
 test_utf16_length(mb_test_data const& data)
 {
-    auto const l1 = m::multi_byte::utf16_to_multi_byte_length(data.m_cp, data.m_wview);
-    auto const l2 = m::multi_byte::utf16_to_multi_byte_length(data.m_cp, data.m_u16view);
+    auto const l1 = m::utf16_to_multi_byte_length(data.m_cp, data.m_wview);
+    auto const l2 = m::utf16_to_multi_byte_length(data.m_cp, data.m_u16view);
     EXPECT_EQ(l1, data.m_view.size());
     EXPECT_EQ(l2, data.m_view.size());
 }
@@ -38,7 +38,7 @@ test_utf16_to_span(mb_test_data const& data)
 
     auto span = m::make_span(buffer);
 
-    m::multi_byte::utf16_to_multi_byte(data.m_cp, data.m_wview, span);
+    m::utf16_to_multi_byte(data.m_cp, data.m_wview, span);
 
     auto view = std::string_view(span.begin(), span.end());
 
@@ -48,7 +48,7 @@ test_utf16_to_span(mb_test_data const& data)
 
     span = m::make_span(buffer);
 
-    m::multi_byte::utf16_to_multi_byte(data.m_cp, data.m_u16view, span);
+    m::utf16_to_multi_byte(data.m_cp, data.m_u16view, span);
 
     view = std::string_view(span.begin(), span.end());
 
@@ -63,7 +63,7 @@ test_utf16_to_outiter(mb_test_data const& data)
 
     auto outit1 = std::back_inserter(buffer);
 
-    m::multi_byte::utf16_to_multi_byte(data.m_cp, data.m_wview, outit1);
+    m::utf16_to_multi_byte(data.m_cp, data.m_wview, outit1);
 
     auto view = std::string_view(buffer);
     EXPECT_EQ(view.size(), data.m_view.size());
@@ -72,7 +72,7 @@ test_utf16_to_outiter(mb_test_data const& data)
     buffer.clear();
     auto outit2 = std::back_inserter(buffer);
 
-    m::multi_byte::utf16_to_multi_byte(data.m_cp, data.m_u16view, outit2);
+    m::utf16_to_multi_byte(data.m_cp, data.m_u16view, outit2);
 
     view = std::string_view(buffer);
     EXPECT_EQ(view.size(), data.m_view.size());
@@ -86,8 +86,8 @@ test_utf16_to_string(mb_test_data const& data)
 {
     std::string buffer;
 
-    auto s1 = m::multi_byte::utf16_to_multi_byte(data.m_cp, data.m_wview);
-    auto s2 = m::multi_byte::utf16_to_multi_byte(data.m_cp, data.m_u16view);
+    auto s1 = m::utf16_to_multi_byte(data.m_cp, data.m_wview);
+    auto s2 = m::utf16_to_multi_byte(data.m_cp, data.m_u16view);
 
     EXPECT_EQ(s1, s2);
     EXPECT_EQ(s1, data.m_view);

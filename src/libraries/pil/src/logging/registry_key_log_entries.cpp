@@ -350,7 +350,7 @@ namespace m::pil::impl::logging
                                         (s.size() - sizeof(char16_t)) - 1);
 
 #ifdef WIN322
-        auto tempstring = m::to_string_t<pugi::char_t>(view);
+        auto tempstring = m::to_basic_string_t<pugi::char_t>(view);
         attr.set_value(tempstring.data(), tempstring.size());
 #else
         attr.set_value(M_PUGIXML_T("TO-DO"sv));

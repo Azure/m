@@ -58,9 +58,11 @@ namespace m
     inline const std::error_category&
     hresult_category() noexcept;
 
+    [[noreturn]]
     void
     throw_hresult(HRESULT hr);
 
+    [[noreturn]]
     void
     throw_hresult(HRESULT hr, m::zstring what);
 
@@ -71,28 +73,43 @@ namespace m
     // COM errors and NTSTATUSes.
     //
 
+    [[noreturn]]
     void
     throw_win32_error_code(DWORD error_code);
 
+    [[noreturn]]
     void
     throw_win32_error_code(DWORD error_code, m::zstring what);
 
     bool
-    failed(windows::win32_error_code ec);
+    failed(windows::win32_error_code ec) noexcept;
+
+    inline bool
+    failed(std::error_code const& ec) noexcept
+    {
+        return ec.value() != 0;
+    }
 
     //
     // throw_error() is the generic name for throwing when the parameter is
     // strongly typed so there are proper overloads.
     //
+    [[noreturn]]
     void
     throw_error(windows::win32_error_code ec);
 
+    [[noreturn]]
     void
     throw_error(windows::win32_error_code ec, m::zstring what);
+
+    [[noreturn]]
+    void
+    throw_error(std::error_code const& ec);
 
     void
     throw_if_failed(windows::win32_error_code ec);
 
+    [[noreturn]]
     void
     throw_last_win32_error();
 
@@ -104,6 +121,9 @@ namespace m
 
     std::error_code
     make_hresult_error_code(HRESULT hr);
+
+    void
+    throw_if_failed(std::error_code const& ec);
 } // namespace m
 
 

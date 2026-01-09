@@ -25,7 +25,7 @@ namespace m
     template <typename ToCharT, typename FromT>
         requires(m::character<ToCharT>)
     auto
-    to_string_view_t(FromT&& from) noexcept
+    to_basic_string_view_t(FromT&& from) noexcept
     {
         using conversion_from_t = m::conversion_details::template conversion_strip_t<FromT>;
         return view_converter<conversion_from_t, std::basic_string_view<ToCharT>, void>::make_view(
@@ -35,7 +35,7 @@ namespace m
     template <typename ToCharT, typename FromT>
         requires(m::character<ToCharT>)
     std::basic_string<ToCharT>
-    to_string_t(FromT&& from) noexcept
+    to_basic_string_t(FromT&& from) noexcept
     {
         using conversion_from_t = m::conversion_details::template conversion_strip_t<FromT>;
         return string_converter<conversion_from_t, std::basic_string<ToCharT>, void>::make_string(

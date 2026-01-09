@@ -5,8 +5,6 @@ include(GoogleTest)
 set(TEST_EXE_NAME test_multi_byte)
 
 add_executable(${TEST_EXE_NAME}
-    test_acp_apis.cpp
-    test_acp_conversion_matrix.cpp
     test_multi_byte_to_utf16.cpp
     test_utf16_to_multi_byte.cpp
     wchar_decoder.cpp

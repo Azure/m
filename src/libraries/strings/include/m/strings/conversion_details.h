@@ -9,6 +9,7 @@
 
 #include <m/utility/concepts.h>
 #include <m/utility/pointers.h>
+#include <m/utility/stringish.h>
 #include <m/utility/zstring.h>
 
 namespace m::conversion_details

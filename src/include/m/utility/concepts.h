@@ -10,6 +10,7 @@
 #include <string_view>
 #include <type_traits>
 
+#include <m/utility/platform.h>
 #include <m/utility/type_traits.h>
 
 namespace m
@@ -21,8 +22,17 @@ namespace m
         std::same_as<T, wchar_t> || std::same_as<T, char8_t> || std::same_as<T, char16_t> ||
         std::same_as<T, char32_t>;
 
+#if M_WCHAR_T_IS_UTF16
+
     template <typename T>
-    concept transparent = is_transparent_v<T>;
+    concept utf16_character = std::same_as<T, wchar_t> || std::same_as<T, char16_t>;
+
+#else
+
+    template <typename T>
+    concept utf16_character = std::same_as<T, char16_t>;
+
+#endif
 
     template <typename T, typename CharT>
     concept has_view = requires(T x) {
@@ -32,31 +42,7 @@ namespace m
     template <typename T>
     concept has_some_view = (has_view<T, char> || has_view<T, char8_t> || has_view<T, char16_t> ||
                              has_view<T, char32_t> || has_view<T, wchar_t>);
-
-    template <typename T>
-        requires(character<T>)
-    class basic_sstring;
-
-    template <typename T>
-    concept stringish = std::same_as<remove_cvref_t<T>, std::basic_string<char>> ||
-                        std::same_as<remove_cvref_t<T>, std::basic_string<wchar_t>> ||
-                        std::same_as<remove_cvref_t<T>, std::basic_string<char8_t>> ||
-                        std::same_as<remove_cvref_t<T>, std::basic_string<char16_t>> ||
-                        std::same_as<remove_cvref_t<T>, std::basic_string<char32_t>> ||
-                        std::same_as<remove_cvref_t<T>, std::basic_string_view<char>> ||
-                        std::same_as<remove_cvref_t<T>, std::basic_string_view<wchar_t>> ||
-                        std::same_as<remove_cvref_t<T>, std::basic_string_view<char8_t>> ||
-                        std::same_as<remove_cvref_t<T>, std::basic_string_view<char16_t>> ||
-                        std::same_as<remove_cvref_t<T>, std::basic_string_view<char32_t>> ||
-                        std::same_as<remove_cvref_t<T>, m::basic_sstring<char>> ||
-                        std::same_as<remove_cvref_t<T>, m::basic_sstring<wchar_t>> ||
-                        std::same_as<remove_cvref_t<T>, m::basic_sstring<char8_t>> ||
-                        std::same_as<remove_cvref_t<T>, m::basic_sstring<char16_t>> ||
-                        std::same_as<remove_cvref_t<T>, m::basic_sstring<char32_t>>;
-
     template <typename T>
     concept has_value_type = requires { typename T::value_type; };
-
-
 
 } // namespace m

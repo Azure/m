@@ -42,7 +42,7 @@ namespace m
     }
 
     template <typename FromT, typename ToCharT>
-        requires(m::character<ToCharT> && m::stringish<FromT>)
+        requires(m::character<ToCharT> && m::any_stringish<FromT>)
     void
     to_basic_string(FromT&& from, std::basic_string<ToCharT>& str)
     {
@@ -56,7 +56,7 @@ namespace m
     }
 
     template <typename FromT>
-    //        requires m::stringish<FromT>
+    //        requires m::any_stringish<FromT>
     auto
     to_string(FromT&& from)
     {

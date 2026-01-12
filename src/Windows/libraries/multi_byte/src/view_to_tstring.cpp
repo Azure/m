@@ -23,6 +23,13 @@ namespace m
 
     template <>
     void
+    view_to_tstring(multi_byte::code_page, std::string_view in, std::string& out)
+    {
+        out = std::string(in);
+    }
+
+    template <>
+    void
     view_to_tstring(multi_byte::code_page cp, std::wstring_view in, std::string& out)
     {
         m::utf16_to_multi_byte(cp, in, out);
@@ -33,6 +40,13 @@ namespace m
     view_to_tstring(multi_byte::code_page cp, std::u16string_view in, std::string& out)
     {
         m::utf16_to_multi_byte(cp, in, out);
+    }
+
+    template <>
+    void
+    view_to_tstring(multi_byte::code_page, std::string_view in, std::string& out, std::error_code&)
+    {
+        out = std::string(in);
     }
 
     template <>
@@ -66,7 +80,7 @@ namespace m
     template <>
     void
     view_to_tstring(multi_byte::code_page cp,
-                    std::u8string_view     in,
+                    std::u8string_view    in,
                     std::string&          out,
                     std::error_code&      ec)
     {
@@ -85,7 +99,7 @@ namespace m
     template <>
     void
     view_to_tstring(multi_byte::code_page cp,
-                    std::u32string_view    in,
+                    std::u32string_view   in,
                     std::string&          out,
                     std::error_code&      ec)
     {

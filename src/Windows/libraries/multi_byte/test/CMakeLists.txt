@@ -8,6 +8,7 @@ add_executable(${TEST_EXE_NAME}
     test_multi_byte_to_utf16.cpp
     test_utf16_to_multi_byte.cpp
     wchar_decoder.cpp
+    verify_mb_err_invalid_chars.cpp
 )
 
 target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})

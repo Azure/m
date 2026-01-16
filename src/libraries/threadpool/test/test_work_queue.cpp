@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -28,7 +29,23 @@ TEST(WorkQueue, BasicCreation)
 TEST(WorkQueue, Queue1)
 {
     auto q  = m::threadpool->create_work_queue();
-    auto wi = q->enqueue<void>([] { m::println("Hello, world!"); });
+    auto wi = q->enqueue([] { m::println("Hello, world!"); });
+    q->wait_for(5s);
+}
+
+TEST(WorkQueue, QueueWithDescriptions)
+{
+    auto q  = m::threadpool->create_work_queue();
+    constexpr std::size_t n = 5;
+
+    std::array<std::shared_ptr<m::work_item>, n> work_items;
+    for (std::size_t i = 0; i < work_items.size(); i++)
+    {
+        work_items[i] = q->enqueue(
+            [x = i] { m::println("Hello there number {}", x); },
+            L"Work item number {}", i);
+    }
+
     q->wait_for(5s);
 }
 
@@ -40,7 +57,7 @@ TEST(WorkQueue, QueueN20)
 
     for (std::size_t i = 0; i < n; i++)
     {
-        work_items[i] = q->enqueue<void>([x = i] { m::println("Hello there number {}", x); });
+        work_items[i] = q->enqueue([x = i] { m::println("Hello there number {}", x); });
     }
 
     q->wait_for(5s);
@@ -60,7 +77,7 @@ TEST(WorkQueue, QueueNBig)
 
     for (std::size_t i = 0; i < n; i++)
     {
-        work_items[i] = q->enqueue<void>([p = &flags[i]] { *p = 1; });
+        work_items[i] = q->enqueue([p = &flags[i]] { *p = 1; });
     }
 
     auto const after_queue = m::clock::now();

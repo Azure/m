@@ -47,17 +47,11 @@ namespace m::threadpool_impl
             l, dur, [this] { return m_ready_queue.empty() && m_running_work_items.empty(); });
     }
 
-    bool
-    work_queue_base::do_wait_until(m::time_point when)
+    std::shared_ptr<m::work_item>
+    work_queue_base::do_enqueue(std::packaged_task<void()>&& task, m::wsstring const& description)
     {
-        auto l = std::unique_lock(m_mutex);
-        return m_cv.wait_until(
-            l, when, [this] { return m_ready_queue.empty() && m_running_work_items.empty(); });
-    }
+        auto wi = std::make_shared<m::work_queue_impl::work_item>(description, std::move(task));
 
-    void
-    work_queue_base::do_enqueue(std::shared_ptr<m::work_queue_impl::work_item> wi)
-    {
         auto l = std::unique_lock(m_mutex);
 
         if (!m_platform_initialized)
@@ -73,6 +67,8 @@ namespace m::threadpool_impl
         on_new_work_item(wi);
 
         m_cv.notify_all();
+
+        return wi;
     }
 
 } // namespace m::threadpool_impl

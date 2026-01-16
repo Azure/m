@@ -13,6 +13,8 @@
 #include <m/threadpool/work_queue.h>
 #include <m/threadpool/work_queue_execution_policy.h>
 
+#include "work_item.h"
+
 namespace m::threadpool_impl
 {
     /// <summary>
@@ -43,8 +45,8 @@ namespace m::threadpool_impl
     class work_queue_base : public m::work_queue
     {
     protected:
-        work_queue_base()                      = default;
-        ~work_queue_base()                     = default;
+        work_queue_base()                           = default;
+        ~work_queue_base()                          = default;
         work_queue_base(work_queue_base const&)     = delete;
         work_queue_base(work_queue_base&&) noexcept = delete;
         work_queue_base(work_queue_execution_policy wqep, std::wstring description);
@@ -67,11 +69,8 @@ namespace m::threadpool_impl
         bool
         do_wait_for(std::chrono::milliseconds dur) override;
 
-        bool
-        do_wait_until(m::time_point when) override;
-
-        void
-        do_enqueue(std::shared_ptr<m::work_queue_impl::work_item> wi) override;
+        std::shared_ptr<work_item>
+        do_enqueue(std::packaged_task<void()>&& task, m::wsstring const& description) override;
 
         virtual void
         perform_platform_initialization() = 0;

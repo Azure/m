@@ -13,6 +13,7 @@
 #include <string_view>
 
 #include <m/utility/pointers.h>
+#include <m/utility/zstring.h>
 
 namespace m
 {
@@ -47,6 +48,17 @@ namespace m
         explicit thread_description(std::wstring_view description)
         {
             thread_description_impl::set_thread_description(description, m_saved_state);
+        }
+
+        explicit thread_description(m::cwzstring description)
+        {
+            std::wstring_view view{};
+            if (description != nullptr)
+            {
+                view = std::wstring_view(description);
+            }
+
+            thread_description_impl::set_thread_description(view, m_saved_state);
         }
 
         void

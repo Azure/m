@@ -19,9 +19,10 @@ namespace m
             {}
 
             utf_encoding_error&
-                operator=(const utf_encoding_error& other)
+            operator=(const utf_encoding_error& other)
             {
-                *static_cast<std::runtime_error*>(this) = static_cast<const std::runtime_error&>(other);
+                *static_cast<std::runtime_error*>(this) =
+                    static_cast<const std::runtime_error&>(other);
                 return *this;
             }
         };
@@ -33,8 +34,10 @@ namespace m
         {
         public:
             utf_sequence_truncated_error(const char* what_arg): utf_encoding_error(what_arg) {}
-            utf_sequence_truncated_error(const std::string& what_arg): utf_encoding_error(what_arg) {}
-            utf_sequence_truncated_error(const utf_sequence_truncated_error& other) noexcept: utf_encoding_error(other)
+            utf_sequence_truncated_error(const std::string& what_arg): utf_encoding_error(what_arg)
+            {}
+            utf_sequence_truncated_error(const utf_sequence_truncated_error& other) noexcept:
+                utf_encoding_error(other)
             {}
 
             utf_sequence_truncated_error&
@@ -54,8 +57,7 @@ namespace m
         {
         public:
             utf_invalid_encoding_error(const char* what_arg): utf_encoding_error(what_arg) {}
-            utf_invalid_encoding_error(const std::string& what_arg): utf_encoding_error(what_arg)
-            {}
+            utf_invalid_encoding_error(const std::string& what_arg): utf_encoding_error(what_arg) {}
             utf_invalid_encoding_error(const utf_invalid_encoding_error& other) noexcept:
                 utf_encoding_error(other)
             {}
@@ -69,6 +71,5 @@ namespace m
             }
         };
 
-
-    }
-}
+    } // namespace utf
+} // namespace m

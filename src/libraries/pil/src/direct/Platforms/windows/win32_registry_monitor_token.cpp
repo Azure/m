@@ -54,7 +54,7 @@ namespace m::pil::impl::win32
     registry_monitor_token::registry_monitor_token(
         std::shared_ptr<m::work_queue>                      work_queue,
         m::pil::iregistry_monitor::register_watch_flags     flags,
-        pil::key_path const&                          key_path,
+        pil::key_path const&                                key_path,
         m::not_null<iregistry_monitor_change_notification*> change_notification_ptr):
         m_work_queue(std::move(work_queue)),
         m_flags(flags),
@@ -70,7 +70,7 @@ namespace m::pil::impl::win32
                       L"{}: timer lambda fired at {}",
                       __FUNCTIONW__,
                       m_notification_time);
-            utc_time_point when{};
+            utc_time_point_type when{};
             {
                 auto l = std::unique_lock(m_mutex);
                 when   = m_notification_time;
@@ -82,7 +82,7 @@ namespace m::pil::impl::win32
                       L"{}: change notification timer lambda fired at {}",
                       __FUNCTIONW__,
                       m_notification_time);
-            utc_time_point when{};
+            utc_time_point_type when{};
             {
                 auto l = std::unique_lock(m_mutex);
                 when   = m_notification_time;
@@ -104,17 +104,17 @@ namespace m::pil::impl::win32
         // completing a step. Or not.
         m_state = state::to_open_key;
 
-        drive_state(m::locked, m::clock::now());
+        drive_state(m::locked, m::clock_type::now());
     }
 
     void
-    registry_monitor_token::on_timer(m::locked_t, utc_time_point when) noexcept
+    registry_monitor_token::on_timer(m::locked_t, utc_time_point_type const& when) noexcept
     {
         drive_state(m::locked, when);
     }
 
     void
-    registry_monitor_token::drive_state(m::locked_t, utc_time_point when) noexcept
+    registry_monitor_token::drive_state(m::locked_t, utc_time_point_type const& when) noexcept
     {
         for (;;)
         {
@@ -124,7 +124,7 @@ namespace m::pil::impl::win32
     }
 
     registry_monitor_token::drive_results
-    registry_monitor_token::drive_state_once(m::locked_t, utc_time_point when) noexcept
+    registry_monitor_token::drive_state_once(m::locked_t, utc_time_point_type const& when) noexcept
     {
         m::wtrace(m::tracing::event_kind::information,
                   L"{}: called at {} with state {}",

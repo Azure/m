@@ -17,14 +17,12 @@
 
 using namespace std::chrono_literals;
 
-TEST(Tracing, CreateSource)
-{
-    auto src = m::tracing::monitor->make_source();
-}
+TEST(Tracing, CreateSource) { auto src = m::tracing::monitor->make_source(); }
 
 TEST(Tracing, RegisterSink)
 {
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
+                                                         m::tracing::monitor.get());
 }
 
 TEST(Tracing, LogAnEventNoFormattingNoSinks)
@@ -105,12 +103,10 @@ TEST(Tracing, LogMessagesAfterClosingSink)
 {
     auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
                                                          m::tracing::monitor.get());
-    auto src = m::tracing::monitor->make_source();
+    auto src      = m::tracing::monitor->make_source();
 
     src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
     coutsink.reset();
     src->wlog(m::tracing::event_kind::error,
               L"This is another event but after the sink was closed");
-
 }
-

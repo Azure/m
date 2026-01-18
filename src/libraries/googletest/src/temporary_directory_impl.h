@@ -27,7 +27,7 @@ namespace m
                 rng_result_type              randomNumber,
                 bool                         retain);
 
-        // protected:
+            // protected:
             std::filesystem::path
             make_random_subdirectory(std::filesystem::path const& parentPath,
                                      rng_result_type              randomNumber);

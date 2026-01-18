@@ -22,4 +22,3 @@ TEST(HRESULT, format_S_OK)
     // auto s = std::format(L"{}", fmtHRESULT{S_OK});
     // EXPECT_EQ(s, L"S_OK"s);
 }
-

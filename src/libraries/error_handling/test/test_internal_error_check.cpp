@@ -18,12 +18,12 @@
 
 using namespace std::chrono_literals;
 
-TEST(InternalErrorCheck, First) 
-{ 
-    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
+TEST(InternalErrorCheck, First)
+{
+    auto coutsink = m::tracing::cout_sink::register_sink(m::tracing::diagnostic_channel_name,
+                                                         m::tracing::monitor.get());
 
     m::trace("Here's some tracing output!");
 
-    M_INTERNAL_ERROR_CHECK(1 == 0); 
+    M_INTERNAL_ERROR_CHECK(1 == 0);
 }
-

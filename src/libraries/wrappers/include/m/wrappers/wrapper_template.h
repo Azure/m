@@ -37,7 +37,7 @@ namespace m
     /// thus the fundamental aspect of being a "scalar" is that they have
     /// relative measures to each other, as we shall see.
     ///
-    /// 
+    ///
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <typeparam name="UniqueT">The `UniqueT` type param is used by clients
@@ -47,13 +47,14 @@ namespace m
     /// be some way to distinguish between them. One way would be to require
     /// that clients create a derive type to use this, but in practice, that
     /// is itself a major hassle.
-    /// 
+    ///
     /// So instead when defining the type alias for this wrapper, also
     /// pick a name that is very unlikely to be used and put it in this
     /// type parameter as a struct name, like so:
-    /// 
-    /// `using win32_dword_ms = m::nonscalar_wrapper<DWORD, struct win32_dword_used_as_milliseconds>`
-    /// 
+    ///
+    /// `using win32_dword_ms = m::nonscalar_wrapper<DWORD, struct
+    /// win32_dword_used_as_milliseconds>`
+    ///
     /// </typeparam>
     template <typename T, typename Unique>
         requires(std::semiregular<T>)

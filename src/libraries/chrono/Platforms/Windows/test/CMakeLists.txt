@@ -14,6 +14,7 @@ target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 target_link_libraries(${TEST_EXE_NAME}
     m_chrono
     m_formatters
+    m_win32
     m_windows_chrono
     GTest::gtest_main
 )

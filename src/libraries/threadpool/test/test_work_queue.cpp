@@ -35,15 +35,14 @@ TEST(WorkQueue, Queue1)
 
 TEST(WorkQueue, QueueWithDescriptions)
 {
-    auto q  = m::threadpool->create_work_queue();
+    auto                  q = m::threadpool->create_work_queue();
     constexpr std::size_t n = 5;
 
     std::array<std::shared_ptr<m::work_item>, n> work_items;
     for (std::size_t i = 0; i < work_items.size(); i++)
     {
         work_items[i] = q->enqueue(
-            [x = i] { m::println("Hello there number {}", x); },
-            L"Work item number {}", i);
+            [x = i] { m::println("Hello there number {}", x); }, L"Work item number {}", i);
     }
 
     q->wait_for(5s);
@@ -73,21 +72,21 @@ TEST(WorkQueue, QueueNBig)
     auto flags_unique_ptr = std::unique_ptr<std::atomic<uint8_t>[]>(new std::atomic<uint8_t>[n]);
     auto flags            = flags_unique_ptr.get();
 
-    auto const before_queue = m::clock::now();
+    auto const before_queue = m::clock_type::now();
 
     for (std::size_t i = 0; i < n; i++)
     {
         work_items[i] = q->enqueue([p = &flags[i]] { *p = 1; });
     }
 
-    auto const after_queue = m::clock::now();
+    auto const after_queue = m::clock_type::now();
 
     constexpr auto d = 250ms;
 
     while (!q->wait_for(d))
         m::println("After {}, {} queue items still running", d, q->running());
 
-    auto const after_wait = m::clock::now();
+    auto const after_wait = m::clock_type::now();
 
     q.reset();
 
@@ -96,6 +95,6 @@ TEST(WorkQueue, QueueNBig)
         EXPECT_EQ(flags[i], 1);
 
     m::println("It took {} to queue, and then {} for the work to finish",
-                 after_queue - before_queue,
-                 after_wait - after_queue);
+               after_queue - before_queue,
+               after_wait - after_queue);
 }

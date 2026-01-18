@@ -12,4 +12,3 @@ namespace m
         using position_t = io::position_t;
     }
 } // namespace m
-

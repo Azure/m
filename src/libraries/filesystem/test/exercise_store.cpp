@@ -22,4 +22,3 @@ TEST(store, first)
 
     std::filesystem::remove(p);
 }
-

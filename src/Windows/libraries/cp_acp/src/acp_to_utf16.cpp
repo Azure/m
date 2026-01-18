@@ -26,11 +26,12 @@ namespace
         if (m::failed(ec))
             return;
 
-        out.resize_and_overwrite(wchars_needed, [in, &ec](auto buffer, auto buffer_size) -> std::size_t {
-            auto span = m::make_span(buffer, buffer_size);
-            m::acp_to_utf16(in, span, ec);
-            return span.size();
-        });
+        out.resize_and_overwrite(wchars_needed,
+                                 [in, &ec](auto buffer, auto buffer_size) -> std::size_t {
+                                     auto span = m::make_span(buffer, buffer_size);
+                                     m::acp_to_utf16(in, span, ec);
+                                     return span.size();
+                                 });
     }
 
     template <typename TCharOut>

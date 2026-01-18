@@ -6,4 +6,3 @@
 
 #include <m/utf/decode_result.h>
 #include <m/utf/encode.h>
-

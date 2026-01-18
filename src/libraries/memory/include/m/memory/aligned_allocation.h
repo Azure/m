@@ -25,5 +25,6 @@ namespace m
     aligned_free(byte_span s);
 
     template <typename T>
-    static inline constexpr bool requires_aligned_allocator_v = (alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    static inline constexpr bool requires_aligned_allocator_v =
+        (alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__);
 } // namespace m

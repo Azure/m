@@ -34,9 +34,10 @@ struct std::formatter<OVERLAPPED, CharT>
     {
         // Pull apart the OVERLAPPED into its component pieces:
         //
-        auto const s = static_cast<NTSTATUS>(o.Internal);
+        auto const s                = static_cast<NTSTATUS>(o.Internal);
         auto const bytesTransferred = m::to<uint64_t>(o.InternalHigh);
-        auto const offset = static_cast<uint64_t>(o.Offset) | (static_cast<uint64_t>(o.OffsetHigh) << 32);
+        auto const offset =
+            static_cast<uint64_t>(o.Offset) | (static_cast<uint64_t>(o.OffsetHigh) << 32);
 
         return std::format_to(
             ctx.out(),

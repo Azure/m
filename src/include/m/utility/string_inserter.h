@@ -44,7 +44,7 @@ namespace m
             swap(m_index, other.m_index);
         }
 
-        basic_string_insert_iterator &
+        basic_string_insert_iterator&
         operator=(basic_string_insert_iterator const& other)
         {
             m_string = other.m_string;
@@ -52,7 +52,7 @@ namespace m
             return *this;
         }
 
-        basic_string_insert_iterator &
+        basic_string_insert_iterator&
         operator=(basic_string_insert_iterator&& other) noexcept
         {
             using std::swap;
@@ -140,6 +140,6 @@ namespace m
             static_assert(std::weakly_incrementable<decltype(test_iterator)>);
             // static_assert(std::output_iterator<char, decltype(test_iterator)>);
         }
-    }
+    } // namespace string_inserter_static_testing
 
 } // namespace m

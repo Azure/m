@@ -28,11 +28,11 @@ namespace m::threadpool_impl
     public:
         timer(normal_timer_tag_t,
               std::packaged_task<timer_callable>&& task,
-              std::wstring                                description);
+              std::wstring                         description);
 
         timer(periodic_timer_tag_t,
               std::packaged_task<timer_callable>&& task,
-              std::wstring                                description);
+              std::wstring                         description);
 
         timer(m::threadpool_impl::timer&& other) = delete;
         timer(m::threadpool_impl::timer const&)  = delete;
@@ -46,7 +46,7 @@ namespace m::threadpool_impl
 
     protected:
         void
-        do_set(duration dur) override;
+        do_set(duration_type const& dur) override;
 
         void
         do_cancel() override;
@@ -57,4 +57,4 @@ namespace m::threadpool_impl
         void
         do_wait() override;
     };
-} // namespace m::threadpool_impl::linux_impl
+} // namespace m::threadpool_impl

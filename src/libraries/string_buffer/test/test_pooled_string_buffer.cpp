@@ -19,19 +19,19 @@ using namespace std::chrono_literals;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-using pbuff = m::pooled_string_buffer;
+using pbuff  = m::pooled_string_buffer;
 using pool_t = typename pbuff::pool_type;
 
 TEST(PooledStringBuffer, FirstStringBuffer)
 {
-    auto pool = std::make_shared<pool_t>();
+    auto  pool = std::make_shared<pool_t>();
     pbuff sb(pool);
 }
 
 TEST(PooledStringBuffer, AppendToStringBuffer)
 {
-    auto             pool = std::make_shared<pool_t>();
-    pbuff            sb(pool);
+    auto  pool = std::make_shared<pool_t>();
+    pbuff sb(pool);
     sb.append("foo"sv);
 }
 
@@ -135,7 +135,7 @@ TEST(PooledStringBuffer, TestAssign)
 
 TEST(PooledStringBuffer, TestAssignEdgeCases)
 {
-    auto  pool = std::make_shared<pool_t>();
+    auto pool = std::make_shared<pool_t>();
 
     small sb1(pool);
     small sb2(pool);

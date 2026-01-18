@@ -19,6 +19,11 @@ namespace m::win32::threadpool
             m::throw_last_win32_error();
     }
 
+    tp_timer::tp_timer(tp_timer&& other) noexcept
+    {
+        m_ptp_timer = std::exchange(other.m_ptp_timer, PTP_TIMER{});
+    }
+
     tp_timer::~tp_timer() { reset(); }
 
     void
@@ -46,9 +51,9 @@ namespace m::win32::threadpool
     }
 
     void
-    tp_timer::set(FILETIME                                 due_time,
-                  std::optional<std::chrono::milliseconds> period,
-                  std::optional<std::chrono::milliseconds> window_length)
+    tp_timer::set(FILETIME                                        due_time,
+                  std::optional<std::chrono::milliseconds> const& period,
+                  std::optional<std::chrono::milliseconds> const& window_length)
     {
         DWORD ms_period{};
         DWORD ms_window_length{};

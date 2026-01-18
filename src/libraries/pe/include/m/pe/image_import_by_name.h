@@ -27,7 +27,7 @@ namespace m
             //[+002]    CHAR Name[1];
             // } IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
 
-            static inline constexpr offset_t k_offset_hint = offset_t{0};
+            static inline constexpr offset_t k_offset_hint  = offset_t{0};
             static inline constexpr offset_t k_offset_ascii = offset_t{2};
 
             uint16_t     m_hint;
@@ -75,7 +75,9 @@ struct std::formatter<m::pe::image_import_by_name, wchar_t>
     FormatContext::iterator
     format(m::pe::image_import_by_name const& iibn, FormatContext& ctx) const
     {
-        return std::format_to(
-            ctx.out(), L"{{ m_hint: {:#x}, m_name_string: \"{}\" }}", iibn.m_hint, iibn.m_name_string);
+        return std::format_to(ctx.out(),
+                              L"{{ m_hint: {:#x}, m_name_string: \"{}\" }}",
+                              iibn.m_hint,
+                              iibn.m_name_string);
     }
 };

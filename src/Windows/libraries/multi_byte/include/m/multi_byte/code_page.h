@@ -23,6 +23,5 @@ namespace m
 
         // m::multi_byte::cp_acp is so much cooler than CP_ACP, right?
         constexpr inline code_page cp_acp = code_page{CP_ACP};
-    }
+    } // namespace multi_byte
 } // namespace m
-

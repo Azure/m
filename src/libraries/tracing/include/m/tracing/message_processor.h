@@ -19,9 +19,9 @@
 #include <utility>
 #include <vector>
 
+#include <m/tracing/close_flush_option.h>
 #include <m/tracing/envelope.h>
 #include <m/tracing/may_forward_message_option.h>
-#include <m/tracing/close_flush_option.h>
 #include <m/tracing/on_message_disposition.h>
 
 namespace m
@@ -31,7 +31,7 @@ namespace m
         /// <summary>
         /// The `message_processor` class is an abstract class of pure virtual
         /// member functions.
-        /// 
+        ///
         /// Implementors of the class handle tracing messages either by
         /// performing work on them immediately, returning a message_processed status,
         /// or by further enqueuing them, returning a message_forwarded status.

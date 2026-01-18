@@ -30,7 +30,8 @@ namespace m
             ~seekable_output_file();
 
         protected:
-            std::filesystem::path do_path() override;
+            std::filesystem::path
+            do_path() override;
 
             // byte_streams::seq_in
             void

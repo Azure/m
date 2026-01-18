@@ -22,7 +22,7 @@
 
 namespace m::pil::impl::buffered
 {
-    key::key(key_path const& path, time_point last_write_time):
+    key::key(key_path const& path, time_point_type last_write_time):
         m_last_write_time(last_write_time), m_key_path(path)
     {}
 
@@ -89,7 +89,7 @@ namespace m::pil::impl::buffered
                     std::optional<security_attributes>,
                     std::shared_ptr<ikey>& returned_key)
     {
-        auto const entry_time = time_point::clock::now();
+        auto const entry_time = time_point_type::clock::now();
 
         returned_key.reset();
 
@@ -339,12 +339,12 @@ namespace m::pil::impl::buffered
                                std::size_t&                      subkey_count,
                                std::size_t&                      value_count,
                                std::size_t&                      security_descriptor_size,
-                               m::pil::time_point&               last_write_time)
+                               m::pil::time_point_type&          last_write_time)
     {
         subkey_count             = 0;
         value_count              = 0;
         security_descriptor_size = 0;
-        last_write_time          = (time_point::min)();
+        last_write_time          = (time_point_type::min)();
         M_API_PARAMETER_MUST_BE_ZERO("ikey::query_information_key", flags);
 
         auto lock = std::unique_lock(m_mutex);
@@ -362,7 +362,7 @@ namespace m::pil::impl::buffered
                     std::optional<pil::key_path> const& old_key_name,
                     pil::key_path const&                new_key_name)
     {
-        auto const entry_time = time_point::clock::now();
+        auto const entry_time = time_point_type::clock::now();
 
         M_API_PARAMETER_MUST_BE_ZERO("ikey::rename_key", flags);
 

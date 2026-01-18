@@ -23,10 +23,7 @@ namespace m::win32::threadpool
             m::throw_last_win32_error();
     }
 
-    tp_work::~tp_work()
-    {
-        reset();
-    }
+    tp_work::~tp_work() { reset(); }
 
     tp_work&
     tp_work::operator=(tp_work&& other) noexcept
@@ -36,7 +33,8 @@ namespace m::win32::threadpool
         return *this;
     }
 
-    void tp_work::reset()
+    void
+    tp_work::reset()
     {
         if (auto const pwk = std::exchange(m_pwork, PTP_WORK{}); pwk != PTP_WORK{})
         {
@@ -44,14 +42,16 @@ namespace m::win32::threadpool
         }
     }
 
-    void tp_work::submit()
+    void
+    tp_work::submit()
     {
         M_INTERNAL_ERROR_CHECK(m_pwork != PTP_WORK{});
 
         ::SubmitThreadpoolWork(m_pwork);
     }
 
-    void tp_work::wait_for_callbacks(bool cancel_pending_callbacks)
+    void
+    tp_work::wait_for_callbacks(bool cancel_pending_callbacks)
     {
         M_INTERNAL_ERROR_CHECK(m_pwork != PTP_WORK{});
         ::WaitForThreadpoolWorkCallbacks(m_pwork, cancel_pending_callbacks);

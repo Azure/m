@@ -15,10 +15,4 @@ namespace m::conversion_details
 {
     //
 
-
-
-
-
-
-
 } // namespace m::conversion_details

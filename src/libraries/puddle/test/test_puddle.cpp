@@ -10,8 +10,8 @@
 #include <gtest/gtest.h>
 
 #include <m/inplace_vector/inplace_vector.h>
-#include <m/puddle/puddle.h>
 #include <m/print/print.h>
+#include <m/puddle/puddle.h>
 #include <m/test_data/test_data.h>
 
 using namespace std::chrono_literals;

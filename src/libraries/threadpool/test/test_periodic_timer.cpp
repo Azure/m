@@ -25,11 +25,7 @@ TEST(PeriodicTimer, Test1)
 {
     std::atomic<uintmax_t> counter;
 
-    auto t1 = m::threadpool->create_periodic_timer([&]()
-        {
-        counter.fetch_add(1);
-        }
-    );
+    auto t1 = m::threadpool->create_periodic_timer([&]() { counter.fetch_add(1); });
 
     t1->set(100ms);
 
@@ -38,6 +34,3 @@ TEST(PeriodicTimer, Test1)
     EXPECT_GT(counter, 17);
     EXPECT_LT(counter, 22);
 }
-
-
-

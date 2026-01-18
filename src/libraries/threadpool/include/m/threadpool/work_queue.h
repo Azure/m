@@ -26,9 +26,9 @@ namespace m
 
     struct work_item_times
     {
-        utc_time_point                m_enqueue_time;
-        std::optional<utc_time_point> m_start_time;
-        std::optional<utc_time_point> m_end_time;
+        utc_time_point_type                m_enqueue_time;
+        std::optional<utc_time_point_type> m_start_time;
+        std::optional<utc_time_point_type> m_end_time;
     };
 
     class work_item
@@ -36,19 +36,19 @@ namespace m
     public:
         virtual ~work_item() = default;
 
-        utc_time_point
+        utc_time_point_type
         enqueue_time()
         {
             return do_enqueue_time();
         }
 
-        std::optional<utc_time_point>
+        std::optional<utc_time_point_type>
         start_time()
         {
             return do_start_time();
         }
 
-        std::optional<utc_time_point>
+        std::optional<utc_time_point_type>
         end_time()
         {
             return do_end_time();
@@ -128,13 +128,13 @@ namespace m
         }
 
     private:
-        virtual utc_time_point
+        virtual utc_time_point_type
         do_enqueue_time() = 0;
 
-        virtual std::optional<utc_time_point>
+        virtual std::optional<utc_time_point_type>
         do_start_time() = 0;
 
-        virtual std::optional<utc_time_point>
+        virtual std::optional<utc_time_point_type>
         do_end_time() = 0;
 
         virtual work_item_times
@@ -156,10 +156,10 @@ namespace m
         do_wait() = 0;
 
         virtual bool
-        do_wait_for(std::chrono::milliseconds d) = 0;
+        do_wait_for(std::chrono::milliseconds const& d) = 0;
 
         virtual bool
-        do_wait_until(m::time_point tp) = 0;
+        do_wait_until(m::time_point_type const& tp) = 0;
     };
 
     /// <summary>
@@ -231,7 +231,7 @@ namespace m
         /// task did not complete within the time period.</returns>
         template <typename Rep, typename Period>
         bool
-        wait_for(std::chrono::duration<Rep, Period> dur)
+        wait_for(std::chrono::duration<Rep, Period> const& dur)
         {
             return do_wait_for(std::chrono::duration_cast<std::chrono::milliseconds>(dur));
         }
@@ -257,7 +257,7 @@ namespace m
         do_running() = 0;
 
         virtual bool
-        do_wait_for(std::chrono::milliseconds dur) = 0;
+        do_wait_for(std::chrono::milliseconds const& dur) = 0;
 
         virtual std::shared_ptr<work_item>
         do_enqueue(std::packaged_task<void()>&& task, m::wsstring const& description) = 0;

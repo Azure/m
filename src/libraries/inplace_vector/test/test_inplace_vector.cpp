@@ -232,4 +232,3 @@ TEST(InplaceVector, CountMoves)
 
     EXPECT_EQ(ch[8].m_s, "India"s);
 }
-

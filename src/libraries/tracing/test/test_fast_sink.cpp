@@ -22,8 +22,7 @@ namespace
     class fast_sink : public m::tracing::sink
     {
     public:
-        fast_sink(m::not_null<m::tracing::monitor_class*> monitor):
-            sink(L"cout_sink"_sl, monitor)
+        fast_sink(m::not_null<m::tracing::monitor_class*> monitor): sink(L"cout_sink"_sl, monitor)
         {}
 
         virtual ~fast_sink() {}
@@ -31,7 +30,8 @@ namespace
         // Kind of hokey but who is responsible for registering the
         // cout based sink? This is how it's done I guess
         static std::unique_ptr<m::tracing::sink_registration>
-        register_sink(std::wstring_view channel_name, m::not_null<m::tracing::monitor_class*> monitor)
+        register_sink(std::wstring_view                       channel_name,
+                      m::not_null<m::tracing::monitor_class*> monitor)
         {
             std::shared_ptr<fast_sink> expected = ms_fast_sink.load(std::memory_order_acquire);
 
@@ -71,7 +71,7 @@ namespace
         close(m::tracing::close_flush_option) noexcept override
         {
             {
-                auto l = std::unique_lock(m_mutex);
+                auto l   = std::unique_lock(m_mutex);
                 m_closed = true;
             }
         }
@@ -151,7 +151,7 @@ TEST(TestFastSink, LogMessagesAfterClosingSink)
 {
     auto fastsink =
         fast_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
-    auto src      = m::tracing::monitor->make_source();
+    auto src = m::tracing::monitor->make_source();
 
     src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
     fastsink.reset();
@@ -163,11 +163,11 @@ TEST(TestFastSink, LotsOfMessages10)
 {
     auto fastsink =
         fast_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
-    auto src      = m::tracing::monitor->make_source();
+    auto src = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 10;
 
-    for (auto i = 0; i<message_count; i++)
+    for (auto i = 0; i < message_count; i++)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
 
@@ -175,7 +175,7 @@ TEST(TestFastSink, LotsOfMessages50)
 {
     auto fastsink =
         fast_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
-    auto src      = m::tracing::monitor->make_source();
+    auto src = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 50;
 
@@ -187,7 +187,7 @@ TEST(TestFastSink, LotsOfMessages100)
 {
     auto fastsink =
         fast_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
-    auto src      = m::tracing::monitor->make_source();
+    auto src = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 100;
 
@@ -199,7 +199,7 @@ TEST(TestFastSink, LotsOfMessages500)
 {
     auto fastsink =
         fast_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
-    auto src      = m::tracing::monitor->make_source();
+    auto src = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 500;
 
@@ -211,7 +211,7 @@ TEST(TestFastSink, LotsOfMessages1000)
 {
     auto fastsink =
         fast_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
-    auto src      = m::tracing::monitor->make_source();
+    auto src = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 1000;
 
@@ -223,7 +223,7 @@ TEST(TestFastSink, LotsOfMessages10000)
 {
     auto fastsink =
         fast_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
-    auto src      = m::tracing::monitor->make_source();
+    auto src = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 10000;
 
@@ -235,17 +235,10 @@ TEST(TestFastSink, LotsOfMessages100000)
 {
     auto fastsink =
         fast_sink::register_sink(m::tracing::diagnostic_channel_name, m::tracing::monitor.get());
-    auto src      = m::tracing::monitor->make_source();
+    auto src = m::tracing::monitor->make_source();
 
     constexpr auto message_count = 100000;
 
     for (auto i = 0; i < message_count; i++)
         src->wlog(m::tracing::event_kind::error, L"Hello, tracing this should definitely show up!");
 }
-
-
-
-
-
-
-

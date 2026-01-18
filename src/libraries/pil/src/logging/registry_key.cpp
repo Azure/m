@@ -90,7 +90,7 @@ namespace m::pil::impl::logging
                                std::size_t&                      subkey_count,
                                std::size_t&                      value_count,
                                std::size_t&                      security_descriptor_size,
-                               m::pil::time_point&               last_write_time)
+                               m::pil::time_point_type&          last_write_time)
     {
         return m_key->query_information_key(
             flags, subkey_count, value_count, security_descriptor_size, last_write_time);
@@ -101,8 +101,8 @@ namespace m::pil::impl::logging
                     std::optional<pil::key_path> const& sub_key_name,
                     pil::key_path const&                new_key_name)
     {
-        auto logentry =
-            std::make_unique<rename_key_log_entry>(ikey::get_path(), flags, sub_key_name, new_key_name);
+        auto logentry = std::make_unique<rename_key_log_entry>(
+            ikey::get_path(), flags, sub_key_name, new_key_name);
         auto d = m_key->rename_key(flags, sub_key_name, new_key_name);
         logentry->set_disposition(d);
         m_log->add(logentry);

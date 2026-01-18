@@ -24,7 +24,6 @@ TEST(Win32RegistryHelpers, PositivePredefinedKeyLookup)
 
     auto pk3 = m::win32::registry::try_map_string_to_predefined_key(L"HkLm"sv);
     EXPECT_EQ(pk3, m::win32::registry::predefined_key::local_machine);
-
 }
 
 TEST(Win32RegistryHelpers, NegativePredefinedKeyLookup)
@@ -45,7 +44,8 @@ TEST(Win32RegistryHelpers, TestWin32HKeyMapping)
     EXPECT_TRUE(pk1.has_value());
     EXPECT_EQ(pk1, m::win32::registry::predefined_key::classes_root);
 
-    auto pk2 = m::win32::registry::try_map_hkey_to_predefined_key(reinterpret_cast<HKEY>(INVALID_HANDLE_VALUE));
+    auto pk2 = m::win32::registry::try_map_hkey_to_predefined_key(
+        reinterpret_cast<HKEY>(INVALID_HANDLE_VALUE));
     EXPECT_FALSE(pk2.has_value());
 
     auto k1 = m::win32::registry::map_predefined_key_to_hkey(pk1.value());
@@ -53,7 +53,7 @@ TEST(Win32RegistryHelpers, TestWin32HKeyMapping)
 }
 
 TEST(Win32RegistryHelpers, TestIsPredefinedHKey)
-{ 
+{
     using namespace m::win32::registry;
 
     EXPECT_TRUE(is_predefined_hkey(HKEY_CLASSES_ROOT));

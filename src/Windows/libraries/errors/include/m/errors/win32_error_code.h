@@ -18,11 +18,11 @@ namespace m
     {
         //
         // a/k/a "The type returned from GetLastError()"
-        // 
+        //
         // The classic DOS error codes which are what the "true"
         // Win32 APIs return are all in the range [1 .. 65535] and
         // 0 == ERROR_SUCCESS which is the sole indication of success.
-        // 
+        //
         // However, the type is defined in the windows headers as a
         // DWORD which is an unsigned 32 bit number and over time,
         // additional values have come to be stored in the last error

@@ -64,13 +64,13 @@ namespace m::filesystem_impl::platform_specific
         on_directory_probe_timer();
 
         void
-        enqueue_async_read_directory_changes(time_point issue_time);
+        enqueue_async_read_directory_changes(time_point_type const& issue_time);
 
         void
-        invalidate_watcher(time_point issue_time);
+        invalidate_watcher(time_point_type const& issue_time);
 
         void
-        recheck_watcher(time_point issue_time);
+        recheck_watcher(time_point_type const& issue_time);
 
         static void
         read_directory_changes_ex_callback(PTP_CALLBACK_INSTANCE CallbackInstance,

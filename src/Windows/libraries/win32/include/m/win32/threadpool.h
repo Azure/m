@@ -110,38 +110,45 @@ namespace m::win32::threadpool
 
         template <typename Rep, typename Period>
         void
-        set_wait_for(HANDLE h, std::chrono::duration<Rep, Period> dur)
+        set_wait_for(HANDLE h, std::chrono::duration<Rep, Period> const& d)
         {
-            do_set_wait_for(h, std::chrono::duration_cast<std::chrono::milliseconds>(dur));
+            do_set_wait_for(h, std::chrono::duration_cast<std::chrono::milliseconds>(d));
         }
 
         template <typename Rep, typename Period>
         void
-        set_wait_for(event const& e, std::chrono::duration<Rep, Period> dur)
+        set_wait_for(event const& e, std::chrono::duration<Rep, Period> d)
         {
-            set_wait_for(e.get(), dur);
+            set_wait_for(e.get(), d);
         }
 
         template <typename Clock, typename Duration>
         void
-        set_wait_until(HANDLE h, std::chrono::time_point<Clock, Duration> tp)
+        set_wait_until(HANDLE h, std::chrono::time_point<Clock, Duration> const& tp)
         {
-            do_set_wait_unil(h, std::chrono::time_point_cast<utc_time_point>(tp));
+            do_set_wait_unil(h, std::chrono::time_point_cast<utc_time_point_type>(tp));
         }
 
         template <typename Clock, typename Duration>
         void
-        set_wait_until(event const& e, std::chrono::time_point<Clock, Duration> tp)
+        set_wait_until(event const& e, std::chrono::time_point<Clock, Duration> const& tp)
         {
             do_set_wait_unil(e.get(), tp);
         }
 
     private:
+        //
+        // By happenstance, m::duration_type is also millisseconds, but
+        // std::chrono::milliseconds is chosen here because the Win32 APIs
+        // specifically use milliseconds so there is no need to convert to
+        // an abstract duration type and then again convert explicitly to
+        // milliseconds.
+        //
         void
-        do_set_wait_for(HANDLE h, std::chrono::milliseconds dur);
+        do_set_wait_for(HANDLE h, std::chrono::milliseconds const& d);
 
         void
-        do_set_wait_until(HANDLE h, utc_time_point when);
+        do_set_wait_until(HANDLE h, utc_time_point_type const& when);
 
         PTP_WAIT m_pwait{PTP_WAIT{}};
     };
@@ -338,9 +345,9 @@ namespace m::win32::threadpool
         set(PFILETIME pftDueTime, DWORD msPeriod, DWORD msWindowLength);
 
         void
-        set(FILETIME                                 due_time,
-            std::optional<std::chrono::milliseconds> period        = std::nullopt,
-            std::optional<std::chrono::milliseconds> window_length = std::nullopt);
+        set(FILETIME                                        due_time,
+            std::optional<std::chrono::milliseconds> const& period        = std::nullopt,
+            std::optional<std::chrono::milliseconds> const& window_length = std::nullopt);
 
         void
         cancel();

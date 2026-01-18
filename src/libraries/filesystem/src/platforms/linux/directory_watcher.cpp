@@ -57,7 +57,8 @@ namespace m::filesystem_impl::platform_specific
         m_registered_watches.erase(result);
     }
 
-    void directory_watcher::ensure_watching()
+    void
+    directory_watcher::ensure_watching()
     {
         auto l = std::unique_lock(m_mutex);
 

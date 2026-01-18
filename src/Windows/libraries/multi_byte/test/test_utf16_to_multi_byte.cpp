@@ -45,7 +45,6 @@ test_utf16_to_span(mb_test_data const& data)
     EXPECT_EQ(view.size(), data.m_view.size());
     EXPECT_EQ(data.m_view.compare(view), 0);
 
-
     span = m::make_span(buffer);
 
     m::utf16_to_multi_byte(data.m_cp, data.m_u16view, span);

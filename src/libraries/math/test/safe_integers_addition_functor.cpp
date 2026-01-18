@@ -12,8 +12,8 @@
 #include <string_view>
 
 #include <m/cast/to.h>
-#include <m/math/math.h>
 #include <m/math/integer_functor_macros.h>
+#include <m/math/math.h>
 #include <m/utility/to_underlying.h>
 
 namespace T

@@ -17,4 +17,4 @@ namespace m
     };
 
     constexpr locked_t locked{};
-}
+} // namespace m

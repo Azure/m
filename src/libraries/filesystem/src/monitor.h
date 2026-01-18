@@ -34,10 +34,9 @@ namespace m::filesystem_impl
 
     protected:
         std::unique_ptr<m::filesystem::change_notification_registration_token>
-        do_register_watch(
-            std::filesystem::path const&                       path,
-            m::not_null<m::filesystem::change_notification*> ptr,
-                          std::initializer_list<watch_policy>&& policies) override;
+        do_register_watch(std::filesystem::path const&                     path,
+                          m::not_null<m::filesystem::change_notification*> ptr,
+                          std::initializer_list<watch_policy>&&            policies) override;
 
         friend class m::filesystem_impl::platform_specific::directory_watcher;
 
@@ -55,7 +54,9 @@ namespace m::filesystem_impl
         // Maintain a single watcher per directory per monitor
         // For now there's no solution for how the watchers are removed
         // from this map which is an issue.
-        std::map<std::filesystem::path, std::unique_ptr<m::filesystem_impl::platform_specific::directory_watcher>> m_watchers;
+        std::map<std::filesystem::path,
+                 std::unique_ptr<m::filesystem_impl::platform_specific::directory_watcher>>
+            m_watchers;
 
         inline static std::atomic<std::shared_ptr<m::filesystem::monitor>> ms_monitor;
 

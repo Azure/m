@@ -52,7 +52,8 @@ namespace m
     }
 
     std::optional<std::wstring>
-    string_converter<std::wstring_view, std::wstring>::make_string(std::optional<std::wstring_view> const& view)
+    string_converter<std::wstring_view, std::wstring>::make_string(
+        std::optional<std::wstring_view> const& view)
     {
         if (!view.has_value())
             return std::nullopt;
@@ -67,9 +68,10 @@ namespace m
     }
 
     std::optional<std::wstring>
-    string_converter<std::wstring, std::wstring>::make_string(std::optional<std::wstring> const& str)
+    string_converter<std::wstring, std::wstring>::make_string(
+        std::optional<std::wstring> const& str)
     {
         return str;
     }
 
-} // namespace m::conversion_details
+} // namespace m

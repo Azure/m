@@ -74,7 +74,7 @@ namespace m
             auto const bytes = count * sizeof(T);
 
             auto const allocated_span = aligned_alloc(std::align_val_t{alignof(T)}, bytes);
-            m_span = as_writable_ts<value_type>(allocated_span, count, nullptr);
+            m_span                    = as_writable_ts<value_type>(allocated_span, count, nullptr);
         }
 
         raw_array_allocator(raw_array_allocator const&) = delete;
@@ -94,8 +94,7 @@ namespace m
         {
             if (auto const s = std::exchange(m_span, span_type{}); s.data() != nullptr)
             {
-                if (auto const constructed = std::exchange(m_constructed, false);
-                    constructed)
+                if (auto const constructed = std::exchange(m_constructed, false); constructed)
                 {
                     std::destroy(s.begin(), s.end());
                 }

@@ -4,4 +4,3 @@
 #pragma once
 
 #include <m/thread_description/thread_description.h>
-

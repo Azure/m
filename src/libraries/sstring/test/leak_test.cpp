@@ -12,8 +12,8 @@
 #include <string_view>
 #include <thread>
 
-#include <m/strings/compare.h>
 #include <m/sstring/sstring.h>
+#include <m/strings/compare.h>
 #include <m/test_data/test_data.h>
 
 using namespace std::chrono_literals;
@@ -36,4 +36,3 @@ TEST(TestSString, LeakTest)
         auto t = m::wsstring(ws);
     }
 }
-

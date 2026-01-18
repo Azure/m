@@ -43,14 +43,13 @@ TEST(StringIn, VerifyStringViewW)
                                            u8string.size());
 
     m::rust::string_in si1(L"Hello, world"sv);
-    auto               data = si1.data();
-    auto               size = si1.size();
+    auto               data   = si1.data();
+    auto               size   = si1.size();
     auto               sispan = std::span(data, size);
     EXPECT_TRUE(spans_equal(u8span, sispan));
 
     EXPECT_EQ(size, 12);
 }
-
 
 TEST(StringIn, VerifyStringView)
 {
@@ -64,4 +63,3 @@ TEST(StringIn, VerifyStringView)
     auto               sispan = std::span(data, size);
     EXPECT_TRUE(spans_equal(u8span, sispan));
 }
-

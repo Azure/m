@@ -35,5 +35,5 @@ namespace m
 
             return construct_memory_based_byte_stream(std::move(array), count);
         }
-    }
-}
+    } // namespace byte_streams
+} // namespace m

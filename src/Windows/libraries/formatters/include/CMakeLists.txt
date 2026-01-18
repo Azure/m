@@ -8,6 +8,7 @@ target_sources(m_formatters PUBLIC FILE_SET HEADERS FILES
     m/formatters/HRESULT.h
     m/formatters/NTSTATUS.h
     m/formatters/OVERLAPPED.h
+    m/formatters/SYSTEMTIME.h
     m/formatters/Win32ErrorCode.h
 )
 

@@ -15,9 +15,9 @@
 #include <m/cast/to.h>
 #include <m/error_handling/macros.h>
 #include <m/errors/errors.h>
-#include <m/windows_strings/convert.h>
 #include <m/strings/convert.h>
 #include <m/utility/utility.h>
+#include <m/windows_strings/convert.h>
 
 #include "platform.h"
 
@@ -77,7 +77,7 @@ namespace m::strings::impl::ordinal_case_insensitive
     }
 
     bool
-        less(std::string_view const& l, std::string_view const& r)
+    less(std::string_view const& l, std::string_view const& r)
     {
         auto const l_as_u16 = m::to_u16string(l);
         auto const r_as_u16 = m::to_u16string(r);

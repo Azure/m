@@ -49,9 +49,3 @@ TEST(Win32ErrorCode, unmapped_DWORD_MAX)
     auto s = std::format(L"{}", fmtWin32ErrorCode{(std::numeric_limits<DWORD>::max)()});
     EXPECT_EQ(s, L"{ 4294967295 }"s);
 }
-
-
-
-
-
-

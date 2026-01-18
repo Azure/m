@@ -21,7 +21,7 @@ namespace m::tracing
     message_queue::empty() const noexcept
     {
         tr_frame frame(__FUNCTION__, this);
-        auto l = std::unique_lock(m_mutex);
+        auto     l = std::unique_lock(m_mutex);
         return frame.succeeded(m_queue.empty());
     }
 
@@ -29,7 +29,7 @@ namespace m::tracing
     message_queue::size() const noexcept
     {
         tr_frame frame(__FUNCTION__, this);
-        auto l = std::unique_lock(m_mutex);
+        auto     l = std::unique_lock(m_mutex);
         return frame.succeeded(m_queue.size());
     }
 

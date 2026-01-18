@@ -50,7 +50,7 @@ namespace m
             void
             write_row(T&& row)
             {
-                auto outit     = std::back_inserter(m_line_buffer);
+                auto outit    = std::back_inserter(m_line_buffer);
                 m_first_field = true;
                 m_line_buffer.clear();
                 std::ranges::for_each(std::forward<T>(row), [this, &outit](auto const& str) {
@@ -71,7 +71,7 @@ namespace m
             void
             write_row(T const& row)
             {
-                auto outit     = std::back_inserter(m_line_buffer);
+                auto outit    = std::back_inserter(m_line_buffer);
                 m_first_field = true;
                 m_line_buffer.clear();
                 std::ranges::for_each(row, [this, &outit](auto const& str) {

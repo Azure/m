@@ -12,4 +12,3 @@
 #include <string>
 
 #include <m/utility/exception.h>
-

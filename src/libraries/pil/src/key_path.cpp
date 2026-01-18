@@ -23,24 +23,24 @@ namespace m::pil
 
         using P = std::pair<m::u16sstring, predefined_key>;
 
-        inline const std::map<m::u16sstring,
-                              predefined_key,
-                              m::case_insensitive_less<m::u16sstring>>
-            predefined_key_names = {{
-                P{u"HKCR"sv, predefined_key::classes_root},
-                P{u"HKEY_CLASSES_ROOT"sv, predefined_key::classes_root},
-                P{u"HKCU"sv, predefined_key::current_user},
-                P{u"HKEY_CURRENT_USER"sv, predefined_key::current_user},
-                P{u"HKLM"sv, predefined_key::local_machine},
-                P{u"HKEY_LOCAL_MACHINE"sv, predefined_key::local_machine},
-                P{u"HKEY_USERS"sv, predefined_key::users},
-                P{u"HKEY_PERFORMANCE_DATA"sv, predefined_key::performance_data},
-                P{u"HKEY_CURRENT_CONFIG"sv, predefined_key::current_config},
-                P{u"HKCC"sv, predefined_key::current_config},
-                P{u"HKEY_CURRENT_USER_LOCAL_SETTINGS"sv, predefined_key::current_user_local_settings},
-                P{u"HKEY_PERFORMANCE_TEXT"sv, predefined_key::performance_text},
-                P{u"HKEY_PERFORMANCE_NLSTEXT"sv, predefined_key::performance_nlstext},
-            }};
+        inline const std::
+            map<m::u16sstring, predefined_key, m::case_insensitive_less<m::u16sstring>>
+                predefined_key_names = {{
+                    P{u"HKCR"sv, predefined_key::classes_root},
+                    P{u"HKEY_CLASSES_ROOT"sv, predefined_key::classes_root},
+                    P{u"HKCU"sv, predefined_key::current_user},
+                    P{u"HKEY_CURRENT_USER"sv, predefined_key::current_user},
+                    P{u"HKLM"sv, predefined_key::local_machine},
+                    P{u"HKEY_LOCAL_MACHINE"sv, predefined_key::local_machine},
+                    P{u"HKEY_USERS"sv, predefined_key::users},
+                    P{u"HKEY_PERFORMANCE_DATA"sv, predefined_key::performance_data},
+                    P{u"HKEY_CURRENT_CONFIG"sv, predefined_key::current_config},
+                    P{u"HKCC"sv, predefined_key::current_config},
+                    P{u"HKEY_CURRENT_USER_LOCAL_SETTINGS"sv,
+                      predefined_key::current_user_local_settings},
+                    P{u"HKEY_PERFORMANCE_TEXT"sv, predefined_key::performance_text},
+                    P{u"HKEY_PERFORMANCE_NLSTEXT"sv, predefined_key::performance_nlstext},
+                }};
 
         using Q = std::pair<predefined_key, m::u16sstring>;
 
@@ -213,9 +213,17 @@ namespace m::pil
         return key_path(m_root_key, m_value.substr(0, m_value.find_first_of(path_separator)));
     }
 
-    key_path::operator string_type() const { return m_value; }
+    key_path::
+    operator string_type() const
+    {
+        return m_value;
+    }
 
-    key_path::operator std::optional<key_path::string_type>() const { return m_value; }
+    key_path::
+    operator std::optional<key_path::string_type>() const
+    {
+        return m_value;
+    }
 
     key_path::string_type const&
     key_path::native() const& noexcept

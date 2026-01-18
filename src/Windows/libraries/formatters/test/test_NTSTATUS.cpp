@@ -56,15 +56,8 @@ TEST(NTSTATUS, unmapped_NTSTATUS_MAX)
     EXPECT_EQ(s, L"0x7fffffff"s);
 }
 
-
 TEST(NTSTATUS, unmapped_DWORD_MAX)
 {
     auto s = std::format(L"{}", fmtNTSTATUS{(std::numeric_limits<DWORD>::max)()});
     EXPECT_EQ(s, L"0xffffffff"s);
 }
-
-
-
-
-
-

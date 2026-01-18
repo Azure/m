@@ -14,8 +14,8 @@
 m::googletest_impl::temporary_directory_impl::temporary_directory_impl(
     std::shared_ptr<m::googletest::temporary_directory_manager> const& parent,
     std::filesystem::path const&                                       parent_path,
-    rng_result_type random_number,
-    bool retain):
+    rng_result_type                                                    random_number,
+    bool                                                               retain):
     m_temporary_directory_manager(parent),
     m_path{make_random_subdirectory(parent_path, random_number)},
     m_retain(retain)
@@ -52,7 +52,8 @@ m::googletest_impl::temporary_directory_impl::do_create(bool retain)
 
     if (auto tDM = m_temporary_directory_manager.lock())
     {
-        return std::make_shared<temporary_directory_impl>(tDM, m_path, tDM->generate_random(), retain);
+        return std::make_shared<temporary_directory_impl>(
+            tDM, m_path, tDM->generate_random(), retain);
     }
 
     return nullptr;

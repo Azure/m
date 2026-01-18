@@ -60,12 +60,12 @@ namespace m::rust
     /// common Rust idiom of Result<T, E> cannot be passed across the FFI
     /// boundary, so implementers are limited to some error code numbers or
     /// bool for error case indications.)
-    /// 
+    ///
     /// No special mechanisms to increase or decrease the reference count are
-    /// provided - since you are defining the type including providing the 
+    /// provided - since you are defining the type including providing the
     /// names of the functions to increment the reference counts directly,
     /// you can do that yourself if necessary.
-    /// 
+    ///
     /// </summary>
     /// <typeparam name="ArcPtrTraitsT"></typeparam>
     template <typename ArcPtrTraitsT>
@@ -82,7 +82,7 @@ namespace m::rust
         // constructor does not addref the pointer.
         constexpr explicit arc_ptr(raw_arc_ptr p, adopt_arc_ptr_t) noexcept: m_p(p) {}
 
-        constexpr arc_ptr(arc_ptr&& other) noexcept: m_p{} 
+        constexpr arc_ptr(arc_ptr&& other) noexcept: m_p{}
         {
             using std::swap;
             swap(m_p, other.m_p);

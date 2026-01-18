@@ -179,7 +179,7 @@ namespace m::pil::impl::win32
                               std::size_t&                subkey_count,
                               std::size_t&                value_count,
                               std::size_t&                security_descriptor_size,
-                              m::pil::time_point&         last_write_time) override;
+                              m::pil::time_point_type&    last_write_time) override;
 
         rename_key_disposition
         rename_key(rename_key_flags                    flags,
@@ -301,17 +301,17 @@ namespace m::pil::impl::win32
         };
 
         void
-        on_timer(m::locked_t, utc_time_point when) noexcept;
+        on_timer(m::locked_t, utc_time_point_type const& when) noexcept;
 
         void
-        drive_state(m::locked_t, utc_time_point when) noexcept;
+        drive_state(m::locked_t, utc_time_point_type const& when) noexcept;
 
         // Avoid recursion or complexity by moving the logic for each step
         // forward into the drive_state_once() function, so that drive_state()
         // is simply a loop (logically - it's not actually a loop since it
         // will return when any deferrals are issued via the timers.)
         drive_results
-        drive_state_once(m::locked_t, utc_time_point when) noexcept;
+        drive_state_once(m::locked_t, utc_time_point_type const& when) noexcept;
 
         enum class state
         {
@@ -334,7 +334,7 @@ namespace m::pil::impl::win32
         m::not_null<iregistry_monitor_change_notification*> m_change_notification_ptr;
         std::unique_ptr<timer>                              m_timer;
         std::unique_ptr<timer>                              m_notification_timer;
-        utc_time_point                                      m_notification_time;
+        utc_time_point_type                                 m_notification_time;
     };
 
 } // namespace m::pil::impl::win32

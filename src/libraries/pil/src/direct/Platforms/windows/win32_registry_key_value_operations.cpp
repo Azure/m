@@ -64,14 +64,14 @@ namespace m::pil::impl::win32
                 buffer[buffer.size() - 2] = u'\0';
 
                 auto status =
-                    ::RegEnumValueW(m_hkey,                                             // hkey
-                                    dw_index,                                           // dwIndex
-                                    reinterpret_cast<PWSTR>(buffer.data()),             // lpValueName
-                                    &current_size,                                      // lpcchValueName
-                                    nullptr,                                            // lpReserved
-                                    reinterpret_cast<DWORD*>(&value.m_reg_value_type),  // lpType
-                                    nullptr,                                            // lpData
-                                    nullptr);                                           // lpcbData
+                    ::RegEnumValueW(m_hkey,                                 // hkey
+                                    dw_index,                               // dwIndex
+                                    reinterpret_cast<PWSTR>(buffer.data()), // lpValueName
+                                    &current_size,                          // lpcchValueName
+                                    nullptr,                                // lpReserved
+                                    reinterpret_cast<DWORD*>(&value.m_reg_value_type), // lpType
+                                    nullptr,                                           // lpData
+                                    nullptr);                                          // lpcbData
                 if (status == ERROR_NO_MORE_ITEMS)
                 {
                     end_of_values = true;

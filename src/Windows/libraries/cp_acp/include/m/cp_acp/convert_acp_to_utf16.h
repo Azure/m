@@ -16,8 +16,8 @@
 
 #include <Windows.h>
 
-#include <m/multi_byte/code_page.h>
 #include <m/errors/errors.h>
+#include <m/multi_byte/code_page.h>
 #include <m/strings/convert.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>

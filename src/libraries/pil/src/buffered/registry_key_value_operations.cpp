@@ -168,9 +168,9 @@ namespace m::pil::impl::buffered
     }
 
     ikey::get_value_type_disposition
-    key::get_value_type(ikey::get_value_type_flags flags,
+    key::get_value_type(ikey::get_value_type_flags    flags,
                         value_name_string_type const& value_name,
-                        reg_value_type&            type)
+                        reg_value_type&               type)
     {
         M_API_PARAMETER_MUST_BE_ZERO("ikey::get_value_type", flags);
 

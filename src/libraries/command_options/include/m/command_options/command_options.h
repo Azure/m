@@ -749,14 +749,13 @@ namespace m
             using parsed_command_t   = parsed_command<char_t>;
             using parsed_parameter_t = parsed_parameter<char_t>;
 
-            path_parameter(string_view_t          name,
-                           bool                   required      = true,
-                           string_view_t          default_value = string_view_t{}):
+            path_parameter(string_view_t name,
+                           bool          required      = true,
+                           string_view_t default_value = string_view_t{}):
                 parameter<CharT>(name, required),
                 m_default_value(default_value),
                 m_value(m::filesystem::make_path(m_default_value))
-            {
-            }
+            {}
 
             path_parameter()                      = delete;
             path_parameter(path_parameter const&) = delete;

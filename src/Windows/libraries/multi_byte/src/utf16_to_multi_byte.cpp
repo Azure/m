@@ -16,12 +16,12 @@
 namespace m::multi_byte::impl
 {
     template <typename TCharIn>
-    requires m::utf16_character<TCharIn>
+        requires m::utf16_character<TCharIn>
     void
-    utf16_to_multi_byte_fn(code_page                          cp,
+    utf16_to_multi_byte_fn(code_page                       cp,
                            std::basic_string_view<TCharIn> view,
-                           std::span<char>&                   buffer,
-                           std::error_code&                   ec)
+                           std::span<char>&                buffer,
+                           std::error_code&                ec)
     {
         auto const view_size = view.size();
         if (view_size == 0)
@@ -53,9 +53,9 @@ namespace m::multi_byte::impl
 
     template <typename TCharIn>
     void
-    utf16_to_multi_byte_fn(code_page                          cp,
+    utf16_to_multi_byte_fn(code_page                       cp,
                            std::basic_string_view<TCharIn> view,
-                           std::span<char>&                   buffer)
+                           std::span<char>&                buffer)
     {
         auto const view_size = view.size();
         if (view_size == 0)
@@ -222,7 +222,5 @@ namespace m
         multi_byte::impl::utf16_to_multi_byte_fn(cp, in, out, ec);
     }
 #endif
-
-
 
 } // namespace m

@@ -21,7 +21,6 @@ namespace m
     }
 } // namespace m
 
-
 template <>
 struct std::formatter<m::pe::image_magic_t, wchar_t>
 {

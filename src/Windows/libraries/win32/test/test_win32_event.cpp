@@ -19,7 +19,6 @@ TEST(Win32Event, ConstructNull)
     auto e1 = m::win32::event();
 
     EXPECT_EQ(static_cast<HANDLE>(e1), nullptr);
-
 }
 
 TEST(Win32Event, ConstructManualReset)
@@ -70,9 +69,6 @@ TEST(Win32Event, ConstructManualReset)
     e3.reset();
     EXPECT_EQ(static_cast<HANDLE>(e3), nullptr);
     EXPECT_EQ(e3.get_event_kind(), m::win32::event::event_kind::none);
-
-
-
 }
 
 TEST(Win32Event, ConstructAutoReset)

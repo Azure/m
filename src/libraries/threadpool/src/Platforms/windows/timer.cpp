@@ -56,24 +56,24 @@ namespace m::threadpool_impl
     }
 
     void
-    timer::do_set(duration dur)
+    timer::do_set(duration_type const& d)
     {
         tracing::frame frame(__FUNCTION__, this);
 
         timer_parameters params;
 
-        compute_timer_times(dur, params);
+        compute_timer_times(d, params);
 
         auto l           = std::unique_lock(m_mutex);
         m_cancel_on_wait = false;
-        m_duration       = dur;
+        m_duration       = d;
         m_version++;
         m_timer.set(params.m_p_ft_due_time, params.m_ms_period, params.m_ms_window_length);
         frame.succeeded();
     }
 
     void
-    timer::compute_timer_times(duration dur, timer_parameters& params)
+    timer::compute_timer_times(duration_type d, timer_parameters& params)
     {
         params.m_buffer_do_not_pass.dwLowDateTime  = 0;
         params.m_buffer_do_not_pass.dwHighDateTime = 0;
@@ -81,7 +81,7 @@ namespace m::threadpool_impl
         params.m_ms_period                         = 0;
         params.m_ms_window_length                  = 0;
 
-        if (dur.count() == 0)
+        if (d.count() == 0)
         {
             // Yes these were just set in the initialization of the
             // function but it's important that these be zero
@@ -93,7 +93,7 @@ namespace m::threadpool_impl
         }
         else
         {
-            auto const filetime_duration = std::chrono::duration_cast<file_time>(dur);
+            auto const filetime_duration = std::chrono::duration_cast<file_time>(d);
 
             ULARGE_INTEGER uli_filetime{};
             uli_filetime.QuadPart = -filetime_duration.count();

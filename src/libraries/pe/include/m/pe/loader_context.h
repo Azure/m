@@ -192,8 +192,8 @@ namespace m
                 std::unique_ptr<m::pe::decoder> m_decoder;
             };
 
-            std::set<std::wstring>               m_known_pes;
-            std::map<std::wstring, pe_record>    m_resolved;
+            std::set<std::wstring>             m_known_pes;
+            std::map<std::wstring, pe_record>  m_resolved;
             std::vector<std::filesystem::path> m_search_path;
             std::size_t                        m_unresolved_count;
         };

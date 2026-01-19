@@ -42,7 +42,7 @@ namespace m::win32
 
         event e(evt,
                 (!(!(flags & create_event_flags::manual_reset))) ? event_kind::manual :
-                                                                    event_kind::automatic);
+                                                                   event_kind::automatic);
         using std::swap;
         swap(e, *this);
     }

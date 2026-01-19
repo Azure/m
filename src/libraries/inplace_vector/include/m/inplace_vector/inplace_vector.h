@@ -106,7 +106,7 @@ namespace m
 
         template <typename PointerT, typename T>
         concept move_or_copy_insertable_from = requires(PointerT ptr, T&& value) {
-            { std::construct_at(ptr, std::forward<T&&>(value)) } -> std::same_as<PointerT>;
+            { std::construct_at(ptr, std::forward<T &&>(value)) } -> std::same_as<PointerT>;
         };
 
         // Types implementing the `inplace_vector`'s storage

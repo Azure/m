@@ -52,7 +52,7 @@ struct test_arc_traits_1
 using test_arc = m::rust::arc_ptr<test_arc_traits_1>;
 
 TEST(ArcPtr, VerifyReleaseOnce)
-{ 
+{
     P p{100};
     EXPECT_EQ(p.x, 100);
     {
@@ -172,8 +172,6 @@ TEST(ArcPtr, TryMoveSwap)
     // Note that outer_arc now governs Q not P due to the swap above
     EXPECT_EQ(outer_arc.get(), &q);
 }
-
-
 
 TEST(ArcPtr, VerifySwap)
 {

@@ -32,15 +32,17 @@ namespace m
     std::u32string
     string_converter<std::u8string, std::u32string>::make_string(std::u8string const& str)
     {
-        return string_converter<std::u8string_view, std::u32string>::make_string(static_cast<std::u8string_view>(str));
+        return string_converter<std::u8string_view, std::u32string>::make_string(
+            static_cast<std::u8string_view>(str));
     }
 
     std::optional<std::u32string>
-    string_converter<std::u8string, std::u32string>::make_string(std::optional<std::u8string> const& str)
+    string_converter<std::u8string, std::u32string>::make_string(
+        std::optional<std::u8string> const& str)
     {
         if (!str.has_value())
             return std::nullopt;
 
         return make_string(str.value());
     }
-} // namespace m::conversion_details
+} // namespace m

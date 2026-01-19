@@ -11,8 +11,10 @@ target_include_directories(m_windows_chrono PUBLIC
 target_link_libraries(m_windows_chrono PUBLIC
     m_cast
     m_chrono
+    m_formatters
     m_tracing
     m_windows_wrappers
+    m_win32
 )
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

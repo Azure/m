@@ -53,7 +53,7 @@ namespace m::threadpool_impl
         do_is_set() override;
 
         void
-        do_set(duration dur) override;
+        do_set(duration_type const& dur) override;
 
         void
         do_cancel() override;
@@ -70,7 +70,7 @@ namespace m::threadpool_impl
         };
 
         static void
-        compute_timer_times(duration dur, timer_parameters& parameters);
+        compute_timer_times(duration_type dur, timer_parameters& parameters);
 
         static void
         tp_timer_callback(PTP_CALLBACK_INSTANCE tp_callback_instance,
@@ -89,7 +89,7 @@ namespace m::threadpool_impl
         m::win32::threadpool::tp_timer m_timer;
 
         std::packaged_task<timer_callable> m_packaged_task;
-        duration                           m_duration;
+        duration_type                      m_duration;
         std::wstring                       m_description;
         std::uintmax_t                     m_version{};
         std::uintmax_t                     m_version_at_dispatch{};

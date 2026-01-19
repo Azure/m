@@ -17,16 +17,16 @@
 //
 // Unfortunately this source module diverges significantly for Windows and
 // Linux.
-// 
+//
 // On Windows using the MSVC STL, the std::filesystem uses a wchar_t based
 // string to store the path (which is natural for Windows) encoded in UTF-16.
 // This is perfectly natural and aligns with good Windows practices.
-// 
+//
 // On Linux, using the STLs that appear to be in use in the CIs that I have
 // seen, std::filesystem stores the path in a std::string which is char based
 // and there is some level of tacit assumption that the paths are encoded in
 // UTF-8.
-// 
+//
 // We will try to use "the right" headers so that the code can, for the most
 // part, be common, but there may be significantly different modes.
 //

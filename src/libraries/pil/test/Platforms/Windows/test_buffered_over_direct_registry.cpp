@@ -3,8 +3,8 @@
 
 #include <gtest/gtest.h>
 
-#include <iostream>
 #include <format>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -35,8 +35,8 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoft)
     for (auto&& e: values)
     {
         m::println("value: {{ name: {}, type: {} }}",
-                     m::to_string(e.m_value_name),
-                     std::to_underlying(e.m_reg_value_type));
+                   m::to_string(e.m_value_name),
+                   std::to_underlying(e.m_reg_value_type));
     }
 
     EXPECT_EQ(1, 1);
@@ -47,7 +47,7 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoftWindiff)
 {
     auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
     auto r  = p.get_registry();
-    auto k1   = r.open_predefined_key(m::pil::predefined_key::current_user);
+    auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
     try
     {
         auto k2   = k1.open_key(L"Software\\Microsoft\\Windiff"sv);
@@ -63,14 +63,12 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoftWindiff)
         for (auto&& e: values)
         {
             m::println("value: {{ name: {}, type: {} }}",
-                         m::to_string(e.m_value_name),
-                         std::to_underlying(e.m_reg_value_type));
+                       m::to_string(e.m_value_name),
+                       std::to_underlying(e.m_reg_value_type));
         }
     }
     catch (std::exception const&)
-    {
-
-    }
+    {}
 
     EXPECT_EQ(1, 1);
     //
@@ -78,10 +76,10 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoftWindiff)
 
 TEST(BufferedOverDirectRegistry, TrySettingStringValue)
 {
-    auto p    = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
-    auto r    = p.get_registry();
-    auto k1   = r.open_predefined_key(m::pil::predefined_key::current_user);
-    auto k2   = k1.open_key(L"Software\\Microsoft"sv);
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
+    auto r  = p.get_registry();
+    auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
+    auto k2 = k1.open_key(L"Software\\Microsoft"sv);
 
     k2.set_string_value(L"Value1"sv, L"First"sv);
     k2.set_string_value(L"Value1"sv, L"Second"sv);
@@ -92,7 +90,6 @@ TEST(BufferedOverDirectRegistry, TrySettingStringValue)
 
     EXPECT_EQ(1, 1);
 }
-
 
 TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint)
 {

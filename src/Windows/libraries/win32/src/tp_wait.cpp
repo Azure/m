@@ -59,14 +59,14 @@ namespace m::win32::threadpool
     }
 
     void
-    tp_wait::do_set_wait_for(HANDLE h, std::chrono::milliseconds ms)
+    tp_wait::do_set_wait_for(HANDLE h, std::chrono::milliseconds const& ms)
     {
         auto ft = m::to<FILETIME>(ms);
         ::SetThreadpoolWaitEx(m_pwait, h, &ft, nullptr);
     }
 
     void
-    tp_wait::do_set_wait_until(HANDLE h, utc_time_point tp)
+    tp_wait::do_set_wait_until(HANDLE h, utc_time_point_type const& tp)
     {
         auto ft = m::to<FILETIME>(tp);
         ::SetThreadpoolWaitEx(m_pwait, h, &ft, nullptr);

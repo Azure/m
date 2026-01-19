@@ -44,7 +44,7 @@ namespace m::threadpool_impl
     }
 
     void
-    periodic_timer::do_set(duration dur)
+    periodic_timer::do_set(duration_type const& dur)
     {
         timer_parameters parameters;
 
@@ -82,8 +82,7 @@ namespace m::threadpool_impl
     }
 
     void
-    periodic_timer::compute_timer_times(duration                            dur,
-                                        timer_parameters& parameters)
+    periodic_timer::compute_timer_times(duration_type dur, timer_parameters& parameters)
     {
         // Higher layer should have performed a proper parameter check.
         // we don't want to have to deal with edge cases here.

@@ -4,8 +4,8 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
-#include <iostream>
 #include <format>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -18,8 +18,9 @@ using namespace std::string_view_literals;
 
 TEST(TestLoggingRegistry, TryCreatingKey)
 {
-    auto p = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates | m::pil::make_platform_flags::record_modifications);
-    auto r = p.get_registry();
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates |
+                                   m::pil::make_platform_flags::record_modifications);
+    auto r  = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2 = k1.open_key(L"Software\\Microsoft"sv);
 

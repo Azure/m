@@ -67,7 +67,7 @@ namespace m::threadpool_impl
         do_running() override;
 
         bool
-        do_wait_for(std::chrono::milliseconds dur) override;
+        do_wait_for(std::chrono::milliseconds const& dur) override;
 
         std::shared_ptr<work_item>
         do_enqueue(std::packaged_task<void()>&& task, m::wsstring const& description) override;

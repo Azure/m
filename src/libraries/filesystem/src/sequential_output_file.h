@@ -30,7 +30,8 @@ namespace m
             ~sequential_output_file();
 
         protected:
-            std::filesystem::path do_path() override;
+            std::filesystem::path
+            do_path() override;
 
             void
             do_write(std::span<std::byte const> s) override;

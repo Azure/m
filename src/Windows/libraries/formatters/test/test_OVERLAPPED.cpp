@@ -24,5 +24,7 @@ const OVERLAPPED data1 = {
 TEST(OVERLAPPED, first)
 {
     auto s = std::format(L"{}", data1);
-    EXPECT_EQ(s, L"{ OVERLAPPED Status: STATUS_WAIT_0, BytesTransferred: 0, Offset: 0, Handle: 0xffffffffffffffff }"s);
+    EXPECT_EQ(
+        s,
+        L"{ OVERLAPPED Status: STATUS_WAIT_0, BytesTransferred: 0, Offset: 0, Handle: 0xffffffffffffffff }"s);
 }

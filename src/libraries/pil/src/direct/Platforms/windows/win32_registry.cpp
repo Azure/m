@@ -59,8 +59,8 @@ namespace m::pil::impl::win32
         if (status != ERROR_SUCCESS)
             m::throw_win32_error_code(status);
 
-        returned_key = std::make_shared<pil::impl::win32::key>(
-            std::move(hk2), m::pil::key_path(pk));
+        returned_key =
+            std::make_shared<pil::impl::win32::key>(std::move(hk2), m::pil::key_path(pk));
 
         return open_predefined_key_disposition{};
     }

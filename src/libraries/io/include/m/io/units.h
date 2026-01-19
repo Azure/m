@@ -12,8 +12,8 @@
 #include <m/cast/to.h>
 
 #include <m/math/math.h>
-#include <m/utility/utility.h>
 #include <m/utility/to_underlying.h>
+#include <m/utility/utility.h>
 
 namespace m
 {
@@ -56,7 +56,6 @@ operator/(m::io::offset_t l, std::size_t r)
 //
 // operators for m::io::position_t
 //
-
 
 template <>
 struct std::formatter<m::io::offset_t, wchar_t>

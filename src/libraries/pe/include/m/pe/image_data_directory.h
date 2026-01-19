@@ -107,7 +107,7 @@ namespace m
         //
 
         static inline constexpr offset_t k_offset_export_table            = offset_t{0};
-        static inline constexpr offset_t k_offset_import_table = offset_t{8};
+        static inline constexpr offset_t k_offset_import_table            = offset_t{8};
         static inline constexpr offset_t k_offset_resource_table          = offset_t{16};
         static inline constexpr offset_t k_offset_exception_table         = offset_t{24};
         static inline constexpr offset_t k_offset_certificate_table       = offset_t{32};

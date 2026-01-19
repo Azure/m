@@ -18,7 +18,7 @@ using namespace std::string_view_literals;
 TEST(FieldQuoterTests, SimpleString)
 {
     std::u16string s;
-    auto         iter = std::back_inserter(s);
+    auto           iter = std::back_inserter(s);
 
     m::csv::field_quoter::enquote(u"hello"sv, iter);
 
@@ -28,7 +28,7 @@ TEST(FieldQuoterTests, SimpleString)
 TEST(FieldQuoterTests, SimpleString2)
 {
     std::u16string s;
-    auto         iter = std::back_inserter(s);
+    auto           iter = std::back_inserter(s);
 
     m::csv::field_quoter::enquote(u"hello \"Mike\" if that's actually your name"sv, iter);
 
@@ -38,7 +38,7 @@ TEST(FieldQuoterTests, SimpleString2)
 TEST(FieldQuoterTests, TestCarriageReturn)
 {
     std::u16string s;
-    auto         iter = std::back_inserter(s);
+    auto           iter = std::back_inserter(s);
 
     m::csv::field_quoter::enquote(u"abc\r123"sv, iter);
 
@@ -49,7 +49,7 @@ TEST(FieldQuoterTests, TestCarriageReturn)
 TEST(FieldQuoterTests, TestLineFeed)
 {
     std::u16string s;
-    auto         iter = std::back_inserter(s);
+    auto           iter = std::back_inserter(s);
 
     m::csv::field_quoter::enquote(u"abc\n123"sv, iter);
 
@@ -60,7 +60,7 @@ TEST(FieldQuoterTests, TestLineFeed)
 TEST(FieldQuoterTests, TestCRLF)
 {
     std::u16string s;
-    auto         iter = std::back_inserter(s);
+    auto           iter = std::back_inserter(s);
 
     m::csv::field_quoter::enquote(u"abc\r\n123"sv, iter);
 
@@ -71,7 +71,7 @@ TEST(FieldQuoterTests, TestCRLF)
 TEST(FieldQuoterTests, TestBrace)
 {
     std::u16string s;
-    auto         iter = std::back_inserter(s);
+    auto           iter = std::back_inserter(s);
 
     m::csv::field_quoter::enquote(u"abc{123"sv, iter);
 
@@ -86,7 +86,7 @@ TEST(FieldQuoterTests, TestBrace)
 TEST(FieldQuoterTests, TestStartingWithQuotedString)
 {
     std::u16string s;
-    auto         iter = std::back_inserter(s);
+    auto           iter = std::back_inserter(s);
 
     m::csv::field_quoter::enquote(u"\"What\"happens"sv, iter);
 
@@ -99,7 +99,7 @@ TEST(FieldQuoterTests, TestStartingWithQuotedString)
 TEST(FieldQuoterTests, TestEndingWithQuotedString)
 {
     std::u16string s;
-    auto         iter = std::back_inserter(s);
+    auto           iter = std::back_inserter(s);
 
     m::csv::field_quoter::enquote(u"What\"happens\""sv, iter);
 
@@ -112,7 +112,7 @@ TEST(FieldQuoterTests, TestEndingWithQuotedString)
 TEST(FieldQuoterTests, TestBEL)
 {
     std::u16string s;
-    auto         iter = std::back_inserter(s);
+    auto           iter = std::back_inserter(s);
 
     m::csv::field_quoter::enquote(u"abc\u0007123"sv, iter);
 

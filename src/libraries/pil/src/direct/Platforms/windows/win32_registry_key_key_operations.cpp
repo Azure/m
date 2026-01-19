@@ -52,7 +52,7 @@ namespace m::pil::impl::win32
 
     ikey::create_key_disposition
     key::create_key(create_key_flags                   flags,
-                    pil::key_path const&         relative_path,
+                    pil::key_path const&               relative_path,
                     sam                                sam_in,
                     std::optional<security_attributes> sa,
                     std::shared_ptr<ikey>&             returned_key)
@@ -122,8 +122,8 @@ namespace m::pil::impl::win32
     }
 
     ikey::enumerate_keys_disposition
-    key::enumerate_keys(enumerate_keys_flags                                 flags,
-                        std::size_t                                          index,
+    key::enumerate_keys(enumerate_keys_flags                           flags,
+                        std::size_t                                    index,
                         std::span<pil::key_path, std::dynamic_extent>& key_names)
     {
         if (flags != enumerate_keys_flags{})
@@ -179,16 +179,16 @@ namespace m::pil::impl::win32
     }
 
     ikey::open_key_disposition
-    key::open_key(ikey::open_key_flags                      flags,
+    key::open_key(ikey::open_key_flags                flags,
                   std::optional<pil::key_path> const& relative_path,
-                  sam                                       sam_in,
-                  std::shared_ptr<ikey>&                    returned_key)
+                  sam                                 sam_in,
+                  std::shared_ptr<ikey>&              returned_key)
     {
         if (flags != open_key_flags{})
             throw std::runtime_error("Invalid flags to key::open_key() call");
 
         m::win32::registry::hkey new_key;
-        m::pil::key_path   new_path = m_path + relative_path;
+        m::pil::key_path         new_path = m_path + relative_path;
 
         auto const namez       = pcwstr(relative_path);
         DWORD      ulOptions   = 0;
@@ -214,12 +214,12 @@ namespace m::pil::impl::win32
                                std::size_t&                subkey_count,
                                std::size_t&                value_count,
                                std::size_t&                security_descriptor_size,
-                               m::pil::time_point&         last_write_time)
+                               m::pil::time_point_type&    last_write_time)
     {
         subkey_count             = 0;
         value_count              = 0;
         security_descriptor_size = 0;
-        last_write_time          = (m::pil::time_point::min)();
+        last_write_time          = (m::pil::time_point_type::min)();
 
         if (flags != query_information_key_flags{})
             throw std::runtime_error("Invalid flags to key::query_information_key() call");
@@ -253,7 +253,7 @@ namespace m::pil::impl::win32
     }
 
     ikey::rename_key_disposition
-    key::rename_key(rename_key_flags                          flags,
+    key::rename_key(rename_key_flags                    flags,
                     std::optional<pil::key_path> const& old_name,
                     pil::key_path const&                new_name)
     {

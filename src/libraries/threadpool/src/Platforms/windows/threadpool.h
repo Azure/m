@@ -28,14 +28,14 @@ namespace m::threadpool_impl
 
         std::unique_ptr<m::timer>
         do_create_timer(std::packaged_task<timer_callable>&& task,
-                        std::wstring                                description) override;
+                        std::wstring                         description) override;
 
         std::unique_ptr<m::periodic_timer>
         do_create_periodic_timer(std::packaged_task<timer_callable>&& task) override;
 
         std::unique_ptr<m::periodic_timer>
         do_create_periodic_timer(std::packaged_task<timer_callable>&& task,
-                                 std::wstring                                description) override;
+                                 std::wstring                         description) override;
 
         std::shared_ptr<m::work_queue>
         do_create_work_queue(m::work_queue_execution_policy wqep,

@@ -45,9 +45,9 @@ namespace m
 
         struct image_file_header
         {
-            static inline constexpr offset_t k_offset_machine = offset_t{0};
-            static inline constexpr offset_t k_offset_number_of_sections = offset_t{2};
-            static inline constexpr offset_t k_offset_time_date_stamp    = offset_t{4};
+            static inline constexpr offset_t k_offset_machine                 = offset_t{0};
+            static inline constexpr offset_t k_offset_number_of_sections      = offset_t{2};
+            static inline constexpr offset_t k_offset_time_date_stamp         = offset_t{4};
             static inline constexpr offset_t k_offset_pointer_to_symbol_table = offset_t{8};
             static inline constexpr offset_t k_offset_number_of_symbols       = offset_t{12};
             static inline constexpr offset_t k_offset_size_of_optional_header = offset_t{16};
@@ -262,4 +262,3 @@ struct std::formatter<m::pe::image_file_header::characteristics, wchar_t>
         return std::format_to(ctx.out(), L"{:#x}", c.m_union.m_data);
     }
 };
-

@@ -31,8 +31,8 @@ namespace m
             channel(std::wstring_view name);
 
         private:
-            std::mutex           m_mutex;
-            std::wstring         m_name;
+            std::mutex   m_mutex;
+            std::wstring m_name;
 
             friend class multiplexor;
         };

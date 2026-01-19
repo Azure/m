@@ -7,6 +7,6 @@
 
 namespace m::pil
 {
-    using clock = std::chrono::utc_clock;
-    using time_point = clock::time_point;
+    using clock_type      = std::chrono::utc_clock;
+    using time_point_type = clock_type::time_point;
 } // namespace m::pil

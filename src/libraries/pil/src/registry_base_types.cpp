@@ -24,7 +24,8 @@ namespace m::pil
 
         for (auto&& e: v)
         {
-            to_null_terminated_registry_storage_string(registry_string_view_type(e.begin(), e.end()), temp);
+            to_null_terminated_registry_storage_string(
+                registry_string_view_type(e.begin(), e.end()), temp);
             retval.append(temp);
         }
 
@@ -33,4 +34,4 @@ namespace m::pil
         return retval;
     }
 
-} // namespace m::pil::registry
+} // namespace m::pil

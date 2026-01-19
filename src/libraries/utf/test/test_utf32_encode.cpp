@@ -12,8 +12,8 @@
 #include <string_view>
 
 #include <m/strings/convert.h>
-#include <m/utf/exceptions.h>
 #include <m/utf/encode.h>
+#include <m/utf/exceptions.h>
 
 #include "test_data.h"
 

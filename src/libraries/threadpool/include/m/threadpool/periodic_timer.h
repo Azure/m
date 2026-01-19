@@ -33,7 +33,7 @@ namespace m
         void
         set(std::chrono::duration<Rep, Period> period)
         {
-            do_set(std::chrono::duration_cast<duration>(period));
+            do_set(m::duration_cast(period));
         }
 
         void
@@ -60,7 +60,7 @@ namespace m
         do_is_set() = 0;
 
         virtual void
-        do_set(duration dur) = 0;
+        do_set(duration_type const& dur) = 0;
 
         virtual void
         do_stop() = 0;

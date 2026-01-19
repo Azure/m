@@ -36,11 +36,12 @@ namespace m
     }
 
     std::optional<std::u8string>
-    string_converter<std::u32string, std::u8string>::make_string(std::optional<std::u32string> const& str)
+    string_converter<std::u32string, std::u8string>::make_string(
+        std::optional<std::u32string> const& str)
     {
         if (!str.has_value())
             return std::nullopt;
 
         return make_string(str.value());
     }
-} // namespace m::conversion_details
+} // namespace m

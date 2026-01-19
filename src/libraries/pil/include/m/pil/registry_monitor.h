@@ -20,11 +20,10 @@
 
 #include <m/byte_streams/byte_streams.h>
 #include <m/chrono/chrono.h>
+#include <m/pil/key_path.h>
 #include <m/pil/registry.h>
 #include <m/pil/registry_interfaces.h>
-#include <m/pil/key_path.h>
 #include <m/utility/pointers.h>
 
 namespace m::pil
-{
-} // namespace m::pil
+{} // namespace m::pil

@@ -12,30 +12,30 @@
 
 namespace m
 {
-        template <>
-        struct string_converter<char const*, std::u16string>
-        {
-            static std::u16string
-            make_string(czstring str);
-        };
+    template <>
+    struct string_converter<char const*, std::u16string>
+    {
+        static std::u16string
+        make_string(czstring str);
+    };
 
-        template <>
-        struct string_converter<std::string_view, std::u16string>
-        {
-            static std::u16string
-            make_string(std::string_view v);
+    template <>
+    struct string_converter<std::string_view, std::u16string>
+    {
+        static std::u16string
+        make_string(std::string_view v);
 
-            static std::optional<std::u16string>
-            make_string(std::optional<std::string_view> const& v);
-        };
+        static std::optional<std::u16string>
+        make_string(std::optional<std::string_view> const& v);
+    };
 
-        template <>
-        struct string_converter<std::string, std::u16string>
-        {
-            static std::u16string
-            make_string(std::string const& s);
+    template <>
+    struct string_converter<std::string, std::u16string>
+    {
+        static std::u16string
+        make_string(std::string const& s);
 
-            static std::optional<std::u16string>
-            make_string(std::optional<std::string> const& s);
-        };
+        static std::optional<std::u16string>
+        make_string(std::optional<std::string> const& s);
+    };
 } // namespace m

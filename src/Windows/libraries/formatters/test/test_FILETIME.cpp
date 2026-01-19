@@ -42,7 +42,3 @@ TEST(FILETIME, negative)
     auto s = std::format("{}", fmtFILETIME(negative_ft));
     EXPECT_EQ(s, "{ms: 908826404803366.1}"s);
 }
-
-
-
-

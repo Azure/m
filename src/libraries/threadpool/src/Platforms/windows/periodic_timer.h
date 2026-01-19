@@ -46,7 +46,7 @@ namespace m::threadpool_impl
 
     protected:
         void
-        do_set(m::duration dur) override;
+        do_set(duration_type const& dur) override;
 
         bool
         do_is_set() override;
@@ -66,7 +66,7 @@ namespace m::threadpool_impl
         };
 
         static void
-        compute_timer_times(duration dur, timer_parameters& parameters);
+        compute_timer_times(duration_type dur, timer_parameters& parameters);
 
         static void
         tp_timer_callback(PTP_CALLBACK_INSTANCE tp_callback_instance,
@@ -77,7 +77,7 @@ namespace m::threadpool_impl
 
         mutable std::mutex                 m_mutex;
         std::packaged_task<timer_callable> m_packaged_task;
-        duration                           m_duration;
+        duration_type                      m_duration;
         std::wstring                       m_description;
         std::uintmax_t                     m_set_count{};
         std::uintmax_t                     m_set_count_when_cancelled{};

@@ -86,9 +86,9 @@ namespace m::tracing_impl
         /// <param name="item"></param>
         /// <returns></returns>
         m::tracing::on_message_disposition
-        handle_large_dispatch(std::unique_lock<std::mutex>& l,
-                                   m::tracing::may_forward_message_option may_forward_message,
-                                   m::tracing::envelope&                  item);
+        handle_large_dispatch(std::unique_lock<std::mutex>&          l,
+                              m::tracing::may_forward_message_option may_forward_message,
+                              m::tracing::envelope&                  item);
 
         // m_monitor and m_channel_names are not updated after construction
         // and thus are not guarded by m_mutex.

@@ -36,7 +36,8 @@ struct encoded_file_buffer
 {
     static inline constexpr std::size_t buffer_size = 1 << 17;
 
-    encoded_file_buffer(std::filesystem::path const& path): m_buffer {},
+    encoded_file_buffer(std::filesystem::path const& path):
+        m_buffer{},
         m_buffer_position{},
         m_path(path),
         m_seq_out(m::filesystem::make_sequential_output_file(m_path))
@@ -87,8 +88,9 @@ struct encoded_file_buffer
 void
 m::pe2l::dump(m::not_null<m::command_options::parsed_command<char>*> pc)
 {
-    auto const path = std::filesystem::absolute(pc->get_parameter<std::filesystem::path>("filename"sv));
-    auto const out  = m::filesystem::combine(
+    auto const path =
+        std::filesystem::absolute(pc->get_parameter<std::filesystem::path>("filename"sv));
+    auto const out = m::filesystem::combine(
         pc->get_option<std::filesystem::path>("out"sv), path, std::filesystem::path(u8".csv"));
     auto stream  = m::filesystem::open_seekable_input_file(path);
     auto decoder = std::make_unique<m::pe::decoder>(stream);
@@ -97,7 +99,7 @@ m::pe2l::dump(m::not_null<m::command_options::parsed_command<char>*> pc)
     m::csv::writer      cw([&](auto const spn) { efb.append_line_to_buffer(spn); });
 
     auto const parent_path = path.parent_path();
-    auto const filename = path.filename();
+    auto const filename    = path.filename();
 
     std::array<m::filesystem::path_string_view, 4> exports = {
         M_FILESYSTEM_T("EXPORT"sv),
@@ -105,7 +107,7 @@ m::pe2l::dump(m::not_null<m::command_options::parsed_command<char>*> pc)
         m::filesystem::path_string_view(filename.c_str()),
         m::filesystem::path_string_view()};
 
-    for (auto const& e : decoder->m_image_export_directory.m_names)
+    for (auto const& e: decoder->m_image_export_directory.m_names)
     {
         auto const p = m::filesystem::to_path_string(e);
         exports[3]   = m::filesystem::path_string_view(p);

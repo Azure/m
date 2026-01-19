@@ -22,9 +22,9 @@
 
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/close_flush_option.h>
-#include <m/tracing/ostream_sink.h>
 #include <m/tracing/envelope.h>
 #include <m/tracing/message_queue.h>
+#include <m/tracing/ostream_sink.h>
 #include <m/tracing/sink.h>
 #include <m/tracing/tracing.h>
 

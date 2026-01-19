@@ -25,7 +25,6 @@ TEST(path_casts, wstring)
     auto s = m::to<std::wstring>(p);
 }
 
-
 TEST(path_casts, u8string)
 {
     // No test asserts, just execution.

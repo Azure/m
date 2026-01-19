@@ -21,10 +21,10 @@ using namespace std::string_view_literals;
 
 struct testingFILE_NOTIFY_INFORMATION
 {
-    DWORD         NextEntryOffset;
-    DWORD         Action;
-    DWORD         FileNameLength;
-    WCHAR         FileName[255];
+    DWORD NextEntryOffset;
+    DWORD Action;
+    DWORD FileNameLength;
+    WCHAR FileName[255];
 };
 
 static_assert(offsetof(testingFILE_NOTIFY_INFORMATION, NextEntryOffset) ==
@@ -40,9 +40,9 @@ static_assert(offsetof(testingFILE_NOTIFY_INFORMATION, FileName) ==
               offsetof(FILE_NOTIFY_INFORMATION, FileName));
 
 constexpr testingFILE_NOTIFY_INFORMATION info1 = {.NextEntryOffset = 0,
-                                                           .Action          = FILE_ACTION_ADDED,
-                                                           .FileNameLength = 20,
-                                                           .FileName       = L"README.TXT"};
+                                                  .Action          = FILE_ACTION_ADDED,
+                                                  .FileNameLength  = 20,
+                                                  .FileName        = L"README.TXT"};
 
 TEST(FILE_NOTIFY_INFORMATION, first)
 {

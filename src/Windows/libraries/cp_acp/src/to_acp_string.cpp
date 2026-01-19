@@ -62,4 +62,3 @@ namespace m
         to_string(multi_byte::cp_acp, view, str);
     }
 } // namespace m
-

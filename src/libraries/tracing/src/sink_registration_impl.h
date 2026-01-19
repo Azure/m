@@ -19,12 +19,12 @@
 #include <utility>
 #include <vector>
 
+#include "sink_shim.h"
 #include <m/strings/literal_string_view.h>
 #include <m/tracing/envelope.h>
 #include <m/tracing/may_forward_message_option.h>
 #include <m/tracing/on_message_disposition.h>
 #include <m/tracing/sink_registration.h>
-#include "sink_shim.h"
 
 using namespace m::string_view_literals;
 
@@ -38,4 +38,4 @@ namespace m::tracing_impl
         std::shared_ptr<sink_shim> m_sink_shim;
     };
 
-} // namespace m::tracing::internal
+} // namespace m::tracing_impl

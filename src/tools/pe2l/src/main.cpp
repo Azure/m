@@ -55,7 +55,7 @@ main(int argc, char const* argv[])
         std::wcerr << "Error parsing command line: " << e.what() << "\n";
 
         std::string buffer;
-        buffer = commands.usage(argv[0]);
+        buffer    = commands.usage(argv[0]);
         auto text = buffer.c_str();
 
         std::wcerr << text << '\n';

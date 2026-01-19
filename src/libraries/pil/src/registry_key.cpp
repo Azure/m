@@ -92,13 +92,13 @@ namespace m::pil
         M_INTERNAL_ERROR_CHECK(!d);
     }
 
-    time_point
+    time_point_type
     key::last_write_time()
     {
-        std::size_t subkey_count;
-        std::size_t value_count;
-        std::size_t security_descriptor_size;
-        time_point  lwt{};
+        std::size_t     subkey_count;
+        std::size_t     value_count;
+        std::size_t     security_descriptor_size;
+        time_point_type lwt{};
 
         auto const d = m_key->query_information_key(ikey::query_information_key_flags{},
                                                     subkey_count,

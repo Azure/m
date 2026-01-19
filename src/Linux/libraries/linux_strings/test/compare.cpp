@@ -74,9 +74,6 @@ TEST(LinuxStringCompare, NonReflexive4)
     EXPECT_FALSE(x(L"A"s, L"A"s));
 }
 
-
-
-
 TEST(LinuxStringCompare, Views1)
 {
     auto const x = m::case_insensitive_less<std::wstring>{};

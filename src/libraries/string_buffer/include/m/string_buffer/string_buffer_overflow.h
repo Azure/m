@@ -147,7 +147,6 @@ namespace m
             std::invoke(fn, m_overflow_provider.span());
         }
 
-
         overflow_provider_type m_overflow_provider;
 
         friend base_type;

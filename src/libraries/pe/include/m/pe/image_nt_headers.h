@@ -73,8 +73,8 @@ namespace m
             // [+024]    IMAGE_OPTIONAL_HEADER32 OptionalHeader;
             // } IMAGE_NT_HEADERS32, *PIMAGE_NT_HEADERS32;
 
-            static inline constexpr offset_t k_offset_signature = offset_t{0};
-            static inline constexpr offset_t k_offset_file_header = offset_t{4};
+            static inline constexpr offset_t k_offset_signature       = offset_t{0};
+            static inline constexpr offset_t k_offset_file_header     = offset_t{4};
             static inline constexpr offset_t k_offset_optional_header = offset_t{24};
 
             uint32_t          m_signature;

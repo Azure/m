@@ -298,7 +298,7 @@ struct std::atomic<m::bitset<N>>
     using bitset_base = m::bitset_impl::bitset_base;
 
     constexpr static inline auto granularity = bitset_base::granularity;
-    using representation_type = m::bitset_impl::representation_type;
+    using representation_type                = m::bitset_impl::representation_type;
 
     static inline constexpr std::size_t rounded_N =
         (N + granularity - 1) - ((N + granularity - 1) % granularity);
@@ -423,7 +423,7 @@ public:
         precondition_validate_index(n);
 
         auto const storage_index = static_cast<std::size_t>(n / granularity);
-        auto const bit_index = n % granularity;
+        auto const bit_index     = n % granularity;
 
         mask_and_set_bits(m_bits[storage_index], static_cast<val_t>(~0), (1ull << bit_index));
     }

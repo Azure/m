@@ -145,7 +145,7 @@ m::pe::loader_context::resolve(std::filesystem::path const& path)
     }
 }
 
-m::pe::loader_context::pe_record::pe_record(std::filesystem::path const&          path,
+m::pe::loader_context::pe_record::pe_record(std::filesystem::path const&        path,
                                             m::not_null<m::pe::loader_context*> loader):
     m_name(m::to_wstring(downcase(path.filename().c_str()))),
     m_not_found(!std::filesystem::exists(path)),

@@ -170,7 +170,7 @@ namespace m::pil::impl::redirecting
                               std::size_t&                      subkey_count,
                               std::size_t&                      value_count,
                               std::size_t&                      security_descriptor_size,
-                              m::pil::time_point&               last_write_time) override;
+                              m::pil::time_point_type&          last_write_time) override;
 
         ikey::rename_key_disposition
         rename_key(ikey::rename_key_flags              flags,
@@ -275,23 +275,23 @@ namespace m::pil::impl::redirecting
         swap(registry_monitor_change_notification_wrapper& other) noexcept = delete;
 
         void
-        on_begin(utc_time_point when) override;
+        on_begin(utc_time_point_type const& when) override;
 
         std::optional<requeue_key_access_attempt>
-        on_key_access_failure(utc_time_point           when,
-                              pil::key_path const&     key,
-                              std::system_error const& ec) override;
+        on_key_access_failure(utc_time_point_type const& when,
+                              pil::key_path const&       key,
+                              std::system_error const&   ec) override;
 
         std::optional<requeue_change_notification_attempt>
-        on_change_notification_attempt_failure(utc_time_point           when,
-                                               pil::key_path const&     key,
-                                               std::system_error const& ec) override;
+        on_change_notification_attempt_failure(utc_time_point_type const& when,
+                                               pil::key_path const&       key,
+                                               std::system_error const&   ec) override;
 
         void
-        on_change(utc_time_point when, pil::key_path const& key) override;
+        on_change(utc_time_point_type const& when, pil::key_path const& key) override;
 
         void
-        on_cancelled(utc_time_point when) override;
+        on_cancelled(utc_time_point_type const& when) override;
 
         // protected:
         m::not_null<iregistry_monitor_change_notification*> m_change_notification;

@@ -42,8 +42,7 @@ namespace m
         std::unique_ptr<periodic_timer>
         create_periodic_timer(F&& f)
         {
-            return do_create_periodic_timer(
-                std::packaged_task<timer_callable>(std::forward<F>(f)));
+            return do_create_periodic_timer(std::packaged_task<timer_callable>(std::forward<F>(f)));
         }
 
         template <typename F, typename... Args>
@@ -52,9 +51,8 @@ namespace m
         {
             auto description = std::format(std::forward<std::wformat_string<Args...>>(fmt),
                                            std::forward<Args>(args)...);
-            return do_create_periodic_timer(
-                std::packaged_task<timer_callable>(std::forward<F>(f)),
-                std::move(description));
+            return do_create_periodic_timer(std::packaged_task<timer_callable>(std::forward<F>(f)),
+                                            std::move(description));
         }
 
         std::shared_ptr<work_queue>
@@ -83,15 +81,14 @@ namespace m
         do_create_timer(std::packaged_task<timer_callable>&& task) = 0;
 
         virtual std::unique_ptr<timer>
-        do_create_timer(std::packaged_task<timer_callable>&& task,
-                        std::wstring                                description) = 0;
+        do_create_timer(std::packaged_task<timer_callable>&& task, std::wstring description) = 0;
 
         virtual std::unique_ptr<periodic_timer>
         do_create_periodic_timer(std::packaged_task<timer_callable>&& task) = 0;
 
         virtual std::unique_ptr<periodic_timer>
         do_create_periodic_timer(std::packaged_task<timer_callable>&& task,
-                                 std::wstring                                description) = 0;
+                                 std::wstring                         description) = 0;
 
         virtual std::shared_ptr<work_queue>
         do_create_work_queue(work_queue_execution_policy wqep, std::wstring description) = 0;

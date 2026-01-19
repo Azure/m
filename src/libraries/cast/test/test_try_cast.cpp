@@ -137,8 +137,8 @@ TEST(TryCast, SignedUnsignedMismatch2)
     T1               v1{42};
     constexpr size_t v2{2};
 
-    auto v3 {m::to_underlying(v1) / v2};
-    auto v4 {m::try_cast<std::underlying_type_t<T1>>(v3)};
+    auto v3{m::to_underlying(v1) / v2};
+    auto v4{m::try_cast<std::underlying_type_t<T1>>(v3)};
     T1   v5{v4};
 
     EXPECT_EQ(v5, T1{21});

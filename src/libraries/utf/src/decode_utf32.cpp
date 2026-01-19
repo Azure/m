@@ -5,8 +5,8 @@
 #include <cstdint>
 #include <limits>
 
-#include <m/utf/decode_result.h>
 #include <m/utf/decode.h>
+#include <m/utf/decode_result.h>
 
 namespace
 {

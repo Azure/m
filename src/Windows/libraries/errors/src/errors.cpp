@@ -48,7 +48,9 @@ namespace m
     throw_hresult(HRESULT hr, zstring what)
     {
         try_throw_native_m_exception(hr, what);
-        dbg_format(L"About to throw unmapped HRESULT {:#x} ({})", static_cast<ULONG>(hr), m::tracing::format_view(what));
+        dbg_format(L"About to throw unmapped HRESULT {:#x} ({})",
+                   static_cast<ULONG>(hr),
+                   m::tracing::format_view(what));
         throw std::system_error(hr, hresult_category(), what);
     }
 

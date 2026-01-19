@@ -49,16 +49,16 @@ namespace m
                 return m_os_thread_id;
             }
 
-            constexpr utc_time_point
+            constexpr utc_time_point_type
             time_point() const
             {
                 return m_time_point;
             }
 
         protected:
-            uint32_t       m_os_process_id;
-            uint32_t       m_os_thread_id;
-            utc_time_point m_time_point;
+            uint32_t            m_os_process_id;
+            uint32_t            m_os_thread_id;
+            utc_time_point_type m_time_point;
         };
 
     } // namespace tracing

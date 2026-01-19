@@ -11,7 +11,8 @@
 
 #include "sequential_output_file.h"
 
-m::filesystem_impl::sequential_output_file::sequential_output_file(std::filesystem::path const& path):
+m::filesystem_impl::sequential_output_file::sequential_output_file(
+    std::filesystem::path const& path):
     m_fp(nullptr), m_path(path)
 {
     auto const s = path.c_str();
@@ -55,4 +56,3 @@ m::filesystem_impl::sequential_output_file::do_write(std::span<std::byte const> 
     auto const l = std::unique_lock(m_mutex);
     write(span);
 }
-

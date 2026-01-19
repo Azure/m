@@ -18,14 +18,14 @@ namespace m
         // applied to all operations. This is maintained by a std::atomic<uint64_t>
         // in one of the .cpp TUs in the m_tracing library, monotonically
         // increasing, which can be stored in various places.
-        // 
+        //
         // We use a scoped enum since that's the recommended way to make these kinds
         // of "tagged integers". The scoped enum technique is really not very great
         // for most uses of specialized integers because of how poorly it integrates
         // with operator overloading and the like, but in our case, this is only
         // a counter. It's not impossible that code might want to compare for equality
         // but even that is really not right, and even so, it works for that.
-        // 
+        //
         //
 
         // gdsn == global debuging sequence number. If there was a reasonable

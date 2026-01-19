@@ -44,11 +44,8 @@ namespace m::pil::impl::logging
         auto notification_wrapper = std::unique_ptr<registry_monitor_change_notification_wrapper>(
             new registry_monitor_change_notification_wrapper(change_notification_ptr));
 
-        auto d =
-            m_underlying_registry_monitor->register_watch(flags,
-                                                          path,
-                                                          notification_wrapper.get(),
-                                                          notification_wrapper->m_underlying_token);
+        auto d = m_underlying_registry_monitor->register_watch(
+            flags, path, notification_wrapper.get(), notification_wrapper->m_underlying_token);
 
         returned_ptr.reset(notification_wrapper.release());
 

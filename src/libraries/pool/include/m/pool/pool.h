@@ -203,7 +203,7 @@ namespace m
         // ..._until() variants are provided for callers.
         template <typename Rep, typename Period>
         std::optional<unique_ptr_type>
-        allocate_for(std::chrono::duration<Rep, Period> d)
+        allocate_for(std::chrono::duration<Rep, Period> const& d)
         {
             auto l = std::unique_lock(m_mutex);
 
@@ -229,7 +229,7 @@ namespace m
         // ..._until() variants are provided for callers.
         template <typename Clock, typename Duration>
         std::optional<unique_ptr_type>
-        allocate_for(std::chrono::time_point<Clock, Duration> tp)
+        allocate_for(std::chrono::time_point<Clock, Duration> const& tp)
         {
             auto l = std::unique_lock(m_mutex);
 

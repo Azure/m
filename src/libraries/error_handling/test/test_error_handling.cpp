@@ -16,8 +16,4 @@
 
 using namespace std::chrono_literals;
 
-TEST(ErrorHandling, First)
-{
-    EXPECT_EQ(1, 1);
-}
-
+TEST(ErrorHandling, First) { EXPECT_EQ(1, 1); }

@@ -23,8 +23,8 @@ namespace m
         {
             using string_view_t = std::basic_string_view<CharT>;
 
-            auto const spancount = sb.accumulate_for_each_span(
-                size_t{}, [](auto i, auto) { return i + 1; });
+            auto const spancount =
+                sb.accumulate_for_each_span(size_t{}, [](auto i, auto) { return i + 1; });
 
             //
             // if it's a modest number of spans, use a stack based set of arrays
@@ -39,15 +39,16 @@ namespace m
                 return out_of_line_try_cast_helper(spancount, sb);
 
             // We will use accumulate_for_each_span again just so we have an index
-            auto const secondcount =
-                sb.accumulate_for_each_span(std::size_t{}, [&inline_string_views](auto i, auto spn) {
+            auto const secondcount = sb.accumulate_for_each_span(
+                std::size_t{}, [&inline_string_views](auto i, auto spn) {
                     inline_string_views[i] = string_view_t(spn.data(), spn.size());
                     return i + 1;
                 });
 
             M_INTERNAL_ERROR_CHECK(secondcount == spancount);
 
-            return basic_sstring<CharT>(std::span<string_view_t>(inline_string_views.data(), spancount));
+            return basic_sstring<CharT>(
+                std::span<string_view_t>(inline_string_views.data(), spancount));
         }
 
         M_NOINLINE static basic_sstring<CharT>

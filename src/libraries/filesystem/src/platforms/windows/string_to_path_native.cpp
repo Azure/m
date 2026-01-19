@@ -10,12 +10,13 @@
 //
 // Implementations of Windows conversions to the std::filesystem::path native
 // string type.
-// 
+//
 // For the MSVC STL this is std::wstring.
 //
 
 void
-m::filesystem::to_native(std::string_view v, std::basic_string<std::filesystem::path::value_type>& str)
+m::filesystem::to_native(std::string_view                                      v,
+                         std::basic_string<std::filesystem::path::value_type>& str)
 {
     m::to_wstring(v, str);
 }
@@ -28,7 +29,7 @@ m::filesystem::to_native(std::string_view v)
 
 void
 m::filesystem::to_native(std::wstring_view                                     v,
-    std::basic_string<std::filesystem::path::value_type>& str)
+                         std::basic_string<std::filesystem::path::value_type>& str)
 {
     m::to_wstring(v, str);
 }
@@ -41,7 +42,7 @@ m::filesystem::to_native(std::wstring_view v)
 
 void
 m::filesystem::to_native(std::u8string_view                                    v,
-    std::basic_string<std::filesystem::path::value_type>& str)
+                         std::basic_string<std::filesystem::path::value_type>& str)
 {
     m::to_wstring(v, str);
 }
@@ -54,7 +55,7 @@ m::filesystem::to_native(std::u8string_view v)
 
 void
 m::filesystem::to_native(std::u16string_view                                   v,
-    std::basic_string<std::filesystem::path::value_type>& str)
+                         std::basic_string<std::filesystem::path::value_type>& str)
 {
     m::to_wstring(v, str);
 }
@@ -67,7 +68,7 @@ m::filesystem::to_native(std::u16string_view v)
 
 void
 m::filesystem::to_native(std::u32string_view                                   v,
-    std::basic_string<std::filesystem::path::value_type>& str)
+                         std::basic_string<std::filesystem::path::value_type>& str)
 {
     m::to_wstring(v, str);
 }

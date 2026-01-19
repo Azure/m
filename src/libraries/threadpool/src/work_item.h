@@ -43,13 +43,13 @@ namespace m::work_queue_impl
         }
 
     protected:
-        utc_time_point
+        utc_time_point_type
         do_enqueue_time() override;
 
-        std::optional<utc_time_point>
+        std::optional<utc_time_point_type>
         do_start_time() override;
 
-        std::optional<utc_time_point>
+        std::optional<utc_time_point_type>
         do_end_time() override;
 
         work_item_times
@@ -74,10 +74,10 @@ namespace m::work_queue_impl
         do_wait() override;
 
         bool
-        do_wait_for(std::chrono::milliseconds const d) override;
+        do_wait_for(std::chrono::milliseconds const& d) override;
 
         bool
-        do_wait_until(m::time_point const tp) override;
+        do_wait_until(m::time_point_type const& tp) override;
 
         work_item_id_type          m_id;          // immutable once constructed
         m::wsstring                m_description; // immutable once constructed

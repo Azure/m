@@ -56,7 +56,7 @@ TEST(VerifyConvertToU8, EmptyToBasicString)
 void
 verify_to_u8string_convert(utf_data_set const& data)
 {
-    auto const    ref = data.m_u8_sv;
+    auto const ref = data.m_u8_sv;
 
     std::u8string result1;
     m::to_u8string(data.m_u8_sv, result1);
@@ -91,7 +91,7 @@ verify_to_u8string_convert(utf_data_set const& data)
     EXPECT_TRUE(r9.has_value());
     EXPECT_EQ(ref, r9.value());
 
-    std::optional<std::u8string> ou8s;
+    std::optional<std::u8string>  ou8s;
     std::optional<std::u16string> ou16s;
     std::optional<std::u32string> ou32s;
 

@@ -44,7 +44,7 @@ namespace m
     view_to_span(multi_byte::code_page           cp,
                  std::basic_string_view<TCharIn> in,
                  std::span<TCharOut>&            spn,
-        std::error_code& ec);
+                 std::error_code&                ec);
 
     template <typename TCharIn, typename TCharOut>
         requires(character<TCharIn> && character<TCharOut>)

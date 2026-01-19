@@ -28,25 +28,25 @@ namespace m
         {
         protected:
             // The temporary directories are named using random numbers.
-            // 
+            //
             // rng_type is the type alias used as the randon number generator
             // (generator as in the sense of "Random number engines" described
             // at https://en.cppreference.com/w/cpp/numeric/random.html)
-            // 
+            //
             // or, https://en.cppreference.com/w/cpp/named_req/RandomNumberEngine.html
-            // 
-            using rng_type        = std::mt19937_64;
+            //
+            using rng_type = std::mt19937_64;
 
         public:
             // The RandomNumberEngine named type calls for E::result_type to be
             // the type that the engine generates.
-            // 
+            //
             // The engine that this was originally coded with is the Mersenne Twister
             // algorithm, generating an unsigned 64 bit output value. This is large
             // enough that with a simple test for collision after generation, we'll
             // just use it to generate the name of the temporary directory under
             // the unique name that's generated for the temporary directory manager.
-            // 
+            //
             // If you feel compelled to change the rng_type, just don't go to something
             // overly small. The value is truncated when generating the name of the
             // directory for the temporary_directory_manager but from a C++ language
@@ -102,7 +102,7 @@ namespace m
         };
 
         /// <summary>
-        /// 
+        ///
         /// The `temporary_directory` class is an interface type which
         /// defines a C++ interface for working with a temporary directory
         /// within a GoogleTest test.
@@ -125,7 +125,7 @@ namespace m
         /// or report left-over pieces? (Like maybe create a zip file of
         /// what was left or at least some report of all the files, their
         /// sizes etc.)
-        /// 
+        ///
         /// The temporary_directory_manager has weak references to each of
         /// the temporary_directory objects it has handed out. I've gone
         /// back and forth on whether to enact this kind of policy at the
@@ -133,7 +133,7 @@ namespace m
         /// testing perhaps) vs at the manager level assuming that this is
         /// a set of code directed squarely at making testing as streamlined
         /// as possible.
-        /// 
+        ///
         /// </summary>
         class temporary_directory
         {

@@ -18,8 +18,8 @@
 #include <m/utf/decode.h>
 #include <m/utf/decode_iterator.h>
 #include <m/utf/encode.h>
-#include <m/utility/string_inserter.h>
 #include <m/utility/make_span.h>
+#include <m/utility/string_inserter.h>
 
 namespace m::utf
 {
@@ -61,11 +61,11 @@ namespace m::utf
             if (ec)
                 return outit;
 
-            outit            = m::utf::encode_char<TCharOut>(ch, outit, ec);
+            outit = m::utf::encode_char<TCharOut>(ch, outit, ec);
             if (ec)
                 return outit;
 
-            it               = newit;
+            it = newit;
         }
 
         return outit;
@@ -183,19 +183,19 @@ namespace m::utf
         it = in.begin();
 
         std::basic_string<TCharOut> newout;
-        newout.resize_and_overwrite(
-            char_count, [&it, &last](auto buffer, auto buffer_size) -> std::size_t {
-                auto span   = m::make_span(buffer, buffer_size);
-                auto outit  = span.begin();
-                auto outend = span.end();
+        newout.resize_and_overwrite(char_count,
+                                    [&it, &last](auto buffer, auto buffer_size) -> std::size_t {
+                                        auto span   = m::make_span(buffer, buffer_size);
+                                        auto outit  = span.begin();
+                                        auto outend = span.end();
 
-                while (it != last)
-                {
-                    auto [newit, ch] = decode_utf(TCharIn{}, it, last);
-                    outit            = encode_char(ch, outit);
-                    it               = newit;
-                }
-            });
+                                        while (it != last)
+                                        {
+                                            auto [newit, ch] = decode_utf(TCharIn{}, it, last);
+                                            outit            = encode_char(ch, outit);
+                                            it               = newit;
+                                        }
+                                    });
 
         using std::swap;
         swap(out, newout);
@@ -204,7 +204,9 @@ namespace m::utf
     template <typename TCharIn, typename TCharOut>
         requires((sizeof(TCharIn) == 1) && m::character<TCharOut>)
     constexpr void
-    transcode(std::basic_string_view<TCharIn> in, std::basic_string<TCharOut>& out, std::error_code& ec)
+    transcode(std::basic_string_view<TCharIn> in,
+              std::basic_string<TCharOut>&    out,
+              std::error_code&                ec)
     {
         std::size_t char_count{};
 

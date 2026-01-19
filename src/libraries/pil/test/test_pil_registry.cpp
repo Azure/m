@@ -3,8 +3,8 @@
 
 #include <gtest/gtest.h>
 
-#include <iostream>
 #include <format>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -16,7 +16,5 @@ TEST(TestFormatters, TestImageSectionHeaderCharacteristicsFormatter)
 {
 
     EXPECT_EQ(1, 1);
-//
+    //
 }
-
-

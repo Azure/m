@@ -7,8 +7,7 @@
 
 namespace m::tracing
 {
-    channel::channel(std::wstring_view name):
-        m_name(name)
+    channel::channel(std::wstring_view name): m_name(name)
     {
         //
     }

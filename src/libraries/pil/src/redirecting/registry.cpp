@@ -22,7 +22,7 @@
 
 namespace m::pil::impl::redirecting
 {
-    registry::registry(std::shared_ptr<iregistry> const&                      underlying_registry,
+    registry::registry(std::shared_ptr<iregistry> const&                       underlying_registry,
                        std::initializer_list<std::pair<view_type, view_type>>* il):
         m_underlying_registry(underlying_registry), m_redirector(std::make_shared<redirector>(il))
     {}

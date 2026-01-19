@@ -376,7 +376,6 @@ namespace m
             std::wcout << buffer.data();
     }
 
-
     template <typename... Types>
     inline void
     dbg_wprintln(std::basic_format_string<wchar_t, Types...> fmt, Types const&... args)

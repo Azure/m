@@ -170,7 +170,7 @@ namespace m
         multi_byte_to_utf16_fn(cp, in, span, ec);
     }
 
-    template<>
+    template <>
     void
     multi_byte_to_utf16(m::multi_byte::code_page cp,
                         std::string_view         in,

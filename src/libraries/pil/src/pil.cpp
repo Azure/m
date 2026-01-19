@@ -12,6 +12,4 @@
 #include <m/utility/make_span.h>
 
 namespace m::pil
-{
-    
-} // namespace m::pil
+{} // namespace m::pil

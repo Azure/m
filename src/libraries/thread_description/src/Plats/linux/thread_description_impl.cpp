@@ -20,4 +20,3 @@ m::thread_description_impl::restore_thread_description(
 {
     std::ignore = saved_state;
 }
-

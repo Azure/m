@@ -13,8 +13,8 @@
 
 #include <m/strings/convert.h>
 #include <m/test_data/test_data.h>
-#include <m/utf/exceptions.h>
 #include <m/utf/decode.h>
+#include <m/utf/exceptions.h>
 
 // #include "test_data.h"
 
@@ -37,11 +37,15 @@ namespace
             EXPECT_NE(it, end);
         }
 
-        EXPECT_THROW(std::ignore = m::utf::decode_utf8(it, end), m::utf::utf_invalid_encoding_error);
+        EXPECT_THROW(std::ignore = m::utf::decode_utf8(it, end),
+                     m::utf::utf_invalid_encoding_error);
     }
 } // namespace
 
-TEST(ValidateNonShortestUtf8Handling, Invalid2ByteSequence_1) { test_decode(m::test_data::utf_data::utf8_nonshortest_2b_1); }
+TEST(ValidateNonShortestUtf8Handling, Invalid2ByteSequence_1)
+{
+    test_decode(m::test_data::utf_data::utf8_nonshortest_2b_1);
+}
 
 TEST(ValidateNonShortestUtf8Handling, Invalid3ByteSequence_1)
 {

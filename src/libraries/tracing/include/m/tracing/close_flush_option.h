@@ -14,17 +14,17 @@ namespace m
         /// The `close_flush_option` enumerate is used to direct the
         /// `m::tracing::sink.close()` virtual member function overrides'
         /// behavior.
-        /// 
+        ///
         /// The expectation is that the sinks will "normally"
         /// drain their queues in their close operations, waiting for the
         /// items to process, possibly on remote threads of execution before
         /// the `close()` function returns.
-        /// 
+        ///
         /// However if the process is terminating for some cause like a user
         /// mode internal error check, there may be reason to try to flush
         /// the queues more immediately. When this happens, a call with
         /// `close_flush_option::expedite` would be made.
-        /// 
+        ///
         /// If no blocking can be afforded, `close()` may be called with
         /// `close_flush_option::abandon` which gives the sink one chance to
         /// perhaps write a message with a summary of the number of unwritten
@@ -33,10 +33,10 @@ namespace m
         /// processing by workers on other threads and it should otherwise
         /// stop processing - the process is about to terminate. This is a
         /// courtesy call.
-        /// 
+        ///
         /// More on this overall design debate will probably be present across
         /// the m::tracing::sink and M_INTERNAL_ERROR_CHECK() macro definition.
-        /// 
+        ///
         /// </summary>
         enum class close_flush_option
         {
@@ -74,9 +74,7 @@ struct std::formatter<m::tracing::close_flush_option, CharT>
         switch (cfo)
         {
             case m::tracing::close_flush_option::normal: option_sv = "normal"sv; break;
-            case m::tracing::close_flush_option::expedite:
-                option_sv = "expedite"sv;
-                break;
+            case m::tracing::close_flush_option::expedite: option_sv = "expedite"sv; break;
             case m::tracing::close_flush_option::abandon: option_sv = "abandon"sv; break;
             default: option_sv = "<unmapped>"sv; break;
         }

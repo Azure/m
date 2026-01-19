@@ -13,6 +13,7 @@
 #include <m/threadpool/work_queue.h>
 #include <m/threadpool/work_queue_execution_policy.h>
 #include <m/win32/threadpool.h>
+#include <m/windows_chrono/windows_chrono_casts.h>
 
 #undef NOMINMAX
 #define NOMINMAX

@@ -90,9 +90,9 @@ namespace m
         m::utf16_to_multi_byte(multi_byte::cp_acp, in, out, ec);
     }
 
-    template<>
+    template <>
     void
-        utf16_to_acp(std::wstring_view in, std::string& out)
+    utf16_to_acp(std::wstring_view in, std::string& out)
     {
         m::utf16_to_multi_byte(multi_byte::cp_acp, in, out);
     }

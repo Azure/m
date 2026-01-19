@@ -9,8 +9,8 @@
 
 #include <m/utility/string_converter.h>
 
-#include <m/strings/convert.h>
 #include <m/strings/conversion_details.h>
+#include <m/strings/convert.h>
 #include <m/utf/decode.h>
 #include <m/utf/encode.h>
 #include <m/utf/transcode.h>

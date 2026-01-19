@@ -125,5 +125,3 @@ namespace m
     void
     throw_if_failed(std::error_code const& ec);
 } // namespace m
-
-

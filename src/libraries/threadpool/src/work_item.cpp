@@ -22,24 +22,24 @@ namespace m::work_queue_impl
         m_packaged_task(std::move(task)),
         m_future(m_packaged_task.get_future())
     {
-        m_work_item_times.m_enqueue_time = utc_time_point::clock::now();
+        m_work_item_times.m_enqueue_time = utc_time_point_type::clock::now();
     }
 
-    utc_time_point
+    utc_time_point_type
     work_item::do_enqueue_time()
     {
         auto l = std::unique_lock(m_mutex);
         return m_work_item_times.m_enqueue_time;
     }
 
-    std::optional<utc_time_point>
+    std::optional<utc_time_point_type>
     work_item::do_start_time()
     {
         auto l = std::unique_lock(m_mutex);
         return m_work_item_times.m_start_time;
     }
 
-    std::optional<utc_time_point>
+    std::optional<utc_time_point_type>
     work_item::do_end_time()
     {
         auto l = std::unique_lock(m_mutex);
@@ -101,7 +101,7 @@ namespace m::work_queue_impl
 
             M_INTERNAL_ERROR_CHECK(m_work_item_state == work_item_state::queued);
 
-            m_work_item_times.m_start_time = m::clock::now();
+            m_work_item_times.m_start_time = m::clock_type::now();
             m_work_item_state              = work_item_state::running;
         }
 
@@ -119,7 +119,7 @@ namespace m::work_queue_impl
 
             M_INTERNAL_ERROR_CHECK(m_work_item_state == work_item_state::running);
 
-            m_work_item_times.m_end_time = m::clock::now();
+            m_work_item_times.m_end_time = m::clock_type::now();
             m_work_item_state            = work_item_state::done;
         }
     }
@@ -131,7 +131,7 @@ namespace m::work_queue_impl
     }
 
     bool
-    work_item::do_wait_for(std::chrono::milliseconds const d)
+    work_item::do_wait_for(std::chrono::milliseconds const& d)
     {
         auto const future_status = m_future.wait_for(d);
 
@@ -146,7 +146,7 @@ namespace m::work_queue_impl
     }
 
     bool
-    work_item::do_wait_until(m::time_point const tp)
+    work_item::do_wait_until(m::time_point_type const& tp)
     {
         auto const future_status = m_future.wait_until(tp);
 

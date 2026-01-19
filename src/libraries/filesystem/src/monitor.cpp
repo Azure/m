@@ -7,8 +7,8 @@
 #include <tuple>
 #include <type_traits>
 
-#include <m/utility/pointers.h>
 #include <m/tracing/tracing.h>
+#include <m/utility/pointers.h>
 
 #include "monitor.h"
 
@@ -65,8 +65,7 @@ namespace m::filesystem_impl
         // pointers which also seems heavyweight. Will have to be fixed
         // some day.
         auto const watcher = get_dir_watcher(parent);
-        auto token = watcher->add_file_watch(
-            m_generator(), filename, change_notification_ptr);
+        auto token = watcher->add_file_watch(m_generator(), filename, change_notification_ptr);
         l.unlock();
         watcher->ensure_watching();
         return token;

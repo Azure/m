@@ -36,7 +36,7 @@ namespace m::pil::impl::buffered
     {
     public:
         key() = delete;
-        key(key_path const& path, time_point last_write_time);
+        key(key_path const& path, time_point_type last_write_time);
         key(std::shared_ptr<ikey> const& underlying_key);
         key(std::shared_ptr<ikey>&& underlying_key) noexcept;
         key(key&& other) noexcept = delete;
@@ -87,7 +87,7 @@ namespace m::pil::impl::buffered
                               std::size_t&                      subkey_count,
                               std::size_t&                      value_count,
                               std::size_t&                      security_descriptor_size,
-                              m::pil::time_point&               last_write_time) override;
+                              m::pil::time_point_type&          last_write_time) override;
 
         ikey::rename_key_disposition
         rename_key(ikey::rename_key_flags              flags,
@@ -146,7 +146,7 @@ namespace m::pil::impl::buffered
         struct key_node
         {
             std::shared_ptr<key> m_key;
-            time_point           m_last_write_time{(time_point::min)()};
+            time_point_type      m_last_write_time{(time_point_type::min)()};
             bool                 m_deleted : 1;
             bool                 m_mirrored : 1;
         };
@@ -182,7 +182,7 @@ namespace m::pil::impl::buffered
 
         mutable std::mutex     m_mutex;
         std::shared_ptr<ikey>  m_underlying_key;
-        time_point             m_last_write_time;
+        time_point_type        m_last_write_time;
         key_map_type           m_keys;
         value_map_type         m_values;
         key_path               m_key_path; // only populated for created keys

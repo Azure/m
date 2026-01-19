@@ -20,10 +20,10 @@ using namespace std::string_view_literals;
 
 struct test_data
 {
-    std::string m_astring;
+    std::string  m_astring;
     std::wstring m_wstring;
 
-    std::string_view m_asv;
+    std::string_view  m_asv;
     std::wstring_view m_wsv;
 };
 
@@ -115,5 +115,3 @@ TEST(MB_2_Utf16, SimpleApis_cp950_T4) { test_simple_multi_byte_api(mb_cp950_t4);
 TEST(MB_2_Utf16, SimpleApis_cp950_T5) { test_simple_multi_byte_api(mb_cp950_t5); }
 TEST(MB_2_Utf16, SimpleApis_cp950_T6) { test_simple_multi_byte_api(mb_cp950_t6); }
 TEST(MB_2_Utf16, SimpleApis_cp950_T7) { test_simple_multi_byte_api(mb_cp950_t7); }
-
-

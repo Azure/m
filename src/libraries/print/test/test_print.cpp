@@ -18,7 +18,4 @@ using namespace std::chrono_literals;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-
-TEST(TestPrint, First)
-{ EXPECT_EQ(1, 1); }
-
+TEST(TestPrint, First) { EXPECT_EQ(1, 1); }

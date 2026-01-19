@@ -11,4 +11,3 @@ namespace m::pil
         bool  m_inherit_handle;
     };
 } // namespace m::pil
-

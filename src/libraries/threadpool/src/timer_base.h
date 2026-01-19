@@ -64,7 +64,7 @@ namespace m::threadpool_impl
         /// </summary>
         /// <param name="dur"></param>
         virtual void
-        do_set(m::duration dur) override = 0;
+        do_set(duration_type const& dur) override = 0;
 
         virtual void
         do_stop() override = 0;
@@ -135,7 +135,7 @@ namespace m::threadpool_impl
         mutable std::mutex                 m_mutex;
         timer_type                         m_timer_type;
         std::packaged_task<timer_callable> m_packaged_task;
-        duration                           m_duration;
+        duration_type                      m_duration;
         std::wstring                       m_description;
         std::uintmax_t                     m_set_count{};
         std::uintmax_t                     m_set_count_when_cancelled{};

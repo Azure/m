@@ -14,5 +14,5 @@ using namespace m::string_view_literals;
 
 namespace m::tracing
 {
-//
+    //
 } // namespace m::tracing

@@ -134,7 +134,7 @@ namespace m
         template <typename RangeT>
         unique_span(RangeT&& r)
         {
-            auto size = static_cast<size_type>(std::ranges::size(r));
+            auto                               size = static_cast<size_type>(std::ranges::size(r));
             m::raw_array_allocator<value_type> ra(size);
             std::ranges::uninitialized_copy(r, ra);
             m_span = ra.release();

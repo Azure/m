@@ -258,4 +258,3 @@ namespace m
         return std::span<T>(reinterpret_cast<T*>(span.data()), n);
     }
 } // namespace m
-

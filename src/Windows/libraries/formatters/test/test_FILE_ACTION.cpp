@@ -55,9 +55,3 @@ TEST(FILE_ACTION, unmapped_DWORD_MAX)
     auto s = std::format(L"{}", fmtFILE_ACTION{(std::numeric_limits<DWORD>::max)()});
     EXPECT_EQ(s, L"Unmapped action 4294967295"s);
 }
-
-
-
-
-
-

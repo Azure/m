@@ -114,8 +114,8 @@ namespace m::filesystem
                                                     std::make_error_code(std::errc{saved_errno}));
         }
 
-        auto const count =
-            std::fwrite(data.data(), sizeof(std::remove_cvref_t<decltype(data)>::value_type), data.size(), fp);
+        auto const count = std::fwrite(
+            data.data(), sizeof(std::remove_cvref_t<decltype(data)>::value_type), data.size(), fp);
 
         if (count < data.size())
         {
@@ -129,7 +129,9 @@ namespace m::filesystem
     }
 
     void
-    store(std::filesystem::path const& path, std::span<std::byte const, std::dynamic_extent> data, std::error_code& ec)
+    store(std::filesystem::path const&                    path,
+          std::span<std::byte const, std::dynamic_extent> data,
+          std::error_code&                                ec)
     {
         auto const fp = std::fopen(path.c_str(), "wb");
         if (!fp)
@@ -139,8 +141,8 @@ namespace m::filesystem
             return;
         }
 
-        auto const count =
-            std::fwrite(data.data(), sizeof(std::remove_cvref_t<decltype(data)>::value_type), data.size(), fp);
+        auto const count = std::fwrite(
+            data.data(), sizeof(std::remove_cvref_t<decltype(data)>::value_type), data.size(), fp);
 
         if (count < data.size())
         {

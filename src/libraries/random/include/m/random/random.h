@@ -24,7 +24,9 @@ namespace m::random
         std::uniform_int_distribution<> distribution((std::numeric_limits<byte_t>::min)(),
                                                      (std::numeric_limits<byte_t>::max)());
 
-        return m::unique_span<std::byte>(size, [&](std::size_t, std::byte& b) { b = std::byte{static_cast<byte_t>(distribution(g))}; });
+        return m::unique_span<std::byte>(size, [&](std::size_t, std::byte& b) {
+            b = std::byte{static_cast<byte_t>(distribution(g))};
+        });
     }
 
 } // namespace m::random

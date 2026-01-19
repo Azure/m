@@ -44,9 +44,9 @@ namespace m
             void
             find_breaks(InputT&& input, Function fn, bool implicit_end_of_line = false)
             {
-                auto        in_quote             = m_in_quote;
-                auto        last_char            = m_last_char;
-                auto        field_size           = m_field_size;
+                auto        in_quote   = m_in_quote;
+                auto        last_char  = m_last_char;
+                auto        field_size = m_field_size;
                 std::size_t segment_start_position{};
 
                 for (std::size_t i = 0; i < input.size(); i++)
@@ -101,7 +101,6 @@ namespace m
                     }
 
                     segment_start_position = i + 1;
-
                 }
 
                 if (implicit_end_of_line)
@@ -129,9 +128,7 @@ namespace m
                     // If the buffer has data, call fn and then reset the buffer.
                     if (field_size != 0)
                     {
-                        std::invoke(fn,
-                                    break_reason::row,
-                                    get_field_buffer_span());
+                        std::invoke(fn, break_reason::row, get_field_buffer_span());
                         m_field_buffer.clear();
                         field_size = 0;
                     }
@@ -144,9 +141,9 @@ namespace m
                 }
 
                 // Save state back to the object
-                m_field_size           = field_size;
-                m_in_quote             = in_quote;
-                m_last_char            = last_char;
+                m_field_size = field_size;
+                m_in_quote   = in_quote;
+                m_last_char  = last_char;
             }
 
         private:

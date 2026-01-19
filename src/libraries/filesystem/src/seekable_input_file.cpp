@@ -97,7 +97,7 @@ m::filesystem_impl::seekable_input_file::do_seek(io::offset_t o)
 {
     auto const o1 = std::to_underlying(o);
     auto const o2 = m::to<long>(o1);
-    auto l = std::unique_lock(m_mutex);
+    auto       l  = std::unique_lock(m_mutex);
     seek(o2, SEEK_CUR);
 }
 

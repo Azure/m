@@ -56,7 +56,8 @@ namespace m
     void
     view_to_span(multi_byte::code_page cp, std::u16string_view in, std::span<char>& out)
     {
-        view_to_span(cp, std::wstring_view(reinterpret_cast<wchar_t const*>(in.data()), in.size()), out);
+        view_to_span(
+            cp, std::wstring_view(reinterpret_cast<wchar_t const*>(in.data()), in.size()), out);
     }
 
     template <>

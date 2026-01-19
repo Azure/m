@@ -50,5 +50,3 @@ TEST(McQueue, QueueTest2)
     EXPECT_EQ(q.pop(lamb), true);
     EXPECT_EQ(q.pop(lamb), false);
 }
-
-

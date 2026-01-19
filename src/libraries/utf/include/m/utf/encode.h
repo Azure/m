@@ -529,7 +529,8 @@ namespace m
             requires std::is_integral_v<DestCharT> &&
                      (sizeof(DestCharT) == sizeof(char8_t)) && std::is_integral_v<UcsCharT> &&
                      (sizeof(UcsCharT) == sizeof(char32_t))
-        constexpr std::size_t compute_encoded_char_count(DestCharT, UcsCharT ch, std::error_code& ec)
+        constexpr std::size_t
+            compute_encoded_char_count(DestCharT, UcsCharT ch, std::error_code& ec)
         {
             return compute_encoded_utf8_count(ch, ec);
         }
@@ -547,7 +548,8 @@ namespace m
             requires std::is_integral_v<DestCharT> &&
                      (sizeof(DestCharT) == sizeof(char16_t)) && std::is_integral_v<UcsCharT> &&
                      (sizeof(UcsCharT) == sizeof(char32_t))
-        constexpr std::size_t compute_encoded_char_count(DestCharT, UcsCharT ch, std::error_code& ec)
+        constexpr std::size_t
+            compute_encoded_char_count(DestCharT, UcsCharT ch, std::error_code& ec)
         {
             return compute_encoded_utf16_count(ch, ec);
         }

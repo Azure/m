@@ -12,30 +12,30 @@
 
 namespace m
 {
-        template <>
-        struct string_converter<char8_t const*, std::string>
-        {
-            static std::string
-            make_string(cu8zstring str);
-        };
+    template <>
+    struct string_converter<char8_t const*, std::string>
+    {
+        static std::string
+        make_string(cu8zstring str);
+    };
 
-        template <>
-        struct string_converter<std::u8string_view, std::string>
-        {
-            static std::string
-            make_string(std::u8string_view v);
+    template <>
+    struct string_converter<std::u8string_view, std::string>
+    {
+        static std::string
+        make_string(std::u8string_view v);
 
-            static std::optional<std::string>
-            make_string(std::optional<std::u8string_view> const& v);
-        };
+        static std::optional<std::string>
+        make_string(std::optional<std::u8string_view> const& v);
+    };
 
-        template <>
-        struct string_converter<std::u8string, std::string>
-        {
-            static std::string
-            make_string(std::u8string const& s);
+    template <>
+    struct string_converter<std::u8string, std::string>
+    {
+        static std::string
+        make_string(std::u8string const& s);
 
-            static std::optional<std::string>
-            make_string(std::optional<std::u8string> const& s);
-        };
+        static std::optional<std::string>
+        make_string(std::optional<std::u8string> const& s);
+    };
 } // namespace m

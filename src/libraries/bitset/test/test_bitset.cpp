@@ -106,9 +106,9 @@ TEST(TestBitset, SetAndUnsetBit)
 
 TEST(TestBitset, FindFirstUnsetAndSetExhausts)
 {
-    m::bitset<8> bits;
+    m::bitset<8>                         bits;
     std::array<std::size_t, bits.size()> indices;
-    for (auto& idx : indices)
+    for (auto& idx: indices)
         idx = bits.find_first_clear_and_set().value();
     EXPECT_EQ(bits.find_first_clear_and_set(), std::nullopt);
     std::ranges::sort(indices);
@@ -123,7 +123,7 @@ TEST(TestBitset, FindFirstSetAndUnsetExhausts)
     for (std::size_t i = 0; i < 8; ++i)
         bits.set(i);
     std::array<std::size_t, 8> indices;
-    for (auto& idx : indices)
+    for (auto& idx: indices)
         idx = bits.find_first_set_and_clear().value();
     EXPECT_EQ(bits.find_first_set_and_clear(), std::nullopt);
     std::ranges::sort(indices);
@@ -159,7 +159,6 @@ TEST(TestBitset, PopCount1)
     EXPECT_EQ(bits.popcount(), bits.size());
 }
 
-
 TEST(TestBitset, PopCount2)
 {
     m::bitset<40000> bits;
@@ -174,6 +173,3 @@ TEST(TestBitset, PopCount2)
 
     EXPECT_EQ(bits.popcount(), bits.size());
 }
-
-
-

@@ -37,10 +37,10 @@ TEST(CsvBreakerTests, TestBreakingOneRow)
 
     field_breaker.find_breaks(csv_span, [&](auto reason, auto field_span) {
         M_INTERNAL_ERROR_CHECK(reason == m::csv::breaker::break_reason::row ||
-                                reason == m::csv::breaker::break_reason::field);
+                               reason == m::csv::breaker::break_reason::field);
         fields[field_index].assign(field_span);
         EXPECT_EQ(std::u8string_view(fields[field_index].c_str()),
-                    expected_rows[row_index][field_index]);
+                  expected_rows[row_index][field_index]);
         field_index++;
         if (reason == m::csv::breaker::break_reason::row)
         {
@@ -50,6 +50,5 @@ TEST(CsvBreakerTests, TestBreakingOneRow)
             field_index = 0;
             row_index++;
         }
-        });
+    });
 }
-

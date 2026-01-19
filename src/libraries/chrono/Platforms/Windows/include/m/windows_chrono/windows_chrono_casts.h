@@ -10,8 +10,10 @@
 
 #include <m/cast/to.h>
 #include <m/cast/try_cast.h>
+#include <m/chrono/chrono.h>
 #include <m/exception/exception.h>
 #include <m/tracing/tracing.h>
+#include <m/win32/filetime_clock.h>
 #include <m/windows_wrappers/win32_dword_ms.h>
 
 #undef NOMINMAX
@@ -22,13 +24,82 @@
 namespace m
 {
     template <typename ResultType, typename Clock, typename Duration = Clock::duration>
+        requires clock<Clock>
     struct time_point_cast_helper;
 
     template <typename ResultType, typename Clock, typename Duration>
     auto
-    utc_time_point_cast(std::chrono::time_point<Clock, Duration> tp)
+    utc_time_point_cast(std::chrono::time_point<Clock, Duration> const& tp)
     {
         return time_point_cast_helper<ResultType, Clock, Duration>::cast_utc_time_point(tp);
+    }
+
+    template <typename Clock>
+        requires clock<Clock>
+    constexpr auto FILETIME_epoch_lembda =
+        [](FILETIME const&, std::chrono::time_point<Clock>& tp) -> void {
+            tp = std::chrono::time_point<Clock>(std::chrono::time_point<Clock>::duration::zero());
+        };
+
+    //
+    // The function signature is overly complex because FILETIME, when
+    // positive, represents a time point, and when negative, represents a
+    // duration. What to do when it represents a duration is up to the caller.
+    //
+    // A default on_failure function is provided that sets the output time_point
+    // to the epoch ("0"). This is probably what you want, but if you like you could
+    // instead throw an exception, or maybe use the current time, or whatever. I
+    // considered the various alternatives and none seemed obviously better
+    // than the others. I wish this were not true.
+    //
+    template <class Clock, typename OnFailure>
+        requires clock<Clock> &&
+                 std::invocable<OnFailure, FILETIME const&, std::chrono::time_point<Clock>&> &&
+                 std::same_as<void,
+                              std::invoke_result_t<OnFailure,
+                                                   FILETIME const&,
+                                                   std::chrono::time_point<Clock>&>>
+    void
+    clock_cast(FILETIME const&                 ft,
+               std::chrono::time_point<Clock>& tp,
+               OnFailure&&                     on_failure_fn = FILETIME_epoch_lembda<Clock>)
+    {
+        auto as_ft_tp = m::win32::filetime_clock::from_sys(ft);
+
+        if (std::holds_alternative<m::win32::filetime_clock::time_point>(as_ft_tp))
+        {
+            auto const ft_tp = std::get<m::win32::filetime_clock::time_point>(as_ft_tp);
+            tp               = std::chrono::clock_cast<utc_clock_type>(ft_tp);
+        }
+        else
+        {
+            std::invoke(std::forward<OnFailure>(on_failure_fn), ft, tp);
+        }
+    }
+
+    template <class Clock, typename OnFailure>
+        requires clock<Clock> &&
+                 std::invocable<OnFailure, FILETIME const&, std::chrono::time_point<Clock>&> &&
+                 std::same_as<void,
+                              std::invoke_result_t<OnFailure,
+                                                   FILETIME const&,
+                                                   std::chrono::time_point<Clock>&>>
+    auto
+    clock_cast(FILETIME const& ft, OnFailure&& on_failure_fn) -> std::chrono::time_point<Clock>
+    {
+        std::chrono::time_point<Clock> tp;
+        clock_cast<Clock>(ft, tp, std::forward<OnFailure>(on_failure_fn));
+        return tp;
+    }
+
+    template <class Clock>
+        requires clock<Clock>
+    auto
+    clock_cast(FILETIME const& ft) -> std::chrono::time_point<Clock>
+    {
+        std::chrono::time_point<Clock> tp;
+        clock_cast<Clock>(ft, tp, FILETIME_epoch_lembda<Clock>);
+        return tp;
     }
 
     template <typename Rep, typename Period>
@@ -91,7 +162,7 @@ namespace m
         }
 
         static SYSTEMTIME
-        cast_utc_time_point(std::chrono::time_point<Clock, Duration> tp)
+        cast_utc_time_point(std::chrono::time_point<Clock, Duration> const& tp)
         {
             return cast_time_point<std::chrono::utc_clock>(tp);
         }
@@ -112,12 +183,12 @@ namespace m
     {
         template <typename Rep2, typename Period2>
         static FILETIME
-        DurationToFILETIME(std::chrono::duration<Rep2, Period2> const& duration)
+        DurationToFILETIME(std::chrono::duration<Rep2, Period2> const& d)
         {
-            if (duration.count() < 0)
+            if (d.count() < 0)
             {
                 trace_error("Programming error: invalid duration passed in; count < 0: {}",
-                            duration.count());
+                            d.count());
                 throw m::invalid_parameter("duration");
             }
 
@@ -129,8 +200,7 @@ namespace m
             using FiletimeRatio    = std::ratio<1, 1'000'000'000 / 100>;
             using FiletimeDuration = std::chrono::duration<int64_t, FiletimeRatio>;
 
-            auto const as_filetime_duration =
-                std::chrono::duration_cast<FiletimeDuration>(duration);
+            auto const as_filetime_duration = std::chrono::duration_cast<FiletimeDuration>(d);
 
             static_assert(std::numeric_limits<int64_t>::digits ==
                           std::numeric_limits<typename FiletimeDuration::rep>::digits);
@@ -155,7 +225,7 @@ namespace m
     struct try_cast_helper<std::chrono::time_point<Clock, Duration>, FILETIME, void>
     {
         static FILETIME
-        TimePointToFILETIME(utc_time_point utc_tp)
+        TimePointToFILETIME(utc_time_point_type const& utc_tp)
         {
             auto const duration = utc_tp.time_since_epoch();
 
@@ -173,13 +243,9 @@ namespace m
             static_assert(std::numeric_limits<int64_t>::digits ==
                           std::numeric_limits<typename FiletimeDuration::rep>::digits);
 
-            int64_t count = as_filetime_duration.count();
-
             // Durations in FILETIME are negative.
             //
-            count = -count;
-
-            return std::bit_cast<FILETIME>(count);
+            return std::bit_cast<FILETIME>(-as_filetime_duration.count());
         }
 
         static constexpr decltype(auto)

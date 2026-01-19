@@ -13,8 +13,8 @@
 #include <tuple>
 
 #include <m/strings/convert.h>
-#include <m/utf/exceptions.h>
 #include <m/utf/decode.h>
+#include <m/utf/exceptions.h>
 
 #include "test_data.h"
 
@@ -37,7 +37,8 @@ namespace
             EXPECT_NE(it, end);
         }
 
-        EXPECT_THROW(std::ignore = m::utf::decode_utf8(it, end), m::utf::utf_sequence_truncated_error);
+        EXPECT_THROW(std::ignore = m::utf::decode_utf8(it, end),
+                     m::utf::utf_sequence_truncated_error);
     }
 } // namespace
 

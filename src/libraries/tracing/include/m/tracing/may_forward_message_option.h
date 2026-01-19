@@ -44,8 +44,12 @@ struct std::formatter<m::tracing::may_forward_message_option, CharT>
 
         switch (mqo)
         {
-            case m::tracing::may_forward_message_option::may_forward_message: option_sv = "may_forward_message"sv; break;
-            case m::tracing::may_forward_message_option::may_not_forward_message: option_sv = "may_not_forward_message"sv; break;
+            case m::tracing::may_forward_message_option::may_forward_message:
+                option_sv = "may_forward_message"sv;
+                break;
+            case m::tracing::may_forward_message_option::may_not_forward_message:
+                option_sv = "may_not_forward_message"sv;
+                break;
             default: option_sv = "<unmapped>"sv; break;
         }
 
@@ -54,4 +58,3 @@ struct std::formatter<m::tracing::may_forward_message_option, CharT>
         return out;
     }
 };
-

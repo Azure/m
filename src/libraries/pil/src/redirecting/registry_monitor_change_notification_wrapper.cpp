@@ -26,15 +26,15 @@ namespace m::pil::impl::redirecting
     {}
 
     void
-    registry_monitor_change_notification_wrapper::on_begin(utc_time_point when)
+    registry_monitor_change_notification_wrapper::on_begin(utc_time_point_type const& when)
     {
         m_change_notification->on_begin(when);
     }
 
     std::optional<pil::iregistry_monitor_change_notification::requeue_key_access_attempt>
     registry_monitor_change_notification_wrapper::on_key_access_failure(
-        utc_time_point             when,
-        pil::key_path const& key,
+        utc_time_point_type const& when,
+        pil::key_path const&       key,
         std::system_error const&   ec)
     {
         auto const mapped_key = m_redirector->map_private_to_public(key);
@@ -43,8 +43,8 @@ namespace m::pil::impl::redirecting
 
     std::optional<pil::iregistry_monitor_change_notification::requeue_change_notification_attempt>
     registry_monitor_change_notification_wrapper::on_change_notification_attempt_failure(
-        utc_time_point             when,
-        pil::key_path const& key,
+        utc_time_point_type const& when,
+        pil::key_path const&       key,
         std::system_error const&   ec)
     {
         auto const mapped_key = m_redirector->map_private_to_public(key);
@@ -52,15 +52,15 @@ namespace m::pil::impl::redirecting
     }
 
     void
-    registry_monitor_change_notification_wrapper::on_change(utc_time_point             when,
-                                                            pil::key_path const& key)
+    registry_monitor_change_notification_wrapper::on_change(utc_time_point_type const& when,
+                                                            pil::key_path const&       key)
     {
         auto const mapped_key = m_redirector->map_private_to_public(key);
         m_change_notification->on_change(when, mapped_key);
     }
 
     void
-    registry_monitor_change_notification_wrapper::on_cancelled(utc_time_point when)
+    registry_monitor_change_notification_wrapper::on_cancelled(utc_time_point_type const& when)
     {
         m_change_notification->on_cancelled(when);
     }

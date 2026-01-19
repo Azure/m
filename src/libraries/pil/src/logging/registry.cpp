@@ -23,7 +23,7 @@
 namespace m::pil::impl::logging
 {
     registry::registry(std::shared_ptr<iregistry> const& underlying_registry,
-                       std::shared_ptr<log> const& log_ptr):
+                       std::shared_ptr<log> const&       log_ptr):
         m_underlying_registry(underlying_registry), m_log(log_ptr)
     {
         M_INTERNAL_ERROR_CHECK(m_underlying_registry.get() != nullptr);
@@ -54,8 +54,8 @@ namespace m::pil::impl::logging
         if (m_underlying_registry)
             underlying_predefined_key = m_underlying_registry->open_predefined_key(pk);
 
-        auto const [insertion_location, inserted] = m_predefined_keys.emplace(std::make_pair(
-            pk, std::make_shared<key>(std::move(underlying_predefined_key), m_log)));
+        auto const [insertion_location, inserted] = m_predefined_keys.emplace(
+            std::make_pair(pk, std::make_shared<key>(std::move(underlying_predefined_key), m_log)));
         M_INTERNAL_ERROR_CHECK(inserted);
 
         returned_key = insertion_location->second;

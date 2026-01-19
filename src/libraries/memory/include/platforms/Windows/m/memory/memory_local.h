@@ -21,10 +21,7 @@ namespace m
 
         explicit constexpr local_ptr(T* ptr): m_ptr{ptr} {}
 
-        ~local_ptr()
-        {
-            reset();
-        }
+        ~local_ptr() { reset(); }
 
         constexpr T*
         release()
@@ -60,21 +57,21 @@ namespace m
 
     protected:
         static void
-            do_free(T* ptr)
+        do_free(T* ptr)
         {
             // silly renaming just to establish pattern.
-            using T0 = T;
+            using T0        = T;
             auto const ptr0 = ptr;
 
             // T may be const or volatile qualified. This takes a little care to
             // peel away.
-            using T1 = std::remove_const_t<T0>;
+            using T1        = std::remove_const_t<T0>;
             auto const ptr1 = const_cast<T1*>(ptr0);
 
-            using T2 = std::remove_volatile_t<T1>;
+            using T2        = std::remove_volatile_t<T1>;
             auto const ptr2 = const_cast<T2*>(ptr1);
 
-            using T3 = std::remove_reference_t<T2>;
+            using T3        = std::remove_reference_t<T2>;
             auto const ptr3 = static_cast<T3*>(ptr2);
 
             // ptr3 is a plain, non-const, non-volatile, non-reference pointer to whatever

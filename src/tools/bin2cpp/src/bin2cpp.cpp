@@ -32,7 +32,7 @@ main(int argc, char** argv)
     std::size_t bytes_read{};
     std::size_t n{};
 
-    while ((bytes_read = std::fread(buffer.data(), sizeof(buffer[0]), buffer.size(), fp))> 0)
+    while ((bytes_read = std::fread(buffer.data(), sizeof(buffer[0]), buffer.size(), fp)) > 0)
     {
         for (std::size_t i = 0; i < bytes_read; i++)
         {

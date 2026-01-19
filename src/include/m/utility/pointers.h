@@ -40,7 +40,7 @@ namespace m
 
         template <typename U>
             requires(std::is_base_of_v<std::remove_pointer_t<T>, U>)
-        constexpr not_null(not_null<U*> const& other) noexcept : m_v(other.m_v)
+        constexpr not_null(not_null<U*> const& other) noexcept: m_v(other.m_v)
         {}
 
         not_null&
@@ -52,7 +52,8 @@ namespace m
 
         template <typename U>
             requires(std::is_base_of_v<std::remove_pointer_t<T>, U>)
-        constexpr not_null& operator=(not_null<U*> const& other) noexcept
+        constexpr not_null&
+        operator=(not_null<U*> const& other) noexcept
         {
             m_v = other.m_v;
             return *this;
@@ -68,7 +69,11 @@ namespace m
 
         ~not_null() = default;
 
-        constexpr operator T() const noexcept { return get(); }
+        constexpr
+        operator T() const noexcept
+        {
+            return get();
+        }
 
         constexpr T
         operator->() const noexcept

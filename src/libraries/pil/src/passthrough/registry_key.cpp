@@ -73,7 +73,7 @@ namespace m::pil::impl::passthrough
                                std::size_t&                      subkey_count,
                                std::size_t&                      value_count,
                                std::size_t&                      security_descriptor_size,
-                               time_point&                       last_write_time)
+                               time_point_type&                  last_write_time)
     {
         return m_key->query_information_key(
             flags, subkey_count, value_count, security_descriptor_size, last_write_time);

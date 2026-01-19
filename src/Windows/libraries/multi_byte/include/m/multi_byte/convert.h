@@ -277,7 +277,9 @@ namespace m
     template <typename TStringishIn>
         requires any_stringish<TStringishIn>
     void
-    to_wstring(multi_byte::code_page cp, std::optional<TStringishIn> const& in, std::optional<std::wstring>& out)
+    to_wstring(multi_byte::code_page              cp,
+               std::optional<TStringishIn> const& in,
+               std::optional<std::wstring>&       out)
     {
         return to_tstring(cp, in, out);
     }

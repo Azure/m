@@ -22,7 +22,6 @@ struct utf_data_set
                 return ((ch & 0xff) << 8) | ((ch >> 8) & 0xff);
             });
 
-
         m_u8_sv    = std::u8string_view(m_u8_chardata.begin(), m_u8_chardata.end());
         m_u16le_sv = std::u16string_view(m_u16le_chardata.begin(), m_u16le_chardata.end());
         m_u16be_sv = std::u16string_view(m_u16be_chardata.begin(), m_u16be_chardata.end());

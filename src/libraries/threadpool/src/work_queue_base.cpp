@@ -40,7 +40,7 @@ namespace m::threadpool_impl
     }
 
     bool
-    work_queue_base::do_wait_for(std::chrono::milliseconds dur)
+    work_queue_base::do_wait_for(std::chrono::milliseconds const& dur)
     {
         auto l = std::unique_lock(m_mutex);
         return m_cv.wait_for(

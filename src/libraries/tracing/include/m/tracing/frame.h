@@ -23,7 +23,8 @@ namespace m
             frame(char const* function_name, TThis* thisptr) noexcept:
                 m_function_name(function_name), m_thisptr(reinterpret_cast<uintptr_t>(thisptr))
             {
-                m::wtrace_verbose(L"Entering {:x}->{}", reinterpret_cast<uintptr_t>(thisptr), m_function_name);
+                m::wtrace_verbose(
+                    L"Entering {:x}->{}", reinterpret_cast<uintptr_t>(thisptr), m_function_name);
             }
 
             frame(char const* function_name) noexcept:

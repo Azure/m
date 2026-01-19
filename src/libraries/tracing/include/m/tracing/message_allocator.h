@@ -21,8 +21,8 @@
 
 #include <m/tracing/envelope.h>
 #include <m/tracing/event_kind.h>
-#include <m/tracing/message_source.h>
 #include <m/tracing/message_processor.h>
+#include <m/tracing/message_source.h>
 #include <m/utility/pointers.h>
 
 namespace m
@@ -64,7 +64,7 @@ namespace m
             /// The `release()` member function causes the `message_allocator` object
             /// to not deallocate the allocated message, if there is an
             /// allocated message.
-            /// 
+            ///
             /// The use case for this is when a message is forwarded and then the
             /// recipient responded that they had forwarded the message on to
             /// another recipient for processing, so that the original
@@ -74,8 +74,8 @@ namespace m
             release();
 
         private:
-            envelope                     m_envelope;
-            bool                         m_armed;
+            envelope m_envelope;
+            bool     m_armed;
         };
     } // namespace tracing
 } // namespace m

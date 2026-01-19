@@ -70,7 +70,7 @@ namespace
         // are obvious repetitions but I fear making another factoring mistake
         // which is less valuable than getting it right.
         //
-#pragma warning(suppress: 4127) // conditional expression is constant
+#pragma warning(suppress : 4127) // conditional expression is constant
         if (ldigits >= sdigits)
         {
 #pragma warning(suppress : 4127) // conditional expression is constant

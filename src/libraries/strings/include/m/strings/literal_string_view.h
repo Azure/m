@@ -99,7 +99,7 @@ namespace m
         }
     } // namespace string_view_literals
 
-    using literal_string_view = basic_literal_string_view<char, std::char_traits<char>>;
+    using literal_string_view  = basic_literal_string_view<char, std::char_traits<char>>;
     using wliteral_string_view = basic_literal_string_view<wchar_t, std::char_traits<wchar_t>>;
 #ifdef __cpp_char8_t
     using u8literal_string_view = basic_literal_string_view<char8_t>;

@@ -21,5 +21,3 @@ TEST(Win32DWORDMs, First)
 
     EXPECT_EQ(static_cast<DWORD>(x), 100);
 }
-
-

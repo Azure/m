@@ -300,16 +300,16 @@ namespace m::pil
                               std::size_t&                subkey_count,
                               std::size_t&                value_count,
                               std::size_t&                security_descriptor_size,
-                              m::pil::time_point&         last_write_time) = 0;
+                              m::pil::time_point_type&    last_write_time) = 0;
 
-        time_point
+        time_point_type
         last_write_time()
         {
-            std::size_t subkey_count{};
-            std::size_t value_count{};
-            std::size_t security_descriptor_size{};
-            time_point  lwt{};
-            auto const  d = query_information_key(query_information_key_flags{},
+            std::size_t     subkey_count{};
+            std::size_t     value_count{};
+            std::size_t     security_descriptor_size{};
+            time_point_type lwt{};
+            auto const      d = query_information_key(query_information_key_flags{},
                                                  subkey_count,
                                                  value_count,
                                                  security_descriptor_size,
@@ -699,7 +699,7 @@ namespace m::pil
     struct iregistry_monitor_change_notification
     {
         virtual void
-        on_begin(utc_time_point when) = 0;
+        on_begin(utc_time_point_type const& when) = 0;
 
         struct requeue_key_access_attempt
         {
@@ -707,9 +707,9 @@ namespace m::pil
         };
 
         virtual std::optional<requeue_key_access_attempt>
-        on_key_access_failure(utc_time_point           when,
-                              key_path const&          key,
-                              std::system_error const& ec) = 0;
+        on_key_access_failure(utc_time_point_type const& when,
+                              key_path const&            key,
+                              std::system_error const&   ec) = 0;
 
         struct requeue_change_notification_attempt
         {
@@ -717,15 +717,15 @@ namespace m::pil
         };
 
         virtual std::optional<requeue_change_notification_attempt>
-        on_change_notification_attempt_failure(utc_time_point           when,
-                                               key_path const&          key,
-                                               std::system_error const& ec) = 0;
+        on_change_notification_attempt_failure(utc_time_point_type const& when,
+                                               key_path const&            key,
+                                               std::system_error const&   ec) = 0;
 
         virtual void
-        on_change(utc_time_point when, key_path const& key) = 0;
+        on_change(utc_time_point_type const& when, key_path const& key) = 0;
 
         virtual void
-        on_cancelled(utc_time_point when) = 0;
+        on_cancelled(utc_time_point_type const& when) = 0;
 
     protected:
         virtual ~iregistry_monitor_change_notification() {}

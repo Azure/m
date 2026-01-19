@@ -50,8 +50,7 @@ namespace m
     template <typename TCharOut>
         requires utf16_character<TCharOut>
     std::basic_string<TCharOut>
-    multi_byte_to_utf16(multi_byte::code_page        cp,
-                        std::string_view             in);
+    multi_byte_to_utf16(multi_byte::code_page cp, std::string_view in);
 
     template <typename TCharOut>
         requires utf16_character<TCharOut>
@@ -64,9 +63,7 @@ namespace m
     template <typename TCharOut>
         requires utf16_character<TCharOut>
     std::basic_string<TCharOut>
-    multi_byte_to_utf16(multi_byte::code_page        cp,
-                        std::string_view             in,
-                        std::error_code&             ec);
+    multi_byte_to_utf16(multi_byte::code_page cp, std::string_view in, std::error_code& ec);
 
     template <typename TCharOut>
         requires utf16_character<TCharOut>

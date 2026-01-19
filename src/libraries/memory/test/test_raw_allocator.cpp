@@ -79,13 +79,13 @@ namespace
         std::byte m_b;
     };
 
-    #if 0 // complete some day?
+#if 0 // complete some day?
     constexpr bool
     operator==(owc const& l, owc const& r) noexcept
     {
         return l.m_b == r.m_b;
     }
-    #endif
+#endif
 
     struct owc_stats
     {
@@ -176,9 +176,9 @@ std::array const owc_array{owc(std::byte{'a'}), owc(std::byte{'b'}), owc(std::by
 
 TEST(MemoryRawAllocator, CountOpsUnconstructed)
 {
-    owc_stats             stats1;
+    owc_stats                   stats1;
     m::raw_array_allocator<owc> ra(owc_array.size());
-    owc_stats             stats2;
+    owc_stats                   stats2;
     EXPECT_EQ(ra.size(), owc_array.size());
     EXPECT_EQ(ra.constructed(), false);
 
@@ -188,13 +188,13 @@ TEST(MemoryRawAllocator, CountOpsUnconstructed)
     auto const diff1 = stats2 - stats1;
 
     m::println("diff1: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
-                 diff1.m_dccnt_delta,
-                 diff1.m_bccnt_delta,
-                 diff1.m_cccnt_delta,
-                 diff1.m_mvccnt_delta,
-                 diff1.m_aocnt_delta,
-                 diff1.m_mvocnt_delta,
-                 diff1.m_dcnt_delta);
+               diff1.m_dccnt_delta,
+               diff1.m_bccnt_delta,
+               diff1.m_cccnt_delta,
+               diff1.m_mvccnt_delta,
+               diff1.m_aocnt_delta,
+               diff1.m_mvocnt_delta,
+               diff1.m_dcnt_delta);
 
     EXPECT_EQ(diff1.m_dccnt_delta, 0);
     EXPECT_EQ(diff1.m_bccnt_delta, 0);
@@ -207,9 +207,9 @@ TEST(MemoryRawAllocator, CountOpsUnconstructed)
 
 TEST(MemoryRawAllocator, CountOpsConstructed)
 {
-    owc_stats             stats1;
+    owc_stats                   stats1;
     m::raw_array_allocator<owc> ra(owc_array.size());
-    owc_stats             stats2;
+    owc_stats                   stats2;
     EXPECT_EQ(ra.size(), owc_array.size());
     EXPECT_EQ(ra.constructed(), false);
     ra.default_construct();
@@ -223,13 +223,13 @@ TEST(MemoryRawAllocator, CountOpsConstructed)
     auto const diff1 = stats2 - stats1;
 
     m::println("diff1: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
-                 diff1.m_dccnt_delta,
-                 diff1.m_bccnt_delta,
-                 diff1.m_cccnt_delta,
-                 diff1.m_mvccnt_delta,
-                 diff1.m_aocnt_delta,
-                 diff1.m_mvocnt_delta,
-                 diff1.m_dcnt_delta);
+               diff1.m_dccnt_delta,
+               diff1.m_bccnt_delta,
+               diff1.m_cccnt_delta,
+               diff1.m_mvccnt_delta,
+               diff1.m_aocnt_delta,
+               diff1.m_mvocnt_delta,
+               diff1.m_dcnt_delta);
 
     EXPECT_EQ(diff1.m_dccnt_delta, 0);
     EXPECT_EQ(diff1.m_bccnt_delta, 0);
@@ -242,13 +242,13 @@ TEST(MemoryRawAllocator, CountOpsConstructed)
     auto const diff2 = stats3 - stats2;
 
     m::println("diff2: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
-                 diff2.m_dccnt_delta,
-                 diff2.m_bccnt_delta,
-                 diff2.m_cccnt_delta,
-                 diff2.m_mvccnt_delta,
-                 diff2.m_aocnt_delta,
-                 diff2.m_mvocnt_delta,
-                 diff2.m_dcnt_delta);
+               diff2.m_dccnt_delta,
+               diff2.m_bccnt_delta,
+               diff2.m_cccnt_delta,
+               diff2.m_mvccnt_delta,
+               diff2.m_aocnt_delta,
+               diff2.m_mvocnt_delta,
+               diff2.m_dcnt_delta);
 
     EXPECT_EQ(diff2.m_dccnt_delta, 3);
     EXPECT_EQ(diff2.m_bccnt_delta, 0);
@@ -261,13 +261,13 @@ TEST(MemoryRawAllocator, CountOpsConstructed)
     auto const diff3 = stats4 - stats3;
 
     m::println("diff3: dccnt: {} bccnt: {} cccnt: {} mvccnt: {} aocnt: {} mvocnt: {} dcnt: {}",
-                 diff3.m_dccnt_delta,
-                 diff3.m_bccnt_delta,
-                 diff3.m_cccnt_delta,
-                 diff3.m_mvccnt_delta,
-                 diff3.m_aocnt_delta,
-                 diff3.m_mvocnt_delta,
-                 diff3.m_dcnt_delta);
+               diff3.m_dccnt_delta,
+               diff3.m_bccnt_delta,
+               diff3.m_cccnt_delta,
+               diff3.m_mvccnt_delta,
+               diff3.m_aocnt_delta,
+               diff3.m_mvocnt_delta,
+               diff3.m_dcnt_delta);
 
     EXPECT_EQ(diff3.m_dccnt_delta, 0);
     EXPECT_EQ(diff3.m_bccnt_delta, 0);

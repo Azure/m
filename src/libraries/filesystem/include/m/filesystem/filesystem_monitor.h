@@ -88,7 +88,7 @@ namespace m
             /// monitor prior to any other notifications.
             /// </summary>
             virtual void
-            on_begin(time_point issue_time) = 0;
+            on_begin(time_point_type const& issue_time) = 0;
 
             /// <summary>
             /// The `requeue_directory_access_attempt` struct encapsulates the data to
@@ -122,7 +122,7 @@ namespace m
             /// <param name="error"></param>
             /// <returns></returns>
             virtual std::optional<requeue_directory_access_attempt>
-            on_directory_access_failure(utc_time_point                           issue_time,
+            on_directory_access_failure(utc_time_point_type const&               issue_time,
                                         std::filesystem::path const&             directory,
                                         std::filesystem::filesystem_error const& error) = 0;
 
@@ -191,7 +191,7 @@ namespace m
             /// <param name="error"></param>
             /// <returns></returns>
             virtual std::optional<requeue_file_access_attempt>
-            on_file_access_failure(utc_time_point                           issue_time,
+            on_file_access_failure(utc_time_point_type const&               issue_time,
                                    std::filesystem::path const&             directory,
                                    std::filesystem::path const&             filename,
                                    std::filesystem::filesystem_error const& error) = 0;
@@ -215,7 +215,7 @@ namespace m
             /// <param name="filename">The filename of the file
             /// which changed.</param>
             virtual void
-            on_file_changed(utc_time_point               issue_time,
+            on_file_changed(utc_time_point_type const&   issue_time,
                             std::filesystem::path const& directory,
                             std::filesystem::path const& filename) = 0;
 
@@ -238,7 +238,7 @@ namespace m
             /// <param name="filename">The filename of the file
             /// which was deleted.</param>
             virtual void
-            on_file_deleted(utc_time_point               issue_time,
+            on_file_deleted(utc_time_point_type const&   issue_time,
                             std::filesystem::path const& directory,
                             std::filesystem::path const& filename) = 0;
 
@@ -261,7 +261,7 @@ namespace m
             /// file.</param>
             /// <param name="filename">The filename of the file.</param>
             virtual void
-            on_file_recheck_required(utc_time_point               issue_time,
+            on_file_recheck_required(utc_time_point_type const&   issue_time,
                                      std::filesystem::path const& directory,
                                      std::filesystem::path const& filename) = 0;
 
@@ -274,13 +274,13 @@ namespace m
             /// on_cancelled() has been called.
             /// </summary>
             virtual void
-            on_cancelled(time_point issue_time) = 0;
+            on_cancelled(utc_time_point_type const& issue_time) = 0;
 
             /// <summary>
             /// ???
             /// </summary>
             virtual void
-            on_invalid(time_point issue_time) = 0;
+            on_invalid(utc_time_point_type const& issue_time) = 0;
 
             //
             // Un-block-comment these after copy/paste for your derived

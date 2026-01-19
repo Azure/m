@@ -114,7 +114,7 @@ namespace m::pil
             return do_open_key(key_name);
         }
 
-        time_point
+        time_point_type
         last_write_time();
 
         template <typename CharT>

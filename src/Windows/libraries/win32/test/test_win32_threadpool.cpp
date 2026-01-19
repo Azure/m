@@ -14,9 +14,4 @@
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-TEST(Win32Threadpool, First)
-{
-    EXPECT_EQ(static_cast<DWORD>(100), 100);
-}
-
-
+TEST(Win32Threadpool, First) { EXPECT_EQ(static_cast<DWORD>(100), 100); }

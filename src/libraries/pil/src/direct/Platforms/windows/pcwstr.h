@@ -8,8 +8,8 @@
 #include <string_view>
 #include <utility>
 
-#include <m/pil/registry_base_types.h>
 #include <m/pil/key_path.h>
+#include <m/pil/registry_base_types.h>
 
 namespace m::pil::impl
 {

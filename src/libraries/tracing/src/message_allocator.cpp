@@ -59,7 +59,8 @@ namespace m::tracing
     void
     message_allocator::send_message(m::not_null<m::tracing::message_processor*> processor)
     {
-        auto result = processor->on_message(may_forward_message_option::may_forward_message, m_envelope);
+        auto result =
+            processor->on_message(may_forward_message_option::may_forward_message, m_envelope);
         if (result == on_message_disposition::message_forwarded)
         {
             // If the message was enqueued on, we do not want to try to deallocate

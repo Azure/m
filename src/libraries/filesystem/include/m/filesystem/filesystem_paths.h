@@ -20,7 +20,7 @@
 
 #include <m/windows_strings/convert.h>
 
-#define _M_FILESYSTEM_T(x) L ## x
+#define _M_FILESYSTEM_T(x) L##x
 
 #else
 
@@ -36,9 +36,9 @@ namespace m
 {
     namespace filesystem
     {
-        using path_value_type = std::filesystem::path::value_type;
+        using path_value_type  = std::filesystem::path::value_type;
         using path_string_view = std::basic_string_view<path_value_type>;
-        using path_string = std::basic_string<path_value_type>;
+        using path_string      = std::basic_string<path_value_type>;
 
         /// <summary>
         /// Constructs a path by combining:

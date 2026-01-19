@@ -21,7 +21,7 @@ TEST(path_formatting, wide_formatting)
 
 //
 // There used to be a "narrow formatting" test but it has been removed.
-// 
+//
 // This is because formatting to "char" requires platofrm-specific encoding. On
 // Windows, char == CP_ACP, on Linux, char == UTF-8 and we're not hooked up here
 // sufficiently to make the path formatting go through this transcoding.

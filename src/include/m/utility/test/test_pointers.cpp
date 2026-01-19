@@ -37,4 +37,3 @@ TEST(UtilityPointers, first)
 
     EXPECT_EQ(p1, &s3);
 }
-

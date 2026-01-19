@@ -26,7 +26,7 @@ struct monitor_sink : public m::pil::iregistry_monitor_change_notification
     ~monitor_sink() = default;
 
     void
-    on_begin(m::utc_time_point when) override
+    on_begin(m::utc_time_point_type const& when) override
     {
         m::wtrace_error(L"on_begin({})", when);
         m_on_begins++;
@@ -34,9 +34,9 @@ struct monitor_sink : public m::pil::iregistry_monitor_change_notification
     }
 
     std::optional<requeue_key_access_attempt>
-    on_key_access_failure(m::utc_time_point        when,
-                          m::pil::key_path const&  key,
-                          std::system_error const& ec) override
+    on_key_access_failure(m::utc_time_point_type const& when,
+                          m::pil::key_path const&       key,
+                          std::system_error const&      ec) override
     {
         m::wtrace_error(L"on_key_access_failure({}, {}, {})",
                         when,
@@ -47,9 +47,9 @@ struct monitor_sink : public m::pil::iregistry_monitor_change_notification
     }
 
     std::optional<requeue_change_notification_attempt>
-    on_change_notification_attempt_failure(m::utc_time_point        when,
-                                           m::pil::key_path const&  key,
-                                           std::system_error const& ec) override
+    on_change_notification_attempt_failure(m::utc_time_point_type const& when,
+                                           m::pil::key_path const&       key,
+                                           std::system_error const&      ec) override
     {
         m::wtrace_error(L"on_change_notification_attempt_failure({}, {}, {})",
                         when,
@@ -60,14 +60,14 @@ struct monitor_sink : public m::pil::iregistry_monitor_change_notification
     }
 
     void
-    on_change(m::utc_time_point when, m::pil::key_path const& key) override
+    on_change(m::utc_time_point_type const& when, m::pil::key_path const& key) override
     {
         m::wtrace_error(L"on_change({}, {})", when, m::to_wstring(key.c_str()));
         m_on_changes++;
     }
 
     void
-    on_cancelled(m::utc_time_point when) override
+    on_cancelled(m::utc_time_point_type const& when) override
     {
         m::wtrace_error(L"on_cancelled({})...", when);
         m_on_cancelleds++;

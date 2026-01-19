@@ -11,7 +11,7 @@
 
 namespace m
 {
-    using timer_callable      = void();
-    using work_item_callable         = void();
+    using timer_callable     = void();
+    using work_item_callable = void();
 
 } // namespace m

@@ -28,7 +28,7 @@ namespace m::threadpool_impl
     timer::~timer() {}
 
     void
-    timer::do_set(duration)
+    timer::do_set(duration_type const&)
     {
         M_NOT_IMPLEMENTED("Sorry no linux timers");
     }

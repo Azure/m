@@ -9,11 +9,12 @@ add_executable(${TEST_EXE_NAME}
     test_FILE_ACTION.cpp
     test_FILE_NOTIFY_EXTENDED_INFORMATION.cpp
     test_FILE_NOTIFY_INFORMATION.cpp
+    test_HKEY.cpp
     test_HRESULT.cpp
     test_NTSTATUS.cpp
     test_OVERLAPPED.cpp
     test_Win32ErrorCode.cpp
-)
+ )
 
 target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})
 

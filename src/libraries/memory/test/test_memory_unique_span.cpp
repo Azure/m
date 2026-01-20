@@ -32,6 +32,27 @@ TEST(MemoryUniqueSpan, ByteSpan2)
     EXPECT_TRUE(std::ranges::equal(byte_array_abc, us));
 }
 
+TEST(MemoryUniqueSpan, CopyConstruction)
+{
+    auto const us = m::unique_span(byte_array_abc);
+    m::unique_span<std::byte> us2(us);
+    EXPECT_EQ(us.size(), us2.size());
+    EXPECT_TRUE(std::ranges::equal(us, us2));
+}
+
+TEST(MemoryUniqueSpan, AssignmentOperator)
+{
+    auto const                us = m::unique_span(byte_array_abc);
+    m::unique_span<std::byte> us2;
+
+    EXPECT_EQ(us2.size(), 0);
+
+    us2 = us;
+
+    EXPECT_EQ(us.size(), us2.size());
+    EXPECT_TRUE(std::ranges::equal(us, us2));
+}
+
 TEST(MemoryUniqueSpan, VerifyOperators)
 {
     auto const us = m::unique_span(byte_array_abc);

@@ -56,16 +56,13 @@ namespace m
 
         constexpr unique_span() noexcept: m_span() {}
 
-        constexpr unique_span(unique_span&& other): m_span()
+        constexpr unique_span(unique_span&& other) noexcept: m_span()
         {
             using std::swap;
             swap(m_span, other.m_span);
         }
 
-        //
-        // One could imagine copy operations but not at this time.
-        //
-        unique_span(unique_span const&) = delete;
+        unique_span(unique_span const& other): unique_span(other.m_span) {}
 
         unique_span(size_type n): m_span()
         {
@@ -157,11 +154,14 @@ namespace m
             return *this;
         }
 
-        //
-        // One could imagine copy operations but not at this time.
-        //
         unique_span&
-        operator=(unique_span const& other) = delete;
+        operator=(unique_span const& other)
+        {
+            unique_span t(other);
+            using std::swap;
+            swap(*this, other);
+            return *this;
+        }
 
         void
         reset()

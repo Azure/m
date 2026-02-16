@@ -11,6 +11,7 @@ add_executable(
     safe_integers_addition_functor.cpp 
     exercise_negation.cpp
     signed_signed_to_signed.cpp
+    signed_unsigned_to_unsigned.cpp
 )
 
 target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})

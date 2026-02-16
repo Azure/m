@@ -64,7 +64,7 @@ namespace m
         {
             T t{l.m_v};
             l.m_v = r.m_v;
-            r.m_v = r;
+            r.m_v = t;
         }
 
         ~not_null() = default;

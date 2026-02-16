@@ -26,7 +26,7 @@
 #include <m/pil/registry_interfaces.h>
 #include <m/sstring/sstring.h>
 #include <m/strings/convert.h>
-#include <m/utility/enum_operations.h.h>
+#include <m/utility/enum_operations.h>
 #include <m/utility/utility.h>
 
 #include "common.h"

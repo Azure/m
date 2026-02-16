@@ -67,6 +67,7 @@ namespace m
             using std::swap;
             swap(m_lock, other.m_lock);
             swap(m_armed, other.m_armed);
+            return *this;
         }
 
         void

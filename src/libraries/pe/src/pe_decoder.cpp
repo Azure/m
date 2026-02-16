@@ -36,12 +36,10 @@ m::pe::decoder::decoder(std::shared_ptr<byte_streams::ra_in> const& ra_in): m_ra
     // static_assert(image_nt_headers32::k_offset_signature ==
     // image_nt_headers64::k_offset_signature);
 
-    constexpr uint32_t p_e_const = static_cast<uint32_t>('P') | static_cast<uint32_t>('E') << 8;
-
     auto pe_signature = m::load_from<uint32_t>(
         m_ra_in, image_nt_headers_position + image_nt_headers32::k_offset_signature);
 
-    if (pe_signature != p_e_const)
+    if (pe_signature != image_nt_headers32::k_signature_pe)
         throw std::runtime_error("not a pe");
 
     auto const image_file_header_position =

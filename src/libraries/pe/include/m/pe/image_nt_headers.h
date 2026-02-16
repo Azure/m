@@ -46,6 +46,9 @@ namespace m
             static inline constexpr offset_t k_offset_file_header     = offset_t{4};
             static inline constexpr offset_t k_offset_optional_header = offset_t{24};
 
+            static inline constexpr uint32_t k_signature_pe = 
+                static_cast<uint32_t>('P') | (static_cast<uint32_t>('E') << 8);
+
             uint32_t          m_signature;
             image_file_header m_file_header;
 
@@ -76,6 +79,9 @@ namespace m
             static inline constexpr offset_t k_offset_signature       = offset_t{0};
             static inline constexpr offset_t k_offset_file_header     = offset_t{4};
             static inline constexpr offset_t k_offset_optional_header = offset_t{24};
+
+            static inline constexpr uint32_t k_signature_pe = 
+                static_cast<uint32_t>('P') | (static_cast<uint32_t>('E') << 8);
 
             uint32_t          m_signature;
             image_file_header m_file_header;

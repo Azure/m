@@ -143,3 +143,61 @@ TEST(TryCast, SignedUnsignedMismatch2)
 
     EXPECT_EQ(v5, T1{21});
 }
+
+TEST(TryCast, ExceptionMessagesContainValue_Overflow)
+{
+    // Verify that overflow exceptions contain the actual value
+    try
+    {
+        std::ignore = m::try_cast<uint8_t>(300);
+        FAIL() << "Expected std::overflow_error";
+    }
+    catch (std::overflow_error const& e)
+    {
+        std::string msg = e.what();
+        EXPECT_TRUE(msg.find("300") != std::string::npos)
+            << "Exception message should contain the value '300': " << msg;
+        EXPECT_TRUE(msg.find("255") != std::string::npos)
+            << "Exception message should contain the max value '255': " << msg;
+        EXPECT_TRUE(msg.find("m::to") != std::string::npos)
+            << "Exception message should contain 'm::to': " << msg;
+    }
+}
+
+TEST(TryCast, ExceptionMessagesContainValue_NegativeToUnsigned)
+{
+    // Verify that negative-to-unsigned exceptions contain the value
+    try
+    {
+        std::ignore = m::try_cast<uint32_t>(-42);
+        FAIL() << "Expected std::overflow_error";
+    }
+    catch (std::overflow_error const& e)
+    {
+        std::string msg = e.what();
+        EXPECT_TRUE(msg.find("-42") != std::string::npos)
+            << "Exception message should contain the value '-42': " << msg;
+        EXPECT_TRUE(msg.find("negative") != std::string::npos)
+            << "Exception message should mention 'negative': " << msg;
+        EXPECT_TRUE(msg.find("unsigned") != std::string::npos)
+            << "Exception message should mention 'unsigned': " << msg;
+    }
+}
+
+TEST(TryCast, ExceptionMessagesContainValue_BelowMin)
+{
+    // Verify that below-minimum exceptions contain the value
+    try
+    {
+        std::ignore = m::try_cast<int8_t>(-200);
+        FAIL() << "Expected std::overflow_error";
+    }
+    catch (std::overflow_error const& e)
+    {
+        std::string msg = e.what();
+        EXPECT_TRUE(msg.find("-200") != std::string::npos)
+            << "Exception message should contain the value '-200': " << msg;
+        EXPECT_TRUE(msg.find("-128") != std::string::npos)
+            << "Exception message should contain the min value '-128': " << msg;
+    }
+}

@@ -3,15 +3,6 @@
 
 #pragma once
 
-#include <chrono>
-#include <concepts>
-#include <type_traits>
-#include <utility>
-
-#include <m/cast/cast.h>
-#include <m/cast/try_cast.h>
-#include <m/utility/to_underlying.h>
-
 //
 // Standard metaphor across the m codebase
 //
@@ -83,13 +74,216 @@
 //
 //
 
+#include <chrono>
+#include <concepts>
+#include <exception>
+#include <format>
+#include <limits>
+#include <stdexcept>
+#include <type_traits>
+#include <typeinfo>
+
+#include <m/utility/to_underlying.h>
+
 namespace m
 {
-    template <typename TTo, typename TFrom>
-    TTo
-    to(TFrom const& v)
+    //
+    // Forward declaration
+    //
+    template <typename ToType, typename FromType>
+    constexpr decltype(auto)
+    to(FromType const& from);
+
+    //
+    // Helper struct for type conversions
+    //
+    template <typename FromType, typename ToType, typename Enable = void>
+    struct to_helper
     {
-        return m::try_cast<TTo>(v);
+        to_helper()                   = delete;
+        to_helper(to_helper const&)   = delete;
+        to_helper& operator=(to_helper const&) = delete;
+    };
+
+    //
+    // It would be nice if a single helper could be used for all integral types
+    // but getting the math right for signed and unsigned is remarkably
+    // difficult. Instead, we will have four specializations for the
+    // FromType and ToType being signed and unsigned.
+    //
+
+    // Signed -> Signed
+    template <typename FromType, typename ToType>
+        requires(std::signed_integral<FromType> && std::signed_integral<ToType>)
+    struct to_helper<FromType, ToType, void>
+    {
+        static constexpr decltype(auto)
+        do_cast(FromType v)
+        {
+            if constexpr (std::numeric_limits<ToType>::digits <
+                          std::numeric_limits<FromType>::digits)
+            {
+                if (v < (std::numeric_limits<ToType>::min)())
+                {
+                    throw std::overflow_error(std::format(
+                        "m::to overflow: value {} is less than minimum {} for target type",
+                        v,
+                        (std::numeric_limits<ToType>::min)()));
+                }
+            }
+
+            if constexpr (std::numeric_limits<ToType>::digits <
+                          std::numeric_limits<FromType>::digits)
+            {
+                if (v > (std::numeric_limits<ToType>::max)())
+                {
+                    throw std::overflow_error(std::format(
+                        "m::to overflow: value {} exceeds maximum {} for target type",
+                        v,
+                        (std::numeric_limits<ToType>::max)()));
+                }
+            }
+
+            return static_cast<ToType>(v);
+        }
+    };
+
+    // Unsigned -> Signed
+    template <typename FromType, typename ToType>
+        requires(std::unsigned_integral<FromType> && std::signed_integral<ToType>)
+    struct to_helper<FromType, ToType, void>
+    {
+        static constexpr decltype(auto)
+        do_cast(FromType v)
+        {
+            if constexpr (std::numeric_limits<ToType>::digits <
+                          std::numeric_limits<FromType>::digits)
+            {
+                // The representation of ToType is smaller than FromType, so
+                // its max value is representable in FromType, which is
+                // unsigned.
+                if (v > static_cast<FromType>((std::numeric_limits<ToType>::max)()))
+                {
+                    throw std::overflow_error(std::format(
+                        "m::to overflow: value {} exceeds maximum {} for target type",
+                        v,
+                        (std::numeric_limits<ToType>::max)()));
+                }
+
+                // Otherwise there is no opportunity for overflow
+            }
+
+            return static_cast<ToType>(v);
+        }
+    };
+
+    // Signed -> Unsigned
+    template <typename FromType, typename ToType>
+        requires(std::signed_integral<FromType> && std::unsigned_integral<ToType>)
+    struct to_helper<FromType, ToType, void>
+    {
+        static constexpr decltype(auto)
+        do_cast(FromType v)
+        {
+            if (v < 0)
+            {
+                throw std::overflow_error(std::format(
+                    "m::to overflow: negative value {} cannot be converted to unsigned type",
+                    v));
+            }
+
+            if constexpr (std::numeric_limits<ToType>::digits <
+                          std::numeric_limits<FromType>::digits)
+            {
+                if (v > (std::numeric_limits<ToType>::max)())
+                {
+                    throw std::overflow_error(std::format(
+                        "m::to overflow: value {} exceeds maximum {} for target type",
+                        v,
+                        (std::numeric_limits<ToType>::max)()));
+                }
+            }
+
+            return static_cast<ToType>(v);
+        }
+    };
+
+    // Unsigned -> Unsigned
+    template <typename FromType, typename ToType>
+        requires(std::unsigned_integral<FromType> && std::unsigned_integral<ToType>)
+    struct to_helper<FromType, ToType, void>
+    {
+        static constexpr decltype(auto)
+        do_cast(FromType v)
+        {
+            if constexpr (std::numeric_limits<ToType>::digits <
+                          std::numeric_limits<FromType>::digits)
+            {
+                if (v > (std::numeric_limits<ToType>::max)())
+                {
+                    throw std::overflow_error(std::format(
+                        "m::to overflow: value {} exceeds maximum {} for target type",
+                        v,
+                        (std::numeric_limits<ToType>::max)()));
+                }
+            }
+
+            return static_cast<ToType>(v);
+        }
+    };
+
+    // Enable casting from std::chrono::duration
+    template <typename Rep, typename Period, typename ToType>
+        requires(std::integral<Rep>)
+    struct to_helper<std::chrono::duration<Rep, Period>, ToType, void>;
+
+    // Enable casting from std::chrono::time_point
+    template <typename Clock, typename Duration, typename ToType>
+    struct to_helper<std::chrono::time_point<Clock, Duration>, ToType, void>;
+
+    // Base type -> derived type
+    template <typename FromType, typename ToType>
+    struct to_helper<FromType*,
+                     ToType*,
+                     std::enable_if_t<std::is_base_of_v<FromType, ToType>>>
+    {
+        static constexpr ToType*
+        do_cast(FromType* v)
+        {
+            auto p = dynamic_cast<ToType*>(v);
+            if (p == nullptr)
+            {
+                throw std::runtime_error(std::format(
+                    "m::to failed: unable to safely downcast pointer from {} to {}",
+                    typeid(FromType).name(),
+                    typeid(ToType).name()));
+            }
+            return p;
+        }
+    };
+
+    // Enum -> Integral
+    template <typename ToType, typename FromType>
+        requires(std::is_enum_v<FromType>)
+    struct to_helper<FromType, ToType, void>
+    {
+        static constexpr ToType
+        do_cast(FromType const& v)
+        {
+            auto const t = m::to_underlying(v);
+            return m::to<ToType>(t);
+        }
+    };
+
+    //
+    // Primary API: m::to<T>()
+    //
+    template <typename ToType, typename FromType>
+    constexpr decltype(auto)
+    to(FromType const& from)
+    {
+        using helper_t = to_helper<FromType, ToType>;
+        return helper_t::do_cast(from);
     }
 
 } // namespace m

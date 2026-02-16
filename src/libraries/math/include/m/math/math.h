@@ -612,13 +612,33 @@ namespace m
             static constexpr ResultT
             add(LeftT l, RightT r)
             {
-                common_type_t const rv =
-                    static_cast<common_type_t>(l) + static_cast<common_type_t>(r);
+                auto promoted_l = static_cast<common_type_t>(l);
+                auto promoted_r = static_cast<common_type_t>(r);
 
-                // BUGGY
+                //
+                // Detect overflow before performing the addition in common_type_t
+                // This handles the case where common_type_t might overflow.
+                //
+                // Positive overflow: both operands positive and sum would exceed max
+                // Check: r > 0 && l > max - r
+                //
+                // Negative overflow: both operands negative and sum would go below min  
+                // Check: r < 0 && l < min - r
+                //
+                constexpr auto max_common = (std::numeric_limits<common_type_t>::max)();
+                constexpr auto min_common = (std::numeric_limits<common_type_t>::min)();
 
-                if ((rv < l) || (rv < r) || (rv > (std::numeric_limits<ResultT>::max)()))
+                if (promoted_r > 0 && promoted_l > max_common - promoted_r)
+                {
                     throw std::overflow_error("integer overflow");
+                }
+
+                if (promoted_r < 0 && promoted_l < min_common - promoted_r)
+                {
+                    throw std::overflow_error("integer overflow");
+                }
+
+                common_type_t const rv = promoted_l + promoted_r;
 
                 return m::try_cast<ResultT>(rv);
             }
@@ -626,12 +646,32 @@ namespace m
             static constexpr ResultT
             subtract(LeftT l, RightT r)
             {
-                if (r > l)
+                auto promoted_l = static_cast<common_type_t>(l);
+                auto promoted_r = static_cast<common_type_t>(r);
+
+                //
+                // Detect overflow before performing the subtraction in common_type_t
+                //
+                // Positive overflow: subtracting a negative from a positive
+                // Check: r < 0 && l > max - (-r) which is l > max + r
+                //
+                // Negative overflow: subtracting a positive from a negative
+                // Check: r > 0 && l < min + r
+                //
+                constexpr auto max_common = (std::numeric_limits<common_type_t>::max)();
+                constexpr auto min_common = (std::numeric_limits<common_type_t>::min)();
+
+                if (promoted_r < 0 && promoted_l > max_common + promoted_r)
+                {
                     throw std::overflow_error("integer overflow");
+                }
 
-                // BUGGY
+                if (promoted_r > 0 && promoted_l < min_common + promoted_r)
+                {
+                    throw std::overflow_error("integer overflow");
+                }
 
-                auto const rv = static_cast<common_type_t>(l) - static_cast<common_type_t>(r);
+                auto const rv = promoted_l - promoted_r;
 
                 return m::try_cast<ResultT>(rv);
             }

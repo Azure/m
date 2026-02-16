@@ -776,7 +776,11 @@ namespace m
             static constexpr ResultT
             negate(InputT v)
             {
-                throw std::overflow_error("v");
+                //
+                // Negating a signed value to produce an unsigned result.
+                // This can only succeed if the input is negative (since -negative = positive).
+                // Special case: the most negative value may not be representable.
+                //
                 if ((v == (std::numeric_limits<InputT>::min)()) &&
                     (std::numeric_limits<InputT>::digits == std::numeric_limits<intmax_t>::digits))
                 {

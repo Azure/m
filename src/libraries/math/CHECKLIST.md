@@ -49,13 +49,17 @@ This checklist contains findings from the review of the `src/libraries/math` lib
   - Line 578: `add()` overflow check `if ((rv < l) || (rv < r) || ...)` was meaningless when l is negative
   - Line 592: `subtract()` had incorrect overflow logic with `if (r > l)` comparing signed with unsigned
 
-### 3. Unreachable Code in Negation
+### 3. ~~Unreachable Code in Negation~~ [RESOLVED]
 - **File**: `src/libraries/math/include/m/math/math.h`
-- **Lines**: 673-686
-- **Issue**: Line 675 has `throw std::overflow_error("v");` that makes lines 676-685 unreachable
-- **Impact**: HIGH - Dead code that was likely meant to handle specific cases
-- **Details**: The function `unary_safe_math_helper<signed, unsigned>::negate()` throws immediately, then has identical logic below
-- **Recommendation**: Remove the early throw on line 675 (it appears to be a debugging artifact)
+- **Lines**: 770-792 (updated)
+- **Status**: ✅ **FIXED** - Removed debugging artifact that caused unreachable code
+- **Changes Made**:
+  - Removed the early `throw std::overflow_error("v");` at line 779 that made lines 780-791 unreachable
+  - Function now properly checks for the special case (negating most negative intmax_t) before proceeding
+  - Added clarifying comment explaining when signed->unsigned negation can succeed
+- **Previous Issue**: 
+  - The function `unary_safe_math_helper<signed, unsigned>::negate()` threw immediately, making the special case handling and general implementation unreachable
+  - This was clearly a debugging artifact left in the code
 
 ### 4. Missing Division Implementation
 - **File**: `src/libraries/math/include/m/math/math.h`

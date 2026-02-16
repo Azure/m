@@ -5,7 +5,7 @@
 #include <system_error>
 #include <utility>
 
-#include <m/utility/enum_operations.h.h>
+#include <m/utility/enum_operations.h>
 #include <m/win32/handle.h>
 
 #undef NOMINMAX

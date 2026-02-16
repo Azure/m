@@ -97,5 +97,5 @@ namespace m
     };
 
     template <typename T>
-    using remove_optional_t = remove_optional<T>::type;
+    using remove_optional_t = typename remove_optional<T>::type;
 } // namespace m

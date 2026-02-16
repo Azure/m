@@ -8,6 +8,7 @@ add_executable(
     ${TEST_EXE_NAME}
     test_cast.cpp
     test_try_cast.cpp 
+    test_to_edge_cases.cpp
     to.cpp
 )
 

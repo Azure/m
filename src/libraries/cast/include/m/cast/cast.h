@@ -96,6 +96,10 @@ namespace m
     constexpr decltype(auto)
     cast(FromType const& from)
     {
+        static_assert(is_castable_v<ToType, FromType>,
+                      "m::cast<ToType, FromType>: This cast is not statically safe. "
+                      "The source type may not fit in the destination type. "
+                      "Use m::to<>() for runtime-checked conversions.");
         return cast_helper<FromType, ToType>::do_cast(from);
     }
 } // namespace m

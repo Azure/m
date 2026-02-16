@@ -23,7 +23,7 @@
 #include <m/pil/security_attributes.h>
 #include <m/sstring/sstring.h>
 #include <m/strings/convert.h>
-#include <m/utility/enum_operations.h.h>
+#include <m/utility/enum_operations.h>
 #include <m/utility/utility.h>
 
 #ifdef WIN32

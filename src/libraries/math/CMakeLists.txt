@@ -1,14 +1,21 @@
 cmake_minimum_required(VERSION 3.23)
 
-add_library(m_math STATIC)
+add_library(m_math INTERFACE)
 
-target_compile_features(m_math PUBLIC ${M_CXX_STD})
+target_compile_features(m_math INTERFACE ${M_CXX_STD})
 
 add_subdirectory(include)
-add_subdirectory(src)
 if(BUILD_TESTING)
 add_subdirectory(test)
 endif()
+
+target_include_directories(m_math INTERFACE
+    include
+)
+
+target_link_libraries(m_math INTERFACE
+    m_cast
+)
 
 list(APPEND m_installation_targets
     m_math

@@ -30,7 +30,7 @@ namespace m
     constexpr std::span<T, N>
     make_span(T (&arr)[N]) noexcept
     {
-        return span<T, N>(arr);
+        return std::span<T, N>(arr);
     }
 
     template <class Container>

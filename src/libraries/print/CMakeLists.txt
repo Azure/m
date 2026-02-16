@@ -1,14 +1,21 @@
 cmake_minimum_required(VERSION 3.23)
 
-add_library(m_print STATIC)
+add_library(m_print INTERFACE)
 
-target_compile_features(m_print PUBLIC ${M_CXX_STD})
+target_compile_features(m_print INTERFACE ${M_CXX_STD})
 
 add_subdirectory(include)
-add_subdirectory(src)
 if(BUILD_TESTING)
 add_subdirectory(test)
 endif()
+
+target_include_directories(m_print INTERFACE
+    include
+)
+
+target_link_libraries(m_print INTERFACE
+    m_error_handling
+)
 
 list(APPEND m_installation_targets
     m_print

@@ -12,7 +12,7 @@
 namespace m
 {
     template <typename CharT, std::size_t NInlineValueCount, typename DerivedMostStringBufferT>
-    struct try_cast_helper<
+    struct to_helper<
         basic_string_buffer_base<CharT, NInlineValueCount, DerivedMostStringBufferT>,
         basic_sstring<CharT>,
         void>

@@ -1,14 +1,21 @@
 cmake_minimum_required(VERSION 3.23)
 
-add_library(m_bitset STATIC)
+add_library(m_bitset INTERFACE)
 
-target_compile_features(m_bitset PUBLIC ${M_CXX_STD})
+target_compile_features(m_bitset INTERFACE ${M_CXX_STD})
 
 add_subdirectory(include)
-add_subdirectory(src)
 if(BUILD_TESTING)
 add_subdirectory(test)
 endif()
+
+target_include_directories(m_bitset INTERFACE
+    include
+)
+
+target_link_libraries(m_bitset INTERFACE
+    m_error_handling
+)
 
 list(APPEND m_installation_targets
     m_bitset

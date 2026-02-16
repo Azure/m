@@ -123,7 +123,7 @@ namespace m
 
     template <typename Rep, typename Period>
         requires(std::integral<Rep>)
-    struct try_cast_helper<std::chrono::duration<Rep, Period>, win32_dword_ms, void>
+    struct to_helper<std::chrono::duration<Rep, Period>, win32_dword_ms, void>
     {
         static constexpr decltype(auto)
         do_cast(std::chrono::duration<Rep, Period> const& d)
@@ -169,7 +169,7 @@ namespace m
     };
 
     template <typename Clock, typename Duration>
-    struct try_cast_helper<std::chrono::time_point<Clock, Duration>, SYSTEMTIME, void>
+    struct to_helper<std::chrono::time_point<Clock, Duration>, SYSTEMTIME, void>
     {
         static constexpr decltype(auto)
         do_cast(std::chrono::time_point<Clock, Duration> const& tp)
@@ -179,7 +179,7 @@ namespace m
     };
 
     template <typename Rep, typename Period>
-    struct try_cast_helper<std::chrono::duration<Rep, Period>, FILETIME, void>
+    struct to_helper<std::chrono::duration<Rep, Period>, FILETIME, void>
     {
         template <typename Rep2, typename Period2>
         static FILETIME
@@ -222,7 +222,7 @@ namespace m
     };
 
     template <typename Clock, typename Duration>
-    struct try_cast_helper<std::chrono::time_point<Clock, Duration>, FILETIME, void>
+    struct to_helper<std::chrono::time_point<Clock, Duration>, FILETIME, void>
     {
         static FILETIME
         TimePointToFILETIME(utc_time_point_type const& utc_tp)

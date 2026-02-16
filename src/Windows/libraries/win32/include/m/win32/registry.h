@@ -7,7 +7,7 @@
 #include <utility>
 
 #include <m/sstring/sstring.h>
-#include <m/utility/enum_operations.h.h>
+#include <m/utility/enum_operations.h>
 #include <m/utility/to_underlying.h>
 #include <m/win32/event.h>
 

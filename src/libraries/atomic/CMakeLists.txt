@@ -1,14 +1,17 @@
 cmake_minimum_required(VERSION 3.23)
 
-add_library(m_atomic STATIC)
+add_library(m_atomic INTERFACE)
 
-target_compile_features(m_atomic PUBLIC ${M_CXX_STD})
+target_compile_features(m_atomic INTERFACE ${M_CXX_STD})
 
 add_subdirectory(include)
-add_subdirectory(src)
 if(BUILD_TESTING)
 add_subdirectory(test)
 endif()
+
+target_include_directories(m_atomic INTERFACE
+    include
+)
 
 list(APPEND m_installation_targets
     m_atomic

@@ -4,12 +4,18 @@
 #pragma once
 
 //
-// Various safe casts
+// try_cast<T>() - Compatibility wrapper
+//
+// NOTE: This is a legacy API. New code should use m::to<T>() instead.
+//
+// m::try_cast<T>() is maintained for backward compatibility but is simply
+// a thin wrapper around the preferred m::to<T>() API. The name "try_cast"
+// is wordy compared to the more idiomatic and concise "to".
 //
 // These casts are safe in that they will either not compile if values are
 // not preserved, or will throw runtime errors if values are not preserved.
 //
-// Consider using these for ALL casting. static_cast is, in practice,
+// Consider using m::to<T>() for ALL casting. static_cast is, in practice,
 // quite dangerous. It's better than C-style casts but that's not saying
 // much. When casting from, say, a 64-bit unsigned integer type like size_t
 // to an unsigned 32 bit integer, it trims off the top 32 bits. While we
@@ -37,183 +43,26 @@
 // situations.
 //
 
-#include <concepts>
-#include <exception>
-#include <limits>
-#include <stdexcept>
-#include <type_traits>
-
-#include <m/utility/to_underlying.h>
+#include <m/cast/to.h>
 
 namespace m
 {
-    template <typename FromType, typename ToType, typename Enable = void>
-    struct try_cast_helper
-    {
-        try_cast_helper()                       = delete;
-        try_cast_helper(try_cast_helper const&) = delete;
-        try_cast_helper&
-        operator=(try_cast_helper const&) = delete;
-    };
-
-    template <typename ToType, typename FromType>
-    constexpr decltype(auto)
-    try_cast(FromType const& from);
-
     //
-    // It would be nice if a single helper could be used for all integral types
-    // but getting the math right for signed and unsigned is remarkably
-    // difficult. Instead, we will have four specializations for the
-    // FromType and ToType being signed and unsigned.
+    // Compatibility alias: try_cast<T>() forwards to to<T>()
     //
-
-    // Signed -> Signed
-    template <typename FromType, typename ToType>
-        requires(std::signed_integral<FromType> && std::signed_integral<ToType>)
-    struct try_cast_helper<FromType, ToType, void>
-    {
-        static constexpr decltype(auto)
-        do_cast(FromType v)
-        {
-            if constexpr (std::numeric_limits<ToType>::digits <
-                          std::numeric_limits<FromType>::digits)
-            {
-                if (v < (std::numeric_limits<ToType>::min)())
-                {
-                    throw std::overflow_error("v");
-                }
-            }
-
-            if constexpr (std::numeric_limits<ToType>::digits <
-                          std::numeric_limits<FromType>::digits)
-            {
-                if (v > (std::numeric_limits<ToType>::max)())
-                {
-                    throw std::overflow_error("v");
-                }
-            }
-
-            return static_cast<ToType>(v);
-        }
-    };
-
-    // Unsigned -> Signed
-    template <typename FromType, typename ToType>
-        requires(std::unsigned_integral<FromType> && std::signed_integral<ToType>)
-    struct try_cast_helper<FromType, ToType, void>
-    {
-        static constexpr decltype(auto)
-        do_cast(FromType v)
-        {
-            if constexpr (std::numeric_limits<ToType>::digits <
-                          std::numeric_limits<FromType>::digits)
-            {
-                // The representation of ToType is smaller than FromType, so
-                // its max value is representable in FromType, which is
-                // unsigned.
-                if (v > static_cast<FromType>((std::numeric_limits<ToType>::max)()))
-                {
-                    throw std::overflow_error("v");
-                }
-
-                // Otherwise there is no opportunity for overflow
-            }
-
-            return static_cast<ToType>(v);
-        }
-    };
-
-    // Signed -> Unsigned
-    template <typename FromType, typename ToType>
-        requires(std::signed_integral<FromType> && std::unsigned_integral<ToType>)
-    struct try_cast_helper<FromType, ToType, void>
-    {
-        static constexpr decltype(auto)
-        do_cast(FromType v)
-        {
-            if (v < 0)
-            {
-                throw std::overflow_error("v");
-            }
-
-            if constexpr (std::numeric_limits<ToType>::digits <
-                          std::numeric_limits<FromType>::digits)
-            {
-                if (v > (std::numeric_limits<ToType>::max)())
-                {
-                    throw std::overflow_error("v");
-                }
-            }
-
-            return static_cast<ToType>(v);
-        }
-    };
-
-    // Unsigned -> Unsigned
-    template <typename FromType, typename ToType>
-        requires(std::unsigned_integral<FromType> && std::unsigned_integral<ToType>)
-    struct try_cast_helper<FromType, ToType, void>
-    {
-        static constexpr decltype(auto)
-        do_cast(FromType v)
-        {
-            if constexpr (std::numeric_limits<ToType>::digits <
-                          std::numeric_limits<FromType>::digits)
-            {
-                if (v > (std::numeric_limits<ToType>::max)())
-                {
-                    throw std::overflow_error("v");
-                }
-            }
-
-            return static_cast<ToType>(v);
-        }
-    };
-
-    // Enable casting from std::chrono::duration
-    template <typename Rep, typename Period, typename ToType>
-        requires(std::integral<Rep>)
-    struct try_cast_helper<std::chrono::duration<Rep, Period>, ToType, void>;
-
-    // Enable casting from std::chrono::time_point
-    template <typename Clock, typename Duration, typename ToType>
-    struct try_cast_helper<std::chrono::time_point<Clock, Duration>, ToType, void>;
-
-    // Base type -> derived type
-    template <typename FromType, typename ToType>
-    struct try_cast_helper<FromType*,
-                           ToType*,
-                           std::enable_if_t<std::is_base_of_v<FromType, ToType>>>
-    {
-        static constexpr ToType*
-        do_cast(FromType* v)
-        {
-            auto p = dynamic_cast<ToType*>(v);
-            if (p == nullptr)
-                throw std::runtime_error("Unable to downcast pointer safely");
-            return p;
-        }
-    };
-
-    template <typename ToType, typename FromType>
-        requires(std::is_enum_v<FromType>)
-    struct try_cast_helper<FromType, ToType, void>
-    {
-        static constexpr ToType
-        do_cast(FromType const& v)
-        {
-            FromType   v1 = v;
-            auto const t  = m::to_underlying(v1);
-            return m::try_cast<ToType>(t);
-        }
-    };
-
+    // Prefer using m::to<T>() directly in new code for its concise, idiomatic syntax.
+    //
     template <typename ToType, typename FromType>
     constexpr decltype(auto)
     try_cast(FromType const& from)
     {
-        using cast_helper_t = try_cast_helper<FromType, ToType>;
-        return cast_helper_t::do_cast(from);
+        return m::to<ToType>(from);
     }
+
+    //
+    // Re-export to_helper as try_cast_helper for backward compatibility
+    //
+    template <typename FromType, typename ToType, typename Enable = void>
+    using try_cast_helper = to_helper<FromType, ToType, Enable>;
 
 } // namespace m

@@ -24,15 +24,30 @@ This checklist contains findings from the review of the `src/libraries/math` lib
   - Line 635: `subtract()` overflow check `if (r > l)` was wrong - signed subtraction can overflow even when r < l (e.g., `INT_MIN - 1`)
   - The logic didn't handle negative overflow cases properly
 
-### 2. BUGGY Code - Signed + Unsigned Operations  
+### 2. ~~BUGGY Code - Signed + Unsigned Operations~~ [RESOLVED]
 - **File**: `src/libraries/math/include/m/math/math.h`
-- **Lines**: 558-576
-- **Issue**: Both `add()` and `subtract()` in `safe_math_helper<signed, unsigned, unsigned>` marked `// BUGGY`
-- **Impact**: CRITICAL - Incorrect overflow detection
-- **Details**:
-  - Line 567: `add()` overflow check `if ((rv < l) || (rv < r) || ...)` is problematic when l is negative
-  - Line 576: `subtract()` has incorrect overflow logic
-- **Recommendation**: Complete rewrite of overflow detection logic for mixed-sign operations
+- **Lines**: 556-658 (updated)
+- **Status**: ✅ **FIXED** - Correct overflow detection now implemented
+- **Changes Made**:
+  - **Addition**: 
+    - Handles negative l by computing `r - |l|` with special case for INT_MIN (can't negate safely)
+    - Handles non-negative l by treating as unsigned + unsigned addition
+    - Properly detects when result would be negative (throws overflow_error)
+  - **Subtraction**:
+    - If `l < 0`, throws immediately (l - r always negative)
+    - If `l >= 0`, checks if `l_as_unsigned < promoted_r` to detect negative results
+    - Much simpler and correct logic
+- **Tests Added**: Created `src/libraries/math/test/signed_unsigned_to_unsigned.cpp` with 10 comprehensive test cases covering:
+  - Basic addition and subtraction
+  - Negative signed values (including cases that should succeed: -5 + 10 = 5)
+  - INT_MIN edge cases (INT_MIN + abs(INT_MIN) = 0)
+  - Positive overflow detection
+  - All subtraction scenarios (negative l, l < r, l >= r)
+  - Different sized types
+  - Narrowing results
+- **Previous Issue**:
+  - Line 578: `add()` overflow check `if ((rv < l) || (rv < r) || ...)` was meaningless when l is negative
+  - Line 592: `subtract()` had incorrect overflow logic with `if (r > l)` comparing signed with unsigned
 
 ### 3. Unreachable Code in Negation
 - **File**: `src/libraries/math/include/m/math/math.h`

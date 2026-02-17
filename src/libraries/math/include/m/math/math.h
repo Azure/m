@@ -248,6 +248,14 @@ namespace m
             }
 
             static constexpr ResultT
+            multiply(LeftT l, RightT r)
+            {
+                // Multiplication of two unsigned values with signed result.
+                // Use the unsigned/unsigned multiply and cast to signed.
+                return m::try_cast<ResultT>(Doppelganger::multiply(l, r));
+            }
+
+                        static constexpr ResultT
             divide(LeftT l, RightT r)
             {
                 // Division of two unsigned values with signed result.
@@ -375,6 +383,36 @@ namespace m
                     throw std::overflow_error("integer overflow");
 
                 return m::to<ResultT>(static_cast<uintmax_t>(l) - static_cast<uintmax_t>(r));
+            }
+
+            static constexpr ResultT
+            multiply(LeftT l, RightT r)
+            {
+                // Unsigned × signed with unsigned result.
+                // If r is negative, result is negative (can't represent in unsigned).
+
+                if (r == 0 || l == 0)
+                    return 0;
+
+                if (r < 0)
+                {
+                    // Multiplying positive by negative gives negative result
+                    throw std::overflow_error("integer overflow");
+                }
+
+                // r is positive, safe to cast to unsigned
+                auto l_promoted = static_cast<uintmax_t>(l);
+                auto r_as_unsigned = static_cast<uintmax_t>(r);
+
+                auto prod = l_promoted * r_as_unsigned;
+
+                // Check for overflow using division
+                if (prod / l_promoted != r_as_unsigned || prod / r_as_unsigned != l_promoted)
+                {
+                    throw std::overflow_error("integer overflow");
+                }
+
+                return m::try_cast<ResultT>(prod);
             }
 
             static constexpr ResultT
@@ -599,7 +637,90 @@ namespace m
 
                 return add(l, r_as_unsigned);
             }
-        
+
+        static constexpr ResultT
+        multiply(LeftT l, RightT r)
+        {
+            // Unsigned × signed with signed result.
+
+            if (l == 0 || r == 0)
+                return 0;
+
+            auto promoted_l = static_cast<uintmax_t>(l);
+            auto promoted_r = static_cast<intmax_t>(r);
+
+            if (promoted_r > 0)
+            {
+                // Unsigned × positive: treat as unsigned multiplication
+                auto r_as_unsigned = static_cast<uintmax_t>(promoted_r);
+                auto prod = promoted_l * r_as_unsigned;
+
+                // Check overflow
+                if (prod / promoted_l != r_as_unsigned || prod / r_as_unsigned != promoted_l)
+                {
+                    throw std::overflow_error("integer overflow");
+                }
+
+                return m::try_cast<ResultT>(prod);
+            }
+            else
+            {
+                // Unsigned × negative: result is negative
+
+                // Handle INT_MIN specially
+                if (promoted_r == (std::numeric_limits<intmax_t>::min)())
+                {
+                    constexpr uintmax_t abs_min =
+                        static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+
+                    auto prod = promoted_l * abs_min;
+
+                    // Check overflow
+                    if (prod / promoted_l != abs_min || prod / abs_min != promoted_l)
+                    {
+                        throw std::overflow_error("integer overflow");
+                    }
+
+                    if (prod > abs_min)
+                    {
+                        throw std::overflow_error("integer overflow");
+                    }
+
+                    if (prod == abs_min)
+                    {
+                        return (std::numeric_limits<ResultT>::min)();
+                    }
+
+                    return m::try_cast<ResultT>(-static_cast<intmax_t>(prod));
+                }
+
+                auto abs_r = static_cast<uintmax_t>(-promoted_r);
+                auto prod = promoted_l * abs_r;
+
+                // Check overflow
+                if (prod / promoted_l != abs_r || prod / abs_r != promoted_l)
+                {
+                    throw std::overflow_error("integer overflow");
+                }
+
+                // Negate and check it fits
+                constexpr uintmax_t max_negative =
+                    static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+
+                if (prod > max_negative)
+                {
+                    throw std::overflow_error("integer overflow");
+                }
+
+                if (prod == max_negative)
+                {
+                    return m::try_cast<ResultT>((std::numeric_limits<intmax_t>::min)());
+                }
+
+                return m::try_cast<ResultT>(-static_cast<intmax_t>(prod));
+            }
+        }
+
         static constexpr ResultT
         divide(LeftT l, RightT r)
         {
@@ -755,12 +876,42 @@ namespace m
                 
                 return m::try_cast<ResultT>(diff);
             }
-        
-        static constexpr ResultT
-        divide(LeftT l, RightT r)
-        {
-            // Signed / unsigned with unsigned result.
-            // Result must be non-negative, so l must be non-negative.
+
+            static constexpr ResultT
+            multiply(LeftT l, RightT r)
+            {
+                // Signed × unsigned with unsigned result.
+                // Result must be non-negative, so l must be non-negative.
+
+                if (l == 0 || r == 0)
+                    return 0;
+
+                if (l < 0)
+                {
+                    // Negative × positive = negative (can't represent in unsigned)
+                    throw std::overflow_error("integer overflow");
+                }
+
+                // Both effectively unsigned now
+                auto l_as_unsigned = static_cast<uintmax_t>(l);
+                auto r_promoted = static_cast<uintmax_t>(r);
+
+                auto prod = l_as_unsigned * r_promoted;
+
+                // Check overflow
+                if (prod / l_as_unsigned != r_promoted || prod / r_promoted != l_as_unsigned)
+                {
+                    throw std::overflow_error("integer overflow");
+                }
+
+                return m::try_cast<ResultT>(prod);
+            }
+
+            static constexpr ResultT
+            divide(LeftT l, RightT r)
+            {
+                // Signed / unsigned with unsigned result.
+                // Result must be non-negative, so l must be non-negative.
             
             if (r == 0)
                 throw std::overflow_error("integer overflow");
@@ -862,7 +1013,79 @@ namespace m
 
                 return m::try_cast<ResultT>(rv);
             }
-        
+
+        static constexpr ResultT
+        multiply(LeftT l, RightT r)
+        {
+            // Signed × signed with signed result.
+
+            if (l == 0 || r == 0)
+                return 0;
+
+            auto promoted_l = static_cast<intmax_t>(l);
+            auto promoted_r = static_cast<intmax_t>(r);
+
+            // Determine the sign of the result
+            bool result_negative = (promoted_l < 0) != (promoted_r < 0);
+
+            // Work with absolute values
+            uintmax_t abs_l, abs_r;
+
+            if (promoted_l == (std::numeric_limits<intmax_t>::min)())
+            {
+                abs_l = static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+            }
+            else
+            {
+                abs_l = static_cast<uintmax_t>(promoted_l < 0 ? -promoted_l : promoted_l);
+            }
+
+            if (promoted_r == (std::numeric_limits<intmax_t>::min)())
+            {
+                abs_r = static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+            }
+            else
+            {
+                abs_r = static_cast<uintmax_t>(promoted_r < 0 ? -promoted_r : promoted_r);
+            }
+
+            auto prod = abs_l * abs_r;
+
+            // Check for overflow in the multiplication itself
+            if (prod / abs_l != abs_r || prod / abs_r != abs_l)
+            {
+                throw std::overflow_error("integer overflow");
+            }
+
+            // Check if the result fits in the signed range
+            constexpr uintmax_t max_positive = static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)());
+            constexpr uintmax_t max_negative = max_positive + 1;
+
+            if (result_negative)
+            {
+                if (prod > max_negative)
+                {
+                    throw std::overflow_error("integer overflow");
+                }
+
+                if (prod == max_negative)
+                {
+                    return m::try_cast<ResultT>((std::numeric_limits<intmax_t>::min)());
+                }
+
+                return m::try_cast<ResultT>(-static_cast<intmax_t>(prod));
+            }
+            else
+            {
+                if (prod > max_positive)
+                {
+                    throw std::overflow_error("integer overflow");
+                }
+
+                return m::try_cast<ResultT>(static_cast<intmax_t>(prod));
+            }
+        }
+
         static constexpr ResultT
         divide(LeftT l, RightT r)
         {

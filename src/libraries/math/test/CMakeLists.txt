@@ -12,8 +12,12 @@ add_executable(
     exercise_negation.cpp
     signed_signed_to_signed.cpp
     signed_unsigned_to_unsigned.cpp
+    test_addition.cpp
+    test_subtraction.cpp
     test_division.cpp
     test_multiplication.cpp
+    test_negation.cpp
+    test_intermediate_overflow.cpp
 )
 
 target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})

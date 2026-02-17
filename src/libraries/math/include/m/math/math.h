@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <format>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -91,7 +92,9 @@ namespace m
                 auto const rv   = uintmax_t{lmax + rmax};
 
                 if ((rv < lmax) || (rv < rmax))
-                    throw std::overflow_error("integer overflow");
+                    throw std::overflow_error(std::format(
+                        "m::math::add overflow: {} + {} = {} exceeds maximum representable value",
+                        lmax, rmax, rv));
 
                 return m::try_cast<ResultT>(rv);
             }
@@ -100,14 +103,17 @@ namespace m
             subtract(LeftT l, RightT r)
             {
                 if (r > l)
-                    throw std::overflow_error("integer overflow");
+                    throw std::overflow_error(std::format(
+                        "m::math::subtract overflow: {} - {} would be negative (unsigned types cannot represent negative values)",
+                        m::cast<uintmax_t>(l), m::cast<uintmax_t>(r)));
 
                 auto       lmax = uintmax_t{l};
                 auto       rmax = uintmax_t{r};
                 auto const rv   = uintmax_t{lmax - rmax};
 
                 if ((rv < lmax) || (rv < rmax))
-                    throw std::overflow_error("integer overflow");
+                    throw std::overflow_error(std::format(
+                        "m::math::subtract overflow: result does not fit in target type"));
 
                 return m::try_cast<ResultT>(rv);
             }
@@ -133,35 +139,39 @@ namespace m
                 if (r == 1)
                     return m::to<ResultT>(l);
 
-                        auto lmax = uintmax_t{l};
-                        auto rmax = uintmax_t{r};
+                            auto lmax = uintmax_t{l};
+                            auto rmax = uintmax_t{r};
 
-                        auto prod = lmax * rmax;
+                            auto prod = lmax * rmax;
 
-                        if ((prod / lmax) != r || (prod / rmax) != l)
-                        {
-                            throw std::overflow_error("integer overflow from multiplication");
+                            if ((prod / lmax) != r || (prod / rmax) != l)
+                            {
+                                throw std::overflow_error(std::format(
+                                    "m::math::multiply overflow: {} Ã— {} exceeds maximum representable value",
+                                    lmax, rmax));
+                            }
+
+                            return m::to<ResultT>(prod);
                         }
 
-                        return m::to<ResultT>(prod);
-                    }
+                        static constexpr ResultT
+                        divide(LeftT l, RightT r)
+                        {
+                            if (r == 0)
+                                throw std::overflow_error(std::format(
+                                    "m::math::divide overflow: division by zero ({} / 0)",
+                                    m::cast<uintmax_t>(l)));
 
-                    static constexpr ResultT
-                    divide(LeftT l, RightT r)
-                    {
-                        if (r == 0)
-                            throw std::overflow_error("integer overflow");
+                            // For unsigned division, overflow can only occur if the result
+                            // doesn't fit in ResultT. Division by non-zero always produces
+                            // a result <= l, so we just need to check if l fits in ResultT.
+                            auto lmax = uintmax_t{l};
+                            auto rmax = uintmax_t{r};
 
-                        // For unsigned division, overflow can only occur if the result
-                        // doesn't fit in ResultT. Division by non-zero always produces
-                        // a result <= l, so we just need to check if l fits in ResultT.
-                        auto lmax = uintmax_t{l};
-                        auto rmax = uintmax_t{r};
+                            auto quot = lmax / rmax;
 
-                        auto quot = lmax / rmax;
-
-                        return m::try_cast<ResultT>(quot);
-                    }
+                            return m::try_cast<ResultT>(quot);
+                        }
                 };
 
         //
@@ -242,7 +252,8 @@ namespace m
                     m::try_cast<common_type_t>(-((std::numeric_limits<ResultT>::min)() + 1));
 
                 if (v >= biggest_negative_as_positive)
-                    throw std::overflow_error("value too negative");
+                    throw std::overflow_error(std::format(
+                        "m::math overflow: negative value magnitude exceeds maximum representable in target type"));
 
                 return -m::try_cast<ResultT>(v);
             }
@@ -304,7 +315,7 @@ namespace m
                     static_assert(std::numeric_limits<uintmax_t>::digits >=
                                   std::numeric_limits<intmax_t>::digits);
 
-                    auto const r_as_unsigned = static_cast<uintmax_t>(promoted_r);
+                    auto const r_as_unsigned = m::cast<uintmax_t>(promoted_r);
 
                     // Explicit type here because we want to be super tight on typing
                     uintmax_t const sum = promoted_l + r_as_unsigned;
@@ -322,15 +333,16 @@ namespace m
                 // In practice, it will only execute at most once since the
                 // only value lower than that value is the negative power of
                 // two just below that value. It's written as a loop so as
-                // to avoid encoding 2s complement assumptions in the code
+                // to avoid encoding 2's complement assumptions in the code
                 // when possible; it should not make the code less efficient.
                 //
                 while (promoted_r < -(std::numeric_limits<intmax_t>::max)())
                 {
                     // We're adding a negative, thus it's a subtrahend
 
+                    // Widening constant to uintmax_t for computation
                     constexpr uintmax_t subtrahend =
-                        static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)());
+                        m::cast<uintmax_t>((std::numeric_limits<intmax_t>::max)());
                     if (subtrahend > promoted_l)
                         throw std::overflow_error("integer overflow");
 
@@ -343,7 +355,7 @@ namespace m
                 // that is, it will yield a positive integer in the range
                 // of 0 .. std::numeric_limits<intmax_t>::max()
                 //
-                uintmax_t that_which_remains = static_cast<uintmax_t>(-promoted_r);
+                uintmax_t that_which_remains = m::cast<uintmax_t>(-promoted_r);
 
                 if (that_which_remains > promoted_l)
                     throw std::overflow_error("integer overflow");
@@ -361,13 +373,14 @@ namespace m
                     if (r == (std::numeric_limits<intmax_t>::min)())
                     {
                         // We can't overcome this case just throw
-                        throw std::overflow_error("integer overflow");
+                        throw std::overflow_error(std::format(
+                            "m::math::add overflow: cannot add most negative signed value"));
                     }
 
                     // since r is not the most negative number, and we know since we're
-                    // C++20 and later that this is 2s compliment arithmetic, we can
+                    // C++20 and later that this is 2's complement arithmetic, we can
                     // simply negate r to get its absolute value if it's negative.
-                    auto r_as_unsigned = static_cast<uintmax_t>(-r);
+                    auto r_as_unsigned = m::cast<uintmax_t>(-r);
 
                     // Let's kind of statically verify this somewhat obtusely
                     static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
@@ -379,30 +392,39 @@ namespace m
                 // Plain old subtraction. r is positive, l is positive, and we require a
                 // positive answer, so if r > l, overflow.
 
-                if (static_cast<uintmax_t>(r) > static_cast<uintmax_t>(l))
+                if (m::cast<uintmax_t>(r) > m::cast<uintmax_t>(l))
                     throw std::overflow_error("integer overflow");
 
-                return m::to<ResultT>(static_cast<uintmax_t>(l) - static_cast<uintmax_t>(r));
+                return m::to<ResultT>(m::cast<uintmax_t>(l) - m::cast<uintmax_t>(r));
             }
 
             static constexpr ResultT
             multiply(LeftT l, RightT r)
             {
-                // Unsigned × signed with unsigned result.
+                // Unsigned Ã— signed with unsigned result.
                 // If r is negative, result is negative (can't represent in unsigned).
 
                 if (r == 0 || l == 0)
                     return 0;
 
                 if (r < 0)
+
+
                 {
-                    // Multiplying positive by negative gives negative result
-                    throw std::overflow_error("integer overflow");
+
+
+                    // Multiplying by negative gives negative result
+
+
+                    throw std::overflow_error(std::format(
+
+
+                        "m::math overflow: operation with negative value cannot be represented in unsigned result type"));
                 }
 
                 // r is positive, safe to cast to unsigned
-                auto l_promoted = static_cast<uintmax_t>(l);
-                auto r_as_unsigned = static_cast<uintmax_t>(r);
+                auto l_promoted = m::cast<uintmax_t>(l);
+                auto r_as_unsigned = m::cast<uintmax_t>(r);
 
                 auto prod = l_promoted * r_as_unsigned;
 
@@ -421,17 +443,27 @@ namespace m
                 // Unsigned / signed with unsigned result.
 
                 if (r == 0)
-                    throw std::overflow_error("integer overflow");
+                    throw std::overflow_error(std::format(
+                    "m::math::divide overflow: division by zero"));
 
                 if (r < 0)
+
+
                 {
-                    // Dividing positive by negative gives negative result
-                    throw std::overflow_error("integer overflow");
+
+
+                    // Dividing by negative gives negative result
+
+
+                    throw std::overflow_error(std::format(
+
+
+                        "m::math overflow: operation with negative value cannot be represented in unsigned result type"));
                 }
 
                 // r is positive, safe to cast to unsigned
-                auto l_promoted = static_cast<uintmax_t>(l);
-                auto r_as_unsigned = static_cast<uintmax_t>(r);
+                auto l_promoted = m::cast<uintmax_t>(l);
+                auto r_as_unsigned = m::cast<uintmax_t>(r);
 
                 auto quot = l_promoted / r_as_unsigned;
 
@@ -466,7 +498,7 @@ namespace m
                     static_assert(std::numeric_limits<uintmax_t>::digits >=
                                   std::numeric_limits<intmax_t>::digits);
 
-                    auto const l_as_unsigned = static_cast<uintmax_t>(promoted_l);
+                    auto const l_as_unsigned = m::cast<uintmax_t>(promoted_l);
 
                     // Explicit type here because we want to be super tight on typing
                     uintmax_t const sum = promoted_r + l_as_unsigned;
@@ -484,7 +516,7 @@ namespace m
                 // In practice, it will only execute at most once since the
                 // only value lower than that value is the negative power of
                 // two just below that value. It's written as a loop so as
-                // to avoid encoding 2s complement assumptions in the code
+                // to avoid encoding 2's complement assumptions in the code
                 // when possible; it should not make the code less efficient.
                 //
                 while (promoted_l < -(std::numeric_limits<intmax_t>::max)())
@@ -498,7 +530,7 @@ namespace m
                     promoted_l += (std::numeric_limits<intmax_t>::max)();
                 }
 
-                uintmax_t that_which_remains = static_cast<uintmax_t>(-promoted_l);
+                uintmax_t that_which_remains = m::cast<uintmax_t>(-promoted_l);
 
                 if (that_which_remains > promoted_r)
                     throw std::overflow_error("integer overflow");
@@ -518,9 +550,9 @@ namespace m
                 }
 
                 // since r is not the most negative number, and we know since we're
-                // C++20 and later that this is 2s compliment arithmetic, we can
+                // C++20 and later that this is 2's complement arithmetic, we can
                 // simply negate r to get its absolute value if it's negative.
-                auto l_as_unsigned = static_cast<uintmax_t>((l < 0) ? (-l) : l);
+                auto l_as_unsigned = m::cast<uintmax_t>((l < 0) ? (-l) : l);
 
                 // Let's kind of statically verify this somewhat obtusely
                 static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
@@ -570,7 +602,7 @@ namespace m
                     static_assert(std::numeric_limits<uintmax_t>::digits >=
                                   std::numeric_limits<intmax_t>::digits);
 
-                    auto const r_as_unsigned = static_cast<uintmax_t>(promoted_r);
+                    auto const r_as_unsigned = m::cast<uintmax_t>(promoted_r);
 
                     // Explicit type here because we want to be super tight on typing
                     uintmax_t const sum = promoted_l + r_as_unsigned;
@@ -588,7 +620,7 @@ namespace m
                 // In practice, it will only execute at most once since the
                 // only value lower than that value is the negative power of
                 // two just below that value. It's written as a loop so as
-                // to avoid encoding 2s complement assumptions in the code
+                // to avoid encoding 2's complement assumptions in the code
                 // when possible; it should not make the code less efficient.
                 //
                 while (promoted_r < -(std::numeric_limits<intmax_t>::max)())
@@ -607,7 +639,7 @@ namespace m
                 // that is, it will yield a positive integer in the range
                 // of 0 .. std::numeric_limits<intmax_t>::max()
                 //
-                uintmax_t that_which_remains = static_cast<uintmax_t>(-promoted_r);
+                uintmax_t that_which_remains = m::cast<uintmax_t>(-promoted_r);
 
                 if (that_which_remains > promoted_l)
                     throw std::overflow_error("integer overflow");
@@ -627,9 +659,9 @@ namespace m
                 }
 
                 // since r is not the most negative number, and we know since we're
-                // C++20 and later that this is 2s compliment arithmetic, we can
+                // C++20 and later that this is 2's complement arithmetic, we can
                 // simply negate r to get its absolute value if it's negative.
-                auto r_as_unsigned = static_cast<uintmax_t>((r < 0) ? (-r) : r);
+                auto r_as_unsigned = m::cast<uintmax_t>((r < 0) ? (-r) : r);
 
                 // Let's kind of statically verify this somewhat obtusely
                 static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
@@ -641,18 +673,18 @@ namespace m
         static constexpr ResultT
         multiply(LeftT l, RightT r)
         {
-            // Unsigned × signed with signed result.
+            // Unsigned Ã— signed with signed result.
 
             if (l == 0 || r == 0)
                 return 0;
 
-            auto promoted_l = static_cast<uintmax_t>(l);
-            auto promoted_r = static_cast<intmax_t>(r);
+            auto promoted_l = m::cast<uintmax_t>(l);
+            auto promoted_r = m::cast<intmax_t>(r);
 
             if (promoted_r > 0)
             {
-                // Unsigned × positive: treat as unsigned multiplication
-                auto r_as_unsigned = static_cast<uintmax_t>(promoted_r);
+                // Unsigned Ã— positive: treat as unsigned multiplication
+                auto r_as_unsigned = m::cast<uintmax_t>(promoted_r);
                 auto prod = promoted_l * r_as_unsigned;
 
                 // Check overflow
@@ -665,13 +697,13 @@ namespace m
             }
             else
             {
-                // Unsigned × negative: result is negative
+                // Unsigned Ã— negative: result is negative
 
                 // Handle INT_MIN specially
                 if (promoted_r == (std::numeric_limits<intmax_t>::min)())
                 {
                     constexpr uintmax_t abs_min =
-                        static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+                        m::cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
 
                     auto prod = promoted_l * abs_min;
 
@@ -682,8 +714,9 @@ namespace m
                     }
 
                     if (prod > abs_min)
-                    {
-                        throw std::overflow_error("integer overflow");
+                {
+                    throw std::overflow_error(std::format(
+                        "m::math::multiply overflow: result magnitude exceeds target type limits"));
                     }
 
                     if (prod == abs_min)
@@ -691,10 +724,10 @@ namespace m
                         return (std::numeric_limits<ResultT>::min)();
                     }
 
-                    return m::try_cast<ResultT>(-static_cast<intmax_t>(prod));
+                    return m::try_cast<ResultT>(-m::cast<intmax_t>(prod));
                 }
 
-                auto abs_r = static_cast<uintmax_t>(-promoted_r);
+                auto abs_r = m::cast<uintmax_t>(-promoted_r);
                 auto prod = promoted_l * abs_r;
 
                 // Check overflow
@@ -705,11 +738,12 @@ namespace m
 
                 // Negate and check it fits
                 constexpr uintmax_t max_negative =
-                    static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+                    m::cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
 
                 if (prod > max_negative)
                 {
-                    throw std::overflow_error("integer overflow");
+                    throw std::overflow_error(std::format(
+                        "m::math::multiply overflow: result magnitude exceeds target type limits"));
                 }
 
                 if (prod == max_negative)
@@ -717,7 +751,7 @@ namespace m
                     return m::try_cast<ResultT>((std::numeric_limits<intmax_t>::min)());
                 }
 
-                return m::try_cast<ResultT>(-static_cast<intmax_t>(prod));
+                return m::try_cast<ResultT>(-m::cast<intmax_t>(prod));
             }
         }
 
@@ -727,7 +761,8 @@ namespace m
             // Unsigned / signed with signed result.
             
             if (r == 0)
-                throw std::overflow_error("integer overflow");
+                throw std::overflow_error(std::format(
+                    "m::math::divide overflow: division by zero"));
             
             if (r < 0)
             {
@@ -737,34 +772,35 @@ namespace m
                 if (r == (std::numeric_limits<RightT>::min)())
                 {
                     // Handle most negative value specially
+                    // Intentional: Computing abs(INT_MIN) = INT_MAX + 1 as constexpr
                     constexpr uintmax_t abs_min =
-                        static_cast<uintmax_t>(-(static_cast<intmax_t>(
+                        static_cast<uintmax_t>(-(m::cast<intmax_t>(
                             (std::numeric_limits<RightT>::min)()) + 1)) + 1;
-                    auto l_promoted = static_cast<uintmax_t>(l);
+                    auto l_promoted = m::cast<uintmax_t>(l);
                     auto quot = l_promoted / abs_min;
                     
-                    if (quot > static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()))
+                    if (quot > m::cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()))
                     {
                         throw std::overflow_error("integer overflow");
                     }
-                    return m::try_cast<ResultT>(-static_cast<intmax_t>(quot));
+                    return m::try_cast<ResultT>(-m::cast<intmax_t>(quot));
                 }
                 
-                auto l_promoted = static_cast<uintmax_t>(l);
-                auto abs_r = static_cast<uintmax_t>(-static_cast<intmax_t>(r));
+                auto l_promoted = m::cast<uintmax_t>(l);
+                auto abs_r = m::cast<uintmax_t>(-m::cast<intmax_t>(r));
                 auto quot = l_promoted / abs_r;
                 
-                if (quot > static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()))
+                if (quot > m::cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()))
                 {
                     throw std::overflow_error("integer overflow");
                 }
-                return m::try_cast<ResultT>(-static_cast<intmax_t>(quot));
+                return m::try_cast<ResultT>(-m::cast<intmax_t>(quot));
             }
             else
             {
                 // Unsigned / positive signed = positive
-                auto l_promoted = static_cast<uintmax_t>(l);
-                auto r_as_unsigned = static_cast<uintmax_t>(r);
+                auto l_promoted = m::cast<uintmax_t>(l);
+                auto r_as_unsigned = m::cast<uintmax_t>(r);
                 auto quot = l_promoted / r_as_unsigned;
                 return m::try_cast<ResultT>(quot);
             }
@@ -805,11 +841,12 @@ namespace m
                         // We can't safely negate this value, so we need special handling
                         // Result = r - |min|
                         // This can only succeed if r >= |min|
+                        // Intentional: Computing abs(INT_MIN) = INT_MAX + 1 as constexpr
                         constexpr uintmax_t abs_min = 
-                            static_cast<uintmax_t>(-(static_cast<intmax_t>(
+                            static_cast<uintmax_t>(-(m::cast<intmax_t>(
                                 (std::numeric_limits<LeftT>::min)()) + 1)) + 1;
                         
-                        auto promoted_r = static_cast<uintmax_t>(r);
+                        auto promoted_r = m::cast<uintmax_t>(r);
                         
                         if (promoted_r < abs_min)
                         {
@@ -820,8 +857,8 @@ namespace m
                     }
                     
                     // l is negative but not the most negative value, so we can negate it
-                    auto abs_l = static_cast<uintmax_t>(-static_cast<intmax_t>(l));
-                    auto promoted_r = static_cast<uintmax_t>(r);
+                    auto abs_l = m::cast<uintmax_t>(-m::cast<intmax_t>(l));
+                    auto promoted_r = m::cast<uintmax_t>(r);
                     
                     if (promoted_r < abs_l)
                     {
@@ -833,8 +870,8 @@ namespace m
                 }
                 
                 // l is non-negative, so we can treat this as unsigned + unsigned
-                auto l_as_unsigned = static_cast<uintmax_t>(l);
-                auto promoted_r = static_cast<uintmax_t>(r);
+                auto l_as_unsigned = m::cast<uintmax_t>(l);
+                auto promoted_r = m::cast<uintmax_t>(r);
                 
                 auto sum = l_as_unsigned + promoted_r;
                 
@@ -863,8 +900,8 @@ namespace m
                 }
                 
                 // l is non-negative
-                auto l_as_unsigned = static_cast<uintmax_t>(l);
-                auto promoted_r = static_cast<uintmax_t>(r);
+                auto l_as_unsigned = m::cast<uintmax_t>(l);
+                auto promoted_r = m::cast<uintmax_t>(r);
                 
                 if (l_as_unsigned < promoted_r)
                 {
@@ -880,21 +917,30 @@ namespace m
             static constexpr ResultT
             multiply(LeftT l, RightT r)
             {
-                // Signed × unsigned with unsigned result.
+                // Signed Ã— unsigned with unsigned result.
                 // Result must be non-negative, so l must be non-negative.
 
                 if (l == 0 || r == 0)
                     return 0;
 
                 if (l < 0)
+
+
                 {
-                    // Negative × positive = negative (can't represent in unsigned)
-                    throw std::overflow_error("integer overflow");
+
+
+                    // Negative Ã— positive = negative (cannot represent in unsigned)
+
+
+                    throw std::overflow_error(std::format(
+
+
+                        "m::math::multiply overflow: negative value cannot be represented in unsigned result type"));
                 }
 
                 // Both effectively unsigned now
-                auto l_as_unsigned = static_cast<uintmax_t>(l);
-                auto r_promoted = static_cast<uintmax_t>(r);
+                auto l_as_unsigned = m::cast<uintmax_t>(l);
+                auto r_promoted = m::cast<uintmax_t>(r);
 
                 auto prod = l_as_unsigned * r_promoted;
 
@@ -914,7 +960,8 @@ namespace m
                 // Result must be non-negative, so l must be non-negative.
             
             if (r == 0)
-                throw std::overflow_error("integer overflow");
+                throw std::overflow_error(std::format(
+                    "m::math::divide overflow: division by zero"));
             
             if (l < 0)
             {
@@ -923,8 +970,8 @@ namespace m
             }
             
             // Both effectively unsigned now
-            auto l_as_unsigned = static_cast<uintmax_t>(l);
-            auto r_promoted = static_cast<uintmax_t>(r);
+            auto l_as_unsigned = m::cast<uintmax_t>(l);
+            auto r_promoted = m::cast<uintmax_t>(r);
             
             auto quot = l_as_unsigned / r_promoted;
             
@@ -950,8 +997,9 @@ namespace m
             static constexpr ResultT
             add(LeftT l, RightT r)
             {
+                // Intentional: common_type_t determined by type traits
                 auto promoted_l = static_cast<common_type_t>(l);
-                auto promoted_r = static_cast<common_type_t>(r);
+                auto promoted_r = static_cast<common_type_t>(r);  // common_type_t varies by context
 
                 //
                 // Detect overflow before performing the addition in common_type_t
@@ -984,8 +1032,9 @@ namespace m
             static constexpr ResultT
             subtract(LeftT l, RightT r)
             {
+                // Intentional: common_type_t determined by type traits
                 auto promoted_l = static_cast<common_type_t>(l);
-                auto promoted_r = static_cast<common_type_t>(r);
+                auto promoted_r = static_cast<common_type_t>(r);  // common_type_t varies by context
 
                 //
                 // Detect overflow before performing the subtraction in common_type_t
@@ -1017,13 +1066,13 @@ namespace m
         static constexpr ResultT
         multiply(LeftT l, RightT r)
         {
-            // Signed × signed with signed result.
+            // Signed Ã— signed with signed result.
 
             if (l == 0 || r == 0)
                 return 0;
 
-            auto promoted_l = static_cast<intmax_t>(l);
-            auto promoted_r = static_cast<intmax_t>(r);
+            auto promoted_l = m::cast<intmax_t>(l);
+            auto promoted_r = m::cast<intmax_t>(r);
 
             // Determine the sign of the result
             bool result_negative = (promoted_l < 0) != (promoted_r < 0);
@@ -1033,20 +1082,20 @@ namespace m
 
             if (promoted_l == (std::numeric_limits<intmax_t>::min)())
             {
-                abs_l = static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+                abs_l = m::cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
             }
             else
             {
-                abs_l = static_cast<uintmax_t>(promoted_l < 0 ? -promoted_l : promoted_l);
+                abs_l = m::cast<uintmax_t>(promoted_l < 0 ? -promoted_l : promoted_l);
             }
 
             if (promoted_r == (std::numeric_limits<intmax_t>::min)())
             {
-                abs_r = static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+                abs_r = m::cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
             }
             else
             {
-                abs_r = static_cast<uintmax_t>(promoted_r < 0 ? -promoted_r : promoted_r);
+                abs_r = m::cast<uintmax_t>(promoted_r < 0 ? -promoted_r : promoted_r);
             }
 
             auto prod = abs_l * abs_r;
@@ -1058,14 +1107,15 @@ namespace m
             }
 
             // Check if the result fits in the signed range
-            constexpr uintmax_t max_positive = static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)());
+            constexpr uintmax_t max_positive = m::cast<uintmax_t>((std::numeric_limits<intmax_t>::max)());
             constexpr uintmax_t max_negative = max_positive + 1;
 
             if (result_negative)
             {
                 if (prod > max_negative)
                 {
-                    throw std::overflow_error("integer overflow");
+                    throw std::overflow_error(std::format(
+                        "m::math::multiply overflow: result magnitude exceeds target type limits"));
                 }
 
                 if (prod == max_negative)
@@ -1073,16 +1123,17 @@ namespace m
                     return m::try_cast<ResultT>((std::numeric_limits<intmax_t>::min)());
                 }
 
-                return m::try_cast<ResultT>(-static_cast<intmax_t>(prod));
+                return m::try_cast<ResultT>(-m::cast<intmax_t>(prod));
             }
             else
             {
                 if (prod > max_positive)
                 {
-                    throw std::overflow_error("integer overflow");
+                    throw std::overflow_error(std::format(
+                        "m::math::multiply overflow: result magnitude exceeds target type limits"));
                 }
 
-                return m::try_cast<ResultT>(static_cast<intmax_t>(prod));
+                return m::try_cast<ResultT>(m::cast<intmax_t>(prod));
             }
         }
 
@@ -1093,10 +1144,11 @@ namespace m
             // Special case: INT_MIN / -1 = overflow (result would be INT_MAX + 1)
             
             if (r == 0)
-                throw std::overflow_error("integer overflow");
+                throw std::overflow_error(std::format(
+                    "m::math::divide overflow: division by zero"));
             
-            auto promoted_l = static_cast<intmax_t>(l);
-            auto promoted_r = static_cast<intmax_t>(r);
+            auto promoted_l = m::cast<intmax_t>(l);
+            auto promoted_r = m::cast<intmax_t>(r);
             
             // Check for INT_MIN / -1
             if (promoted_l == (std::numeric_limits<intmax_t>::min)() && promoted_r == -1)
@@ -1127,12 +1179,13 @@ namespace m
                     (std::numeric_limits<InputT>::digits == std::numeric_limits<intmax_t>::digits))
                 {
                     // There is no way to negate the most negative intmax_t
-                    throw std::overflow_error("v");
+                    throw std::overflow_error(std::format(
+                    "m::math::negate overflow: value cannot be negated in target type"));
                 }
 
                 // lazy implementation for other cases
                 //
-                auto vmax = static_cast<intmax_t>(v);
+                auto vmax = m::cast<intmax_t>(v);
                 return m::try_cast<ResultT>(-vmax);
             }
         };
@@ -1155,12 +1208,13 @@ namespace m
                     (std::numeric_limits<InputT>::digits == std::numeric_limits<intmax_t>::digits))
                 {
                     // There is no way to negate the most negative intmax_t
-                    throw std::overflow_error("v");
+                    throw std::overflow_error(std::format(
+                    "m::math::negate overflow: value cannot be negated in target type"));
                 }
 
                 // lazy implementation for other cases
                 //
-                auto vmax = static_cast<intmax_t>(v);
+                auto vmax = m::cast<intmax_t>(v);
                 return m::try_cast<ResultT>(-vmax);
             }
         };
@@ -1174,19 +1228,22 @@ namespace m
             static constexpr ResultT
             negate(InputT v)
             {
-                auto vmax = static_cast<uintmax_t>(v);
+                auto vmax = m::cast<uintmax_t>(v);
 
                 // negmax is the absolute value of the most negative ResultT, as a uintmax_t.
+                // Intentional: Complex constexpr computation of abs(min) value
                 constexpr auto negmax = static_cast<uintmax_t>(static_cast<intmax_t>(
                                             -((std::numeric_limits<ResultT>::min)() + 1))) +
                                         1;
 
                 if (vmax > negmax)
-                    throw std::overflow_error("v");
+                    throw std::overflow_error(std::format(
+                    "m::math::negate overflow: value cannot be negated in target type"));
 
                 if (vmax == negmax)
                     return (std::numeric_limits<ResultT>::min)();
 
+                // Intentional: Final result narrowing checked by caller
                 return -static_cast<ResultT>(v);
             }
         };
@@ -1203,7 +1260,8 @@ namespace m
                 if (v == 0)
                     return 0;
 
-                throw std::overflow_error("v");
+                throw std::overflow_error(std::format(
+                    "m::math::negate overflow: value cannot be negated in target type"));
             }
         };
 

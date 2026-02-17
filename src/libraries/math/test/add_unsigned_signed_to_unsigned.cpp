@@ -29,13 +29,13 @@ namespace
     {
         constexpr auto l_zero = static_cast<LeftType>(0);
         constexpr auto l_one  = static_cast<LeftType>(1);
-        // constexpr auto l_greatest = std::numeric_limits<LeftType>::max();
+        constexpr auto l_greatest = std::numeric_limits<LeftType>::max();
 
-        // constexpr auto r_least    = std::numeric_limits<RightType>::min();
+        constexpr auto r_least    = std::numeric_limits<RightType>::min();
         constexpr auto r_min1 = static_cast<RightType>(-1);
         constexpr auto r_zero = static_cast<RightType>(0);
         constexpr auto r_one  = static_cast<RightType>(1);
-        // constexpr auto r_greatest = std::numeric_limits<RightType>::max();
+        constexpr auto r_greatest = std::numeric_limits<RightType>::max();
 
         EXPECT_EQ(m::math::add(l_zero, r_zero, SumType{}), 0);
 
@@ -72,11 +72,11 @@ namespace
         // small unsigned number. It can be more confusing when dealing with
         // signed / unsigned but in this case it's trivial.
         //
-        // constexpr auto ldigits = std::numeric_limits<LeftType>::digits;
-        // constexpr auto rdigits = std::numeric_limits<RightType>::digits + 1; // CHEATING!! :-)
-        // constexpr auto sdigits = std::numeric_limits<SumType>::digits;
+        constexpr auto ldigits = std::numeric_limits<LeftType>::digits;
+        constexpr auto rdigits = std::numeric_limits<RightType>::digits + 1; // CHEATING!! :-)
+        constexpr auto sdigits = std::numeric_limits<SumType>::digits;
 
-#if 0 // expand tests some day
+#if 1 // expand tests some day
         std::cout << std::format(
             "LeftType: {}, ldigits = {}, RightType: {} rdigits = {}, SumType: {}, sdigits = {}\n", typeid(LeftType).name(), ldigits, typeid(RightType).name(), rdigits, typeid(SumType).name(), sdigits);
 

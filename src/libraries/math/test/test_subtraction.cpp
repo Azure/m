@@ -95,9 +95,9 @@ TEST(SubtractionUnsignedUnsignedToSigned, NegativeResults)
 TEST(SubtractionUnsignedUnsignedToSigned, OverflowCases)
 {
     // Very large unsigned values might overflow signed result
-    constexpr auto max_unsigned = (std::numeric_limits<uint32_t>::max)();
+    [[maybe_unused]] constexpr auto max_unsigned = (std::numeric_limits<uint32_t>::max)();
     constexpr auto max_signed = (std::numeric_limits<int32_t>::max)();
-    
+
     uint32_t large = static_cast<uint32_t>(max_signed) + 2;
     EXPECT_THROW(m::math::subtract(large, uint32_t{0}, int32_t{}), std::overflow_error);
 }

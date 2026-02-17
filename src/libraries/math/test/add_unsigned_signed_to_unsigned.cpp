@@ -31,7 +31,7 @@ namespace
         constexpr auto l_one  = static_cast<LeftType>(1);
         constexpr auto l_greatest = std::numeric_limits<LeftType>::max();
 
-        constexpr auto r_least    = std::numeric_limits<RightType>::min();
+        [[maybe_unused]] constexpr auto r_least    = std::numeric_limits<RightType>::min();
         constexpr auto r_min1 = static_cast<RightType>(-1);
         constexpr auto r_zero = static_cast<RightType>(0);
         constexpr auto r_one  = static_cast<RightType>(1);

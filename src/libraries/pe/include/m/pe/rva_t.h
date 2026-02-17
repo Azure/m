@@ -31,9 +31,7 @@ namespace m
 M_INTEGER_RELATIONAL_OPERATORS(m::pe::rva_t);
 M_INTEGER_OPERATIONS_INC_DEC(m::pe::rva_t);
 M_INTEGER_OPERATIONS_PLUS_T(m::pe::rva_t, std::size_t);
-M_INTEGER_OPERATIONS_PLUS_T(m::pe::rva_t, uint32_t);
 M_INTEGER_OPERATIONS_PLUSEQUALS_NOENUM(m::pe::rva_t, std::size_t);
-M_INTEGER_OPERATIONS_PLUSEQUALS_NOENUM(m::pe::rva_t, uint32_t);
 M_INTEGER_OPERATIONS_MINUS_SIZE_T(m::pe::rva_t);
 M_INTEGER_OPERATIONS_PLUSSES(m::pe::rva_t, m::io::offset_t, m::pe::rva_t);
 M_INTEGER_OPERATIONS_PLUSSES(m::io::offset_t, m::pe::rva_t, m::pe::rva_t);

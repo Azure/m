@@ -1,0 +1,495 @@
+﻿// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+#pragma once
+
+#include <m/utility/compiler.h>
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <bit>
+#include <climits>
+#include <cstdint>
+#include <functional>
+#include <new>
+#include <optional>
+#include <ranges>
+#include <type_traits>
+#include <version>
+
+#if M_HAS_MSVC
+#include <intrin.h>
+#endif
+
+#include <m/error_handling/macros.h>
+#include <m/exception/exception.h>
+#include <m/utility/smallest_size.h>
+
+//
+// With the MSVC compiler, there are compiler intrinsics for finding the
+// first bit set in a chunk of storage, which implies that the unallocated
+// state is "1"s. This may not be true of all compilers/platforms so we
+// have to have a compilation option for this.
+//
+
+namespace m
+{
+    namespace bitset_impl
+    {
+        //
+        // Efficiency is a primary concern here; want to use mmx/sse types over time
+        // so cache lines are a more interesting granularity than even plain integral
+        // types.
+        //
+        // The greatest utility there will come when there is correspondence with
+        // the lock-free atomic allocation capabilities which are clearly possible,
+        // all platforms support such operations but for now, just something is needed
+        // since there is no type provided by the standard library.
+        //
+        using representation_type = uint64_t;
+
+        class bitset_base
+        {
+        public:
+            static inline constexpr std::size_t granularity =
+                sizeof(representation_type) * CHAR_BIT;
+
+            static inline constexpr std::size_t alignment =
+#if __cpp_lib_hardware_interference_size
+                std::hardware_constructive_interference_size
+#else
+                64
+#endif
+                ;
+
+        protected:
+        };
+    } // namespace bitset_impl
+
+    template <std::size_t N>
+    class bitset : public bitset_impl::bitset_base
+    {
+        using bitset_base::granularity;
+        using representation_type = bitset_impl::representation_type;
+
+        static inline constexpr std::size_t rounded_N =
+            (N + granularity - 1) - ((N + granularity - 1) % granularity);
+        // cache line size can be assumed to be std::hardware_constructive_interference_size
+
+        static_assert(rounded_N % granularity == 0);
+
+        static inline constexpr std::size_t allocation_count = rounded_N / granularity;
+        static inline constexpr std::size_t last_index       = allocation_count - 1;
+        static inline constexpr std::size_t last_index_bits  = N % granularity;
+
+    public:
+        constexpr bitset() noexcept: m_bits{} { m_bits.fill(0); }
+
+        constexpr std::size_t
+        size() noexcept
+        {
+            return N;
+        }
+
+        constexpr std::size_t
+        popcount() noexcept
+        {
+            return std::ranges::fold_left(
+                m_bits, std::size_t{}, [](std::size_t acc, std::size_t rep) {
+                    return acc + std::popcount(rep);
+                });
+        }
+
+        constexpr std::optional<std::size_t>
+        find_first_clear_and_set() noexcept
+        {
+            for (std::size_t i = 0; i < m_bits.size(); i++)
+            {
+                auto& rep = m_bits[i];
+
+                auto const leading_unset = std::countr_one(rep);
+
+                // If this is the last index in the array of representation
+                // unsigned integers, we use "last_index_bits" as the maximal
+                // bit count, otherwise the granularity.
+                //
+
+                auto const maxbit = (i == last_index) ? last_index_bits : granularity;
+
+                if (leading_unset < maxbit)
+                {
+                    // we found a clear bit! claim it
+                    rep = rep ^ (1ull << leading_unset);
+
+                    return (i * granularity) + leading_unset;
+                }
+            }
+
+            return std::nullopt;
+        }
+
+        constexpr std::optional<std::size_t>
+        find_first_set_and_clear() noexcept
+        {
+            for (std::size_t i = 0; i < m_bits.size(); i++)
+            {
+                auto& rep = m_bits[i];
+
+                auto const leading_set = std::countr_zero(rep);
+                auto const maxbit      = (i == last_index) ? last_index_bits : granularity;
+
+                if (leading_set < maxbit)
+                {
+                    // we found a set bit! claim it
+                    rep = rep ^ (1ull << leading_set);
+
+                    return (i * granularity) + leading_set;
+                }
+            }
+
+            return std::nullopt;
+        }
+
+        constexpr void
+        clear(std::size_t n) noexcept
+        {
+            precondition_validate_index(n);
+
+            auto const storage_index = static_cast<std::size_t>(n / granularity);
+
+            auto const bit_index = n % granularity;
+
+            m_bits[storage_index] &= ~(1ull << bit_index);
+        }
+
+        constexpr void
+        set(std::size_t n) noexcept
+        {
+            precondition_validate_index(n);
+
+            auto const storage_index = static_cast<std::size_t>(n / granularity);
+
+            auto const bit_index = n % granularity;
+
+            m_bits[storage_index] |= (1ull << bit_index);
+        }
+
+        constexpr bool
+        is_set(std::size_t n) noexcept
+        {
+            precondition_validate_index(n);
+
+            auto const storage_index = static_cast<std::size_t>(n / granularity);
+
+            auto const bit_index = n % granularity;
+
+            representation_type rep = m_bits[storage_index] & (1ull << bit_index);
+            return (rep != 0);
+        }
+
+    private:
+        void
+        precondition_validate_index(std::size_t n) noexcept
+        {
+            if (n >= size())
+            {
+#if M_HAS_MSVC
+#pragma warning(push)
+#pragma warning(disable : 4297)
+#elif M_HAS_CLANG
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wexceptions"
+#else
+#error Unsupported compiler
+#endif
+
+                throw m::runtime_error("Bit index out of range");
+
+#if M_HAS_MSVC
+#pragma warning(pop)
+#elif M_HAS_CLANG
+#pragma clang diagnostic pop
+#else
+#error Unsupported compiler
+#endif
+            }
+        }
+
+        alignas(bitset_base::alignment) std::array<uint64_t, allocation_count> m_bits;
+    };
+
+    template <std::size_t N>
+    class bitset_bit_allocator
+    {
+    public:
+        constexpr bitset_bit_allocator(bitset<N>& btset) noexcept: m_bitset(btset)
+        {
+            m_bit = m_bitset.find_first_clear_and_set();
+        }
+
+        bitset_bit_allocator(bitset_bit_allocator const&) = delete;
+        constexpr bitset_bit_allocator(bitset_bit_allocator const&& other) noexcept:
+            m_bitset(other.m_bitset)
+        {
+            using std::swap;
+
+            swap(m_bit, other.m_bit);
+        }
+
+        constexpr bitset_bit_allocator&
+        operator=(bitset_bit_allocator const&) = delete;
+
+        constexpr bitset_bit_allocator
+        operator=(bitset_bit_allocator&& other) noexcept
+        {
+            M_INTERNAL_ERROR_CHECK(&m_bitset == &other.m_bitset);
+
+            using std::swap;
+            swap(m_bit, other.m_bit);
+            return *this;
+        }
+
+        ~bitset_bit_allocator() { reset(); }
+
+        constexpr bool
+        has_value() const noexcept
+        {
+            return m_bit.has_value();
+        }
+
+        constexpr std::size_t
+        bit() const noexcept
+        {
+            M_INTERNAL_ERROR_CHECK(m_bit.has_value());
+            return m_bit.value();
+        }
+
+        constexpr std::optional<std::size_t>
+        release() noexcept
+        {
+            return std::exchange(m_bit, std::nullopt);
+        }
+
+        constexpr void
+        reset(std::optional<std::size_t> bit = std::nullopt) noexcept
+        {
+            auto old = std::exchange(m_bit, bit);
+            if (old.has_value())
+                m_bitset.clear(old.value());
+        }
+
+    private:
+        bitset<N>&                 m_bitset;
+        std::optional<std::size_t> m_bit;
+    };
+
+} // namespace m
+
+/// <summary>
+/// Partial specialization for std::atomic<> for m::bitset<N> so that we
+/// can have a lock-free std::atomic<m::bitset<N>> which allows for lock-free
+/// allocation and deallocation of bits.
+/// </summary>
+/// <typeparam name="N"></typeparam>
+template <std::size_t N>
+struct std::atomic<m::bitset<N>>
+{
+    using bitset_base = m::bitset_impl::bitset_base;
+
+    constexpr static inline auto granularity = bitset_base::granularity;
+    using representation_type                = m::bitset_impl::representation_type;
+
+    static inline constexpr std::size_t rounded_N =
+        (N + granularity - 1) - ((N + granularity - 1) % granularity);
+    // cache line size can be assumed to be std::hardware_constructive_interference_size
+
+    static_assert(rounded_N % granularity == 0);
+
+    static inline constexpr std::size_t allocation_count = rounded_N / granularity;
+    static inline constexpr std::size_t last_index       = allocation_count - 1;
+    static inline constexpr std::size_t last_index_bits  = N % granularity;
+
+    using val_t = uint64_t;
+    using rep_t = std::atomic<val_t>;
+
+public:
+    // TODO: surely the default constructor can zero the storage??
+    atomic() = default;
+
+    void
+    clear()
+    {
+        for (auto&& e: m_bits)
+        {
+            e.store(0, std::memory_order_release);
+        }
+    }
+
+    constexpr std::size_t
+    size() noexcept
+    {
+        return N;
+    }
+
+    constexpr std::size_t
+    popcount() noexcept
+    {
+        return std::ranges::fold_left(m_bits, std::size_t{}, [](std::size_t acc, rep_t& rep) {
+            return acc + std::popcount(rep.load(std::memory_order_acquire));
+        });
+    }
+
+    template <typename Counter>
+        requires(std::invocable<Counter, val_t> &&
+                 std::is_convertible_v<std::invoke_result_t<Counter, val_t>, std::size_t>)
+    constexpr std::optional<std::size_t>
+    find_first_x_and_invert(Counter const& counter) noexcept
+    {
+        for (std::size_t i = 0; i < m_bits.size(); i++)
+        {
+            rep_t& rep = m_bits[i];
+            auto   val = rep.load(std::memory_order_acquire);
+
+            // Lock free atomics. You pick a bit, you try it, you may lose a
+            // race, you pick another bit, yadda yadda yadda.
+            for (;;)
+            {
+                std::size_t const leading_bits = std::invoke(counter(val));
+
+                // If this is the last index in the array of representation
+                // unsigned integers, we use "last_index_bits" as the maximal
+                // bit count, otherwise the granularity.
+                //
+
+                auto const maxbit = (i == last_index) ? last_index_bits : granularity;
+
+                if (leading_bits >= maxbit)
+                    break;
+
+                // we found a bit! let's see if we can claim it. There is no
+                // need to loop on the compare-exchange here, if we lose the
+                // race, we move on to another bit in the bitset.
+                //
+                // Fortunately we don't have to know whether we want to set
+                // it to one or zero, we just know we want to invert it. The
+                // callable told us which bit was of interest.
+                val_t desired = val ^ (1ull << leading_bits);
+
+                if (rep.compare_exchange_strong(val, desired, std::memory_order_acq_rel))
+                    return (i * granularity) + leading_bits;
+
+                // Otherwise, val is refreshed with the new value in `rep` and we can try
+                // whatever other clear bits there are.
+            }
+        }
+
+        // One /could/ argue that you repeat passes until you don't find any
+        // slots free, since if the bitset is under high contention, it
+        // could be better to keep seeking a free slot than to return not
+        // found, but that's probably better served by adding a richer API
+        // which gives the caller an indication of whether any slots were even
+        // contended upon and let them make that call.
+
+        return std::nullopt;
+    }
+
+    constexpr std::optional<std::size_t>
+    find_first_clear_and_set() noexcept
+    {
+        return find_first_x_and_invert(std::countr_one);
+    }
+
+    constexpr std::optional<std::size_t>
+    find_first_set_and_clear() noexcept
+    {
+        return find_first_x_and_invert(std::countr_zero);
+    }
+
+    constexpr void
+    clear(std::size_t n) noexcept
+    {
+        precondition_validate_index(n);
+
+        auto const storage_index = static_cast<std::size_t>(n / granularity);
+        auto const bit_index     = n % granularity;
+
+        mask_and_set_bits(m_bits[storage_index], static_cast<val_t>(~(1ull << bit_index)), 0);
+    }
+
+    constexpr void
+    set(std::size_t n) noexcept
+    {
+        precondition_validate_index(n);
+
+        auto const storage_index = static_cast<std::size_t>(n / granularity);
+        auto const bit_index     = n % granularity;
+
+        mask_and_set_bits(m_bits[storage_index], static_cast<val_t>(~0), (1ull << bit_index));
+    }
+
+    constexpr bool
+    is_set(std::size_t n) noexcept
+    {
+        precondition_validate_index(n);
+
+        auto const storage_index = static_cast<std::size_t>(n / granularity);
+        auto const bit_index     = n % granularity;
+        auto const bit_mask      = (1ull << bit_index);
+
+        rep_t rep = m_bits[storage_index];
+        val_t val = rep.load(std::memory_order_acquire);
+
+        return (val & bit_mask) != 0;
+    }
+
+private:
+    static constexpr void
+    mask_and_set_bits(rep_t& rep, val_t mask, val_t bits) noexcept
+    {
+        val_t val = rep.load(std::memory_order_acquire);
+
+        for (;;)
+        {
+            val_t desired = (val & mask) | bits;
+
+            if (val == desired)
+                return;
+
+            if (rep.compare_exchange_strong(val, desired, std::memory_order_acq_rel))
+                return;
+
+            // If the compare exchange failed, whatever new value stored in `rep` is
+            // stored in `val` and we will go around the loop again.
+        }
+    }
+
+    void
+    precondition_validate_index(std::size_t n) noexcept
+    {
+        if (n >= size())
+        {
+#if M_HAS_MSVC
+#pragma warning(push)
+#pragma warning(disable : 4297)
+#elif M_HAS_CLANG
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wexceptions"
+#else
+#error Unsupported compiler
+#endif
+
+            throw m::runtime_error("Bit index out of range");
+
+#if M_HAS_MSVC
+#pragma warning(pop)
+#elif M_HAS_CLANG
+#pragma clang diagnostic pop
+#else
+#error Unsupported compiler
+#endif
+        }
+    }
+
+    alignas(bitset_base::alignment) std::atomic<uint64_t> m_bits[allocation_count];
+};

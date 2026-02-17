@@ -198,7 +198,7 @@ namespace m::pil::impl::win32
         }
     }
 
-    void
+    void __stdcall
     registry_monitor_token::registry_notification_wait_callback(PTP_CALLBACK_INSTANCE instance,
                                                                 PVOID                 context,
                                                                 PTP_WAIT              wait,

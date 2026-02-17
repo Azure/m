@@ -15,6 +15,7 @@ target_include_directories(m_bitset INTERFACE
 
 target_link_libraries(m_bitset INTERFACE
     m_error_handling
+    m_tracing
 )
 
 list(APPEND m_installation_targets

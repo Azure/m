@@ -68,7 +68,7 @@ namespace m::threadpool_impl
         static void
         compute_timer_times(duration_type dur, timer_parameters& parameters);
 
-        static void
+        static void CALLBACK
         tp_timer_callback(PTP_CALLBACK_INSTANCE tp_callback_instance,
                           PVOID                 instance,
                           PTP_TIMER             periodic_timer);

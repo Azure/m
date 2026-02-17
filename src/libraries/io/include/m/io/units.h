@@ -32,7 +32,7 @@ namespace m
 M_INTEGER_RELATIONAL_OPERATORS(m::io::offset_t);
 M_INTEGER_OPERATIONS_INC_DEC(m::io::offset_t);
 M_INTEGER_OPERATIONS_PLUS_MINUS(m::io::offset_t);
-M_INTEGER_OPERATIONS_PLUS_SIZE_T(m::io::offset_t);
+// M_INTEGER_OPERATIONS_PLUS_SIZE_T(m::io::offset_t);  // Commented out - conflicts with PLUS_MINUS under clang
 
 M_INTEGER_RELATIONAL_OPERATORS(m::io::position_t);
 M_INTEGER_OPERATIONS_INC_DEC(m::io::position_t);

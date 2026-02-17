@@ -80,7 +80,7 @@ namespace m::threadpool_impl
             std::weak_ptr<m::threadpool_impl::work_queue> m_work_queue;
         };
 
-        static void
+        static void CALLBACK
         static_tp_work_callback(PTP_CALLBACK_INSTANCE instance,
                                 PVOID                 context,
                                 PTP_WORK              work) noexcept;

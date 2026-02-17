@@ -35,10 +35,10 @@ namespace
 namespace m::threadpool_impl
 {
     timer::timer(std::packaged_task<timer_callable>&& task, std::wstring description):
-        m_packaged_task(std::move(task)),
-        m_description(std::move(description)),
         m_timer(tp_timer_callback, this),
-        m_duration{}
+        m_packaged_task(std::move(task)),
+        m_duration{},
+        m_description(std::move(description))
     {
         wtrace_verbose(L"{} constructed timer {:x}",
                        tracing::format_view(__FUNCTION__),

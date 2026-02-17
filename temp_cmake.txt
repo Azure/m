@@ -1,0 +1,436 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/build/vcpkg/triplets/",
+        "VCPKG_OVERLAY_PORTS": "${sourceDir}/build/vcpkg/ports/",
+        "BUILD_TESTING": true,
+        "BUILD_TESTS": true
+      },
+      "environment": {
+        "VCPKG_ROOT": "${sourceDir}/vcpkg/"
+      },
+      "hidden": true
+    },
+    {
+      "name": "linux-base",
+      "inherits": [
+        "base"
+      ],
+      "environment": {
+        "CC": "clang",
+        "CXX": "clang++"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/usr/bin/clang",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "CMAKE_BUILD_WITH_INSTALL_RPATH": true
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioRemoteSettings/CMake/2.0": {
+          "remoteSourceRootDir": "$env{HOME}/.vs/$ms{projectDirName}",
+          "copySourcesOptions": {
+            "exclusionList": [
+              "buildtrees",
+              ".vs",
+              "out",
+              "vcpkg/buildtrees",
+              "vcpkg/downloads"
+            ]
+          }
+        }
+      },
+      "hidden": true
+    },
+    {
+      "name": "win-base",
+      "description": "Customizations for Windows Build",
+      "inherits": [
+        "base"
+      ],
+      "hidden": true
+    },
+    {
+      "name": "x64",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "hidden": true
+    },
+    {
+      "name": "arm64",
+      "architecture": {
+        "value": "arm64",
+        "strategy": "external"
+      },
+      "hidden": true
+    },
+    {
+      "name": "debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "debug"
+      },
+      "hidden": true
+    },
+    {
+      "name": "release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": false
+      },
+      "hidden": true
+    },
+    {
+      "name": "msvc",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "cl.exe"
+      }
+    },
+    {
+      "name": "clang-cl",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      }
+    },
+    {
+      "name": "clang",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      }
+    },
+    {
+      "name": "clang-aarchh64",
+      "environment": {
+        "CFLAGS": "--target=arm64-pc-windows-msvc",
+        "CXXFLAGS": "--target=arm64-pc-windows-msvc"
+      },
+      "hidden": true
+    },
+    {
+      "name": "gnuc",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++"
+      },
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      }
+    },
+    {
+      "name": "analyze",
+      "cacheVariables": {
+        "ENABLE_CODE_ANALYSIS": true
+      },
+      "hidden": true
+    },
+    {
+      "name": "coverage",
+      "cacheVariables": {
+        "BUILD_TOOLS": false,
+        "ENABLE_CODE_COVERAGE": true
+      },
+      "hidden": true
+    },
+    {
+      "name": "asan",
+      "cacheVariables": {
+        "BUILD_FUZZING": true,
+        "BUILD_TESTS": false
+      },
+      "hidden": true
+    },
+    {
+      "name": "x64-debug",
+      "displayName": "x64 Debug",
+      "description": "msvc for x64 (debug)",
+      "inherits": [
+        "win-base",
+        "x64",
+        "debug",
+        "msvc"
+      ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-release",
+      "displayName": "x64 Release",
+      "description": "msvc for x64 (release)",
+      "inherits": [
+        "win-base",
+        "x64",
+        "release",
+        "msvc"
+      ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "arm64-windows-debug",
+      "description": "msvc for arm64 (debug)",
+      "inherits": [
+        "win-base",
+        "arm64",
+        "debug",
+        "msvc"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      },
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows"
+      }
+    },
+    {
+      "name": "arm64-windows-release",
+      "description": "msvc for arm64 (release)",
+      "inherits": [
+        "win-base",
+        "arm64",
+        "release",
+        "msvc"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      },
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows"
+      }
+    },
+    {
+      "name": "x64-windows-debug-clang",
+      "description": "clang-cl for x64 (debug)",
+      "inherits": [
+        "win-base",
+        "x64",
+        "debug",
+        "clang-cl"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-release-clang",
+      "description": "clang-cl for x64 (release)",
+      "inherits": [
+        "win-base",
+        "x64",
+        "release",
+        "clang-cl"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "arm64-windows-debug-clang",
+      "description": "clang-cl for aarchh64 (debug)",
+      "inherits": [
+        "win-base",
+        "arm64",
+        "debug",
+        "clang-cl",
+        "clang-aarchh64"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "arm64-windows-release-clang",
+      "description": "clang-cl for aarchh64 (release)",
+      "inherits": [
+        "win-base",
+        "arm64",
+        "release",
+        "clang-cl",
+        "clang-aarchh64"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-windows-analyze",
+      "description": "msvc for x64 (debug) using /analyze",
+      "inherits": [
+        "win-base",
+        "x64",
+        "debug",
+        "msvc",
+        "analyze"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-windows-coverage",
+      "description": "msvc for x64 (debug) w/ Code coverage",
+      "inherits": [
+        "win-base",
+        "x64",
+        "debug",
+        "msvc",
+        "coverage"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-windows-coverage-clang-cl",
+      "description": "clang-cl for x64 (debug) w/ Code coverage",
+      "inherits": [
+        "win-base",
+        "x64",
+        "debug",
+        "clang-cl",
+        "coverage"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-windows-asan",
+      "description": "msvc for x64 (release) with ASan",
+      "inherits": [
+        "win-base",
+        "x64",
+        "release",
+        "msvc",
+        "asan"
+      ],
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-linux-debug",
+      "displayName": "x64-linux-debug",
+      "description": "clang linux x64 debug",
+      "inherits": [
+        "linux-base",
+        "x64",
+        "debug"
+      ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-linux"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Linux"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-linux-release",
+      "displayName": "x64-linux-release",
+      "description": "clang linux x64 release",
+      "inherits": [
+        "linux-base",
+        "x64",
+        "release"
+      ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-linux"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Linux"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -90,8 +90,8 @@ TEST(NegationSignedToUnsigned, IntMinSpecialCase)
 
 TEST(NegationSignedToUnsigned, LargeNegativeValues)
 {
-    constexpr auto min32 = (std::numeric_limits<int32_t>::min)();
-    
+    [[maybe_unused]] constexpr auto min32 = (std::numeric_limits<int32_t>::min)();
+
     // -INT_MAX can be negated to unsigned
     constexpr auto max32 = (std::numeric_limits<int32_t>::max)();
     EXPECT_EQ(m::math::negate(-max32, uint32_t{}), static_cast<uint32_t>(max32));

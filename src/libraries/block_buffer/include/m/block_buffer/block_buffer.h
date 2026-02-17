@@ -74,12 +74,12 @@ namespace m
             {
                 constexpr buffer_control_word(): m_busy(0), m_reserved_unused(0) {}
 
-                uintptr_t m_busy : 1;
+                uint64_t m_busy : 1;
 
-                uintptr_t m_reserved_unused : 63;
+                uint64_t m_reserved_unused : 63;
             };
 
-            static_assert(sizeof(buffer_control_word) == sizeof(uintptr_t));
+            static_assert(sizeof(buffer_control_word) == sizeof(uint64_t));
 
             struct buffer_control_block
             {

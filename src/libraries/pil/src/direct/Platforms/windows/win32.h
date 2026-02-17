@@ -285,7 +285,7 @@ namespace m::pil::impl::win32
         swap(registry_monitor_token& other) noexcept = delete;
 
     private:
-        static void
+        static void __stdcall
         registry_notification_wait_callback(PTP_CALLBACK_INSTANCE Instance,
                                             PVOID                 Context,
                                             PTP_WAIT              Wait,

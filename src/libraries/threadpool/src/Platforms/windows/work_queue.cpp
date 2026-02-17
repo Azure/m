@@ -45,7 +45,7 @@ namespace m::threadpool_impl
         swap(callback_context_ptr, m_callback_context);
     }
 
-    void
+    void CALLBACK
     work_queue::static_tp_work_callback(PTP_CALLBACK_INSTANCE, PVOID context, PTP_WORK) noexcept
     {
         auto const cctx = reinterpret_cast<callback_context*>(context);

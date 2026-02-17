@@ -72,7 +72,7 @@ namespace m::filesystem_impl::platform_specific
         void
         recheck_watcher(time_point_type const& issue_time);
 
-        static void
+        static void CALLBACK
         read_directory_changes_ex_callback(PTP_CALLBACK_INSTANCE CallbackInstance,
                                            PVOID                 Context,
                                            PVOID                 Overlapped,

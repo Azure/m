@@ -130,7 +130,7 @@ namespace m::threadpool_impl
         m_timer.wait_for_callbacks(false);
     }
 
-    void
+    void CALLBACK
     periodic_timer::tp_timer_callback(PTP_CALLBACK_INSTANCE tp_callback_instance,
                                       PVOID                 instance,
                                       PTP_TIMER /* periodic_timer*/)

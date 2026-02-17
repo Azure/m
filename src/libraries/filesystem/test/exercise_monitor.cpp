@@ -291,6 +291,7 @@ TEST(Monitor, SetUpMonitorNonExistentSubdirectory2)
     auto const monitor = m::filesystem::get_monitor();
 
     change_notification_sink cns;
+    std::ignore = cns;
 }
 
 TEST(Monitor, MonitorNonExistentSubdirectory)

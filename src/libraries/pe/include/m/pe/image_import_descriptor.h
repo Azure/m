@@ -90,7 +90,7 @@ namespace m
 
                 load_from_rva_context lfrc(s, idd.m_virtual_address);
 
-                offset_t base_offset = offset_t{} + (image_import_descriptor::k_size * index);
+                offset_t base_offset = offset_t{} + static_cast<int64_t>(image_import_descriptor::k_size * index);
                 lfrc.load_into(iid.m_import_name_table, base_offset + k_offset_import_name_table);
                 lfrc.load_into(iid.m_time_date_stamp, base_offset + k_offset_time_date_stamp);
                 lfrc.load_into(iid.m_forwarder_chain, base_offset + k_offset_forwarder_chain);

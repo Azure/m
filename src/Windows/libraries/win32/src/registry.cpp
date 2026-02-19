@@ -48,25 +48,22 @@ namespace m::win32::registry
 #pragma push_macro("QQ")
 #undef QQ
 #define QQ(p1, p2)                                                                                 \
-    case reinterpret_cast<uintptr_t>(p1):                                                          \
+    if (hkey == p1)                                                                                \
     {                                                                                              \
         static const predefined_hkey_data static_##p2##_data{.m_predefined_key =                   \
                                                                  predefined_key::p2};              \
         return &static_##p2##_data;                                                                \
     }
 
-            switch (reinterpret_cast<uintptr_t>(hkey))
-            {
-                QQ(HKEY_CLASSES_ROOT, classes_root)
-                QQ(HKEY_CURRENT_USER, current_user)
-                QQ(HKEY_LOCAL_MACHINE, local_machine)
-                QQ(HKEY_USERS, users)
-                QQ(HKEY_PERFORMANCE_DATA, performance_data)
-                QQ(HKEY_CURRENT_CONFIG, current_config)
-                QQ(HKEY_CURRENT_USER_LOCAL_SETTINGS, current_user_local_settings)
-                QQ(HKEY_PERFORMANCE_TEXT, performance_text)
-                QQ(HKEY_PERFORMANCE_NLSTEXT, performance_nlstext)
-            }
+            QQ(HKEY_CLASSES_ROOT, classes_root)
+            QQ(HKEY_CURRENT_USER, current_user)
+            QQ(HKEY_LOCAL_MACHINE, local_machine)
+            QQ(HKEY_USERS, users)
+            QQ(HKEY_PERFORMANCE_DATA, performance_data)
+            QQ(HKEY_CURRENT_CONFIG, current_config)
+            QQ(HKEY_CURRENT_USER_LOCAL_SETTINGS, current_user_local_settings)
+            QQ(HKEY_PERFORMANCE_TEXT, performance_text)
+            QQ(HKEY_PERFORMANCE_NLSTEXT, performance_nlstext)
 #pragma pop_macro("QQ")
 
             return nullptr;

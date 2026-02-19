@@ -20,8 +20,8 @@
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-static char8_t const* pu8c_nullptr    = nullptr;
-static char8_t const* pu8c_notnullptr = u8"foo";
+[[maybe_unused]] static char8_t const* pu8c_nullptr    = nullptr;
+[[maybe_unused]] static char8_t const* pu8c_notnullptr = u8"foo";
 
 //
 // Verify the optionality mechanics are kicking in

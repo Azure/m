@@ -84,7 +84,8 @@ TEST(MultiplicationUnsignedSignedToUnsigned, NegativeMultiplier)
 {
     // Unsigned × negative = negative result (can't fit in unsigned)
     EXPECT_THROW(m::math::multiply(uint32_t{10}, int32_t{-2}, uint32_t{}), std::overflow_error);
-    EXPECT_THROW(m::math::multiply(uint32_t{0}, int32_t{-1}, uint32_t{}), std::overflow_error);
+    // 0 × (−1) = 0 in ℤ; 0 is representable in uint32_t — no overflow
+    EXPECT_EQ(m::math::multiply(uint32_t{0}, int32_t{-1}, uint32_t{}), 0u);
 }
 
 TEST(MultiplicationUnsignedSignedToUnsigned, MultiplicationByZero)

@@ -193,7 +193,7 @@ m::pe::decoder::decoder(std::shared_ptr<byte_streams::ra_in> const& ra_in): m_ra
         m_section_headers.emplace_back(image_section_header::load_from(
             m_ra_in, m_section_headers_position, current_section_header_offset));
         current_section_header_offset =
-            current_section_header_offset + image_section_header::k_size;
+            current_section_header_offset + static_cast<int64_t>(image_section_header::k_size);
         section_index++;
     }
 

@@ -76,7 +76,10 @@ TEST(SignedUnsignedToUnsigned, AdditionPositiveOverflow)
     
     // Large positive signed + large unsigned should overflow uint32_t
     EXPECT_THROW(m::math::add(max32_signed, max32_unsigned, uint32_t{}), std::overflow_error);
-    EXPECT_THROW(m::math::add(max32_signed, max32_unsigned / 2, uint32_t{}), std::overflow_error);
+    // Smallest r that overflows: UINT32_MAX - INT32_MAX + 1 = 2147483649
+    // INT32_MAX + 2147483649 = UINT32_MAX + 1, which overflows uint32_t
+    constexpr uint32_t min_overflow_r = max32_unsigned - static_cast<uint32_t>(max32_signed) + 1u;
+    EXPECT_THROW(m::math::add(max32_signed, min_overflow_r, uint32_t{}), std::overflow_error);
     
     // Edge case: values that just fit
     EXPECT_EQ(m::math::add(int32_t{1}, max32_unsigned - 1, uint32_t{}), max32_unsigned);

@@ -1,3 +1,344 @@
+# Math Library — Test Failure Checklist
+
+**Configuration**: `x64-release-clang` (Clang 20.1.8 / clang-cl, RelWithDebInfo)  
+**Build**: Clean from source (full vcpkg restore + cmake configure + cmake build)  
+**Test binary**: `out/build/x64-release-clang/src/libraries/math/test/test_math.exe`  
+**Run date**: 2026-06  
+
+---
+
+## Summary
+
+245 tests ran. **5 failed**, **240 passed**.
+
+| # | Test | Failure Mode |
+|---|------|-------------|
+| 1 | `SignedSignedArithmetic.DifferentSizedTypes` | Unexpected `std::overflow_error` thrown |
+| 2 | `AdditionUnsignedSignedToSigned.NegativeSigned` | Unexpected `std::overflow_error` thrown |
+| 3 | `AdditionSignedUnsignedToSigned.NegativeSigned` | Unexpected `std::overflow_error` thrown |
+| 4 | `DivisionUnsignedSignedToSigned.IntMinDivisor` | Wrong result: got `0`, expected `-2` |
+| 5 | `IntermediateOverflow.SignedSmallToLargeSucceeds` | Unexpected `std::overflow_error` thrown |
+
+Failures 1, 2, 3, and 5 are **implementation bugs** in `math.h`.
+Failure 4 is a **test bug** in `test_division.cpp`.
+
+---
+
+## Issue 1 — `SignedSignedArithmetic.DifferentSizedTypes`
+
+### Test code (`signed_signed_to_signed.cpp`)
+
+```cpp
+TEST(SignedSignedArithmetic, DifferentSizedTypes)
+{
+    // int8_t values that would overflow int8_t but fit in int32_t
+    constexpr auto max8 = (std::numeric_limits<int8_t>::max)();   // 127
+    constexpr auto min8 = (std::numeric_limits<int8_t>::min)();   // -128
+
+    EXPECT_EQ(m::math::add(max8, int8_t{1}, int32_t{}), 128);    // FAILS — throws
+    EXPECT_EQ(m::math::add(min8, int8_t{-1}, int32_t{}), -129);  // FAILS — throws
+}
+```
+
+### Root cause (`math.h` — `safe_math_helper<signed, signed, signed>::add`)
+
+The implementation uses `common_type_t = std::common_type_t<LeftT, RightT>` (here, `int8_t`) as
+the working type for both the promotion and the overflow guard:
+
+```cpp
+using common_type_t = std::common_type_t<LeftT, RightT>;
+
+static constexpr ResultT
+add(LeftT l, RightT r)
+{
+    auto promoted_l = static_cast<common_type_t>(l);
+    auto promoted_r = static_cast<common_type_t>(r);
+
+    constexpr auto max_common = (std::numeric_limits<common_type_t>::max)();  // 127 for int8_t
+    constexpr auto min_common = (std::numeric_limits<common_type_t>::min)();  // -128 for int8_t
+
+    if (promoted_r > 0 && promoted_l > max_common - promoted_r)
+        throw std::overflow_error("integer overflow");   // ← fires for 127 + 1 even though
+                                                         //   ResultT = int32_t can hold 128
+    ...
+}
+```
+
+When `LeftT = RightT = int8_t` and `ResultT = int32_t`, the guard checks whether the sum
+overflows **`int8_t`**, not `int32_t`. Values like 127 + 1 = 128 are perfectly representable
+in `int32_t` but the check fires because it looks only at `common_type_t`.
+
+### Fix plan
+
+Replace the working type in `safe_math_helper<signed, signed, signed>::add` with
+`intmax_t` (or the wider of `common_type_t` and `ResultT`) so the intermediate
+computation and overflow check operate at full precision before the final
+`try_cast<ResultT>` narrows the result. Something along these lines:
+
+```cpp
+static constexpr ResultT
+add(LeftT l, RightT r)
+{
+    auto promoted_l = static_cast<intmax_t>(l);
+    auto promoted_r = static_cast<intmax_t>(r);
+
+    constexpr auto max_result = static_cast<intmax_t>((std::numeric_limits<ResultT>::max)());
+    constexpr auto min_result = static_cast<intmax_t>((std::numeric_limits<ResultT>::min)());
+
+    if (promoted_r > 0 && promoted_l > max_result - promoted_r)
+        throw std::overflow_error("integer overflow");
+
+    if (promoted_r < 0 && promoted_l < min_result - promoted_r)
+        throw std::overflow_error("integer overflow");
+
+    return static_cast<ResultT>(promoted_l + promoted_r);
+}
+```
+
+### Affected file(s)
+
+- `src/libraries/math/include/m/math/math.h` — `safe_math_helper<signed, signed, signed>::add`
+
+---
+
+## Issue 2 — `AdditionUnsignedSignedToSigned.NegativeSigned`
+
+### Test code (`test_addition.cpp`)
+
+```cpp
+TEST(AdditionUnsignedSignedToSigned, NegativeSigned)
+{
+    EXPECT_EQ(m::math::add(uint32_t{100}, int32_t{-50},  int32_t{}),  50);  // passes
+    EXPECT_EQ(m::math::add(uint32_t{1000}, int32_t{-500}, int32_t{}), 500); // passes
+
+    // Large negative — result is negative but fits in int32_t
+    EXPECT_EQ(m::math::add(uint32_t{50}, int32_t{-100}, int32_t{}), -50);   // FAILS — throws
+}
+```
+
+### Root cause (`math.h` — `safe_math_helper<unsigned, signed, signed>::add`)
+
+When `promoted_r` (the signed operand) is negative, the implementation reduces the
+negative value through a loop and then checks:
+
+```cpp
+uintmax_t that_which_remains = static_cast<uintmax_t>(-promoted_r);  // |r|
+
+if (that_which_remains > promoted_l)
+    throw std::overflow_error("integer overflow");   // ← always throws when |r| > l
+                                                     //   even though the negative result
+                                                     //   may fit in a signed ResultT
+
+promoted_l -= that_which_remains;
+return m::try_cast<ResultT>(promoted_l);
+```
+
+When `|r| > l`, the mathematical result is `l + r = -(|r| - l)` — a negative value.
+The code throws unconditionally instead of computing and validating the negative result.
+
+### Fix plan
+
+When `that_which_remains > promoted_l`, compute the negative magnitude and check whether
+it can be represented in `ResultT` (using the same pattern as `try_negate`):
+
+```cpp
+if (that_which_remains > promoted_l)
+{
+    uintmax_t magnitude = that_which_remains - promoted_l;
+    // -magnitude must be >= ResultT::min
+    constexpr uintmax_t max_neg = static_cast<uintmax_t>(
+        -(static_cast<intmax_t>((std::numeric_limits<ResultT>::min)()) + 1)) + 1;
+    if (magnitude > max_neg)
+        throw std::overflow_error("integer overflow");
+    if (magnitude == max_neg)
+        return (std::numeric_limits<ResultT>::min)();
+    return -m::try_cast<ResultT>(magnitude);
+}
+```
+
+### Affected file(s)
+
+- `src/libraries/math/include/m/math/math.h` — `safe_math_helper<unsigned, signed, signed>::add`
+
+---
+
+## Issue 3 — `AdditionSignedUnsignedToSigned.NegativeSigned`
+
+### Test code (`test_addition.cpp`)
+
+```cpp
+TEST(AdditionSignedUnsignedToSigned, NegativeSigned)
+{
+    EXPECT_EQ(m::math::add(int32_t{-50},  uint32_t{100}, int32_t{}),  50);  // passes
+    EXPECT_EQ(m::math::add(int32_t{-100}, uint32_t{50},  int32_t{}), -50);  // FAILS — throws
+}
+```
+
+### Root cause (`math.h` — `safe_math_helper<signed, unsigned, signed>::add`)
+
+Mirror of Issue 2, but with operand roles swapped (`LeftT` is signed, `RightT` is
+unsigned). The implementation for `promoted_l < 0` reduces the negative value and checks:
+
+```cpp
+uintmax_t that_which_remains = static_cast<uintmax_t>(-promoted_l);  // |l|
+
+if (that_which_remains > promoted_r)
+    throw std::overflow_error("integer overflow");   // ← same premature throw
+
+promoted_r -= that_which_remains;
+return m::try_cast<ResultT>(promoted_r);
+```
+
+When `|l| > r`, the result `l + r = -(|l| - r)` is negative and potentially valid in
+`ResultT`. The code throws instead of returning that negative result.
+
+### Fix plan
+
+Same pattern as Issue 2: when `that_which_remains > promoted_r`, compute the magnitude
+of the negative result and validate against `ResultT::min` before returning:
+
+```cpp
+if (that_which_remains > promoted_r)
+{
+    uintmax_t magnitude = that_which_remains - promoted_r;
+    constexpr uintmax_t max_neg = static_cast<uintmax_t>(
+        -(static_cast<intmax_t>((std::numeric_limits<ResultT>::min)()) + 1)) + 1;
+    if (magnitude > max_neg)
+        throw std::overflow_error("integer overflow");
+    if (magnitude == max_neg)
+        return (std::numeric_limits<ResultT>::min)();
+    return -m::try_cast<ResultT>(magnitude);
+}
+```
+
+### Affected file(s)
+
+- `src/libraries/math/include/m/math/math.h` — `safe_math_helper<signed, unsigned, signed>::add`
+
+---
+
+## Issue 4 — `DivisionUnsignedSignedToSigned.IntMinDivisor`
+
+### Test code (`test_division.cpp`)
+
+```cpp
+TEST(DivisionUnsignedSignedToSigned, IntMinDivisor)
+{
+    constexpr auto min32 = (std::numeric_limits<int32_t>::min)();  // -2147483648
+
+    // Small dividend / INT_MIN should give 0 (integer division)
+    EXPECT_EQ(m::math::divide(uint32_t{100}, min32, int32_t{}), 0);  // passes
+
+    // Large dividend / INT_MIN should give result
+    uint32_t large = static_cast<uint32_t>(-(static_cast<int64_t>(min32))) * 2;
+    EXPECT_EQ(m::math::divide(large, min32, int32_t{}), -2);  // FAILS — got 0
+}
+```
+
+### Root cause (bug is in the **test**, not in `math.h`)
+
+The computation of `large` silently overflows `uint32_t`:
+
+```
+-(static_cast<int64_t>(min32))      →  2147483648  (= 2^31; fits in int64_t)
+static_cast<uint32_t>(2147483648)   →  2147483648  (fits in uint32_t; it is 2^31)
+2147483648 * 2                      →  4294967296  (= 2^32, one past uint32_t max)
+```
+
+The multiplication is performed in `uint32_t` arithmetic (the integer literal `2`
+is promoted to `uint32_t` because the left operand is `uint32_t`), so the result wraps:
+`4294967296 mod 2^32 = 0`. Therefore `large == 0`, and `divide(0, INT32_MIN, int32_t{}) == 0`,
+not `-2`.
+
+The intent is clearly to produce a value equal to `2 × |INT32_MIN| = 2^32`, which cannot
+be represented in a 32-bit type. The test variable must be widened to `uint64_t`.
+
+### Fix plan
+
+Change the type of `large` in the test from `uint32_t` to `uint64_t`:
+
+```cpp
+// Before (overflows to 0):
+uint32_t large = static_cast<uint32_t>(-(static_cast<int64_t>(min32))) * 2;
+
+// After (correct; 2^32 fits in uint64_t):
+uint64_t large = static_cast<uint64_t>(-(static_cast<int64_t>(min32))) * 2;
+```
+
+With `large = 4294967296` and `min32 = -2147483648`, the expected result is
+`4294967296 / 2147483648 = 2`, negated because the divisor is negative → `-2`.
+
+Note: after fixing the test, verify that `safe_math_helper<uint64_t, int32_t, int32_t>::divide`
+handles the `RightT::min()` branch correctly for this input.
+
+### Affected file(s)
+
+- `src/libraries/math/test/test_division.cpp` — `DivisionUnsignedSignedToSigned.IntMinDivisor`
+
+---
+
+## Issue 5 — `IntermediateOverflow.SignedSmallToLargeSucceeds`
+
+### Test code (`test_intermediate_overflow.cpp`)
+
+```cpp
+TEST(IntermediateOverflow, SignedSmallToLargeSucceeds)
+{
+    // int8_t + int8_t can overflow int8_t but fit in int16_t
+    EXPECT_EQ(m::math::add(int8_t{100}, int8_t{100}, int16_t{}), 200);   // FAILS — throws
+
+    // int16_t + int16_t can overflow int16_t but fit in int32_t
+    EXPECT_EQ(m::math::add(int16_t{20000}, int16_t{20000}, int32_t{}), 40000);  // FAILS — throws
+
+    // int32_t + int32_t can overflow int32_t but fit in int64_t
+    int32_t large32 = (std::numeric_limits<int32_t>::max)() / 2 + 1;
+    EXPECT_EQ(m::math::add(large32, large32, int64_t{}),
+              static_cast<int64_t>(large32) * 2);  // FAILS — throws
+}
+```
+
+### Root cause
+
+This is the same root cause as **Issue 1**. `safe_math_helper<signed, signed, signed>::add`
+checks overflow against `common_type_t` (the narrower of the two input types) rather than
+against `ResultT`. Sums that exceed the common input type but fit in the wider `ResultT`
+are incorrectly rejected.
+
+Specific instances:
+- `add(int8_t{100}, int8_t{100}, int16_t{})`: `common_type_t = int8_t`, max = 127;
+  100 + 100 = 200 > 127 → throws, but 200 fits in `int16_t`.
+- `add(int16_t{20000}, int16_t{20000}, int32_t{})`: `common_type_t = int16_t`, max = 32767;
+  20000 + 20000 = 40000 > 32767 → throws, but 40000 fits in `int32_t`.
+- `add(large32, large32, int64_t{})`: `common_type_t = int32_t`; sum overflows `int32_t`
+  but fits in `int64_t`.
+
+### Fix plan
+
+Resolved by the same fix as Issue 1: use `intmax_t` as the working type and check
+overflow against `ResultT`'s bounds. No separate fix needed here beyond Issue 1.
+
+### Affected file(s)
+
+- `src/libraries/math/include/m/math/math.h` — `safe_math_helper<signed, signed, signed>::add`
+  (same change as Issue 1)
+
+---
+
+## Fix Order
+
+| Priority | Issue | Location | Change |
+|----------|-------|----------|--------|
+| 1 | Issues 1 & 5 (same fix) | `math.h` — `<signed, signed, signed>::add` | Use `intmax_t` working type; check against `ResultT` bounds |
+| 2 | Issue 2 | `math.h` — `<unsigned, signed, signed>::add` | Handle negative result case instead of throwing |
+| 3 | Issue 3 | `math.h` — `<signed, unsigned, signed>::add` | Handle negative result case instead of throwing |
+| 4 | Issue 4 | `test_division.cpp` — `IntMinDivisor` | Change `uint32_t large` to `uint64_t large` |
+
+All four changes are localised and independent — they can be made in any order.
+
+---
+
+<!-- Original code-review content preserved below this line -->
+
 # Math Library Code Review Checklist
 
 **Review Date**: Generated Checklist  

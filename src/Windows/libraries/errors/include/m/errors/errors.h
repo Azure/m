@@ -55,7 +55,7 @@ namespace m
 
     } // namespace windows_details
 
-    inline const std::error_category&
+    const std::error_category&
     hresult_category() noexcept;
 
     [[noreturn]]

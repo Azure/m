@@ -152,14 +152,19 @@ namespace
                         //
                         // (ldigits > sdigits) && (rdigits == sdigits)
                         //
+                        // r_greatest is the signed max, which equals (SumType::max+1)/2 - 1.
+                        // l_one + r_greatest = 1 + signed_max = (SumType::max+1)/2, which
+                        // still fits in SumType. Only l_greatest itself (already asserted
+                        // above) is too large for SumType.
+                        //
                         EXPECT_EQ(m::math::add(l_zero, r_greatest, SumType{}),
                                   static_cast<SumType>(l_zero) + static_cast<SumType>(r_greatest))
                             << " with LeftType: " << typeid(LeftType).name()
                             << ", RightType: " << typeid(RightType).name()
                             << ", and SumType: " << typeid(SumType).name();
 
-                        EXPECT_THROW(m::math::add(l_one, r_greatest, SumType{}),
-                                     std::overflow_error)
+                        EXPECT_EQ(m::math::add(l_one, r_greatest, SumType{}),
+                                  static_cast<SumType>(l_one) + static_cast<SumType>(r_greatest))
                             << " with LeftType: " << typeid(LeftType).name()
                             << ", RightType: " << typeid(RightType).name()
                             << ", and SumType: " << typeid(SumType).name();
@@ -239,14 +244,20 @@ namespace
                     else
                     {
                         // (ldigits == sdigits) && (rdigits == sdigits)
+                        //
+                        // l is unsigned N-bit (max = 2^N-1), r is signed N-bit (max = 2^(N-1)-1).
+                        // l_one + r_greatest = 1 + (2^(N-1)-1) = 2^(N-1), which fits in
+                        // unsigned N-bit SumType (max = 2^N-1). No overflow.
+                        // l_greatest + r_greatest = (2^N-1) + (2^(N-1)-1) > 2^N-1: overflow.
+                        //
                         EXPECT_EQ(m::math::add(l_zero, r_greatest, SumType{}),
                                   static_cast<SumType>(l_zero) + static_cast<SumType>(r_greatest))
                             << " with LeftType: " << typeid(LeftType).name()
                             << ", RightType: " << typeid(RightType).name()
                             << ", and SumType: " << typeid(SumType).name();
 
-                        EXPECT_THROW(m::math::add(l_one, r_greatest, SumType{}),
-                                     std::overflow_error)
+                        EXPECT_EQ(m::math::add(l_one, r_greatest, SumType{}),
+                                  static_cast<SumType>(l_one) + static_cast<SumType>(r_greatest))
                             << " with LeftType: " << typeid(LeftType).name()
                             << ", RightType: " << typeid(RightType).name()
                             << ", and SumType: " << typeid(SumType).name();
@@ -302,19 +313,28 @@ namespace
                 else
                 {
                     // (ldigits < sdigits) && (rdigits == sdigits)
+                    //
+                    // Example: uint32_t + int64_t -> uint64_t.
+                    // l_greatest = UINT32_MAX, r_greatest = INT64_MAX.
+                    // Both l_one+r_greatest and l_greatest+r_greatest fit in uint64_t
+                    // since UINT32_MAX + INT64_MAX < UINT64_MAX. No overflow here.
+                    // Actual overflow for this combination requires an unsigned value
+                    // greater than UINT64_MAX - INT64_MAX, which exceeds l_greatest.
+                    //
                     EXPECT_EQ(m::math::add(l_zero, r_greatest, SumType{}),
                               static_cast<SumType>(l_zero) + static_cast<SumType>(r_greatest))
                         << " with LeftType: " << typeid(LeftType).name()
                         << ", RightType: " << typeid(RightType).name()
                         << ", and SumType: " << typeid(SumType).name();
 
-                    EXPECT_THROW(m::math::add(l_one, r_greatest, SumType{}), std::overflow_error)
+                    EXPECT_EQ(m::math::add(l_one, r_greatest, SumType{}),
+                              static_cast<SumType>(l_one) + static_cast<SumType>(r_greatest))
                         << " with LeftType: " << typeid(LeftType).name()
                         << ", RightType: " << typeid(RightType).name()
                         << ", and SumType: " << typeid(SumType).name();
 
-                    EXPECT_THROW(m::math::add(l_greatest, r_greatest, SumType{}),
-                                 std::overflow_error)
+                    EXPECT_EQ(m::math::add(l_greatest, r_greatest, SumType{}),
+                              static_cast<SumType>(l_greatest) + static_cast<SumType>(r_greatest))
                         << " with LeftType: " << typeid(LeftType).name()
                         << ", RightType: " << typeid(RightType).name()
                         << ", and SumType: " << typeid(SumType).name();

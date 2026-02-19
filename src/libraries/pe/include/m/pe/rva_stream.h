@@ -98,7 +98,7 @@ namespace m
                 for (auto&& e: m_section_headers)
                 {
                     rva_t start{e.m_virtual_address};
-                    rva_t end{start + e.m_size_of_raw_data};
+                    rva_t end{start + static_cast<std::size_t>(e.m_size_of_raw_data)};
 
                     if ((rva >= start) && (rva < end))
                     {

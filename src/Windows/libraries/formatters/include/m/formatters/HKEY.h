@@ -44,25 +44,22 @@ struct std::formatter<HKEY, CharT>
 
 #undef X
 #define X(p)                                                                                       \
-    case reinterpret_cast<uint64_t>(p):                                                                 \
+    if (hkey == p)                                                                                 \
     {                                                                                              \
         constexpr auto lit = #p##sv;                                                               \
         return std::ranges::copy(lit.begin(), lit.end(), out).out;                                 \
     }
 
-        switch (reinterpret_cast<uint64_t>(hkey))
-        {
-            X(HKEY_CURRENT_USER)
-            X(HKEY_CLASSES_ROOT)
-            X(HKEY_LOCAL_MACHINE)
-            X(HKEY_USERS)
-            X(HKEY_PERFORMANCE_DATA)
-            X(HKEY_PERFORMANCE_TEXT)
-            X(HKEY_PERFORMANCE_NLSTEXT)
-            X(HKEY_CURRENT_CONFIG)
-            X(HKEY_DYN_DATA)
-            X(HKEY_CURRENT_USER_LOCAL_SETTINGS)
-        }
+        X(HKEY_CURRENT_USER)
+        X(HKEY_CLASSES_ROOT)
+        X(HKEY_LOCAL_MACHINE)
+        X(HKEY_USERS)
+        X(HKEY_PERFORMANCE_DATA)
+        X(HKEY_PERFORMANCE_TEXT)
+        X(HKEY_PERFORMANCE_NLSTEXT)
+        X(HKEY_CURRENT_CONFIG)
+        X(HKEY_DYN_DATA)
+        X(HKEY_CURRENT_USER_LOCAL_SETTINGS)
 
 #pragma pop_macro("X")
 

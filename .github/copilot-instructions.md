@@ -1,5 +1,19 @@
 # Repository-wide instructions for copilot
 
+## Terminal / Git rules
+
+**These rules prevent terminal hangs that freeze the session.**
+
+- Every `git` command that can produce paged output **must** be run with
+  `git --no-pager <subcommand>`. This includes (but is not limited to)
+  `diff`, `show`, `log`, `blame`, `reflog`, `stash list`, `branch -v`.
+- Never run `git commit` without `-m "…"`.
+- Never run `git pull` or `git merge` without `--no-edit`.
+- Never run interactive commands: `git rebase -i`, `git add -p`, etc.
+- Do not use `less`, `more`, or any other interactive pager.
+- NEVER USE PowerShell multi-line string operators (`@"…"@`) in terminal commands.
+
+
 ## ?? CRITICAL: PROJECT BUILD SYSTEM ??
 
 **THIS IS A CMAKE C++ PROJECT - NOT A .NET PROJECT**

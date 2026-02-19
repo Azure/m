@@ -75,6 +75,9 @@ namespace m
         template <typename LeftT, typename RightT, typename ResultT>
         struct safe_math_helper;
 
+        template <typename InputT, typename ResultT, typename Enable = void>
+        struct unary_safe_math_helper;
+
         //
         // Handle (unsigned [op] unsigned) -> unsigned
         //
@@ -110,10 +113,6 @@ namespace m
                 auto       lmax = uintmax_t{l};
                 auto       rmax = uintmax_t{r};
                 auto const rv   = uintmax_t{lmax - rmax};
-
-                if ((rv < lmax) || (rv < rmax))
-                    throw std::overflow_error(std::format(
-                        "m::math::subtract overflow: result does not fit in target type"));
 
                 return m::try_cast<ResultT>(rv);
             }
@@ -402,25 +401,17 @@ namespace m
             multiply(LeftT l, RightT r)
             {
                 // Unsigned × signed with unsigned result.
-                // If r is negative, result is negative (can't represent in unsigned).
-
+                // Per the design rule: compute in ℤ first, then map to ResultT.
+                // If either operand is zero the product is zero, which maps fine
+                // to any unsigned type regardless of the sign of the other operand.
                 if (r == 0 || l == 0)
                     return 0;
 
+                // r is non-zero and negative: product is negative, cannot fit in
+                // an unsigned ResultT → overflow.
                 if (r < 0)
-
-
-                {
-
-
-                    // Multiplying by negative gives negative result
-
-
                     throw std::overflow_error(std::format(
-
-
                         "m::math overflow: operation with negative value cannot be represented in unsigned result type"));
-                }
 
                 // r is positive, safe to cast to unsigned
                 auto l_promoted = static_cast<uintmax_t>(l);
@@ -543,22 +534,49 @@ namespace m
             static constexpr ResultT
             subtract(LeftT l, RightT r)
             {
-                if (l == (std::numeric_limits<intmax_t>::min)())
+                auto const promoted_l = static_cast<intmax_t>(l);
+                auto const promoted_r = static_cast<uintmax_t>(r);
+
+                if (promoted_l >= 0)
                 {
-                    // We can't overcome this case just throw
-                    throw std::overflow_error("integer overflow");
+                    // l >= 0: l - r, result may be positive or negative.
+                    auto const l_as_unsigned = static_cast<uintmax_t>(promoted_l);
+
+                    if (l_as_unsigned >= promoted_r)
+                    {
+                        // Result is non-negative.
+                        return m::try_cast<ResultT>(l_as_unsigned - promoted_r);
+                    }
+                    else
+                    {
+                        // Result is negative: -(r - l).
+                        return unary_safe_math_helper<uintmax_t, ResultT>::negate(
+                            promoted_r - l_as_unsigned);
+                    }
                 }
+                else
+                {
+                    // l < 0: l - r = -(|l| + r), always negative.
+                    uintmax_t abs_l;
 
-                // since r is not the most negative number, and we know since we're
-                // C++20 and later that this is 2's complement arithmetic, we can
-                // simply negate r to get its absolute value if it's negative.
-                auto l_as_unsigned = static_cast<uintmax_t>((l < 0) ? (-l) : l);
+                    if (promoted_l == (std::numeric_limits<intmax_t>::min)())
+                    {
+                        // C++20 guarantees two's complement.
+                        static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
+                                      (std::numeric_limits<intmax_t>::min)());
+                        abs_l = static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+                    }
+                    else
+                    {
+                        abs_l = static_cast<uintmax_t>(-promoted_l);
+                    }
 
-                // Let's kind of statically verify this somewhat obtusely
-                static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
-                              (std::numeric_limits<intmax_t>::min)());
+                    // Guard against uintmax_t overflow of the magnitude sum.
+                    if (promoted_r > (std::numeric_limits<uintmax_t>::max)() - abs_l)
+                        throw std::overflow_error("integer overflow");
 
-                return safe_math_helper<RightT, uintmax_t, ResultT>::add(r, l_as_unsigned);
+                    return unary_safe_math_helper<uintmax_t, ResultT>::negate(abs_l + promoted_r);
+                }
             }
 
             static constexpr ResultT
@@ -786,22 +804,27 @@ namespace m
             static constexpr ResultT
             subtract(LeftT l, RightT r)
             {
-                if (r == (std::numeric_limits<intmax_t>::min)())
+                if (r < 0)
                 {
-                    // We can't overcome this case just throw
-                    throw std::overflow_error("integer overflow");
+                    // l - r = l + |r| because r is negative.
+
+                    if (r == (std::numeric_limits<intmax_t>::min)())
+                    {
+                        // |intmax_t::min()| overflows intmax_t and exceeds the
+                        // positive range of any signed ResultT, so always throw.
+                        throw std::overflow_error("integer overflow");
+                    }
+
+                    // C++20 guarantees two's complement, so negation is safe here.
+                    static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
+                                  (std::numeric_limits<intmax_t>::min)());
+
+                    return safe_math_helper<LeftT, uintmax_t, ResultT>::add(l, static_cast<uintmax_t>(-r));
                 }
 
-                // since r is not the most negative number, and we know since we're
-                // C++20 and later that this is 2's complement arithmetic, we can
-                // simply negate r to get its absolute value if it's negative.
-                auto r_as_unsigned = static_cast<uintmax_t>((r < 0) ? (-r) : r);
-
-                // Let's kind of statically verify this somewhat obtusely
-                static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
-                              (std::numeric_limits<intmax_t>::min)());
-
-                return safe_math_helper<LeftT, uintmax_t, ResultT>::add(l, r_as_unsigned);
+                // r >= 0: l - r; result may be positive, zero, or negative.
+                // Delegate to (unsigned - unsigned -> signed) which handles all three.
+                return safe_math_helper<LeftT, uintmax_t, ResultT>::subtract(l, static_cast<uintmax_t>(r));
             }
 
         static constexpr ResultT
@@ -1131,34 +1154,30 @@ namespace m
             static constexpr ResultT
             add(LeftT l, RightT r)
             {
-                // Intentional: common_type_t determined by type traits
-                auto promoted_l = static_cast<common_type_t>(l);
-                auto promoted_r = static_cast<common_type_t>(r);  // common_type_t varies by context
+                auto promoted_l = static_cast<intmax_t>(l);
+                auto promoted_r = static_cast<intmax_t>(r);
 
                 //
-                // Detect overflow before performing the addition in common_type_t
-                // This handles the case where common_type_t might overflow.
+                // Perform overflow detection in intmax_t so that small input types
+                // (e.g. int8_t + int8_t -> int32_t) don't falsely overflow.
                 //
-                // Positive overflow: both operands positive and sum would exceed max
-                // Check: r > 0 && l > max - r
+                // Positive overflow: r > 0 && l > max - r
+                // Negative overflow: r < 0 && l < min - r
                 //
-                // Negative overflow: both operands negative and sum would go below min  
-                // Check: r < 0 && l < min - r
-                //
-                constexpr auto max_common = (std::numeric_limits<common_type_t>::max)();
-                constexpr auto min_common = (std::numeric_limits<common_type_t>::min)();
+                constexpr auto max_intmax = (std::numeric_limits<intmax_t>::max)();
+                constexpr auto min_intmax = (std::numeric_limits<intmax_t>::min)();
 
-                if (promoted_r > 0 && promoted_l > max_common - promoted_r)
+                if (promoted_r > 0 && promoted_l > max_intmax - promoted_r)
                 {
                     throw std::overflow_error("integer overflow");
                 }
 
-                if (promoted_r < 0 && promoted_l < min_common - promoted_r)
+                if (promoted_r < 0 && promoted_l < min_intmax - promoted_r)
                 {
                     throw std::overflow_error("integer overflow");
                 }
 
-                common_type_t const rv = promoted_l + promoted_r;
+                intmax_t const rv = promoted_l + promoted_r;
 
                 return m::try_cast<ResultT>(rv);
             }
@@ -1166,33 +1185,30 @@ namespace m
             static constexpr ResultT
             subtract(LeftT l, RightT r)
             {
-                // Intentional: common_type_t determined by type traits
-                auto promoted_l = static_cast<common_type_t>(l);
-                auto promoted_r = static_cast<common_type_t>(r);  // common_type_t varies by context
+                auto promoted_l = static_cast<intmax_t>(l);
+                auto promoted_r = static_cast<intmax_t>(r);
 
                 //
-                // Detect overflow before performing the subtraction in common_type_t
+                // Perform overflow detection in intmax_t so that small input types
+                // (e.g. int8_t - int8_t -> int32_t) don't falsely overflow.
                 //
-                // Positive overflow: subtracting a negative from a positive
-                // Check: r < 0 && l > max - (-r) which is l > max + r
+                // Positive overflow: r < 0 && l > max + r
+                // Negative overflow: r > 0 && l < min + r
                 //
-                // Negative overflow: subtracting a positive from a negative
-                // Check: r > 0 && l < min + r
-                //
-                constexpr auto max_common = (std::numeric_limits<common_type_t>::max)();
-                constexpr auto min_common = (std::numeric_limits<common_type_t>::min)();
+                constexpr auto max_intmax = (std::numeric_limits<intmax_t>::max)();
+                constexpr auto min_intmax = (std::numeric_limits<intmax_t>::min)();
 
-                if (promoted_r < 0 && promoted_l > max_common + promoted_r)
+                if (promoted_r < 0 && promoted_l > max_intmax + promoted_r)
                 {
                     throw std::overflow_error("integer overflow");
                 }
 
-                if (promoted_r > 0 && promoted_l < min_common + promoted_r)
+                if (promoted_r > 0 && promoted_l < min_intmax + promoted_r)
                 {
                     throw std::overflow_error("integer overflow");
                 }
 
-                auto const rv = promoted_l - promoted_r;
+                intmax_t const rv = promoted_l - promoted_r;
 
                 return m::try_cast<ResultT>(rv);
             }
@@ -1296,9 +1312,6 @@ namespace m
         }
         
         };
-
-        template <typename InputT, typename ResultT, typename Enable = void>
-        struct unary_safe_math_helper;
 
         // Unary ops, signed -> signed
         template <typename InputT, typename ResultT>

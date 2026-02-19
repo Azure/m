@@ -474,7 +474,7 @@ namespace
         static_assert(std::same_as<decltype(r2), std::optional<std::u32string>>);
     }
 
-    void
+    [[maybe_unused]] void
     try_dbcs_to_string()
     {
         try_to_string(dbcs_cp, bps);
@@ -482,7 +482,7 @@ namespace
         try_to_string(dbcs_cp, bs);
     }
 
-    void
+    [[maybe_unused]] void
     try_utf8_to_string()
     {
         try_to_string(utf8_cp, bpu8s);
@@ -564,7 +564,7 @@ namespace
     }
 #endif
 
-    void
+    [[maybe_unused]] void
     try_utf8_to_string_optional()
     {
         // try_to_string_optional(utf8_cp, bpu8s);

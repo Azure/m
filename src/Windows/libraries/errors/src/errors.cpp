@@ -17,7 +17,7 @@
 
 namespace m
 {
-    inline const std::error_category&
+    const std::error_category&
     hresult_category() noexcept
     {
         return windows_details::hresult_category_instance;

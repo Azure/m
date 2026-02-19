@@ -794,7 +794,18 @@ namespace m
                 uintmax_t that_which_remains = static_cast<uintmax_t>(-promoted_r);
 
                 if (that_which_remains > promoted_l)
-                    throw std::overflow_error("integer overflow");
+                {
+                    // The mathematical result is negative: -(that_which_remains - promoted_l).
+                    // It may still be representable in the signed ResultT.
+                    uintmax_t magnitude = that_which_remains - promoted_l;
+                    constexpr uintmax_t max_neg = static_cast<uintmax_t>(
+                        -(static_cast<intmax_t>((std::numeric_limits<ResultT>::min)()) + 1)) + 1;
+                    if (magnitude > max_neg)
+                        throw std::overflow_error("integer overflow");
+                    if (magnitude == max_neg)
+                        return (std::numeric_limits<ResultT>::min)();
+                    return -m::try_cast<ResultT>(magnitude);
+                }
 
                 promoted_l -= that_which_remains;
 

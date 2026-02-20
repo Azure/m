@@ -204,8 +204,13 @@ TEST(DivisionUnsignedSignedToSigned, IntMinDivisor)
     // Small dividend / INT_MIN should give 0 (integer division)
     EXPECT_EQ(m::math::divide(uint32_t{100}, min32, int32_t{}), 0);
     
-    // Large dividend / INT_MIN should give result
-    uint32_t large = static_cast<uint32_t>(-(static_cast<int64_t>(min32))) * 2;
+    // Large dividend / INT_MIN should give result.
+    // IMPORTANT: `large` MUST be uint64_t, not uint32_t.
+    // 2 * |INT32_MIN| = 2 * 2147483648 = 4294967296 = 2^32, which exceeds UINT32_MAX.
+    // If declared as uint32_t, the multiplication wraps to 0 in C++ unsigned arithmetic
+    // *before* the call, so divide(0, INT32_MIN, int32_t{}) would correctly return 0,
+    // giving a false pass on the wrong assertion value instead of testing the intended case.
+    uint64_t large = static_cast<uint64_t>(-(static_cast<int64_t>(min32))) * 2;
     EXPECT_EQ(m::math::divide(large, min32, int32_t{}), -2);
 }
 

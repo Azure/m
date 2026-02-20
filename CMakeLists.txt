@@ -75,6 +75,7 @@ if (MSVC)
 #     add_compile_options(/Wall)
     add_compile_options(/wd4018)        # '_': signed/unsigned mismatch [builtin relop]
     add_compile_options(/wd4100)        # '_': unreferenced parameter
+    add_compile_options(/wd4127)        # conditional expression is constant
     add_compile_options(/wd4324)        # '_': structure was padded due to alignment specifier
     add_compile_options(/wd4459)        # declaration of 'foo' hides global declaration
     add_compile_options(/wd4514)        # 'x': unreferenced inline function has been removed

@@ -182,9 +182,29 @@ namespace m
 
             if (this != &other)
             {
+                //
+                // IMPORTANT: unmake_c_str() MUST be called BEFORE m_arefc is replaced.
+                //
+                // The constructors store a non-owning pointer into m_arefc's buffer
+                // directly into m_c_str (as an optimisation: no extra allocation when
+                // the whole string is null-terminated already).  If we were to assign
+                // m_arefc first and the old refcount drops to zero, the backing buffer
+                // would be freed while m_c_str still points into it.  unmake_c_str()
+                // would then compare m_c_str against the *new* m_arefc's buffer, find
+                // no match, and call deallocate_c_str() on an already-freed pointer.
+                //
+                // By calling unmake_c_str() first we still have the correct old
+                // m_arefc in place.  If m_c_str is a separate allocation it is freed
+                // and set to nullptr by unmake_c_str().  If m_c_str points into the
+                // old buffer, unmake_c_str() returns early without zeroing; we then
+                // unconditionally zero it so the pointer cannot dangle after m_arefc
+                // is replaced below.
+                //
+                unmake_c_str();
+                m_c_str.store(nullptr, std::memory_order_release);
+
                 m_arefc           = other.m_arefc;
                 m_offset_and_size = other.m_offset_and_size;
-                unmake_c_str();
             }
 
             self_validate();

@@ -77,7 +77,7 @@ namespace m
                 return *this;
             }
 
-            constexpr ucs_decoder_iterator&
+            constexpr ucs_decoder_iterator
             operator++(int)
             {
                 auto tmp = *this;

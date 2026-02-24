@@ -16,7 +16,7 @@ namespace m
             if (l < r)
                 return std::strong_ordering::less;
 
-            if (r > l)
+            if (l > r)
                 return std::strong_ordering::greater;
 
             return std::strong_ordering::equivalent;

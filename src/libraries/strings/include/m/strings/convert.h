@@ -187,7 +187,7 @@ namespace m
     }
 
     template <typename FromT>
-    decltype(auto)
+    auto
     to_wsstring(FromT&& from)
     {
         return to_basic_sstring<wchar_t>(std::forward<FromT>(from));

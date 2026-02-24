@@ -38,7 +38,11 @@ namespace m
     std::u16string
     string_converter<wchar_t const*, std::u16string>::make_string(cwzstring str)
     {
-        return std::u16string(std::u16string_view(reinterpret_cast<char16_t const*>(str)));
+        if (str == nullptr)
+            return std::u16string();
+
+        return string_converter<std::wstring_view, std::u16string>::make_string(
+            std::wstring_view(str));
     }
 
     std::optional<std::u16string>

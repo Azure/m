@@ -8,6 +8,12 @@
 namespace m
 {
     std::string
+    string_converter<wchar_t const*, std::string>::make_string(cwzstring str)
+    {
+        return string_converter<std::wstring_view, std::string>::make_string(view_of(str));
+    }
+
+    std::string
     string_converter<std::wstring_view, std::string>::make_string(std::wstring_view v)
     {
         std::string t;

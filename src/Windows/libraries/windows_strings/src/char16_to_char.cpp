@@ -8,6 +8,16 @@
 namespace m
 {
     std::string
+    string_converter<char16_t const*, std::string>::make_string(cu16zstring str)
+    {
+        if (str == nullptr)
+            return std::string();
+
+        return string_converter<std::u16string_view, std::string>::make_string(
+            std::u16string_view(str));
+    }
+
+    std::string
     string_converter<std::u16string_view, std::string>::make_string(std::u16string_view v)
     {
         std::string t;

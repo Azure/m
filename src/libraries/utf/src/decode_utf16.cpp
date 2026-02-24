@@ -105,7 +105,10 @@ namespace m
             else if (ch1 <= 0xdbff)
             {
                 if (limit < (2 * sizeof(char16_t)))
+                {
+                    rv.m_char = k_partial_encoding;
                     return rv;
+                }
 
                 auto const ch2 = get_char16t_be(input, offset);
 

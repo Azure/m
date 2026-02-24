@@ -12,6 +12,7 @@
 #include <tuple>
 
 #include <m/utility/compiler.h>
+#include <m/utility/error_macros.h>
 
 #include <m/utf/decode_result.h>
 #include <m/utf/exceptions.h>

@@ -185,16 +185,17 @@ namespace m::utf
         std::basic_string<TCharOut> newout;
         newout.resize_and_overwrite(char_count,
                                     [&it, &last](auto buffer, auto buffer_size) -> std::size_t {
-                                        auto span   = m::make_span(buffer, buffer_size);
-                                        auto outit  = span.begin();
-                                        auto outend = span.end();
+                                        auto span  = m::make_span(buffer, buffer_size);
+                                        auto outit = span.begin();
 
                                         while (it != last)
                                         {
                                             auto [newit, ch] = decode_utf(TCharIn{}, it, last);
-                                            outit            = encode_char(ch, outit);
+                                            outit            = encode_char<TCharOut>(ch, outit);
                                             it               = newit;
                                         }
+
+                                        return static_cast<std::size_t>(outit - span.begin());
                                     });
 
         using std::swap;
@@ -230,16 +231,17 @@ namespace m::utf
         std::basic_string<TCharOut> newout;
         newout.resize_and_overwrite(
             char_count, [&it, &last](auto buffer, auto buffer_size) -> std::size_t {
-                auto span   = m::make_span(buffer, buffer_size);
-                auto outit  = span.begin();
-                auto outend = span.end();
+                auto span  = m::make_span(buffer, buffer_size);
+                auto outit = span.begin();
 
                 while (it != last)
                 {
                     auto [newit, ch] = m::utf::decode_utf(TCharIn{}, it, last);
-                    outit            = m::utf::encode_char(ch, outit);
+                    outit            = m::utf::encode_char<TCharOut>(ch, outit);
                     it               = newit;
                 }
+
+                return static_cast<std::size_t>(outit - span.begin());
             });
 
         using std::swap;

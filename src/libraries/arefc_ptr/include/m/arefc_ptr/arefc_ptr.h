@@ -602,6 +602,8 @@ namespace m
 
             T* old_e = e; // save a copy so we don't have to re-load
 
+            // Pre-increment d's refcount so that if the CAS succeeds, m_ptr holds
+            // a valid reference to d without a window where the refcount is zero.
             increment_ref(d);
 
             if (m_ptr.compare_exchange_strong(e, d, std::memory_order_acq_rel))
@@ -613,8 +615,12 @@ namespace m
                 return true;
             }
 
-            // The compare_exchange "failed", so now we need to update
-            // "expected" to the new value.
+            // The CAS failed: m_ptr still holds its current value (now captured in `e`).
+            // `d` was pre-incremented above but was never stored in m_ptr, so we must
+            // undo that increment to avoid a permanent ref-count leak on `desired`.
+            decrement_ref(d);
+
+            // Update `expected` to reflect the actual current value of m_ptr.
             expected.reset(e);
 
             return false;
@@ -691,6 +697,13 @@ namespace m
         }
 
         std::atomic<T*> m_ptr{nullptr};
+
+        // All specializations of arefc_ptr are friends of each other so that the
+        // cross-type converting constructor and assignment operators can call the
+        // private addref() / put() members on a related specialization.
+        template <typename U>
+            requires(arefc_ptr_requirements<U>)
+        friend class arefc_ptr;
 
         template <typename T1, typename... Args>
             requires(arefc_ptr_requirements<T1>)

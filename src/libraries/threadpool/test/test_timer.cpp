@@ -9,6 +9,7 @@
 #include <latch>
 #include <span>
 #include <string_view>
+#include <thread>
 
 #include <m/debugging/dbg_format.h>
 #include <m/threadpool/threadpool.h>
@@ -320,4 +321,87 @@ TEST(Timer, EnsureDestructionDelayed)
     started.arrive_and_wait();
     t1.reset();
     EXPECT_TRUE(ran);
+}
+
+// ---------------------------------------------------------------------------
+// is_set() tests
+// ---------------------------------------------------------------------------
+
+TEST(Timer, IsSetInitiallyFalse)
+{
+    auto t1 = m::threadpool->create_timer([]() {});
+    EXPECT_FALSE(t1->is_set());
+}
+
+TEST(Timer, IsSetTrueAfterSetWithLongDuration)
+{
+    // Set a 60-second timer; is_set() must return true before it fires.
+    auto t1 = m::threadpool->create_timer([]() {});
+    t1->set(60s);
+    EXPECT_TRUE(t1->is_set());
+    t1->cancel();
+    t1->wait();
+}
+
+TEST(Timer, IsSetFalseAfterCancel)
+{
+    // On Windows, ::IsThreadpoolTimerSet reflects whether SetThreadpoolTimer
+    // was called with a non-NULL due time and not yet cancelled.  Even after
+    // a one-shot timer fires naturally it keeps returning true.  Only an
+    // explicit cancel() (which calls SetThreadpoolTimer(NULL)) clears it.
+    auto t1 = m::threadpool->create_timer([]() {});
+    t1->set(60s);
+    EXPECT_TRUE(t1->is_set());
+    t1->cancel();
+    t1->wait();
+    EXPECT_FALSE(t1->is_set());
+}
+
+// ---------------------------------------------------------------------------
+// cancel() tests
+// ---------------------------------------------------------------------------
+
+TEST(Timer, CancelPreventsCallback)
+{
+    std::atomic<bool> ran{false};
+
+    auto t1 = m::threadpool->create_timer([&]() {
+        ran.store(true, std::memory_order_release);
+    });
+
+    // Set a long-duration timer then cancel it before it can fire.
+    t1->set(30s);
+    t1->cancel();
+    // wait() drains any in-flight dispatch before we check the flag.
+    t1->wait();
+
+    EXPECT_FALSE(ran.load(std::memory_order_acquire));
+}
+
+// ---------------------------------------------------------------------------
+// wait() tests
+// ---------------------------------------------------------------------------
+
+TEST(Timer, WaitAfterCancelDrainsRunningCallback)
+{
+    // cancel() followed by wait() must block until any currently-executing
+    // callback completes.  timer::wait() without cancel() only waits for
+    // actively-running callbacks; this test uses a latch so we know the
+    // callback has started before we call cancel() + wait().
+    std::latch        started(2);
+    std::atomic<bool> ran{false};
+
+    auto t1 = m::threadpool->create_timer([&]() {
+        started.arrive_and_wait();         // signal: callback has begun
+        std::this_thread::sleep_for(50ms); // stay running for a moment
+        ran.store(true, std::memory_order_release);
+    });
+
+    t1->set(0s);
+    started.arrive_and_wait(); // wait until callback is executing
+
+    t1->cancel();
+    t1->wait(); // must not return until the running callback completes
+
+    EXPECT_TRUE(ran.load(std::memory_order_acquire));
 }

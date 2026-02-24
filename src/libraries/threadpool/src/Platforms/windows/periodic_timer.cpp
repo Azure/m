@@ -54,6 +54,12 @@ namespace m::threadpool_impl
 
         m_duration = dur;
         m_packaged_task.reset();
+
+        // Increment m_set_count so that do_stop()'s guard can distinguish
+        // "never started" / "already stopped" (m_set_count == m_set_count_when_finalized)
+        // from "currently running" (m_set_count != m_set_count_when_finalized).
+        m_set_count++;
+
         m_timer.set(
             parameters.m_p_ft_due_time, parameters.m_ms_period, parameters.m_ms_window_length);
     }
@@ -69,7 +75,10 @@ namespace m::threadpool_impl
     {
         auto l = std::unique_lock(m_mutex);
 
-        // You shouldn't stop a periodic task you haven't started.
+        // You shouldn't stop a periodic task you haven't started or already stopped.
+        // m_set_count is incremented each time do_set() is called.
+        // m_set_count_when_finalized is updated here to the current m_set_count after
+        // a successful stop, preventing double-stop.
         if ((m_set_count == m_set_count_when_finalized) ||
             (m_set_count == m_set_count_when_cancelled))
         {
@@ -79,6 +88,10 @@ namespace m::threadpool_impl
         }
 
         m_timer.cancel();
+
+        // Mark this generation as finalized so that a subsequent call to stop()
+        // correctly detects "already stopped" via the guard above.
+        m_set_count_when_finalized = m_set_count;
     }
 
     void
@@ -142,16 +155,25 @@ namespace m::threadpool_impl
     void
     periodic_timer::on_tp_timer(PTP_CALLBACK_INSTANCE) noexcept
     {
-        auto l = std::unique_lock(m_mutex);
-
-        m_set_count_when_executed = m_set_count;
+        // Record that this generation of the timer has fired, then release the
+        // lock *before* invoking the user callback.  Holding m_mutex across the
+        // callback would deadlock if the callback calls stop() (or any other
+        // member that acquires m_mutex).
+        {
+            auto l = std::unique_lock(m_mutex);
+            m_set_count_when_executed = m_set_count;
+        }
 
         {
+            // m_description is immutable after construction – safe to read without lock.
             m::thread_description td(m_description);
             m_packaged_task();
         }
 
-        m_packaged_task.reset();
-        m_re_execution_count++;
+        {
+            auto l = std::unique_lock(m_mutex);
+            m_packaged_task.reset();
+            m_re_execution_count++;
+        }
     }
 } // namespace m::threadpool_impl

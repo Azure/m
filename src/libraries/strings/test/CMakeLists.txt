@@ -12,6 +12,7 @@ add_executable(${TEST_EXE_NAME}
     punning_test.cpp
     test_convert.cpp
     test_literal_string_view.cpp
+    test_strings_extras.cpp
     verify_to_string.cpp
     verify_to_u8string.cpp
     verify_to_u16string.cpp

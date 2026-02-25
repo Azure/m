@@ -9,10 +9,16 @@
 #include <initializer_list>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <random>
 #include <span>
+#include <string>
+#include <string_view>
 #include <type_traits>
 
+#include <m/utility/concepts.h>
+#include <m/utility/pointers.h>
+#include <m/utility/stringish.h>
 #include <m/utility/type_traits.h>
 
 namespace m

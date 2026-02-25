@@ -49,7 +49,7 @@
 #define M_HAS_CXX20 1
 #endif
 
-#if _MSVC_LANG >= 202004L
+#if _MSVC_LANG >= 202302L
 #define M_HAS_CXX23 1
 #endif
 

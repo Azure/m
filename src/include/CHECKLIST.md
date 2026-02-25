@@ -252,26 +252,126 @@ This checklist contains recommendations for improving the code in the `src/inclu
 - **Check**: Ensure no implementation files (.cpp) in these directories
 - **Verify**: Include paths are correctly set up for consuming targets
 
+## Additional Findings (2026-02-25 Review)
+
+### 32. Bug: `mutex.h` — `with_lock` C++20 Fallback Fails to Compile
+- **File**: `src/include/m/utility/mutex.h`
+- **Issue**: In the `#else` (non-C++23) branch of `with_lock`, the `std::forward` call uses invalid syntax:
+  ```cpp
+  // Current (WRONG):
+  return std::invoke<Fn, Args...>(std::forward<Fn>(f), std::forward(Args)(args)...);
+  // std::forward requires an explicit template argument, but (Args) here is a cast/call expression.
+  ```
+- **Fix**:
+  ```cpp
+  return std::invoke(std::forward<Fn>(f), std::forward<Args>(args)...);
+  ```
+- **Impact**: HIGH — fails to compile on any C++20-only or non-C++23 path.
+
+### 33. Bug: `smallest_size.h` — Off-by-One in Boundary Checks
+- **File**: `src/include/m/utility/smallest_size.h`
+- **Issue**: The template uses `N < max()` but to represent values in `[0, N]`, the correct predicate is `N <= max()`. As written, `smallest_size_t<255>` resolves to `uint16_t` instead of `uint8_t`. The same off-by-one applies to the `uint16_t` and `uint32_t` arms.
+- **Fix**: Change all `<` comparisons to `<=`:
+  ```cpp
+  (N <= (std::numeric_limits<uint8_t>::max)()),
+  // etc.
+  ```
+- **Impact**: HIGH — silently selects a larger type than necessary, and semantically incorrect.
+
+### 34. Bug: `algorithm.h` — Not Self-Contained (Missing Includes)
+- **File**: `src/include/m/utility/algorithm.h`
+- **Issue**: Uses `basic_sstring<CharT>`, `not_null<CharT const*>`, and `m::character<CharT>` without including the headers that define them (`stringish.h`, `pointers.h`, `concepts.h`). Compiles only due to accidental include ordering at call sites.
+- **Fix**: Add the missing direct includes to `algorithm.h`.
+- **Impact**: MEDIUM — fragile; will break if include order at call sites changes.
+
+### 35. Bug: `compiler.h` — Non-Standard C++23 Detection Value for MSVC
+- **File**: `src/include/m/utility/compiler.h`
+- **Issue**: `M_HAS_CXX23` for MSVC checks `_MSVC_LANG >= 202004L`. The ISO C++23 value is `202302L`, not `202004L`. This accidentally works as a proxy for "beyond C++20" but is semantically wrong. The Clang and GCC paths already use the correct `202302L`.
+- **Fix**:
+  ```cpp
+  #if _MSVC_LANG >= 202302L
+  #define M_HAS_CXX23 1
+  ```
+- **Impact**: MEDIUM — could activate C++23 paths prematurely or incorrectly.
+
+### 36. Dead Code: `incrementer.h` — `naive_incrementer` Is Never Instantiated
+- **File**: `src/include/m/utility/incrementer.h`
+- **Issue**: `incrementer_base_chooser` selects `integral_incrementer<T>` when `T` is integral and `naive_incrementer<T>` otherwise, but `naive_incrementer` itself also carries `requires(std::integral<T>)`. Non-integral `T` therefore fails both arms; `naive_incrementer` is dead code.
+- **Recommendation**: Either remove the `requires` constraint from `naive_incrementer` (if it is intended for non-integral types), or remove `naive_incrementer` entirely.
+- **Impact**: LOW (dead code, not a runtime bug).
+
+### 37. Dead Code: `utility.h` — `M_INTEGER_OPERATIONS_PLUS_MINUS___OLD` Macro
+- **File**: `src/include/m/utility/utility.h`
+- **Issue**: A large macro `M_INTEGER_OPERATIONS_PLUS_MINUS___OLD` is present and clearly superseded by `M_INTEGER_OPERATIONS_PLUS_MINUS`. The `___OLD` suffix signals it is stale.
+- **Recommendation**: Remove it.
+- **Impact**: LOW (dead macro, zero runtime effect, but adds noise and confusion).
+
+### 38. Minor: `type_traits.h` — Reimplements `std::remove_cvref_t`
+- **File**: `src/include/m/utility/type_traits.h`
+- **Issue**: `m::remove_cvref_t<T>` is manually defined as a chain of `remove_const_t`, `remove_volatile_t`, `remove_reference_t`. The library already requires C++20, which provides `std::remove_cvref_t<T>` directly.
+- **Recommendation**:
+  ```cpp
+  template <typename T>
+  using remove_cvref_t = std::remove_cvref_t<T>;
+  ```
+- **Impact**: LOW — only a maintenance burden; semantically identical.
+
+### 39. Minor: `zstring.h` — `Extent` Template Parameter Is Silently Ignored
+- **File**: `src/include/m/utility/zstring.h`
+- **Issue**: `basic_zstring<CharT, Extent>` is defined as `CharT*` regardless of the `Extent` argument. The parameter is accepted but fully discarded, which is misleading to callers expecting span-like bounded behaviour.
+- **Recommendation**: Either remove the `Extent` parameter, or add a static_assert/comment making clear it has no effect.
+- **Impact**: LOW — misleading API, no runtime consequence.
+
+### 40. Minor: `string_inserter.h` — Non-Idiomatic `[[nodiscard]]` on Output Iterator `operator*()`
+- **File**: `src/include/m/utility/string_inserter.h`
+- **Issue**: `[[nodiscard]]` is applied to `basic_string_insert_iterator::operator*()`. Standard output iterators (e.g., `std::back_insert_iterator`) do not mark this operator `[[nodiscard]]`, and doing so may generate spurious warnings in algorithm or range usage where the result of `operator*()` is immediately assigned through.
+- **Recommendation**: Remove `[[nodiscard]]` from `operator*()`.
+- **Impact**: LOW — may cause spurious `-Wunused-result` / nodiscard warnings.
+
+### 41. Bug: `error_macros.h` — Infinite Loop in `unregister_handler` When Token Not Found
+- **File**: `src/include/m/utility/error_macros.h`
+- **Issue**: The `while` loop in `global_error_list::unregister_handler()` never increments the iterator when the current element does not match, causing an infinite loop if the token is not present in the deque:
+  ```cpp
+  while (it != end)
+  {
+      if (*it == e)
+      {
+          m_deque.erase(it);
+          break;
+      }
+      // missing ++it — loops forever if e is not in m_deque
+  }
+  ```
+- **Fix**: Add `++it;` at the end of the loop body.
+- **Impact**: CRITICAL — denial of service / hang if `unregister_handler` is ever called with a token that is not in the list (e.g. double-unregister, or any future code path that calls it defensively).
+- **Status**: ~~**FIXED**~~ — `++it;` added.
+
 ## Summary Statistics
 
-- **Total Items**: 31
+- **Total Items**: 40
 - **Critical**: 3 (bugs that must be fixed)
-- **High Priority**: 4
-- **Medium Priority**: 9
-- **Low Priority**: 8
+- **High Priority**: 6
+- **Medium Priority**: 11
+- **Low Priority**: 13
 - **Architecture**: 4
 - **Documentation**: 2
 - **Build**: 1
 
 ## Priority Action Items
 
-1. **IMMEDIATE**: Fix swap bug in `pointers.h` line 67
-2. **IMMEDIATE**: Fix missing return in `unique_unlock.h` line 69
-3. **IMMEDIATE**: Fix incorrect type trait alias in `type_traits.h` line 102
-4. **HIGH**: Add missing `std::` qualification in `make_span.h`
-5. **HIGH**: Rename `enum_operations.h.h` to remove double extension
-6. **MEDIUM**: Add comprehensive documentation to all public APIs
-7. **MEDIUM**: Consider modernizing trait implementations with concepts
+1. ~~**IMMEDIATE**: Fix swap bug in `pointers.h` line 67~~ — **VERIFIED CORRECT**, code already has `r.m_v = t;`
+2. ~~**IMMEDIATE**: Fix missing return in `unique_unlock.h` line 69~~ — **VERIFIED CORRECT**, `return *this;` and `noexcept` already present
+3. ~~**IMMEDIATE**: Fix incorrect type trait alias in `type_traits.h` line 102~~ — **VERIFIED CORRECT**, `typename` already present
+4. ~~**IMMEDIATE**: Fix `with_lock` C++20 fallback syntax error in `mutex.h` (item 32)~~ — **FIXED**: corrected `std::forward(Args)(args)...` to `std::forward<Args>(args)...`
+5. ~~**IMMEDIATE**: Fix off-by-one boundary checks in `smallest_size.h` (item 33)~~ — **FIXED**: changed all `<` to `<=` in boundary comparisons
+6. ~~**HIGH**: Fix missing includes in `algorithm.h` to make it self-contained (item 34)~~ — **FIXED**: added `#include`s for `concepts.h`, `pointers.h`, `stringish.h`, `<optional>`, `<string>`, `<string_view>`
+7. ~~**HIGH**: Fix MSVC C++23 detection value in `compiler.h` (item 35)~~ — **FIXED**: changed `_MSVC_LANG >= 202004L` to `_MSVC_LANG >= 202302L`
+8. ~~**HIGH**: Add missing `std::` qualification in `make_span.h`~~ — **VERIFIED CORRECT**, all `std::span` uses already qualified
+9. ~~**HIGH**: Rename `enum_operations.h.h` to remove double extension~~ — **VERIFIED CORRECT**, file is already `enum_operations.h`
+10. **MEDIUM**: Add comprehensive documentation to all public APIs
+11. **MEDIUM**: Consider modernizing trait implementations with concepts
+12. **LOW**: Remove dead code: `naive_incrementer`, `M_INTEGER_OPERATIONS_PLUS_MINUS___OLD`, phantom `Extent` in `zstring.h`
+13. ~~**IMMEDIATE**: Fix infinite loop in `error_macros.h` `unregister_handler` (item 41)~~ — **FIXED**: added missing `++it;` in while loop
 
 ---
 

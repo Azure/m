@@ -30,6 +30,13 @@ namespace m
 
     template <>
     void
+    view_to_span(multi_byte::code_page cp, std::wstring_view in, std::span<char>& out, std::error_code& ec)
+    {
+        utf16_to_multi_byte(cp, in, out, ec);
+    }
+
+    template <>
+    void
     view_to_span(multi_byte::code_page cp, std::string_view in, std::span<wchar_t>& out)
     {
         multi_byte_to_utf16(cp, in, out);

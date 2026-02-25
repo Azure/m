@@ -39,6 +39,7 @@ namespace
         if (i < 1)
         {
             ec = m::get_last_win32_error();
+            span = span.subspan(0, 0);
             return;
         }
 

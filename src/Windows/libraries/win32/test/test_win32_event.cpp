@@ -3,16 +3,29 @@
 
 #include <gtest/gtest.h>
 
-#include <format>
-#include <string>
-#include <string_view>
-
 #include <Windows.h>
 
 #include <m/win32/event.h>
 
-using namespace std::string_literals;
-using namespace std::string_view_literals;
+TEST(Win32Event, CreateqSetsEventKindManual)
+{
+    m::win32::event e;
+    auto const      ec = e.createq(m::win32::create_event_flags::manual_reset);
+
+    EXPECT_FALSE(ec) << ec.message();
+    EXPECT_NE(e.get(), nullptr);
+    EXPECT_EQ(e.get_event_kind(), m::win32::event::event_kind::manual);
+}
+
+TEST(Win32Event, CreateqSetsEventKindAutomatic)
+{
+    m::win32::event e;
+    auto const      ec = e.createq(m::win32::create_event_flags::zero);
+
+    EXPECT_FALSE(ec) << ec.message();
+    EXPECT_NE(e.get(), nullptr);
+    EXPECT_EQ(e.get_event_kind(), m::win32::event::event_kind::automatic);
+}
 
 TEST(Win32Event, ConstructNull)
 {

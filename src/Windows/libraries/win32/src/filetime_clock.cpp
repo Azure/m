@@ -12,10 +12,8 @@ namespace m::win32
     filetime_clock::time_point
     filetime_clock::now()
     {
-        SYSTEMTIME st{};
-        FILETIME   ft{};
-        GetSystemTime(&st);
-        SystemTimeToFileTime(&st, &ft);
+        FILETIME ft{};
+        ::GetSystemTimeAsFileTime(&ft);
 
         LARGE_INTEGER li{};
         li.LowPart  = ft.dwLowDateTime;
@@ -54,10 +52,10 @@ namespace m::win32
     filetime_clock::to_sys(duration const& dur)
     {
         LARGE_INTEGER li{};
-        li.QuadPart = dur.count();
+        li.QuadPart = -dur.count();
         FILETIME ft{};
         ft.dwLowDateTime  = li.LowPart;
-        ft.dwHighDateTime = static_cast<decltype(ft.dwHighDateTime)>(-li.HighPart);
+        ft.dwHighDateTime = static_cast<decltype(ft.dwHighDateTime)>(li.HighPart);
         return ft;
     }
 

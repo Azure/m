@@ -149,6 +149,7 @@ namespace m::error_macros
                     m_deque.erase(it);
                     break;
                 }
+                ++it;
             }
 
             std::unique_ptr<entry> up(e);

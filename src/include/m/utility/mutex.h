@@ -29,7 +29,7 @@ namespace m
     {
         auto ul = LockT(m);
 
-        return std::invoke<Fn, Args...>(std::forward<Fn>(f), std::forward(Args)(args)...);
+        return std::invoke(std::forward<Fn>(f), std::forward<Args>(args)...);
     }
 #endif
 

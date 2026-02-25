@@ -13,6 +13,7 @@
 
 #undef M_HAS_MSVC
 #undef M_HAS_CLANG
+#undef M_HAS_GCC
 
 #if defined(_MSC_VER) && !defined(__clang__)
 
@@ -21,6 +22,10 @@
 #elif defined(__clang__)
 
 #define M_HAS_CLANG 1
+
+#elif defined(__GNUC__)
+
+#define M_HAS_GCC 1
 
 #else
 
@@ -49,6 +54,18 @@
 #endif
 
 #elif M_HAS_CLANG
+
+#define M_NOINLINE __attribute__((noinline))
+
+#if __cplusplus >= 202302L
+#define M_HAS_CXX23 1
+#endif
+
+#if __cplusplus >= 202002L
+#define M_HAS_CXX20 1
+#endif
+
+#elif M_HAS_GCC
 
 #define M_NOINLINE __attribute__((noinline))
 

@@ -23,14 +23,14 @@ namespace m::threadpool_impl
     public:
         struct normal_timer_tag_t
         {
-            explicit normal_timer_tag_t() = default;
+            normal_timer_tag_t() = default;
         };
 
         inline static normal_timer_tag_t normal_timer_tag;
 
         struct periodic_timer_tag_t
         {
-            explicit periodic_timer_tag_t() = default;
+            periodic_timer_tag_t() = default;
         };
 
         inline static periodic_timer_tag_t periodic_timer_tag;

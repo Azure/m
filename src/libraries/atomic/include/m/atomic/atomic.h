@@ -16,7 +16,8 @@
 
 namespace m
 {
-#ifdef M_HAS_CXX23
+    // Available in C++20 and later. Originally used std::invoke_r (C++23);
+    // replaced with static_cast<T>(std::invoke(...)) for C++20 compatibility.
     template <typename T, typename Fn>
         requires(std::is_pointer_v<T>)
     T
@@ -28,7 +29,7 @@ namespace m
             return retval;
 
         auto newval = std::unique_ptr<std::remove_pointer_t<T>>(
-            static_cast<T>(std::invoke_r<T, Fn>(std::forward<Fn>(fn))));
+            static_cast<T>(std::invoke(std::forward<Fn>(fn))));
 
         while (retval == nullptr)
         {
@@ -40,7 +41,6 @@ namespace m
 
         return x.load(std::memory_order_acquire);
     }
-#endif // M_HAS_CXX23
 
     template <typename T,
               T f() =
@@ -71,20 +71,20 @@ namespace m
         void
         operator=(atomic_pointer_with_initializer&& other) = delete;
 
-        operator T() { return racy_initialize(m_ptr, f); }
+        operator T() { return m::racy_initialize(m_ptr, f); }
 
-        operator not_null<T>() { return racy_initialize(m_ptr, f); }
+        operator not_null<T>() { return m::racy_initialize(m_ptr, f); }
 
         T
         operator->()
         {
-            return racy_initialize(m_ptr, f);
+            return m::racy_initialize(m_ptr, f);
         }
 
         T
         get()
         {
-            return racy_initialize(m_ptr, f);
+            return m::racy_initialize(m_ptr, f);
         }
 
     private:

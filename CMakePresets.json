@@ -55,6 +55,36 @@
       "hidden": true
     },
     {
+      "name": "linux-gnuc-base",
+      "inherits": [
+        "base"
+      ],
+      "environment": {
+        "CC": "gcc",
+        "CXX": "g++"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/usr/bin/gcc",
+        "CMAKE_CXX_COMPILER": "/usr/bin/g++",
+        "CMAKE_BUILD_WITH_INSTALL_RPATH": true
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioRemoteSettings/CMake/2.0": {
+          "remoteSourceRootDir": "$env{HOME}/.vs/$ms{projectDirName}",
+          "copySourcesOptions": {
+            "exclusionList": [
+              "buildtrees",
+              ".vs",
+              "out",
+              "vcpkg/buildtrees",
+              "vcpkg/downloads"
+            ]
+          }
+        }
+      },
+      "hidden": true
+    },
+    {
       "name": "win-base",
       "description": "Customizations for Windows Build",
       "inherits": [
@@ -418,6 +448,46 @@
       "description": "clang linux x64 release",
       "inherits": [
         "linux-base",
+        "x64",
+        "release"
+      ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-linux"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Linux"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-linux-gnuc-debug",
+      "displayName": "x64-linux-gnuc-debug",
+      "description": "g++ linux x64 debug",
+      "inherits": [
+        "linux-gnuc-base",
+        "x64",
+        "debug"
+      ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-linux"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Linux"
+          ]
+        }
+      }
+    },
+    {
+      "name": "x64-linux-gnuc-release",
+      "displayName": "x64-linux-gnuc-release",
+      "description": "g++ linux x64 release",
+      "inherits": [
+        "linux-gnuc-base",
         "x64",
         "release"
       ],

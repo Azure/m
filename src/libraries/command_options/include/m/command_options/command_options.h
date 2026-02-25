@@ -3,6 +3,15 @@
 
 #pragma once
 
+// GCC raises -Wchanges-meaning when a member function name matches a type alias
+// name declared earlier in the same class scope (e.g., `using value_t = value<CharT>`
+// followed by `value_t value() const`). This is a GCC-specific strictness that
+// does not reflect a correctness problem in the code.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wchanges-meaning"
+#endif
+
 #include <algorithm>
 #include <array>
 #include <climits>
@@ -1108,3 +1117,7 @@ namespace m
         }
     } // namespace command_options
 } // namespace m
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif

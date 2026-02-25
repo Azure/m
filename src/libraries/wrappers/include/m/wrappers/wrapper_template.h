@@ -110,12 +110,13 @@ namespace m
         using base = nonscalar_wrapper<T, UniqueT>;
 
     public:
+        using base::base;
         using base::m_v;
 
         constexpr auto
         operator<=>(scalar_wrapper other) const
         {
-            return operator<=>(m_v, other.m_v);
+            return m_v <=> other.m_v;
         }
     };
 

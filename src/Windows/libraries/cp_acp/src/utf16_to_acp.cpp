@@ -26,7 +26,8 @@ namespace
         out.resize_and_overwrite(chars_needed,
                                  [view](auto buffer, auto buffer_size) -> std::size_t {
                                      auto span = m::make_span(buffer, buffer_size);
-                                     return m::utf16_to_acp(view, span);
+                                     m::utf16_to_acp(view, span);
+                                     return span.size();
                                  });
     }
 

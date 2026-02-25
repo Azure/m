@@ -130,6 +130,105 @@ TEST(Win32RegistryHelpers, TestClosingHKCU)
     hkey hkcu{HKEY_CURRENT_USER};
 }
 
+TEST(Win32RegistryHelpers, HkeyDefaultIsInvalid)
+{
+    m::win32::registry::hkey k;
+    EXPECT_FALSE(k.is_valid());
+    EXPECT_FALSE(static_cast<bool>(k));
+}
+
+TEST(Win32RegistryHelpers, HkeyPredefinedGet)
+{
+    // Wrapping a predefined HKEY stores the value and returns it via get().
+    // is_valid() intentionally returns false for predefined keys because they
+    // are not closable via RegCloseKey.
+    m::win32::registry::hkey k{HKEY_CURRENT_USER};
+    EXPECT_EQ(k.get(), HKEY_CURRENT_USER);
+    // Destructor must not call RegCloseKey on predefined keys — just verify
+    // construction + destruction does not crash.
+}
+
+TEST(Win32RegistryHelpers, HkeySwap)
+{
+    using namespace m::win32::registry;
+
+    // Open a real key so is_valid() reflects a closable hkey.
+    hkey a;
+    ASSERT_FALSE(a.openq(predefined_key::current_user, L"Software", KEY_QUERY_VALUE));
+    hkey b;
+
+    EXPECT_TRUE(a.is_valid());
+    EXPECT_FALSE(b.is_valid());
+
+    a.swap(b);
+
+    EXPECT_FALSE(a.is_valid());
+    EXPECT_TRUE(b.is_valid());
+}
+
+TEST(Win32RegistryHelpers, OpenqHappyPath)
+{
+    // HKCU\Software exists on essentially all Windows machines.
+    using namespace m::win32::registry;
+
+    hkey k;
+    auto ec = k.openq(predefined_key::current_user, L"Software", KEY_QUERY_VALUE);
+
+    EXPECT_FALSE(ec) << ec.message();
+    EXPECT_TRUE(k.is_valid());
+}
+
+TEST(Win32RegistryHelpers, OpenqFailurePath)
+{
+    using namespace m::win32::registry;
+
+    hkey k;
+    auto ec = k.openq(predefined_key::current_user,
+                      L"Software\\__nonexistent_key_m_win32_test__",
+                      KEY_QUERY_VALUE);
+
+    EXPECT_TRUE(ec) << "Expected error for non-existent key";
+    // hkey must remain invalid after a failed openq.
+    EXPECT_FALSE(k.is_valid());
+}
+
+TEST(Win32RegistryHelpers, OpenThrowsOnSuccess)
+{
+    using namespace m::win32::registry;
+
+    hkey k;
+    ASSERT_NO_THROW(k.open(predefined_key::current_user, L"Software", KEY_QUERY_VALUE));
+    EXPECT_TRUE(k.is_valid());
+}
+
+TEST(Win32RegistryHelpers, OpenThrowsOnFailure)
+{
+    using namespace m::win32::registry;
+
+    hkey k;
+    EXPECT_ANY_THROW(k.open(predefined_key::current_user,
+                            L"Software\\__nonexistent_key_m_win32_test__",
+                            KEY_QUERY_VALUE));
+    EXPECT_FALSE(k.is_valid());
+}
+
+TEST(Win32RegistryHelpers, OpenqFromHkeyBase)
+{
+    // Open HKCU\Software, then open a subkey from the resulting hkey.
+    using namespace m::win32::registry;
+
+    hkey software;
+    auto ec = software.openq(predefined_key::current_user, L"Software", KEY_QUERY_VALUE);
+    ASSERT_FALSE(ec) << ec.message();
+    ASSERT_TRUE(software.is_valid());
+
+    // Now open using the hkey_base overload (openq(hkey const&, ...)).
+    hkey software2;
+    ec = software2.openq(software, L"", KEY_QUERY_VALUE);
+    EXPECT_FALSE(ec) << ec.message();
+    EXPECT_TRUE(software2.is_valid());
+}
+
 TEST(Win32RegistryHelpers, TestResetKey)
 {
     using namespace m::win32::registry;

@@ -200,6 +200,9 @@ namespace m
 #elif M_HAS_CLANG
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wexceptions"
+#elif M_HAS_GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wterminate"
 #else
 #error Unsupported compiler
 #endif
@@ -210,6 +213,8 @@ namespace m
 #pragma warning(pop)
 #elif M_HAS_CLANG
 #pragma clang diagnostic pop
+#elif M_HAS_GCC
+#pragma GCC diagnostic pop
 #else
 #error Unsupported compiler
 #endif
@@ -229,7 +234,7 @@ namespace m
         }
 
         bitset_bit_allocator(bitset_bit_allocator const&) = delete;
-        constexpr bitset_bit_allocator(bitset_bit_allocator const&& other) noexcept:
+        constexpr bitset_bit_allocator(bitset_bit_allocator&& other) noexcept:
             m_bitset(other.m_bitset)
         {
             using std::swap;
@@ -475,6 +480,9 @@ private:
 #elif M_HAS_CLANG
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wexceptions"
+#elif M_HAS_GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wterminate"
 #else
 #error Unsupported compiler
 #endif
@@ -485,6 +493,8 @@ private:
 #pragma warning(pop)
 #elif M_HAS_CLANG
 #pragma clang diagnostic pop
+#elif M_HAS_GCC
+#pragma GCC diagnostic pop
 #else
 #error Unsupported compiler
 #endif

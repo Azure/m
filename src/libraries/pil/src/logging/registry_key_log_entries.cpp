@@ -346,8 +346,8 @@ namespace m::pil::impl::logging
     set_value_log_entry::set_value_as_string(pugi::xml_attribute&              attr,
                                              std::span<std::byte const> const& s)
     {
-        auto view = std::u16string_view(reinterpret_cast<char16_t const*>(s.data()),
-                                        (s.size() - sizeof(char16_t)) - 1);
+        [[maybe_unused]] auto view = std::u16string_view(
+            reinterpret_cast<char16_t const*>(s.data()), (s.size() - sizeof(char16_t)) - 1);
 
 #ifdef WIN322
         auto tempstring = m::to_basic_string_t<pugi::char_t>(view);

@@ -37,7 +37,9 @@ TEST(McQueue, QueueTest2)
 
     auto lamb = [&](std::string const& s) {
         if (i < strings.size())
+        {
             EXPECT_EQ(s, strings[i++]);
+        }
     };
 
     mc::queue<std::string> q;

@@ -43,6 +43,13 @@ namespace m
         using this_t        = basic_literal_string_view<CharT, CharTraitsT>;
 
     public:
+#if defined(__GNUC__) && !defined(__clang__)
+        // GCC does not support qualified-name friend declarations for UDL
+        // operators inside a class template body (it rejects the friend
+        // syntax). As a workaround the constructor is made public on GCC.
+        // Prefer using the _sl literal operator to construct these values.
+        constexpr basic_literal_string_view(const CharT* str, std::size_t len): base_t(str, len) {}
+#else
     protected:
         constexpr basic_literal_string_view(const CharT* str, std::size_t len): base_t(str, len) {}
 
@@ -62,6 +69,7 @@ namespace m
 
         friend constexpr basic_literal_string_view<char32_t>
         string_view_literals::operator""_sl(const char32_t*, std::size_t);
+#endif // defined(__GNUC__) && !defined(__clang__)
     };
 
     namespace string_view_literals

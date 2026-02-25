@@ -1,4 +1,5 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 
 #pragma once
 
@@ -120,7 +121,5 @@ namespace m::win32
     private:
         event_kind m_event_kind{event_kind::none};
     };
-
-    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(event::event_kind);
 
 } // namespace m::win32

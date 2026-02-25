@@ -58,7 +58,10 @@ namespace m::win32
             return m::make_win32_error_code(last_error);
         }
 
-        event e{evt};
+        event e{evt,
+                (flags & create_event_flags::manual_reset) != create_event_flags{}
+                    ? event_kind::manual
+                    : event_kind::automatic};
         using std::swap;
         swap(e, *this);
 

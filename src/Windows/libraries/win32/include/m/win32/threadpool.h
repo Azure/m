@@ -1,4 +1,5 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 
 #pragma once
 
@@ -126,14 +127,14 @@ namespace m::win32::threadpool
         void
         set_wait_until(HANDLE h, std::chrono::time_point<Clock, Duration> const& tp)
         {
-            do_set_wait_unil(h, std::chrono::time_point_cast<utc_time_point_type>(tp));
+            do_set_wait_until(h, std::chrono::time_point_cast<utc_time_point_type>(tp));
         }
 
         template <typename Clock, typename Duration>
         void
         set_wait_until(event const& e, std::chrono::time_point<Clock, Duration> const& tp)
         {
-            do_set_wait_unil(e.get(), tp);
+            do_set_wait_until(e.get(), std::chrono::time_point_cast<utc_time_point_type>(tp));
         }
 
     private:

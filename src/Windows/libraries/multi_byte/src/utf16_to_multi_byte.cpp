@@ -45,6 +45,7 @@ namespace m::multi_byte::impl
         if (i < 1)
         {
             ec = get_last_win32_error();
+            buffer = buffer.subspan(0, 0);
             return;
         }
 
@@ -82,22 +83,6 @@ namespace m::multi_byte::impl
         buffer = buffer.subspan(0, i);
     }
 
-    template <typename TCharIn>
-        requires utf16_character<TCharIn>
-    [[nodiscard]]
-    std::string
-    utf16_view_to_multi_byte_fn(code_page cp, std::basic_string_view<TCharIn> view)
-    {
-        std::string result;
-
-        auto length = m::utf16_to_multi_byte_length(cp, view);
-        result.resize_and_overwrite(length, [&](auto buffer, auto size) -> auto {
-            auto span = make_span(buffer, size);
-            multi_byte::impl::utf16_to_multi_byte_fn(cp, view, span);
-            return span.size();
-        });
-        return result;
-    }
 } // namespace m::multi_byte::impl
 
 namespace m
@@ -195,32 +180,5 @@ namespace m
             return span.size();
         });
     }
-
-#if 0
-    std::size_t
-    utf16_to_multi_byte(multi_byte::code_page cp, std::u16string_view view, std::string& str)
-    {
-        std::string t;
-        auto        length = utf16_to_multi_byte_length(cp, view);
-        t.resize_and_overwrite(length, [&](auto buffer, auto buffer_size) -> auto {
-            auto span = m::make_span(buffer, buffer_size);
-            utf16_to_multi_byte(cp, view, span);
-            return span.size();
-        });
-        using std::swap;
-        swap(t, str);
-        return str.size();
-    }
-
-    template <>
-    void
-    utf16_to_multi_byte(multi_byte::code_page cp,
-                        std::wstring_view     in,
-                        std::span<char>&      out,
-                        std::error_code&      ec)
-    {
-        multi_byte::impl::utf16_to_multi_byte_fn(cp, in, out, ec);
-    }
-#endif
 
 } // namespace m

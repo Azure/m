@@ -19,6 +19,8 @@ add_executable(
     test_multiplication.cpp
     test_negation.cpp
     test_intermediate_overflow.cpp
+    test_constexpr.cpp
+    test_edge_cases.cpp
 )
 
 target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})

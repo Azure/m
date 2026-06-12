@@ -7,6 +7,7 @@ set(TEST_EXE_NAME test_tracing)
 add_executable(${TEST_EXE_NAME}
     exercise_tracing.cpp
     test_fast_sink.cpp
+    test_monitor_teardown.cpp
     test_slow_sink.cpp
 )
 

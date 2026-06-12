@@ -22,7 +22,7 @@ constexpr FILETIME negative_ft{0x0, 0x81e00000};
 TEST(FILETIME, lbasic)
 {
     auto s = std::format(L"{}", fmtFILETIME(ft1));
-    EXPECT_EQ(s, L"{ Tu 2029-02-20 23:41:23.041 }"s);
+    EXPECT_EQ(s, L"{ Tu 2029-02-20 23:41:22.111 }"s);
 }
 
 TEST(FILETIME, lnegative)
@@ -34,7 +34,7 @@ TEST(FILETIME, lnegative)
 TEST(FILETIME, basic)
 {
     auto s = std::format("{}", fmtFILETIME(ft1));
-    EXPECT_EQ(s, "{ Tu 2029-02-20 23:41:23.041 }"s);
+    EXPECT_EQ(s, "{ Tu 2029-02-20 23:41:22.111 }"s);
 }
 
 TEST(FILETIME, negative)

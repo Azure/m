@@ -97,7 +97,10 @@ namespace m::work_queue_impl
             auto l = std::unique_lock(m_mutex);
 
             if (m_work_item_state == work_item_state::canceled)
+            {
+                m_state_cv.notify_all();
                 return;
+            }
 
             M_INTERNAL_ERROR_CHECK(m_work_item_state == work_item_state::queued);
 
@@ -122,42 +125,42 @@ namespace m::work_queue_impl
             m_work_item_times.m_end_time = m::clock_type::now();
             m_work_item_state            = work_item_state::done;
         }
+
+        // Wake any waiters now that the state is terminal. The packaged_task
+        // future goes ready inside m_packaged_task() above, strictly before the
+        // state transition, so waiters must observe the state itself rather than
+        // the future to guarantee the item is "done" when wait() returns.
+        m_state_cv.notify_all();
     }
 
     void
     work_item::do_wait()
     {
-        m_future.wait();
+        auto l = std::unique_lock(m_mutex);
+        m_state_cv.wait(l, [this] {
+            return m_work_item_state == work_item_state::done ||
+                   m_work_item_state == work_item_state::canceled;
+        });
     }
 
     bool
     work_item::do_wait_for(std::chrono::milliseconds const& d)
     {
-        auto const future_status = m_future.wait_for(d);
-
-        switch (future_status)
-        {
-            default: M_UNREACHABLE_CODE(); break;
-
-            case std::future_status::deferred: return true;
-            case std::future_status::ready: return true;
-            case std::future_status::timeout: return false;
-        }
+        auto l = std::unique_lock(m_mutex);
+        return m_state_cv.wait_for(l, d, [this] {
+            return m_work_item_state == work_item_state::done ||
+                   m_work_item_state == work_item_state::canceled;
+        });
     }
 
     bool
     work_item::do_wait_until(m::time_point_type const& tp)
     {
-        auto const future_status = m_future.wait_until(tp);
-
-        switch (future_status)
-        {
-            default: M_UNREACHABLE_CODE(); break;
-
-            case std::future_status::deferred: return true;
-            case std::future_status::ready: return true;
-            case std::future_status::timeout: return false;
-        }
+        auto l = std::unique_lock(m_mutex);
+        return m_state_cv.wait_until(l, tp, [this] {
+            return m_work_item_state == work_item_state::done ||
+                   m_work_item_state == work_item_state::canceled;
+        });
     }
 
 } // namespace m::work_queue_impl

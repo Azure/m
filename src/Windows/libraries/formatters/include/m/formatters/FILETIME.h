@@ -102,8 +102,6 @@ struct std::formatter<fmtFILETIME, CharT>
                     st.wDay,
                     st.wHour,
                     st.wMinute,
-                    st.wHour,
-                    st.wMinute,
                     st.wSecond,
                     st.wMilliseconds);
             else
@@ -114,8 +112,6 @@ struct std::formatter<fmtFILETIME, CharT>
                     st.wYear,
                     st.wMonth,
                     st.wDay,
-                    st.wHour,
-                    st.wMinute,
                     st.wHour,
                     st.wMinute,
                     st.wSecond,

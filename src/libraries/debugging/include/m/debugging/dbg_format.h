@@ -87,10 +87,13 @@ namespace m
         template <typename CharT, size_t length>
         class output_debug_string_iter
         {
-            static constexpr inline std::array<CharT, 4> long_line_chars{{'.', '.', '.', '\n'}};
+            // Includes a trailing null so copy_n(... size() + 1 ...) below copies the
+            // terminator into the buffer without reading past the end of this array.
+            static constexpr inline std::array<CharT, 5> long_line_chars{
+                {'.', '.', '.', '\n', '\0'}};
 
             static constexpr inline std::basic_string_view<CharT> long_line_suffix =
-                std::basic_string_view<CharT>(long_line_chars.data(), long_line_chars.size());
+                std::basic_string_view<CharT>(long_line_chars.data(), long_line_chars.size() - 1);
 
             static constexpr inline size_t limit = length - (long_line_suffix.size() + 1);
 
@@ -144,7 +147,7 @@ namespace m
                     // OutputDebugStringW() and restart.
                     std::copy_n(long_line_suffix.begin(),
                                 long_line_suffix.size() + 1,
-                                &_buffer->_array[_index]);
+                                &_buffer->_array[_index + 1]);
 
                     write_to_debugger(&_buffer->_array[0]);
 

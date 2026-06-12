@@ -411,7 +411,11 @@ namespace m
             if (length == 0)
                 return basic_sstring{};
 
-            return basic_sstring{m_arefc, offset_and_size{.m_offset = start, .m_size = length}};
+            // start is relative to this view; translate to an absolute offset
+            // into the shared base buffer so substrings of substrings are correct.
+            return basic_sstring{
+                m_arefc,
+                offset_and_size{.m_offset = m_offset_and_size.m_offset + start, .m_size = length}};
         }
 
         basic_sstring
@@ -420,7 +424,9 @@ namespace m
             auto const v = view();
             if (count > v.size())
                 count = v.size();
-            return basic_sstring{m_arefc, offset_and_size{.m_offset = 0, .m_size = count}};
+            return basic_sstring{
+                m_arefc,
+                offset_and_size{.m_offset = m_offset_and_size.m_offset, .m_size = count}};
         }
 
         basic_sstring
@@ -429,7 +435,7 @@ namespace m
             auto const v = view();
             if (count > v.size())
                 count = v.size();
-            auto const offset = v.size() - count;
+            auto const offset = m_offset_and_size.m_offset + (v.size() - count);
             return basic_sstring{m_arefc, offset_and_size{.m_offset = offset, .m_size = count}};
         }
 

@@ -11,6 +11,7 @@ add_executable(
     safe_integers_addition_functor.cpp 
     exercise_negation.cpp
     signed_signed_to_signed.cpp
+    signed_signed_to_unsigned.cpp
     signed_unsigned_to_unsigned.cpp
     test_addition.cpp
     test_subtraction.cpp

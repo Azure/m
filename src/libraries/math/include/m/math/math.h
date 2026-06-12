@@ -247,14 +247,12 @@ namespace m
             static constexpr ResultT
             try_negate(common_type_t v)
             {
-                constexpr common_type_t biggest_negative_as_positive =
-                    m::try_cast<common_type_t>(-((std::numeric_limits<ResultT>::min)() + 1));
-
-                if (v >= biggest_negative_as_positive)
-                    throw std::overflow_error(std::format(
-                        "m::math overflow: negative value magnitude exceeds maximum representable in target type"));
-
-                return -m::try_cast<ResultT>(v);
+                // v is the magnitude (>= 0) of a negative result; produce -v in
+                // ResultT. Delegate to the unsigned->signed unary negate helper,
+                // which correctly admits the full negative range of ResultT
+                // (including its most-negative value) rather than stopping one
+                // short of it.
+                return unary_safe_math_helper<common_type_t, ResultT>::negate(v);
             }
 
             static constexpr ResultT
@@ -1333,6 +1331,164 @@ namespace m
             return m::try_cast<ResultT>(quot);
         }
         
+        };
+
+        //
+        // Handle (signed [op] signed) -> unsigned
+        //
+        template <typename LeftT, typename RightT, typename ResultT>
+            requires m::is_integral_non_bool_v<LeftT> && m::is_integral_non_bool_v<RightT> &&
+                     m::is_integral_non_bool_v<ResultT> && std::is_signed_v<LeftT> &&
+                     std::is_signed_v<RightT> && std::is_unsigned_v<ResultT>
+        struct safe_math_helper<LeftT, RightT, ResultT>
+        {
+            // |v| as a uintmax_t, correct even when v is intmax_t's most
+            // negative value (whose magnitude is not representable in intmax_t).
+            static constexpr uintmax_t
+            abs_to_unsigned(intmax_t v)
+            {
+                if (v == (std::numeric_limits<intmax_t>::min)())
+                {
+                    static_assert(((-(std::numeric_limits<intmax_t>::max)()) - 1) ==
+                                  (std::numeric_limits<intmax_t>::min)());
+                    return static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
+                }
+
+                return static_cast<uintmax_t>(v < 0 ? -v : v);
+            }
+
+            static constexpr ResultT
+            add(LeftT l, RightT r)
+            {
+                // Compute l + r in ℤ, then require the result to be representable
+                // in the unsigned ResultT (i.e. non-negative and in range).
+                auto const pl = static_cast<intmax_t>(l);
+                auto const pr = static_cast<intmax_t>(r);
+
+                if (pl >= 0 && pr >= 0)
+                {
+                    // Both non-negative: add in unsigned space with overflow check.
+                    auto const ul  = static_cast<uintmax_t>(pl);
+                    auto const ur  = static_cast<uintmax_t>(pr);
+                    auto const sum = ul + ur;
+
+                    if (sum < ul || sum < ur)
+                        throw std::overflow_error("integer overflow");
+
+                    return m::try_cast<ResultT>(sum);
+                }
+
+                if (pl < 0 && pr < 0)
+                {
+                    // Sum of two negatives is negative: not representable.
+                    throw std::overflow_error("integer overflow");
+                }
+
+                // Mixed signs: the magnitudes partially cancel, so the sum is
+                // representable in intmax_t without overflow.
+                intmax_t const sum = pl + pr;
+
+                if (sum < 0)
+                    throw std::overflow_error("integer overflow");
+
+                return m::try_cast<ResultT>(static_cast<uintmax_t>(sum));
+            }
+
+            static constexpr ResultT
+            subtract(LeftT l, RightT r)
+            {
+                // Compute l - r in ℤ; the result must be non-negative.
+                auto const pl = static_cast<intmax_t>(l);
+                auto const pr = static_cast<intmax_t>(r);
+
+                if (pl < pr)
+                    throw std::overflow_error("integer overflow");
+
+                // pl >= pr, so the mathematical result is non-negative. Compute
+                // the magnitude in unsigned space, handling the case where the
+                // difference exceeds intmax_t's positive range.
+                uintmax_t result{};
+
+                if (pr >= 0)
+                {
+                    // pl >= pr >= 0: both non-negative.
+                    result = static_cast<uintmax_t>(pl) - static_cast<uintmax_t>(pr);
+                }
+                else
+                {
+                    auto const abs_r = abs_to_unsigned(pr);
+
+                    if (pl >= 0)
+                    {
+                        // result = pl + |r|; guard the unsigned sum.
+                        auto const upl = static_cast<uintmax_t>(pl);
+                        result          = upl + abs_r;
+
+                        if (result < upl)
+                            throw std::overflow_error("integer overflow");
+                    }
+                    else
+                    {
+                        // pl < 0 and pl >= pr, so |pl| <= |r|: result = |r| - |pl|.
+                        result = abs_r - abs_to_unsigned(pl);
+                    }
+                }
+
+                return m::try_cast<ResultT>(result);
+            }
+
+            static constexpr ResultT
+            multiply(LeftT l, RightT r)
+            {
+                if (l == 0 || r == 0)
+                    return 0;
+
+                auto const pl = static_cast<intmax_t>(l);
+                auto const pr = static_cast<intmax_t>(r);
+
+                // A negative product cannot be represented in an unsigned type.
+                if ((pl < 0) != (pr < 0))
+                    throw std::overflow_error(std::format(
+                        "m::math::multiply overflow: negative value cannot be represented in unsigned result type"));
+
+                auto const abs_l = abs_to_unsigned(pl);
+                auto const abs_r = abs_to_unsigned(pr);
+                auto const prod  = abs_l * abs_r;
+
+                if (prod / abs_l != abs_r || prod / abs_r != abs_l)
+                    throw std::overflow_error("integer overflow");
+
+                return m::try_cast<ResultT>(prod);
+            }
+
+            static constexpr ResultT
+            divide(LeftT l, RightT r)
+            {
+                if (r == 0)
+                    throw std::overflow_error(std::format(
+                        "m::math::divide overflow: division by zero"));
+
+                auto const pl = static_cast<intmax_t>(l);
+                auto const pr = static_cast<intmax_t>(r);
+
+                auto const abs_l = abs_to_unsigned(pl);
+                auto const abs_r = abs_to_unsigned(pr);
+                auto const quot  = abs_l / abs_r;
+
+                // Integer division truncates toward zero. If the signs differ the
+                // mathematical quotient is negative unless it truncates to zero;
+                // a non-zero negative quotient is not representable in unsigned.
+                if ((pl < 0) != (pr < 0))
+                {
+                    if (quot == 0)
+                        return 0;
+
+                    throw std::overflow_error(std::format(
+                        "m::math::divide overflow: negative value cannot be represented in unsigned result type"));
+                }
+
+                return m::try_cast<ResultT>(quot);
+            }
         };
 
         // Unary ops, signed -> signed

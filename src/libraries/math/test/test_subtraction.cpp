@@ -92,6 +92,21 @@ TEST(SubtractionUnsignedUnsignedToSigned, NegativeResults)
     EXPECT_EQ(m::math::subtract(uint32_t{0}, uint32_t{100}, int32_t{}), -100);
 }
 
+TEST(SubtractionUnsignedUnsignedToSigned, MostNegativeBoundary)
+{
+    // Regression: the two most-negative representable results must be produced,
+    // not rejected. 0 - 128 = -128 = int8 min; 0 - 127 = -127.
+    EXPECT_EQ(m::math::subtract(uint32_t{0}, uint32_t{128}, int8_t{}), int8_t{-128});
+    EXPECT_EQ(m::math::subtract(uint32_t{0}, uint32_t{127}, int8_t{}), int8_t{-127});
+    // Just past the boundary must still overflow.
+    EXPECT_THROW(m::math::subtract(uint32_t{0}, uint32_t{129}, int8_t{}), std::overflow_error);
+
+    // Same boundary for unsigned - signed -> signed, which shares the code path.
+    EXPECT_EQ(m::math::subtract(uint32_t{0}, int32_t{128}, int8_t{}), int8_t{-128});
+    EXPECT_EQ(m::math::subtract(uint32_t{0}, int32_t{127}, int8_t{}), int8_t{-127});
+    EXPECT_THROW(m::math::subtract(uint32_t{0}, int32_t{129}, int8_t{}), std::overflow_error);
+}
+
 TEST(SubtractionUnsignedUnsignedToSigned, OverflowCases)
 {
     // Very large unsigned values might overflow signed result

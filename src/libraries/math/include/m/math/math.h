@@ -704,21 +704,17 @@ namespace m
                             static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()) + 1;
                         auto quot = abs_min / promoted_r;
 
-                        if (quot > static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()))
-                        {
-                            throw std::overflow_error("integer overflow");
-                        }
-                        return m::try_cast<ResultT>(-static_cast<intmax_t>(quot));
+                        // Delegate negation to the unsigned->signed unary helper,
+                        // which admits the full negative range of ResultT
+                        // (including its most-negative value) rather than
+                        // rejecting it one short.
+                        return unary_safe_math_helper<uintmax_t, ResultT>::negate(quot);
                     }
 
                     auto abs_l = static_cast<uintmax_t>(-promoted_l);
                     auto quot = abs_l / promoted_r;
 
-                    if (quot > static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()))
-                    {
-                        throw std::overflow_error("integer overflow");
-                    }
-                    return m::try_cast<ResultT>(-static_cast<intmax_t>(quot));
+                    return unary_safe_math_helper<uintmax_t, ResultT>::negate(quot);
                 }
             }
         };
@@ -955,23 +951,19 @@ namespace m
                             (std::numeric_limits<RightT>::min)()) + 1)) + 1;
                     auto l_promoted = static_cast<uintmax_t>(l);
                     auto quot = l_promoted / abs_min;
-                    
-                    if (quot > static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()))
-                    {
-                        throw std::overflow_error("integer overflow");
-                    }
-                    return m::try_cast<ResultT>(-static_cast<intmax_t>(quot));
+
+                    // Delegate negation to the unsigned->signed unary helper,
+                    // which admits the full negative range of ResultT
+                    // (including its most-negative value) rather than
+                    // rejecting it one short.
+                    return unary_safe_math_helper<uintmax_t, ResultT>::negate(quot);
                 }
                 
                 auto l_promoted = static_cast<uintmax_t>(l);
                 auto abs_r = static_cast<uintmax_t>(-static_cast<intmax_t>(r));
                 auto quot = l_promoted / abs_r;
-                
-                if (quot > static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)()))
-                {
-                    throw std::overflow_error("integer overflow");
-                }
-                return m::try_cast<ResultT>(-static_cast<intmax_t>(quot));
+
+                return unary_safe_math_helper<uintmax_t, ResultT>::negate(quot);
             }
             else
             {

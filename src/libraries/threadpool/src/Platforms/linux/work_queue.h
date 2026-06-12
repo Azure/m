@@ -41,6 +41,9 @@ namespace m::threadpool_impl
         perform_platform_initialization() override;
 
         void
+        perform_platform_teardown() noexcept override;
+
+        void
         on_new_work_item(std::shared_ptr<m::work_queue_impl::work_item> const& wi) override;
     };
 } // namespace m::threadpool_impl

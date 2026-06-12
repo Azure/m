@@ -49,13 +49,11 @@ namespace m::threadpool_impl
     /// we shall concern ourselves with at this time).
     ///
     /// </summary>
-    class work_queue :
-        public m::threadpool_impl::work_queue_base,
-        public std::enable_shared_from_this<m::threadpool_impl::work_queue>
+    class work_queue : public m::threadpool_impl::work_queue_base
     {
     public:
         work_queue()                      = default;
-        ~work_queue()                     = default;
+        ~work_queue() override;
         work_queue(work_queue const&)     = delete;
         work_queue(work_queue&&) noexcept = delete;
         work_queue(m::work_queue_execution_policy wqep, std::wstring description);
@@ -73,11 +71,19 @@ namespace m::threadpool_impl
         perform_platform_initialization() override;
 
         void
+        perform_platform_teardown() noexcept override;
+
+        void
         on_new_work_item(std::shared_ptr<m::work_queue_impl::work_item> const& wi) override;
 
         struct callback_context
         {
-            std::weak_ptr<m::threadpool_impl::work_queue> m_work_queue;
+            // Raw back-pointer to the owning queue. It is kept valid for the
+            // duration of every callback by `perform_platform_teardown()`,
+            // which waits for all in-flight callbacks before the queue is
+            // destroyed. Because the callback holds no ownership, the queue's
+            // destructor can never run on a threadpool callback thread.
+            m::threadpool_impl::work_queue* m_work_queue{};
         };
 
         static void CALLBACK

@@ -236,6 +236,23 @@ namespace m
             return do_wait_for(std::chrono::duration_cast<std::chrono::milliseconds>(dur));
         }
 
+        /// <summary>
+        /// Closes the work queue, cancelling any not-yet-started work and
+        /// synchronously draining any in-flight work before returning.
+        ///
+        /// `close()` lets an owner perform the drain deterministically on
+        /// its own thread. If `close()` is not called, the destructor performs
+        /// the same drain. Calling `close()` more than once is harmless.
+        ///
+        /// After `close()` returns it is guaranteed that no further callbacks
+        /// will execute against this queue.
+        /// </summary>
+        void
+        close()
+        {
+            do_close();
+        }
+
         //
         // "wait" and "wait_until" are omitted, intentionally. This is because
         // waiting indefinitely for a potentially large number of work items
@@ -261,6 +278,9 @@ namespace m
 
         virtual std::shared_ptr<work_item>
         do_enqueue(std::packaged_task<void()>&& task, m::wsstring const& description) = 0;
+
+        virtual void
+        do_close() = 0;
     };
 
 } // namespace m

@@ -20,6 +20,15 @@ namespace m::threadpool_impl
         m::threadpool_impl::work_queue_base(wqep, description)
     {}
 
+    work_queue::~work_queue()
+    {
+        // If the owner did not call close(), drain here. Draining is idempotent
+        // and, because callbacks hold no ownership of the queue, this destructor
+        // can only run on the owning thread, never on a threadpool callback
+        // thread, so the synchronous wait below cannot deadlock against itself.
+        perform_platform_teardown();
+    }
+
     void
     work_queue::on_new_work_item(std::shared_ptr<m::work_queue_impl::work_item> const&)
     {
@@ -30,7 +39,7 @@ namespace m::threadpool_impl
     work_queue::perform_platform_initialization()
     {
         auto callback_context_ptr          = std::make_unique<callback_context>();
-        callback_context_ptr->m_work_queue = weak_from_this();
+        callback_context_ptr->m_work_queue = this;
 
         auto wrk = win32::threadpool::tp_work(
             &work_queue::static_tp_work_callback, callback_context_ptr.get(), nullptr);
@@ -38,11 +47,19 @@ namespace m::threadpool_impl
         using std::swap;
 
         swap(wrk, m_tp_work);
-        // Yes this induces a cycle. Can be fixed by having an explicit
-        // close() protocol or by having the pointer back to the queue
-        // be a weak reference which is a performance problem for each
-        // queue entry. Solvable/contained.
         swap(callback_context_ptr, m_callback_context);
+    }
+
+    void
+    work_queue::perform_platform_teardown() noexcept
+    {
+        // Cancel pending callbacks and wait for any in-flight callback to
+        // finish. After this returns no callback will touch this queue. Safe to
+        // call repeatedly (close() then destructor).
+        if (m_platform_initialized)
+        {
+            m_tp_work.wait_for_callbacks(true);
+        }
     }
 
     void CALLBACK
@@ -50,7 +67,7 @@ namespace m::threadpool_impl
     {
         auto const cctx = reinterpret_cast<callback_context*>(context);
 
-        cctx->m_work_queue.lock()->tp_work_callback();
+        cctx->m_work_queue->tp_work_callback();
     }
 
     void

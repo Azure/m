@@ -588,44 +588,6 @@ namespace m
             return v;
         }
 
-        bool
-        compare_exchange_strong(arefc_ptr& expected, arefc_ptr const& desired) noexcept
-        {
-            // The trick here is to not mess up the reference counting!
-            //
-            // it would seem trivial to just "pass through" the m_ptr values but that's
-            // only part of the story.
-            //
-
-            T* e = expected.get();
-            T* d = desired.get();
-
-            T* old_e = e; // save a copy so we don't have to re-load
-
-            // Pre-increment d's refcount so that if the CAS succeeds, m_ptr holds
-            // a valid reference to d without a window where the refcount is zero.
-            increment_ref(d);
-
-            if (m_ptr.compare_exchange_strong(e, d, std::memory_order_acq_rel))
-            {
-                M_INTERNAL_ERROR_CHECK(e == old_e);
-
-                // Account for the fact that m_ptr no longer refers to `e`
-                decrement_ref(e);
-                return true;
-            }
-
-            // The CAS failed: m_ptr still holds its current value (now captured in `e`).
-            // `d` was pre-incremented above but was never stored in m_ptr, so we must
-            // undo that increment to avoid a permanent ref-count leak on `desired`.
-            decrement_ref(d);
-
-            // Update `expected` to reflect the actual current value of m_ptr.
-            expected.reset(e);
-
-            return false;
-        }
-
     private:
         constexpr arefc_ptr(T* ptr) noexcept: m_ptr(ptr) {}
 

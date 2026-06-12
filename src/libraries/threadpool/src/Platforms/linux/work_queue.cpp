@@ -32,4 +32,11 @@ namespace m::threadpool_impl
         M_NOT_IMPLEMENTED("sorry no linux work queue");
     }
 
+    void
+    work_queue::perform_platform_teardown() noexcept
+    {
+        // Nothing was ever initialized on this platform, so there is nothing
+        // to drain.
+    }
+
 } // namespace m::threadpool_impl

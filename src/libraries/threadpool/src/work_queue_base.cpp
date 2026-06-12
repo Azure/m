@@ -71,4 +71,14 @@ namespace m::threadpool_impl
         return wi;
     }
 
+    void
+    work_queue_base::do_close()
+    {
+        // The drain itself is platform-specific. It cancels not-yet-started
+        // work and waits for in-flight callbacks; it must never run on a
+        // threadpool callback thread, which both `close()` and the owning
+        // destructor guarantee.
+        perform_platform_teardown();
+    }
+
 } // namespace m::threadpool_impl

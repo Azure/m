@@ -68,6 +68,46 @@ TEST(WorkQueue, QueueN20)
 TEST(WorkQueue, QueueNBig)
 {
     auto                  q = m::threadpool->create_work_queue();
+    constexpr std::size_t n = 100'000;
+
+    auto work_items =
+        std::unique_ptr<std::shared_ptr<m::work_item>[]>(new std::shared_ptr<m::work_item>[n]());
+    auto flags_unique_ptr = std::unique_ptr<std::atomic<uint8_t>[]>(new std::atomic<uint8_t>[n]);
+    auto flags            = flags_unique_ptr.get();
+
+    auto const before_queue = m::clock_type::now();
+
+    for (std::size_t i = 0; i < n; i++)
+    {
+        work_items[i] = q->enqueue([p = &flags[i]] { *p = 1; });
+    }
+
+    auto const after_queue = m::clock_type::now();
+
+    constexpr auto d = 250ms;
+
+    while (!q->wait_for(d))
+        m::println("After {}, {} queue items still running", d, q->running());
+
+    auto const after_wait = m::clock_type::now();
+
+    q.reset();
+
+    // Once the queue has drained, verify the flags are all set
+    for (std::size_t i = 0; i < n; i++)
+        EXPECT_EQ(flags[i], 1);
+
+    m::println("It took {} to queue, and then {} for the work to finish",
+               after_queue - before_queue,
+               after_wait - after_queue);
+}
+
+// Heavy throughput stress run. Disabled by default so it is not part of the
+// normal test pass (which should stay around 1-2 seconds); run explicitly with
+// --gtest_also_run_disabled_tests when you want the big soak.
+TEST(WorkQueue, DISABLED_QueueNBigStress)
+{
+    auto                  q = m::threadpool->create_work_queue();
     constexpr std::size_t n = 1'300'000;
 
     auto work_items =
@@ -335,4 +375,73 @@ TEST(WorkQueue, CreateWorkQueueWithDescription)
 
     auto wi = q->enqueue([] {});
     q->wait_for(5s);
+}
+
+// ---------------------------------------------------------------------------
+// close() teardown tests
+// ---------------------------------------------------------------------------
+
+TEST(WorkQueue, CloseOnIdleQueueIsSafe)
+{
+    auto q = m::threadpool->create_work_queue();
+    q->close();
+}
+
+TEST(WorkQueue, CloseAfterDrainIsSafe)
+{
+    auto q = m::threadpool->create_work_queue();
+    for (int i = 0; i < 10; ++i)
+        static_cast<void>(q->enqueue([] {}));
+
+    EXPECT_TRUE(q->wait_for(5s));
+    q->close();
+
+    EXPECT_EQ(q->running(), 0u);
+}
+
+TEST(WorkQueue, CloseDrainsInFlightWork)
+{
+    std::latch started(1);
+    std::latch release(1);
+
+    auto q  = m::threadpool->create_work_queue();
+    auto wi = q->enqueue([&]() {
+        started.count_down();
+        release.wait();
+    });
+
+    started.wait();    // ensure the callback is actually in flight
+    release.count_down();
+
+    q->close(); // must synchronously wait for the in-flight callback to finish
+
+    EXPECT_EQ(q->running(), 0u);
+}
+
+TEST(WorkQueue, CloseIsIdempotent)
+{
+    auto q = m::threadpool->create_work_queue();
+    static_cast<void>(q->enqueue([] {}));
+    EXPECT_TRUE(q->wait_for(5s));
+
+    q->close();
+    q->close();
+}
+
+TEST(WorkQueue, DestroyWithoutCloseDrains)
+{
+    std::latch started(1);
+    std::latch release(1);
+
+    auto q = m::threadpool->create_work_queue();
+    static_cast<void>(q->enqueue([&]() {
+        started.count_down();
+        release.wait();
+    }));
+
+    started.wait();
+    release.count_down();
+
+    // No explicit close(): the destructor must synchronously drain.
+    q.reset();
 }

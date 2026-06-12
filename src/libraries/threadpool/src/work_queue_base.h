@@ -72,8 +72,23 @@ namespace m::threadpool_impl
         std::shared_ptr<work_item>
         do_enqueue(std::packaged_task<void()>&& task, m::wsstring const& description) override;
 
+        void
+        do_close() override;
+
         virtual void
         perform_platform_initialization() = 0;
+
+        /// <summary>
+        /// The `perform_platform_teardown()` member function is overridden by
+        /// platform-specific implementations to cancel any not-yet-started work
+        /// and synchronously wait for any in-flight callbacks to complete.
+        ///
+        /// It must be safe to call more than once and must be called from a
+        /// thread that is not a threadpool callback thread (which the public
+        /// `close()` contract and the destructor both guarantee).
+        /// </summary>
+        virtual void
+        perform_platform_teardown() noexcept = 0;
 
         /// <summary>
         /// The on_new_work_item() pure virtual member function is overridden by

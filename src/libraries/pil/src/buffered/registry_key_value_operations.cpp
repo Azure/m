@@ -331,6 +331,7 @@ namespace m::pil::impl::buffered
             {
                 value_vector.resize(value_span.size());
                 vnv.m_reg_value_type = value_type;
+                vnv.m_value          = std::move(value_vector);
 
                 break;
             }

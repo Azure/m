@@ -4,6 +4,7 @@
 #include <memory>
 
 #include <m/debugging/dbg_format.h>
+#include <m/error_handling/macros.h>
 #include <m/tracing/message.h>
 #include <m/tracing/monitor_class.h>
 #include <m/tracing/multiplexor.h>
@@ -23,20 +24,11 @@ namespace m::tracing_impl
         m_pool = std::make_shared<wpooled_string_buffer::pool_type>();
 
         m::dbg_format("Constructing monitor at {}", reinterpret_cast<uintptr_t>(this));
-        constexpr std::size_t raw_message_count = 64;
 
         // It's tricky to construct the messages since each takes a pool. We have to allocate
         // the storage, then construct them.
-
-        struct message_array_type
-        {
-            alignas(m::tracing::message)
-                std::array<std::byte, raw_message_count * sizeof(m::tracing::message)> m_data;
-        };
-
-        auto p = new message_array_type;
-
-        m_raw_messages = reinterpret_cast<m::tracing::message*>(p);
+        m_message_storage = std::make_unique<message_array_type>();
+        m_raw_messages    = reinterpret_cast<m::tracing::message*>(m_message_storage.get());
 
         for (std::size_t i = 0; i < raw_message_count; i++)
         {
@@ -54,6 +46,27 @@ namespace m::tracing_impl
     {
         for (auto&& s: m_sink_shims)
             s->close(m::tracing::close_flush_option::normal);
+
+        // Every message slot must be back in the queue by the time we tear down.
+        // Dispatch is synchronous, so a slot is only ever checked out for the
+        // duration of a single log call; if any are missing here a message is still
+        // in flight (held by a live envelope) and destroying the backing storage
+        // would leave that envelope dangling. Fail fast rather than corrupt the heap.
+        M_INTERNAL_ERROR_CHECK(m_message_queue.size() == raw_message_count);
+
+        // The messages were placement-constructed, so run their destructors
+        // explicitly (in reverse construction order) while m_pool is still alive;
+        // each returns its pooled buffer to the pool. Then free the byte block
+        // through its real type via the unique_ptr.
+        if (m_raw_messages != nullptr)
+        {
+            for (std::size_t i = raw_message_count; i-- > 0;)
+                m_raw_messages[i].~message();
+
+            m_raw_messages = nullptr;
+        }
+
+        m_message_storage.reset();
     }
 
     m::not_null<m::tracing::channel*>

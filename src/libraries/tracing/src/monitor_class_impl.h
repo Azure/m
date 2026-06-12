@@ -29,6 +29,7 @@
 #include <m/tracing/envelope.h>
 #include <m/tracing/event_kind.h>
 #include <m/tracing/may_forward_message_option.h>
+#include <m/tracing/message.h>
 #include <m/tracing/message_queue.h>
 #include <m/tracing/monitor_class.h>
 #include <m/tracing/multiplexor.h>
@@ -141,14 +142,28 @@ namespace m::tracing_impl
         using channel_sink_shim_map_type =
             std::multimap<std::wstring, std::shared_ptr<sink_shim>, std::less<>>;
 
+        // Number of preallocated message slots backing m_message_queue.
+        static constexpr std::size_t raw_message_count = 64;
+
+        // Raw storage for the message slots. The messages take a pool argument so
+        // they cannot be default-constructed as an array; instead we allocate this
+        // correctly-aligned byte block and placement-new each message into it. Keeping
+        // the block in a typed unique_ptr lets the destructor free it through the same
+        // type it was allocated with rather than through the message* alias.
+        struct message_array_type
+        {
+            alignas(m::tracing::message)
+                std::array<std::byte, raw_message_count * sizeof(m::tracing::message)> m_data;
+        };
+
         std::atomic<m::tracing::topology_version> m_topology_version;
         std::mutex                                m_mutex;
         channel_map_type                          m_channels;
         channel_sink_shim_map_type                m_channel_sink_shims;
         std::vector<std::shared_ptr<sink_shim>>   m_sink_shims;
         m::tracing::message_queue                 m_message_queue;
+        std::unique_ptr<message_array_type>       m_message_storage;
         m::tracing::message*                      m_raw_messages{};
-        // std::unique_ptr<m::tracing::message[]>            m_raw_messages;
         bool                                              m_closed_sinks;
         std::shared_ptr<wpooled_string_buffer::pool_type> m_pool;
 

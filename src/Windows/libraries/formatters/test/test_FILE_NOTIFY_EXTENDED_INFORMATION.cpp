@@ -108,5 +108,5 @@ TEST(FILE_NOTIFY_EXTENDED_INFORMATION, first)
     auto s = std::format(L"{}", *p);
     EXPECT_EQ(
         s,
-        L"{ NextEntryOffset: 0, Action: FILE_ACTION_ADDED, CreationTime: { Su 2043-05-31 11:40:11.040 }, LastModificationTime: { Su 2043-05-31 11:40:11.040 }, LastChangeTime: { Su 2043-05-31 11:40:11.040 }, LastAccessTime: { Mo 1601-01-01 00:00:00.000 }, AllocatedLength: 0, FileSize: 0, FileAttributes: 0, ReparsePointTag: 0, FileId: 0, ParentFileId: 0, FileName: \"README.TXT\" }"s);
+        L"{ NextEntryOffset: 0, Action: FILE_ACTION_ADDED, CreationTime: { Su 2043-05-31 11:40:44.848 }, LastModificationTime: { Su 2043-05-31 11:40:44.848 }, LastChangeTime: { Su 2043-05-31 11:40:44.848 }, LastAccessTime: { Mo 1601-01-01 00:00:00.000 }, AllocatedLength: 0, FileSize: 0, FileAttributes: 0, ReparsePointTag: 0, FileId: 0, ParentFileId: 0, FileName: \"README.TXT\" }"s);
 }

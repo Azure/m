@@ -29,7 +29,7 @@ namespace m::pil
     key&
     key::operator=(key const& other)
     {
-        m_key.reset(other.m_key.get());
+        m_key = other.m_key;
         return *this;
     }
 
@@ -249,16 +249,31 @@ namespace m::pil
         std::vector<registry_string_type> retval;
 
         // Turn the value into a UTF-16 string and scan through looking for
-        // the embedded null characters
+        // the embedded null characters. The REG_MULTI_SZ format is a sequence
+        // of null-terminated UTF-16 strings, terminated by an empty string
+        // (that is, an extra trailing null character).
         char16_t const* cursor    = reinterpret_cast<char16_t const*>(value.m_bytes.data());
         std::size_t     remaining = value.m_bytes.size() / sizeof(char16_t);
 
-        for (;;)
+        while (remaining > 0)
         {
-            std::ignore = cursor;
-            std::ignore = remaining;
-            // do the scanning in the future
-            break;
+            std::u16string_view sv(cursor, remaining);
+            auto const          null_pos = sv.find(u'\0');
+
+            std::size_t const len =
+                (null_pos == std::u16string_view::npos) ? remaining : null_pos;
+
+            // An empty string marks the end of the sequence.
+            if (len == 0)
+                break;
+
+            retval.push_back(to_registry_string(std::u16string_view(cursor, len)));
+
+            // Advance past the string and its null terminator (if present).
+            std::size_t const advance =
+                (null_pos == std::u16string_view::npos) ? len : (len + 1);
+            cursor += advance;
+            remaining -= advance;
         }
 
         return retval;
@@ -404,6 +419,8 @@ namespace m::pil
 
                 if (s.size() != bytes.size())
                     bytes.resize(s.size());
+
+                vt = type;
 
                 break;
             }

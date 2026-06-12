@@ -184,7 +184,7 @@ namespace m::pil
     key_path
     key_path::parent_path() const
     {
-        if (auto const i = m_value.try_find_first_of(wregistry_delimiter); i.has_value())
+        if (auto const i = m_value.try_find_last_of(wregistry_delimiter); i.has_value())
             return key_path{m_root_key, m_value.substr(0, i.value())};
 
         return key_path{};

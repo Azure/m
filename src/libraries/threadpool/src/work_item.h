@@ -5,9 +5,11 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -82,6 +84,7 @@ namespace m::work_queue_impl
         work_item_id_type          m_id;          // immutable once constructed
         m::wsstring                m_description; // immutable once constructed
         std::mutex                 m_mutex;
+        std::condition_variable    m_state_cv; // signaled when m_work_item_state becomes terminal
         work_item_times            m_work_item_times;
         work_item_state            m_work_item_state;
         std::packaged_task<void()> m_packaged_task;

@@ -25,10 +25,17 @@ namespace m::tracing
     void
     envelope::operator=(envelope&& other) noexcept
     {
-        using std::swap;
+        if (this == &other)
+            return;
 
-        swap(m_imessage, other.m_imessage);
-        swap(m_message_source, other.m_message_source);
+        // Release any message we currently hold back to its source before taking
+        // ownership of other's message. A plain swap would move our live message
+        // into other, whose destructor only nulls the pointer (it does not return
+        // the slot), permanently leaking that message buffer from the pool.
+        return_to_sender();
+
+        m_message_source = other.m_message_source;
+        m_imessage       = std::exchange(other.m_imessage, nullptr);
     }
 
     void

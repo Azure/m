@@ -393,6 +393,19 @@ TEST(AreFcPtr_TypeCoercion, ToBaseKeepsObjectAlive)
     }
 }
 
+TEST(AreFcPtr_TypeCoercion, ConvertingAssignFromDerived)
+{
+    // Exercises the converting operator=(arefc_ptr<U> const&) (U != T). This template
+    // must compile (it previously had an ill-formed self-check comparing unrelated
+    // pointer types) and must share ownership through the base pointer.
+    auto                    derived = m::mmake_arefc<DerivedFromEmpty>();
+    m::arefc_ptr<EmptyBase> base;
+    base = derived; // converting copy-assignment
+
+    EXPECT_EQ(base.get(), static_cast<EmptyBase*>(derived.get()));
+    EXPECT_NE(base.get(), nullptr);
+}
+
 // ============================================================================
 // mmake_arefc_ex — extra bytes
 // ============================================================================

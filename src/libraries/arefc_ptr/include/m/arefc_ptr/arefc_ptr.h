@@ -522,11 +522,11 @@ namespace m
         arefc_ptr&
         operator=(arefc_ptr<U> const& other) noexcept
         {
-            if (this != &other)
-            {
-                reset();
-                put(other.addref());
-            }
+            // No self-assignment guard: a different specialization arefc_ptr<U> can never
+            // be the same object as *this, and comparing the unrelated pointer types would
+            // be ill-formed. (When U == T the non-template copy-assignment is selected.)
+            reset();
+            put(other.addref());
 
             return *this;
         }
@@ -554,10 +554,9 @@ namespace m
         }
 
         void
-        reset(T* ptr_in = nullptr) noexcept
+        reset() noexcept
         {
-            auto const ptr = m_ptr.exchange(increment_ref(ptr_in), std::memory_order_acq_rel);
-            decrement_ref(ptr);
+            reset(nullptr);
         }
 
         T&
@@ -596,6 +595,17 @@ namespace m
 
     private:
         constexpr arefc_ptr(T* ptr) noexcept: m_ptr(ptr) {}
+
+        // Raw-pointer reset: `ptr_in` must already point just past a control area
+        // (i.e. be a pointer obtained from an arefc_ptr-managed object) or be null.
+        // Private because passing an arbitrary raw pointer is unsafe; external callers
+        // use the no-arg reset().
+        void
+        reset(T* ptr_in) noexcept
+        {
+            auto const ptr = m_ptr.exchange(increment_ref(ptr_in), std::memory_order_acq_rel);
+            decrement_ref(ptr);
+        }
 
         arefc_ptr_impl::control_area_t<T>*
         get_control_area() const

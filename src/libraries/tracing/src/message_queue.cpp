@@ -108,12 +108,15 @@ namespace m::tracing
         tr_frame frame(__FUNCTION__, this);
         auto     l = std::unique_lock(m_mutex);
 
-        if (m_queue.empty())
+        if (m_queue.empty() && !m_wake)
         {
             frame.write(L"Queue is empty, waiting");
-            m_cv.wait(l);
+            m_cv.wait(l, [this] { return !m_queue.empty() || m_wake; });
             frame.write(L"Woke from wait, queue now has {} entries", m_queue.size());
         }
+
+        // Consume the sticky wake so a later wait() blocks again.
+        m_wake = false;
         frame.succeeded();
     }
 
@@ -121,8 +124,12 @@ namespace m::tracing
     message_queue::wake_waiters() noexcept
     {
         tr_frame frame(__FUNCTION__, this);
-        // In some world, we might see if we need to wake anyone
-        // but in fact, we can just tell the cv to wake anyone.
+        // Record the wake under the lock so a wake issued before a thread
+        // reaches wait() is observed rather than lost, then notify.
+        {
+            auto l = std::unique_lock(m_mutex);
+            m_wake = true;
+        }
         m_cv.notify_all();
         frame.succeeded();
     }

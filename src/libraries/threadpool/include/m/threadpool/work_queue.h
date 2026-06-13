@@ -244,8 +244,15 @@ namespace m
         /// its own thread. If `close()` is not called, the destructor performs
         /// the same drain. Calling `close()` more than once is harmless.
         ///
-        /// After `close()` returns it is guaranteed that no further callbacks
-        /// will execute against this queue.
+        /// `close()` does not put the queue into a permanently-closed state:
+        /// it neither rejects nor synchronizes against `enqueue()`. The caller
+        /// is responsible for ensuring that no `enqueue()` happens during or
+        /// after `close()` (for example, by establishing a happens-before
+        /// relationship that retires all producers first). The guarantee is
+        /// therefore conditional: provided no work is enqueued once `close()`
+        /// begins, no further callbacks will execute against this queue after
+        /// `close()` returns. Work enqueued concurrently with, or after,
+        /// `close()` may still run.
         /// </summary>
         void
         close()

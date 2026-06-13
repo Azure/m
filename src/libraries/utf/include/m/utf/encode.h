@@ -21,7 +21,7 @@ namespace m
         {
             using byte_t = OutCharT;
 
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             if (ch < 0x00000080)
@@ -74,7 +74,7 @@ namespace m
         {
             using byte_t = OutCharT;
 
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
             {
                 ec = std::make_error_code(std::errc::illegal_byte_sequence);
                 return it;
@@ -126,7 +126,7 @@ namespace m
         constexpr std::size_t
         compute_encoded_utf8_size(char32_t ch)
         {
-            if ((ch >= 0x0011'0000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x0011'0000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             if (ch < 0x0000'0080)
@@ -176,7 +176,7 @@ namespace m
         constexpr OutIterT
         encode_utf16le(char32_t ch, OutIterT it)
         {
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             if (ch < 0x10000)
@@ -199,7 +199,7 @@ namespace m
         constexpr OutIterT
         encode_utf16le(char32_t ch, OutIterT it, std::error_code& ec)
         {
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
             {
                 ec = std::make_error_code(std::errc::illegal_byte_sequence);
                 return it;
@@ -226,7 +226,7 @@ namespace m
         {
             using word_t = OutCharT;
 
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             if (ch < 0x10000)
@@ -245,7 +245,7 @@ namespace m
         constexpr std::size_t
         compute_encoded_utf16_count(char32_t ch)
         {
-            if ((ch >= 0x0011'0000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x0011'0000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             if (ch < 0x0001'0000)
@@ -257,7 +257,7 @@ namespace m
         constexpr std::size_t
         compute_encoded_utf16_count(char32_t ch, std::error_code& ec)
         {
-            if ((ch >= 0x0011'0000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x0011'0000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
             {
                 ec = std::make_error_code(std::errc::illegal_byte_sequence);
                 return 0;
@@ -312,7 +312,7 @@ namespace m
         constexpr OutIterT
         encode_utf16be(char32_t ch, OutIterT it)
         {
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             if (ch < 0x10000)
@@ -334,7 +334,7 @@ namespace m
         constexpr OutIterT
         encode_utf16be(char32_t ch, OutIterT it, std::error_code& ec)
         {
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
             {
                 ec = std::make_error_code(std::errc::illegal_byte_sequence);
                 return it;
@@ -384,7 +384,7 @@ namespace m
         constexpr OutIterT
         encode_utf32le(char32_t ch, OutIterT it)
         {
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             *it++ = OutValueT{static_cast<uint8_t>((ch >> 0) & 0xff)};
@@ -401,7 +401,7 @@ namespace m
         constexpr OutIterT
         encode_utf32le(char32_t ch, OutIterT it, std::error_code& ec)
         {
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
             {
                 ec = std::make_error_code(std::errc::illegal_byte_sequence);
                 return it;
@@ -422,7 +422,7 @@ namespace m
         constexpr OutIterT
         encode_utf32(char32_t ch, OutIterT it)
         {
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             *it++ = static_cast<OutCharT>(ch);
@@ -436,7 +436,7 @@ namespace m
         constexpr OutIterT
         encode_utf32(char32_t ch, OutIterT it, std::error_code& ec)
         {
-            if ((ch >= 0x110000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
             {
                 ec = std::make_error_code(std::errc::illegal_byte_sequence);
                 return it;
@@ -451,7 +451,7 @@ namespace m
         constexpr std::size_t
         compute_encoded_utf32_bytes(char32_t ch)
         {
-            if ((ch >= 0x0011'0000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x0011'0000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             return 4;
@@ -460,7 +460,7 @@ namespace m
         constexpr std::size_t
         compute_encoded_utf32_bytes(char32_t ch, std::error_code& ec)
         {
-            if ((ch >= 0x0011'0000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x0011'0000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
             {
                 ec = std::make_error_code(std::errc::illegal_byte_sequence);
                 return 0;
@@ -473,7 +473,7 @@ namespace m
         constexpr std::size_t
         compute_encoded_utf32_count(char32_t ch)
         {
-            if ((ch >= 0x0011'0000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x0011'0000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw std::runtime_error("invalid character");
 
             return 1;
@@ -482,7 +482,7 @@ namespace m
         constexpr std::size_t
         compute_encoded_utf32_count(char32_t ch, std::error_code& ec)
         {
-            if ((ch >= 0x0011'0000) || ((ch >= 0xdc00) && (ch <= 0xdfff)))
+            if ((ch >= 0x0011'0000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
             {
                 ec = std::make_error_code(std::errc::illegal_byte_sequence);
                 return 0;

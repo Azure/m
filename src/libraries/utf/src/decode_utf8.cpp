@@ -81,6 +81,14 @@ namespace m
                     rv.m_char = k_invalid_character;
                     return rv;
                 }
+
+                // Reject UTF-16 surrogate code points (U+D800..U+DFFF); they are
+                // not valid Unicode scalar values and must not appear in UTF-8.
+                if ((rv.m_char >= 0xd800) && (rv.m_char <= 0xdfff))
+                {
+                    rv.m_char = k_invalid_character;
+                    return rv;
+                }
             }
             else if ((b1 & std::byte{0xf8}) == std::byte{0xf0})
             {

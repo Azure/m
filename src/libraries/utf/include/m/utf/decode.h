@@ -169,6 +169,11 @@ namespace m
                 // Check for non-shortest-length encoding
                 if (ch < 0x00000800)
                     throw utf_invalid_encoding_error("Non-shortest Utf-8 encoding");
+
+                // Reject UTF-16 surrogate code points (U+D800..U+DFFF); they are
+                // not valid Unicode scalar values and must not appear in UTF-8.
+                if ((ch >= 0xd800) && (ch <= 0xdfff))
+                    throw utf_invalid_encoding_error("surrogate code point in Utf-8");
             }
             else if ((b1 & std::byte{0xf8}) == std::byte{0xf0})
             {
@@ -391,6 +396,14 @@ namespace m
                     ec = std::make_error_code(std::errc::illegal_byte_sequence);
                     return iter_decode_result<It>{};
                     // throw utf_invalid_encoding_error("Non-shortest Utf-8 encoding");
+                }
+
+                // Reject UTF-16 surrogate code points (U+D800..U+DFFF); they are
+                // not valid Unicode scalar values and must not appear in UTF-8.
+                if ((ch >= 0xd800) && (ch <= 0xdfff))
+                {
+                    ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                    return iter_decode_result<It>{};
                 }
             }
             else if ((b1 & std::byte{0xf8}) == std::byte{0xf0})
@@ -735,6 +748,10 @@ namespace m
             if (ch > 0x10ffff)
                 throw std::runtime_error("invalid UTF-32 character");
 
+            // Surrogate code points (U+D800..U+DFFF) are not valid Unicode scalar values.
+            if ((ch >= 0xd800) && (ch <= 0xdfff))
+                throw std::runtime_error("surrogate code point in UTF-32");
+
             return iter_decode_result<It>{.it = first, .ch = ch};
         }
 
@@ -752,6 +769,13 @@ namespace m
                 ec = std::make_error_code(std::errc::illegal_byte_sequence);
                 return iter_decode_result<It>{};
                 // throw std::runtime_error("invalid UTF-32 character");
+            }
+
+            // Surrogate code points (U+D800..U+DFFF) are not valid Unicode scalar values.
+            if ((ch >= 0xd800) && (ch <= 0xdfff))
+            {
+                ec = std::make_error_code(std::errc::illegal_byte_sequence);
+                return iter_decode_result<It>{};
             }
 
             return iter_decode_result<It>{.it = first, .ch = ch};

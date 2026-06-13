@@ -95,7 +95,7 @@ namespace m
         std::strong_ordering
         operator<=>(basic_const_string const& r) const
         {
-            return operator<=>(this->view(), r.view());
+            return this->view() <=> r.view();
         }
 
     private:
@@ -276,6 +276,15 @@ namespace m
     using u8const_string  = basic_const_string<char8_t>;
     using u16const_string = basic_const_string<char16_t>;
     using u32const_string = basic_const_string<char32_t>;
+
+    // get_buffer_ptr() locates the trailing character buffer at (&m_size + 1),
+    // which only yields the correct address when m_size is the sole data member
+    // (i.e. the object is exactly one std::size_t in size). Lock that invariant.
+    static_assert(sizeof(const_string) == sizeof(std::size_t));
+    static_assert(sizeof(wconst_string) == sizeof(std::size_t));
+    static_assert(sizeof(u8const_string) == sizeof(std::size_t));
+    static_assert(sizeof(u16const_string) == sizeof(std::size_t));
+    static_assert(sizeof(u32const_string) == sizeof(std::size_t));
 
     template <typename StringishT>
     m::arefc_ptr<const_string>

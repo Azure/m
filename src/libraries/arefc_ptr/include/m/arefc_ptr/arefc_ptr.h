@@ -58,7 +58,13 @@ namespace m
             constexpr void
             operator()(aggregate<T>* aggptr) const noexcept
             {
-                aggregate<T>::deallocate(aggptr);
+                // The unique_ptr returned by aggregate::allocate() owns raw storage
+                // whose object has NOT been constructed yet (construction happens later
+                // in mmake_arefc_ex via the caller's callback). So on cleanup we must
+                // only deallocate, never run the object's destructor on unconstructed
+                // storage. Once the object is constructed, ownership is released to the
+                // arefc_ptr and destruction becomes the refcount's responsibility.
+                aggregate<T>::deallocate(aggptr, /* do_destroy */ false);
             }
         };
 
@@ -689,20 +695,12 @@ namespace m
 
         auto const object_span = a->get_object_byte_span();
 
-        T* ptr;
-        try
-        {
-            ptr = std::invoke(std::forward<Fn>(fn), object_span, std::forward<Args>(args)...);
-        }
-        catch (...)
-        {
-            // `fn` failed to construct the object, so the storage holds no live T.
-            // Release ownership from the unique_ptr and deallocate WITHOUT running the
-            // (non-existent) object's destructor, then propagate the exception.
-            aggregate_type::deallocate(a.release(), /* do_destroy */ false);
-            throw;
-        }
+        // If `fn` throws, `a`'s deleter deallocates the raw storage without running
+        // a destructor on the never-constructed object (RAII cleanup).
+        auto const ptr =
+            std::invoke(std::forward<Fn>(fn), object_span, std::forward<Args>(args)...);
 
+        // Construction succeeded: hand ownership to the arefc_ptr.
         a.release();
         arefc_ptr<T> retval(ptr);
         return retval;

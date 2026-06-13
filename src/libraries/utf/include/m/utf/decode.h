@@ -672,17 +672,17 @@ namespace m
             else if (ch1 <= 0xdbff)
             {
                 if (first == last)
-                    throw std::runtime_error("utf-16 sequence truncated");
+                    throw utf_sequence_truncated_error("utf-16 sequence truncated");
 
                 auto const ch2 = details::to_utf16le(*first++);
 
                 if ((ch2 < 0xdc00) || (ch2 > 0xdfff))
-                    throw std::runtime_error("utf-16 invalid surrogate pair");
+                    throw utf_invalid_encoding_error("utf-16 invalid surrogate pair");
 
                 ch = ((((ch1 - 0xd800) * 1024) + (ch2 - 0xdc00)) + 0x10000);
             }
             else if (ch1 <= 0xdfff)
-                throw std::runtime_error("invalid UTF-16 encoding");
+                throw utf_invalid_encoding_error("invalid UTF-16 encoding");
             else
                 ch = ch1;
 
@@ -746,11 +746,11 @@ namespace m
 
             auto const ch = details::to_utf32le(*first++);
             if (ch > 0x10ffff)
-                throw std::runtime_error("invalid UTF-32 character");
+                throw utf_invalid_encoding_error("invalid UTF-32 character");
 
             // Surrogate code points (U+D800..U+DFFF) are not valid Unicode scalar values.
             if ((ch >= 0xd800) && (ch <= 0xdfff))
-                throw std::runtime_error("surrogate code point in UTF-32");
+                throw utf_invalid_encoding_error("surrogate code point in UTF-32");
 
             return iter_decode_result<It>{.it = first, .ch = ch};
         }

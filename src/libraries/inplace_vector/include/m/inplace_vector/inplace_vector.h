@@ -28,6 +28,7 @@
 
 #include <m/error_handling/macros.h>
 #include <m/exception/exception.h>
+#include <m/math/math.h>
 #include <m/utility/pointers.h>
 #include <m/utility/smallest_size.h>
 
@@ -479,12 +480,12 @@ namespace m
         constexpr reference
         back()
         {
-            return inplace_vector_impl::index(*this, size() - size_type{1});
+            return inplace_vector_impl::index(*this, m::math::subtract(size(), 1, std::size_t{}));
         }
         constexpr const_reference
         back() const
         {
-            return inplace_vector_impl::index(*this, size() - size_type{1});
+            return inplace_vector_impl::index(*this, m::math::subtract(size(), 1, std::size_t{}));
         }
 
         // [containers.sequences.inplace_vector.data], data access
@@ -597,7 +598,7 @@ namespace m
         {
             M_IV_EXPECT(size() < capacity() && "inplace_vector out-of-memory");
             std::construct_at(end(), std::forward<Args>(args)...);
-            unsafe_set_size(size() + size_type{1});
+            unsafe_set_size(m::math::add(size(), 1, std::size_t{}));
             return back();
         }
 
@@ -669,7 +670,8 @@ namespace m
         {
             if constexpr (std::ranges::sized_range<RangeT>)
             {
-                if (size() + std::ranges::size(rnge) > capacity()) [[unlikely]]
+                if (m::math::add(size(), std::ranges::size(rnge), std::size_t{}) > capacity())
+                    [[unlikely]]
                     throw std::bad_alloc();
             }
             for (auto&& e: rnge)
@@ -702,8 +704,9 @@ namespace m
             // internal_assert_valid_iterator_pair(first, last);
             if constexpr (std::random_access_iterator<InputIt>)
             {
-                if (size() + static_cast<size_type>(std::distance(first, last)) > capacity())
-                    [[unlikely]]
+                if (m::math::add(size(),
+                                 static_cast<size_type>(std::distance(first, last)),
+                                 std::size_t{}) > capacity()) [[unlikely]]
                     throw std::bad_alloc{};
             }
             auto b = end();
@@ -809,7 +812,8 @@ namespace m
             {
                 internal_unsafe_destroy(std::move(new_first + (last - first), end(), new_first),
                                         end());
-                unsafe_set_size(size() - static_cast<size_type>(last - first));
+                unsafe_set_size(
+                    m::math::subtract(size(), static_cast<size_type>(last - first), std::size_t{}));
             }
             return new_first;
         }
@@ -837,7 +841,7 @@ namespace m
             else if (sz > N) [[unlikely]]
                 throw std::bad_alloc{};
             else if (sz > size())
-                insert(end(), sz - size(), c);
+                insert(end(), m::math::subtract(sz, size(), std::size_t{}), c);
             else
             {
                 internal_unsafe_destroy(begin() + sz, end());
@@ -883,7 +887,7 @@ namespace m
         {
             M_IV_EXPECT(size() > 0 && "pop_back from empty inplace_vector!");
             internal_unsafe_destroy(end() - 1, end());
-            unsafe_set_size(size() - 1);
+            unsafe_set_size(m::math::subtract(size(), 1, std::size_t{}));
         }
 
         constexpr inplace_vector(const inplace_vector& x)

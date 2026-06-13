@@ -110,6 +110,29 @@ namespace m
             { std::construct_at(ptr, std::forward<T &&>(value)) } -> std::same_as<PointerT>;
         };
 
+        // Exposition-only synth-three-way (http://eel.is/c++draft/expos.only.entity):
+        // uses operator<=> when available, otherwise synthesizes a weak_ordering from
+        // operator< so that element types providing only < and == still order correctly.
+        inline constexpr auto synth_three_way = []<typename T, typename U>(T const& t, U const& u)
+            requires requires {
+                { t < u } -> std::convertible_to<bool>;
+                { u < t } -> std::convertible_to<bool>;
+            }
+        {
+            if constexpr (std::three_way_comparable_with<T, U>)
+            {
+                return t <=> u;
+            }
+            else
+            {
+                if (t < u)
+                    return std::weak_ordering::less;
+                if (u < t)
+                    return std::weak_ordering::greater;
+                return std::weak_ordering::equivalent;
+            }
+        };
+
         // Types implementing the `inplace_vector`'s storage
         namespace storage
         {
@@ -971,29 +994,18 @@ namespace m
             insert_range(begin(), il);
         }
 
-        constexpr friend int /*synth-three-way-result<T>*/
+        constexpr friend auto
         operator<=>(inplace_vector const& x, inplace_vector const& y)
-        {
-            if (x.size() < y.size())
-                return -1;
-            if (x.size() > y.size())
-                return +1;
-
-            bool all_equal = true;
-            bool all_less  = true;
-            for (size_type idx = 0; idx < x.size(); ++idx)
-            {
-                if (x[idx] < y[idx])
-                    all_equal = false;
-                if (x[idx] == y[idx])
-                    all_less = false;
+            requires requires(T const& a) {
+                inplace_vector_impl::synth_three_way(a, a);
             }
-
-            if (all_equal)
-                return 0;
-            if (all_less)
-                return -1;
-            return 1;
+        {
+            return std::lexicographical_compare_three_way(
+                x.begin(),
+                x.end(),
+                y.begin(),
+                y.end(),
+                inplace_vector_impl::synth_three_way);
         }
     };
 

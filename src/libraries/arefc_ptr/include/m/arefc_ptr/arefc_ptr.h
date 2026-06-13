@@ -500,7 +500,7 @@ namespace m
         ~arefc_ptr() { reset(); }
 
         arefc_ptr&
-        operator=(arefc_ptr& other) noexcept
+        operator=(arefc_ptr const& other) noexcept
         {
             if (this != &other)
             {
@@ -688,8 +688,20 @@ namespace m
         auto a = aggregate_type::allocate(extra_bytes_required);
 
         auto const object_span = a->get_object_byte_span();
-        auto const ptr =
-            std::invoke(std::forward<Fn>(fn), object_span, std::forward<Args>(args)...);
+
+        T* ptr;
+        try
+        {
+            ptr = std::invoke(std::forward<Fn>(fn), object_span, std::forward<Args>(args)...);
+        }
+        catch (...)
+        {
+            // `fn` failed to construct the object, so the storage holds no live T.
+            // Release ownership from the unique_ptr and deallocate WITHOUT running the
+            // (non-existent) object's destructor, then propagate the exception.
+            aggregate_type::deallocate(a.release(), /* do_destroy */ false);
+            throw;
+        }
 
         a.release();
         arefc_ptr<T> retval(ptr);

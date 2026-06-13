@@ -18,6 +18,28 @@ using namespace std::chrono_literals;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
+namespace
+{
+    // A type with only operator< and operator== (no operator<=>); used to exercise
+    // the synthesized weak_ordering path of inplace_vector's operator<=>.
+    struct less_only
+    {
+        int m_v;
+
+        friend constexpr bool
+        operator<(less_only const& a, less_only const& b)
+        {
+            return a.m_v < b.m_v;
+        }
+
+        friend constexpr bool
+        operator==(less_only const& a, less_only const& b)
+        {
+            return a.m_v == b.m_v;
+        }
+    };
+} // namespace
+
 struct SomeStruct
 {
     int x;
@@ -232,3 +254,86 @@ TEST(InplaceVector, CountMoves)
 
     EXPECT_EQ(ch[8].m_s, "India"s);
 }
+
+TEST(InplaceVector, ThreeWayEqual)
+{
+    m::inplace_vector<int, 8> a;
+    m::inplace_vector<int, 8> b;
+
+    a.assign({1, 2, 3});
+    b.assign({1, 2, 3});
+
+    EXPECT_TRUE((a <=> b) == std::strong_ordering::equal);
+    EXPECT_TRUE(a == b);
+}
+
+TEST(InplaceVector, ThreeWayLessByElement)
+{
+    m::inplace_vector<int, 8> a;
+    m::inplace_vector<int, 8> b;
+
+    a.assign({1, 2, 3});
+    b.assign({1, 9, 3});
+
+    // Same size, differ at the second element: a < b.
+    EXPECT_TRUE((a <=> b) == std::strong_ordering::less);
+    EXPECT_TRUE(a < b);
+    EXPECT_TRUE(b > a);
+    EXPECT_FALSE(a == b);
+}
+
+TEST(InplaceVector, ThreeWayGreaterByElement)
+{
+    m::inplace_vector<int, 8> a;
+    m::inplace_vector<int, 8> b;
+
+    a.assign({1, 9, 0});
+    b.assign({1, 2, 9});
+
+    // First difference is at index 1 where 9 > 2, so a > b regardless of later elements.
+    EXPECT_TRUE((a <=> b) == std::strong_ordering::greater);
+    EXPECT_TRUE(a > b);
+}
+
+TEST(InplaceVector, ThreeWayPrefixIsLess)
+{
+    m::inplace_vector<int, 8> a;
+    m::inplace_vector<int, 8> b;
+
+    a.assign({1, 2});
+    b.assign({1, 2, 3});
+
+    // A proper prefix orders before the longer sequence.
+    EXPECT_TRUE((a <=> b) == std::strong_ordering::less);
+    EXPECT_TRUE(a < b);
+    EXPECT_TRUE(b > a);
+}
+
+TEST(InplaceVector, ThreeWayEmptyOrdering)
+{
+    m::inplace_vector<int, 8> empty;
+    m::inplace_vector<int, 8> nonempty;
+
+    nonempty.assign({0});
+
+    EXPECT_TRUE((empty <=> empty) == std::strong_ordering::equal);
+    EXPECT_TRUE((empty <=> nonempty) == std::strong_ordering::less);
+    EXPECT_TRUE(empty < nonempty);
+}
+
+TEST(InplaceVector, ThreeWaySynthFromLessOnly)
+{
+    // A type with only operator< and operator== (no operator<=>) must still order
+    // via the synthesized weak_ordering path.
+    m::inplace_vector<less_only, 8> a;
+    m::inplace_vector<less_only, 8> b;
+
+    a.push_back(less_only{1});
+    a.push_back(less_only{2});
+    b.push_back(less_only{1});
+    b.push_back(less_only{5});
+
+    EXPECT_TRUE((a <=> b) == std::weak_ordering::less);
+    EXPECT_TRUE(a < b);
+}
+

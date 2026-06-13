@@ -23,6 +23,7 @@
 #include <atomic>
 #include <cstddef>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -122,6 +123,7 @@ namespace
         {}
 
     private:
+        std::mutex                        m_mutex;
         std::vector<m::tracing::envelope> m_held;
     };
 

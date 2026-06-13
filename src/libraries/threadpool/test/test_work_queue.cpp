@@ -65,10 +65,13 @@ TEST(WorkQueue, QueueN20)
     q->wait_for(5s);
 }
 
+// Moderately sized functional check that the queue drains a batch and sets
+// every flag. Kept small (and quiet) so the normal test pass stays around
+// 1-2 seconds; the heavy throughput soak lives in DISABLED_QueueNBigStress.
 TEST(WorkQueue, QueueNBig)
 {
     auto                  q = m::threadpool->create_work_queue();
-    constexpr std::size_t n = 100'000;
+    constexpr std::size_t n = 10'000;
 
     auto work_items =
         std::unique_ptr<std::shared_ptr<m::work_item>[]>(new std::shared_ptr<m::work_item>[n]());

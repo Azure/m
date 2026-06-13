@@ -457,7 +457,8 @@ namespace m
             if (split_point == view_type::npos)
                 return std::make_pair(*this, basic_sstring{});
 
-            return std::make_pair(substr(0, split_point), substr(split_point + 1));
+            return std::make_pair(substr(0, split_point),
+                                  substr(m::math::add(split_point, 1, std::size_t{})));
         }
 
         std::pair<basic_sstring, basic_sstring>
@@ -469,8 +470,9 @@ namespace m
             if (split_point == view_type::npos)
                 return std::make_pair(*this, basic_sstring{});
 
-            return std::make_pair(substr(0, split_point),
-                                  substr(split_point + view_to_find.size()));
+            return std::make_pair(
+                substr(0, split_point),
+                substr(m::math::add(split_point, view_to_find.size(), std::size_t{})));
         }
 
         std::pair<basic_sstring, basic_sstring>
@@ -482,7 +484,8 @@ namespace m
             if (split_point == view_type::npos)
                 return std::make_pair(*this, basic_sstring{});
 
-            return std::make_pair(substr(0, split_point), substr(split_point + 1));
+            return std::make_pair(substr(0, split_point),
+                                  substr(m::math::add(split_point, 1, std::size_t{})));
         }
 
         bool
@@ -545,7 +548,7 @@ namespace m
         last() const
         {
             M_INTERNAL_ERROR_CHECK(view().size() > 0);
-            return view().data()[view().size() - 1];
+            return view().data()[m::math::subtract(view().size(), 1, std::size_t{})];
         }
 
         template <typename StringishT>
@@ -601,10 +604,12 @@ namespace m
 
                 // And the offset can't be beyond the size of the whole string
                 // minus the size of the substring.
-                M_INTERNAL_ERROR_CHECK(m_offset_and_size.m_offset <=
-                                       v.size() - m_offset_and_size.m_size);
+                M_INTERNAL_ERROR_CHECK(
+                    m_offset_and_size.m_offset <=
+                    m::math::subtract(v.size(), m_offset_and_size.m_size, std::size_t{}));
 
-                if (v.size() - m_offset_and_size.m_size == m_offset_and_size.m_offset)
+                if (m::math::subtract(v.size(), m_offset_and_size.m_size, std::size_t{}) ==
+                    m_offset_and_size.m_offset)
                 {
                     // If the end of the substring lines up with the end of
                     // the whole string, if there is a m_c_str value, it

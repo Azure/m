@@ -352,7 +352,8 @@ namespace m
             // the m_c_str ptr into the member and leave it there into the future.
             //
 
-            if ((m_offset_and_size.m_offset + m_offset_and_size.m_size) == v.size())
+            if (m::math::add(m_offset_and_size.m_offset, m_offset_and_size.m_size, std::size_t{}) ==
+                v.size())
             {
                 local_c_str_ptr = v.data() + m_offset_and_size.m_offset;
                 m_c_str.store(local_c_str_ptr, std::memory_order_release);
@@ -408,7 +409,7 @@ namespace m
                 throw std::out_of_range("start");
             }
 
-            auto const max_len = v.size() - start;
+            auto const max_len = m::math::subtract(v.size(), start, std::size_t{});
             if (length > max_len)
                 length = max_len;
 
@@ -419,7 +420,9 @@ namespace m
             // into the shared base buffer so substrings of substrings are correct.
             return basic_sstring{
                 m_arefc,
-                offset_and_size{.m_offset = m_offset_and_size.m_offset + start, .m_size = length}};
+                offset_and_size{
+                    .m_offset = m::math::add(m_offset_and_size.m_offset, start, std::size_t{}),
+                    .m_size   = length}};
         }
 
         basic_sstring
@@ -439,7 +442,9 @@ namespace m
             auto const v = view();
             if (count > v.size())
                 count = v.size();
-            auto const offset = m_offset_and_size.m_offset + (v.size() - count);
+            auto const offset = m::math::add(m_offset_and_size.m_offset,
+                                             m::math::subtract(v.size(), count, std::size_t{}),
+                                             std::size_t{});
             return basic_sstring{m_arefc, offset_and_size{.m_offset = offset, .m_size = count}};
         }
 
@@ -630,7 +635,7 @@ namespace m
             if (cstr != nullptr)
                 return cstr;
 
-            auto up = std::make_unique<char_type[]>(size + 1);
+            auto up = std::make_unique<char_type[]>(m::math::add(size, 1, std::size_t{}));
 
             if (size != 0)
                 std::copy_n(ptr, size, up.get());

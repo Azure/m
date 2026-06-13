@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <chrono>
 #include <format>
 #include <iostream>
@@ -36,6 +37,30 @@ namespace
         operator==(less_only const& a, less_only const& b)
         {
             return a.m_v == b.m_v;
+        }
+    };
+
+    // A sized range that reports a dishonestly huge size() while iterating as empty.
+    // Used to drive inplace_vector::append_range's integer-overflow guard: the size
+    // check (size() + ranges::size(rnge)) wraps SIZE_MAX before any iteration happens.
+    struct lying_huge_range
+    {
+        static int const*
+        begin()
+        {
+            return nullptr;
+        }
+
+        static int const*
+        end()
+        {
+            return nullptr;
+        }
+
+        static std::size_t
+        size()
+        {
+            return std::numeric_limits<std::size_t>::max();
         }
     };
 } // namespace
@@ -335,5 +360,31 @@ TEST(InplaceVector, ThreeWaySynthFromLessOnly)
 
     EXPECT_TRUE((a <=> b) == std::weak_ordering::less);
     EXPECT_TRUE(a < b);
+}
+
+TEST(InplaceVector, AppendRangeIntegerOverflowThrows)
+{
+    // append_range checks size() + ranges::size(rnge) against capacity(). When the
+    // sum overflows SIZE_MAX, m::math::add throws std::overflow_error rather than
+    // wrapping and slipping past the capacity guard (the bug this check fixes).
+    m::inplace_vector<int, 8> v;
+    v.push_back(1); // size() == 1, so 1 + SIZE_MAX overflows.
+
+    EXPECT_THROW(v.append_range(lying_huge_range{}), std::overflow_error);
+
+    // The vector must be unchanged after the failed append.
+    EXPECT_EQ(v.size(), 1u);
+    EXPECT_EQ(v[0], 1);
+}
+
+TEST(InplaceVector, AppendRangeOverCapacityThrows)
+{
+    // A range that fits in SIZE_MAX arithmetic but exceeds capacity still throws
+    // bad_alloc (the ordinary capacity guard, distinct from the overflow guard).
+    m::inplace_vector<int, 4> v;
+
+    std::array<int, 5> const src{1, 2, 3, 4, 5};
+
+    EXPECT_THROW(v.append_range(src), std::bad_alloc);
 }
 

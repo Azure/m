@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -263,7 +264,7 @@ namespace m
         }
 
         constexpr int
-        compare(basic_sstring s) const
+        compare(basic_sstring const& s) const
         {
             return compare(s.view());
         }
@@ -281,7 +282,7 @@ namespace m
         }
 
         constexpr int
-        compare(size_type pos1, size_t count1, basic_sstring str) const
+        compare(size_type pos1, size_t count1, basic_sstring const& str) const
         {
             return view().compare(pos1, count1, str.view());
         }
@@ -294,11 +295,11 @@ namespace m
         }
 
         constexpr int
-        compare(size_type     pos1,
-                size_type     count1,
-                basic_sstring str,
-                size_type     pos2,
-                size_type     count2) const
+        compare(size_type            pos1,
+                size_type            count1,
+                basic_sstring const& str,
+                size_type            pos2,
+                size_type            count2) const
         {
             return view().compare(pos1, count1, str.view(), pos2, count2);
         }
@@ -374,6 +375,9 @@ namespace m
         }
 
         template <typename StringishT>
+            requires requires(StringishT&& s) {
+                m::to_basic_string_view_t<char_type>(std::forward<StringishT>(s));
+            }
         basic_sstring
         operator+(StringishT&& other) const
         {
@@ -540,6 +544,9 @@ namespace m
         }
 
         template <typename StringishT>
+            requires requires(StringishT&& s) {
+                m::to_basic_string_view_t<char_type>(std::forward<StringishT>(s));
+            }
         constexpr bool
         operator==(StringishT&& r) const noexcept
         {
@@ -558,8 +565,7 @@ namespace m
         [[nodiscard]] constexpr comparison_category_type
         operator<=>(view_type const& r) const noexcept
         {
-            auto const v              = m::to_basic_string_view_t<char_type>(r);
-            auto const compare_result = compare(v);
+            auto const compare_result = compare(r);
 
             return static_cast<comparison_category_type>(compare_result <=> 0);
         }

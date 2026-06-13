@@ -61,7 +61,7 @@ namespace m::tracing_impl
         if (m_raw_messages != nullptr)
         {
             for (std::size_t i = raw_message_count; i-- > 0;)
-                m_raw_messages[i].~message();
+                std::destroy_at(&m_raw_messages[i]);
 
             m_raw_messages = nullptr;
         }

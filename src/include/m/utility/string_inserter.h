@@ -10,6 +10,7 @@
 #include <string>
 #include <type_traits>
 
+#include <m/math/math.h>
 #include <m/utility/concepts.h>
 
 namespace m
@@ -72,8 +73,11 @@ namespace m
         [[nodiscard]] constexpr value_type&
         operator*() noexcept
         {
+            // m::math::add fail-stops on overflow rather than wrapping m_index + 1 to a
+            // small size: a wrap would shrink the string and leave the subsequent index
+            // out of bounds (a wild write).
             if (m_string->size() <= m_index)
-                m_string->resize(m_index + 1);
+                m_string->resize(m::math::add(m_index, size_type{1}, size_type{}));
 
             return (*m_string)[m_index];
         }

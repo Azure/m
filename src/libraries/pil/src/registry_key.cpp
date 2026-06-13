@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <cstring>
 #include <optional>
 #include <span>
 #include <string>
@@ -248,32 +249,46 @@ namespace m::pil
 
         std::vector<registry_string_type> retval;
 
-        // Turn the value into a UTF-16 string and scan through looking for
-        // the embedded null characters. The REG_MULTI_SZ format is a sequence
-        // of null-terminated UTF-16 strings, terminated by an empty string
-        // (that is, an extra trailing null character).
-        char16_t const* cursor    = reinterpret_cast<char16_t const*>(value.m_bytes.data());
-        std::size_t     remaining = value.m_bytes.size() / sizeof(char16_t);
+        // The REG_MULTI_SZ format is a sequence of null-terminated UTF-16
+        // strings, terminated by an empty string (that is, an extra trailing
+        // null character).
+        //
+        // The raw value lives in a std::vector<std::byte>, which only
+        // guarantees 1-byte alignment, so we cannot reinterpret the buffer in
+        // place as char16_t: that would be undefined behavior (and can fault)
+        // on platforms that require char16_t to be 2-byte aligned. Copy the
+        // bytes into a properly aligned std::u16string first.
+        auto const byte_count = value.m_bytes.size();
 
-        while (remaining > 0)
+        // An odd byte count cannot be a well-formed sequence of char16_t;
+        // reject it rather than silently truncating the trailing byte.
+        if ((byte_count % sizeof(char16_t)) != 0)
+            throw std::runtime_error(
+                "REG_MULTI_SZ value has an odd byte count and is not valid UTF-16");
+
+        std::u16string buffer(byte_count / sizeof(char16_t), u'\0');
+        std::memcpy(buffer.data(), value.m_bytes.data(), byte_count);
+
+        std::u16string_view remaining(buffer);
+
+        while (!remaining.empty())
         {
-            std::u16string_view sv(cursor, remaining);
-            auto const          null_pos = sv.find(u'\0');
+            auto const null_pos = remaining.find(u'\0');
 
-            std::size_t const len =
-                (null_pos == std::u16string_view::npos) ? remaining : null_pos;
+            std::u16string_view const token =
+                (null_pos == std::u16string_view::npos) ? remaining : remaining.substr(0, null_pos);
 
             // An empty string marks the end of the sequence.
-            if (len == 0)
+            if (token.empty())
                 break;
 
-            retval.push_back(to_registry_string(std::u16string_view(cursor, len)));
+            retval.push_back(to_registry_string(token));
 
             // Advance past the string and its null terminator (if present).
-            std::size_t const advance =
-                (null_pos == std::u16string_view::npos) ? len : (len + 1);
-            cursor += advance;
-            remaining -= advance;
+            if (null_pos == std::u16string_view::npos)
+                remaining = {};
+            else
+                remaining.remove_prefix(null_pos + 1);
         }
 
         return retval;

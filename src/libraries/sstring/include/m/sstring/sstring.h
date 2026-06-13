@@ -375,10 +375,15 @@ namespace m
             return basic_sstring({view(), other.view()});
         }
 
+        // Constrain with the stringish concept (a pure type predicate) rather than a
+        // requires-expression over to_basic_string_view_t(): the latter returns auto and
+        // would force its body to be instantiated during constraint checking, turning a
+        // missing view_converter specialization into a hard error (and breaking the
+        // self-contained totally_ordered static_asserts below, since the needed
+        // specializations live in a higher layer). stringish already decays array operands
+        // (string literals) to their pointer form.
         template <typename StringishT>
-            requires requires(StringishT&& s) {
-                m::to_basic_string_view_t<char_type>(std::forward<StringishT>(s));
-            }
+            requires(m::stringish<StringishT, char_type>)
         basic_sstring
         operator+(StringishT&& other) const
         {
@@ -551,10 +556,10 @@ namespace m
             return view().data()[m::math::subtract(view().size(), 1, std::size_t{})];
         }
 
+        // See the note on operator+ above: stringish is a pure type predicate, so it does
+        // not instantiate to_basic_string_view_t's body during constraint checking.
         template <typename StringishT>
-            requires requires(StringishT&& s) {
-                m::to_basic_string_view_t<char_type>(std::forward<StringishT>(s));
-            }
+            requires(m::stringish<StringishT, char_type>)
         constexpr bool
         operator==(StringishT&& r) const noexcept
         {

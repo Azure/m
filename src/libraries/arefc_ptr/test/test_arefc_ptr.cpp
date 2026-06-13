@@ -8,6 +8,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -67,6 +68,17 @@ namespace
     struct DerivedFromEmpty : EmptyBase
     {
         int value;
+    };
+
+    // Constructor throws; destructor counts calls. Used to verify that a failed
+    // construction inside mmake_arefc_ex does NOT run the (never-constructed)
+    // object's destructor.
+    struct ThrowingCtor
+    {
+        inline static int s_dtor_calls = 0;
+
+        ThrowingCtor() { throw std::runtime_error("boom"); }
+        ~ThrowingCtor() { ++s_dtor_calls; }
     };
 
 } // namespace
@@ -278,6 +290,20 @@ TEST(AreFcPtr_CopyAssign, OverwritesExisting)
     EXPECT_EQ(LifetimeTracker::s_live_count, 0);
 }
 
+TEST(AreFcPtr_CopyAssign, FromConstSource)
+{
+    // Copy-assignment must bind to a const source.
+    auto                       p1   = m::mmake_arefc<Plain>();
+    p1->value                       = 5;
+    m::arefc_ptr<Plain> const& cref = p1;
+
+    m::arefc_ptr<Plain> p2;
+    p2 = cref; // must compile and share ownership
+
+    EXPECT_EQ(p2.get(), p1.get());
+    EXPECT_EQ(p2->value, 5);
+}
+
 // ============================================================================
 // Move assignment
 // ============================================================================
@@ -386,6 +412,23 @@ TEST(AreFcPtr_MakeEx, FnIsCalledAndObjectIsAccessible)
 
     EXPECT_TRUE(fn_called);
     EXPECT_EQ(p->value, 42);
+}
+
+TEST(AreFcPtr_MakeEx, ThrowingConstructorDoesNotDestroyUnconstructed)
+{
+    // If the constructing callback throws, the object was never constructed, so
+    // mmake_arefc_ex must deallocate WITHOUT running the object's destructor.
+    ThrowingCtor::s_dtor_calls = 0;
+
+    EXPECT_THROW(
+        {
+            auto p = m::mmake_arefc_ex<ThrowingCtor>(
+                0, [](m::byte_span s) -> ThrowingCtor* { return ::new (s.data()) ThrowingCtor(); });
+            (void)p;
+        },
+        std::runtime_error);
+
+    EXPECT_EQ(ThrowingCtor::s_dtor_calls, 0);
 }
 
 // ============================================================================

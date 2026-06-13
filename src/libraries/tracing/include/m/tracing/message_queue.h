@@ -106,6 +106,11 @@ namespace m
             mutable std::mutex      m_mutex;
             std::condition_variable m_cv;
             std::queue<envelope>    m_queue;
+
+            // Sticky wake flag. wake_waiters() sets this under m_mutex so that a
+            // wake requested before a thread reaches wait() is not lost; wait()
+            // consumes it. This closes the lost-wakeup race during sink teardown.
+            bool m_wake = false;
         };
     } // namespace tracing
 } // namespace m

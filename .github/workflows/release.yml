@@ -22,9 +22,11 @@ on:
   push:
     tags:
       # GitHub tag filters use glob (minimatch) syntax, not regex, so we cannot
-      # use `+` quantifiers here. "v[0-9]*" matches v followed by a digit then
-      # anything, covering both vX.Y.Z and pre-releases like vX.Y.Z-rc1.
-      - "v[0-9]*"
+      # use `+` quantifiers. Requiring the two dots enforces the vX.Y.Z shape and
+      # avoids firing on tags like v1 or v12foo. The trailing segment's `*` still
+      # allows pre-release suffixes such as v0.3.3-rc1. (This does not reject
+      # v1.2.3.4; add a runtime semver check if that strictness is needed.)
+      - "v[0-9]*.[0-9]*.[0-9]*"
 
 permissions:
   contents: write   # needed to create the GitHub Release
@@ -61,11 +63,18 @@ jobs:
           cmake
           -D CMAKE_BUILD_TYPE=Release
           -D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+          -D build_tests=ON
+          -D BUILD_TESTING=ON
           -B ${{ steps.strings.outputs.build-output-dir }}
           -S ${{ github.workspace }}
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config Release --parallel
+
+      - name: Test
+        # Don't publish a release artifact that fails the suite the rest of CI runs.
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        run: ctest --build-config Release --output-on-failure
 
       - name: Package (CPack -> .zip)
         run: >

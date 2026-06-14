@@ -1,0 +1,88 @@
+name: Release
+
+# Tag-triggered release.
+#
+# How to cut a release:
+#
+#   git tag v0.3.3        # pick the next version; must start with "v"
+#   git push origin v0.3.3
+#
+# Pushing a tag that looks like vX.Y.Z starts this workflow. It builds the
+# project in Release, packages everything into a .zip with CPack, and publishes
+# a GitHub Release named after the tag with the .zip attached.
+#
+# The project's version comes from this same tag: the top-level CMakeLists.txt
+# runs `git describe --tags --match "v*"`, so the tag you push IS the version
+# that gets built. No version files to keep in sync.
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"      # e.g. v0.3.3
+      - "v[0-9]+.[0-9]+.[0-9]+-*"    # e.g. v0.3.3-rc1 (pre-releases)
+
+permissions:
+  contents: write   # needed to create the GitHub Release
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: 'recursive'
+          # Full history + tags so the CMake `git describe` version resolves to
+          # the tag that triggered this run.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+          echo "dist-dir=${{ github.workspace }}/dist" >> "$GITHUB_OUTPUT"
+
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: "${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat"
+
+      - name: Run vcpkg
+        shell: bash
+        run: "${{ github.workspace }}/vcpkg/vcpkg" install
+
+      - name: Configure CMake
+        run: >
+          cmake
+          -D CMAKE_BUILD_TYPE=Release
+          -D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+          -B ${{ steps.strings.outputs.build-output-dir }}
+          -S ${{ github.workspace }}
+
+      - name: Build
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config Release --parallel
+
+      - name: Package (CPack -> .zip)
+        run: >
+          cpack
+          --config ${{ steps.strings.outputs.build-output-dir }}/CPackConfig.cmake
+          -C Release
+          -B ${{ steps.strings.outputs.dist-dir }}
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # github.ref_name is the tag that triggered this run, e.g. v0.3.3.
+          # Mark anything with a hyphen (v0.3.3-rc1) as a pre-release.
+          PRERELEASE_FLAG=""
+          case "${{ github.ref_name }}" in
+            *-*) PRERELEASE_FLAG="--prerelease" ;;
+          esac
+
+          gh release create "${{ github.ref_name }}" \
+            "${{ steps.strings.outputs.dist-dir }}"/*.zip \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            $PRERELEASE_FLAG

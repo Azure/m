@@ -44,6 +44,13 @@ namespace m::work_queue_impl
             do_work();
         }
 
+        // Transition a still-queued item to the canceled terminal state and
+        // wake any waiters. No-op (returns false) if the item has already
+        // started running or already reached a terminal state. Used by queue
+        // teardown to release waiters blocked on work that will never start.
+        bool
+        cancel_if_queued();
+
     protected:
         utc_time_point_type
         do_enqueue_time() override;

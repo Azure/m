@@ -59,6 +59,30 @@ namespace m::threadpool_impl
         if (m_platform_initialized)
         {
             m_tp_work.wait_for_callbacks(true);
+
+            // wait_for_callbacks(true) cancels the threadpool callbacks that
+            // had not yet started, so any work items still sitting in
+            // m_ready_queue will never run on their own. Move each of them to
+            // the canceled terminal state and wake their waiters so that
+            // work_item::wait*() cannot block forever on never-started work
+            // (which is what close()'s "cancel not-yet-started work" contract
+            // promises). No callback can race us here: once
+            // wait_for_callbacks(true) has returned, none are running and none
+            // will start.
+            auto l = std::unique_lock(m_mutex);
+
+            while (!m_ready_queue.empty())
+            {
+                auto const wi = m_ready_queue.front();
+                m_ready_queue.pop_front();
+                wi->cancel_if_queued();
+            }
+
+            l.unlock();
+
+            // Wake queue-level waiters (wait_for) now that the ready queue is
+            // empty and no work remains in flight.
+            m_cv.notify_all();
         }
     }
 

@@ -82,13 +82,15 @@ jobs:
         run: ${{ github.workspace }}/vcpkg/vcpkg.exe install --triplet x64-windows
 
       - name: Configure CMake
+        # The Visual Studio generator selected by -A x64 is multi-config, so the
+        # build type is chosen later via --config / --build-config / -C Release
+        # rather than CMAKE_BUILD_TYPE. Only BUILD_TESTING controls test builds
+        # in this project's CMake.
         run: >
           cmake
           -A x64
-          -D CMAKE_BUILD_TYPE=Release
           -D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
           -D VCPKG_TARGET_TRIPLET=x64-windows
-          -D build_tests=ON
           -D BUILD_TESTING=ON
           -B ${{ steps.strings.outputs.build-output-dir }}
           -S ${{ github.workspace }}

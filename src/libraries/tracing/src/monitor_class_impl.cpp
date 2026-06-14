@@ -30,11 +30,33 @@ namespace m::tracing_impl
         m_message_storage = std::make_unique<message_array_type>();
         m_raw_messages    = reinterpret_cast<m::tracing::message*>(m_message_storage.get());
 
+        // Each message must be placement-constructed from the pool, so the
+        // standard uninitialized_* algorithms (which require a default or copy
+        // constructor) don't apply. Guard the loop with a unique_ptr-based RAII
+        // rollback (the same deleter-as-cleanup idiom used by mmake_arefc_ex):
+        // if a message constructor throws, the deleter destroys the messages
+        // already constructed (in reverse order) during unwinding, so the
+        // backing storage is never freed with live objects still in it. On
+        // success we dismiss the guard with release().
+        std::size_t constructed = 0;
+
+        auto const rollback_deleter = [&constructed](m::tracing::message* base) noexcept {
+            for (std::size_t i = constructed; i-- > 0;)
+                std::destroy_at(&base[i]);
+        };
+
+        std::unique_ptr<m::tracing::message, decltype(rollback_deleter)> rollback(m_raw_messages,
+                                                                                  rollback_deleter);
+
         for (std::size_t i = 0; i < raw_message_count; i++)
         {
             ::new (&m_raw_messages[i]) m::tracing::message(m_pool);
+            constructed = i + 1;
         }
 
+        rollback.release(); // all messages constructed; dismiss the rollback
+
+        // enqueue() is noexcept, so this loop cannot throw and needs no rollback.
         for (std::size_t i = 0; i < raw_message_count; i++)
         {
             m::tracing::envelope item(m::not_null(this), &m_raw_messages[i]);

@@ -15,12 +15,9 @@ namespace m::tracing
     {}
 
     envelope::envelope(envelope&& other) noexcept:
-        m_message_source{other.m_message_source}, m_imessage{}
-    {
-        using std::swap;
-
-        swap(m_imessage, other.m_imessage);
-    }
+        m_message_source{std::exchange(other.m_message_source, nullptr)},
+        m_imessage{std::exchange(other.m_imessage, nullptr)}
+    {}
 
     void
     envelope::operator=(envelope&& other) noexcept
@@ -34,7 +31,10 @@ namespace m::tracing
         // the slot), permanently leaking that message buffer from the pool.
         return_to_sender();
 
-        m_message_source = other.m_message_source;
+        // Take ownership of other's message and source, leaving the moved-from
+        // envelope in a consistent empty state (both pointers null) so it does
+        // not retain a dangling source.
+        m_message_source = std::exchange(other.m_message_source, nullptr);
         m_imessage       = std::exchange(other.m_imessage, nullptr);
     }
 

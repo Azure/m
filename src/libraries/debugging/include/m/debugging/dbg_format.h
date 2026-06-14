@@ -87,8 +87,10 @@ namespace m
         template <typename CharT, size_t length>
         class output_debug_string_iter
         {
-            // Includes a trailing null so copy_n(... size() + 1 ...) below copies the
-            // terminator into the buffer without reading past the end of this array.
+            // Includes a trailing null so that copying long_line_chars in full
+            // (size() elements) writes the ellipsis, newline, and terminator
+            // into the buffer. long_line_suffix is a view of just the visible
+            // characters (excluding the null) used for the limit computation.
             static constexpr inline std::array<CharT, 5> long_line_chars{
                 {'.', '.', '.', '\n', '\0'}};
 
@@ -122,8 +124,8 @@ namespace m
                 {
                     // If we're at the end of line, add the ellipsis, call
                     // OutputDebugStringW() and restart.
-                    std::copy_n(long_line_suffix.begin(),
-                                long_line_suffix.size() + 1,
+                    std::copy_n(long_line_chars.begin(),
+                                long_line_chars.size(),
                                 &_buffer->_array[_index + 1]);
 
                     write_to_debugger(&_buffer->_array[0]);
@@ -145,8 +147,8 @@ namespace m
                 {
                     // If we're at the end of line, add the ellipsis, call
                     // OutputDebugStringW() and restart.
-                    std::copy_n(long_line_suffix.begin(),
-                                long_line_suffix.size() + 1,
+                    std::copy_n(long_line_chars.begin(),
+                                long_line_chars.size(),
                                 &_buffer->_array[_index + 1]);
 
                     write_to_debugger(&_buffer->_array[0]);

@@ -35,6 +35,21 @@ jobs:
   release:
     runs-on: windows-latest
     steps:
+      - name: Validate tag is strict semver
+        # The on.push.tags glob can only require the vX.Y.Z *shape*; it can't
+        # enforce digits-only segments, so tags like v1foo.2.3 or v1.2.3.4 would
+        # still start this job. Reject anything that isn't strict
+        # vMAJOR.MINOR.PATCH (with an optional -prerelease / +build suffix) so we
+        # never publish an unintended release.
+        shell: bash
+        run: |
+          tag="${{ github.ref_name }}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$tag' is not a strict vX.Y.Z[-prerelease][+build] semver tag; refusing to release."
+            exit 1
+          fi
+          echo "Tag '$tag' accepted."
+
       - uses: actions/checkout@v5
         with:
           submodules: 'recursive'

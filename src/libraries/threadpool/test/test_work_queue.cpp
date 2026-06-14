@@ -75,7 +75,10 @@ TEST(WorkQueue, QueueNBig)
 
     auto work_items =
         std::unique_ptr<std::shared_ptr<m::work_item>[]>(new std::shared_ptr<m::work_item>[n]());
-    auto flags_unique_ptr = std::unique_ptr<std::atomic<uint8_t>[]>(new std::atomic<uint8_t>[n]);
+    // Value-initialize the atomics (trailing ()) so every flag starts at a
+    // well-defined 0; reading an uninitialized atomic would be UB on exactly
+    // the path this test is trying to detect (a work item that never ran).
+    auto flags_unique_ptr = std::unique_ptr<std::atomic<uint8_t>[]>(new std::atomic<uint8_t>[n]());
     auto flags            = flags_unique_ptr.get();
 
     auto const before_queue = m::clock_type::now();
@@ -115,7 +118,10 @@ TEST(WorkQueue, DISABLED_QueueNBigStress)
 
     auto work_items =
         std::unique_ptr<std::shared_ptr<m::work_item>[]>(new std::shared_ptr<m::work_item>[n]());
-    auto flags_unique_ptr = std::unique_ptr<std::atomic<uint8_t>[]>(new std::atomic<uint8_t>[n]);
+    // Value-initialize the atomics (trailing ()) so every flag starts at a
+    // well-defined 0; reading an uninitialized atomic would be UB on exactly
+    // the path this test is trying to detect (a work item that never ran).
+    auto flags_unique_ptr = std::unique_ptr<std::atomic<uint8_t>[]>(new std::atomic<uint8_t>[n]());
     auto flags            = flags_unique_ptr.get();
 
     auto const before_queue = m::clock_type::now();

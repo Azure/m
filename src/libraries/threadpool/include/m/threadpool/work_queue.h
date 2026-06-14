@@ -240,6 +240,12 @@ namespace m
         /// Closes the work queue, cancelling any not-yet-started work and
         /// synchronously draining any in-flight work before returning.
         ///
+        /// Not-yet-started work items are moved to the canceled terminal state
+        /// (their callbacks will never run), which also unblocks any thread
+        /// waiting in `work_item::wait()`/`wait_for()`/`wait_until()` on such an
+        /// item. In-flight callbacks are allowed to run to completion before
+        /// `close()` returns.
+        ///
         /// `close()` lets an owner perform the drain deterministically on
         /// its own thread. If `close()` is not called, the destructor performs
         /// the same drain. Calling `close()` more than once is harmless.

@@ -75,6 +75,25 @@ namespace m::work_queue_impl
         return false;
     }
 
+    bool
+    work_item::cancel_if_queued()
+    {
+        {
+            auto l = std::unique_lock(m_mutex);
+
+            // Only a not-yet-started item can be cancelled here. If it is
+            // already running or terminal, leave it alone.
+            if (m_work_item_state != work_item_state::queued)
+                return false;
+
+            m_work_item_state = work_item_state::canceled;
+        }
+
+        // Wake any waiters now that the state is terminal.
+        m_state_cv.notify_all();
+        return true;
+    }
+
     uint64_t
     work_item::do_id()
     {

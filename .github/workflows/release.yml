@@ -116,9 +116,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # github.ref_name is the tag that triggered this run, e.g. v0.3.3.
-          # Mark anything with a hyphen (v0.3.3-rc1) as a pre-release.
+          # A SemVer pre-release is a '-' that comes before any '+build' metadata
+          # (e.g. v0.3.3-rc1). Build metadata may itself contain hyphens
+          # (e.g. v1.2.3+build-foo), so strip everything from the first '+'
+          # before testing for a pre-release hyphen to avoid false positives.
+          tag="${{ github.ref_name }}"
+          version_no_build="${tag%%+*}"
           PRERELEASE_FLAG=""
-          case "${{ github.ref_name }}" in
+          case "$version_no_build" in
             *-*) PRERELEASE_FLAG="--prerelease" ;;
           esac
 

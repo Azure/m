@@ -11,15 +11,20 @@ name: Release
 # project in Release, packages everything into a .zip with CPack, and publishes
 # a GitHub Release named after the tag with the .zip attached.
 #
-# The project's version comes from this same tag: the top-level CMakeLists.txt
-# runs `git describe --tags --match "v*"`, so the tag you push IS the version
-# that gets built. No version files to keep in sync.
+# The build version comes from this same tag: the top-level CMakeLists.txt runs
+# `git describe --tags --match "v*"` and extracts the numeric X.Y.Z. The release
+# is always named after the full tag, but note that any pre-release suffix
+# (e.g. the `-rc1` in v0.3.3-rc1) is NOT carried into the built PROJECT_VERSION,
+# which would be 0.3.3 in that example. There are no version files to keep in
+# sync.
 
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"      # e.g. v0.3.3
-      - "v[0-9]+.[0-9]+.[0-9]+-*"    # e.g. v0.3.3-rc1 (pre-releases)
+      # GitHub tag filters use glob (minimatch) syntax, not regex, so we cannot
+      # use `+` quantifiers here. "v[0-9]*" matches v followed by a digit then
+      # anything, covering both vX.Y.Z and pre-releases like vX.Y.Z-rc1.
+      - "v[0-9]*"
 
 permissions:
   contents: write   # needed to create the GitHub Release
@@ -44,12 +49,12 @@ jobs:
           echo "dist-dir=${{ github.workspace }}/dist" >> "$GITHUB_OUTPUT"
 
       - name: Bootstrap vcpkg
-        shell: bash
-        run: "${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat"
+        shell: pwsh
+        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat
 
       - name: Run vcpkg
-        shell: bash
-        run: "${{ github.workspace }}/vcpkg/vcpkg" install
+        shell: pwsh
+        run: ${{ github.workspace }}/vcpkg/vcpkg.exe install
 
       - name: Configure CMake
         run: >

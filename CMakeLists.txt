@@ -201,3 +201,21 @@ install(
     DESTINATION
         ${SYSCONFIG_INSTALL_DIR}
 )
+
+# Packaging (CPack). This generates ${CMAKE_BINARY_DIR}/CPackConfig.cmake so that
+# `cpack` can build release artifacts in CI. Keep the generator list portable:
+# ZIP needs no extra tooling on the runner, unlike NSIS/DEB.
+set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
+set(CPACK_PACKAGE_VENDOR "Microsoft")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "m C++ libraries")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "${PROJECT_NAME}")
+set(CPACK_VERBATIM_VARIABLES ON)
+
+if(WIN32)
+    set(CPACK_GENERATOR "ZIP")
+else()
+    set(CPACK_GENERATOR "TGZ")
+endif()
+
+include(CPack)

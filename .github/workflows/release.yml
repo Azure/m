@@ -50,9 +50,17 @@ jobs:
         shell: bash
         run: |
           tag="${{ github.ref_name }}"
-          # Strict SemVer: numeric identifiers have no leading zeroes, so each of
-          # MAJOR/MINOR/PATCH is either 0 or a non-zero-led digit run.
-          if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+          # This is the official semver.org recommended regex, adapted to POSIX
+          # ERE (bash [[ =~ ]]): non-capturing groups become plain groups and \d
+          # becomes [0-9]. Enforcing the full grammar means:
+          #   * MAJOR/MINOR/PATCH are numeric with no leading zeroes (0 | [1-9]...)
+          #   * each dot-separated pre-release/build identifier is non-empty and
+          #     well-formed, so junk like v1.2.3-alpha..1 or v1.2.3+build..5 (empty
+          #     identifiers) is rejected even though it "looks" close to semver.
+          #   * a pre-release numeric identifier has no leading zeroes, but build
+          #     identifiers may (per spec).
+          semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(\+([0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*))?$'
+          if [[ ! "$tag" =~ $semver ]]; then
             echo "::error::Tag '$tag' is not a strict vX.Y.Z[-prerelease][+build] semver tag; refusing to release."
             exit 1
           fi

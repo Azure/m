@@ -102,21 +102,35 @@ namespace m::tracing
         return frame.succeeded(std::nullopt);
     }
 
+    std::uint64_t
+    message_queue::wake_generation() const noexcept
+    {
+        tr_frame frame(__FUNCTION__, this);
+        auto     l = std::unique_lock(m_mutex);
+        return frame.succeeded(m_wake_generation);
+    }
+
     void
-    message_queue::wait() noexcept
+    message_queue::wait(std::uint64_t last_wake_generation) noexcept
     {
         tr_frame frame(__FUNCTION__, this);
         auto     l = std::unique_lock(m_mutex);
 
-        if (m_queue.empty() && !m_wake)
+        // Block only while the queue is empty and no wake has been broadcast
+        // since the caller sampled wake_generation(). Comparing against the
+        // caller-supplied baseline (rather than consuming a single shared flag)
+        // lets every waiter observe the same broadcast independently, so
+        // concurrent waiters are not subject to lost wakeups, and a wake issued
+        // before this call is still seen because last_wake_generation is older.
+        if (m_queue.empty() && m_wake_generation == last_wake_generation)
         {
             frame.write(L"Queue is empty, waiting");
-            m_cv.wait(l, [this] { return !m_queue.empty() || m_wake; });
+            m_cv.wait(l, [this, last_wake_generation] {
+                return !m_queue.empty() || m_wake_generation != last_wake_generation;
+            });
             frame.write(L"Woke from wait, queue now has {} entries", m_queue.size());
         }
 
-        // Consume the sticky wake so a later wait() blocks again.
-        m_wake = false;
         frame.succeeded();
     }
 
@@ -124,11 +138,12 @@ namespace m::tracing
     message_queue::wake_waiters() noexcept
     {
         tr_frame frame(__FUNCTION__, this);
-        // Record the wake under the lock so a wake issued before a thread
-        // reaches wait() is observed rather than lost, then notify.
+        // Advance the wake generation under the lock so a wake issued before a
+        // thread reaches wait() is observed (that waiter sampled an older
+        // generation) rather than lost, then broadcast to every waiter.
         {
             auto l = std::unique_lock(m_mutex);
-            m_wake = true;
+            ++m_wake_generation;
         }
         m_cv.notify_all();
         frame.succeeded();

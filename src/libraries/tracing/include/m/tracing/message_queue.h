@@ -7,6 +7,7 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <format>
 #include <initializer_list>
 #include <map>
@@ -83,8 +84,11 @@ namespace m
             void
             wake_waiters() noexcept;
 
+            std::uint64_t
+            wake_generation() const noexcept;
+
             void
-            wait() noexcept;
+            wait(std::uint64_t last_wake_generation) noexcept;
 
             void
             enqueue(m::not_null<imessage*> msg) noexcept;
@@ -107,10 +111,16 @@ namespace m
             std::condition_variable m_cv;
             std::queue<envelope>    m_queue;
 
-            // Sticky wake flag. wake_waiters() sets this under m_mutex so that a
-            // wake requested before a thread reaches wait() is not lost; wait()
-            // consumes it. This closes the lost-wakeup race during sink teardown.
-            bool m_wake = false;
+            // Monotonic wake generation. wake_waiters() advances this under
+            // m_mutex and broadcasts; each waiter passes the generation it
+            // sampled (via wake_generation()) into wait() and blocks only while
+            // the generation is unchanged. Because every waiter compares against
+            // its own baseline rather than consuming a single shared flag, a
+            // broadcast wake is observed independently by all waiters (no lost
+            // wakeups with multiple waiters), and a wake issued before a thread
+            // reaches wait() is still seen because that thread sampled an older
+            // generation. This closes the lost-wakeup race during sink teardown.
+            std::uint64_t m_wake_generation = 0;
         };
     } // namespace tracing
 } // namespace m

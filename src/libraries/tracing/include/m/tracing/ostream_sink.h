@@ -221,6 +221,13 @@ namespace m
             {
                 while (!m_stop.load(std::memory_order_acquire))
                 {
+                    // Sample the wake generation before draining and before
+                    // checking the termination flags. Passing this baseline to
+                    // wait() means any wake_waiters() that races in after this
+                    // point advances the generation and makes wait() return
+                    // immediately rather than block, closing the teardown race.
+                    auto const wake_gen = m_message_queue.wake_generation();
+
                     while (!m_stop.load(std::memory_order_acquire) && !m_message_queue.empty())
                     {
                         auto env = m_message_queue.dequeue();
@@ -232,7 +239,7 @@ namespace m
                         m_stop.load(std::memory_order_acquire))
                         break;
 
-                    m_message_queue.wait();
+                    m_message_queue.wait(wake_gen);
                 }
             }
         };

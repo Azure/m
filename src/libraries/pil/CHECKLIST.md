@@ -404,26 +404,26 @@ is gated behind the surface landing here first.
 
 ## Milestone M-HWC-CONTRACT-REFS — bundle resolution + media-typed bodies (D-HWC-9)
 
-- [ ] M-HWC-CONTRACT-REFS-1: Extend `load_openapi_model` to take a caller-supplied
+- [x] M-HWC-CONTRACT-REFS-1: Extend `load_openapi_model` to take a caller-supplied
       `ref_resolver` (a `(std::string_view relative_path) -> std::optional<std::string>` callable)
       alongside the root spec bytes. PIL owns ref-splicing; the caller owns where bytes come from
       (an in-memory map in tests, a sibling-directory read under `.pilcfg`). A spec with no
       external refs never invokes the resolver. Caller-owns-I/O is preserved (mirrors
       `parse_pilcfg`).
-- [ ] M-HWC-CONTRACT-REFS-2: Resolve `$ref` in the model: internal (`#/components/…`),
+- [x] M-HWC-CONTRACT-REFS-2: Resolve `$ref` in the model: internal (`#/components/…`),
       relative-file (`other.yml#/components/…`), and **transitive** refs, with cycle detection
       (an unresolved or cyclic ref is a load diagnostic, never a silent omission). Component
       libraries (`parameters` / `schemas` / `requestBodies` / `responses`) are merged into the
       flat model so operations carry fully-resolved parameters, bodies, and responses.
-- [ ] M-HWC-CONTRACT-REFS-3: Replace the single-body-schema fields with a **media-type → schema**
+- [x] M-HWC-CONTRACT-REFS-3: Replace the single-body-schema fields with a **media-type → schema**
       map on request bodies and responses (capturing e.g. `application/json` and `text/xml`),
       preserving each media type's schema and example. The matcher and downstream validators read
       the map; JSON remains the schema-validated type (D-HWC-9).
-- [ ] M-HWC-CONTRACT-REFS-4: Operation identity honors a **query discriminator** — when a path key
+- [x] M-HWC-CONTRACT-REFS-4: Operation identity honors a **query discriminator** — when a path key
       carries a query key that selects the operation, matching considers it; and read an authored
       validation-eligibility vendor extension (`x-…`) into the operation (never a YAML comment).
       Add a normalization helper that lifts a query-in-path-key into a real parameter.
-- [ ] M-HWC-CONTRACT-REFS-5 (unit tests): in-memory multi-document fixtures exercise internal +
+- [x] M-HWC-CONTRACT-REFS-5 (unit tests): in-memory multi-document fixtures exercise internal +
       relative-file + transitive ref resolution, cycle/unresolved-ref diagnostics, media-type maps
       (JSON and XML bodies), query-discriminated operation matching, and the `x-…` eligibility
       read. ≥10 cases, sub-second.

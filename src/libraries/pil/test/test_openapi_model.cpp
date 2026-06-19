@@ -9,6 +9,8 @@
 // diagnostics.
 //
 
+#include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -20,8 +22,10 @@
 using namespace std::string_view_literals;
 using m::pil::load_openapi_model;
 using m::pil::match_operation;
+using m::pil::normalize_path_key;
 using m::pil::openapi_version;
 using m::pil::parameter_location;
+using m::pil::ref_resolver;
 
 namespace
 {
@@ -330,3 +334,383 @@ TEST(OpenApiModel, LoadsJsonSpec)
     EXPECT_EQ(model.version, openapi_version::v3_0);
     EXPECT_TRUE(match_operation(model, "GET", "/ping").has_value());
 }
+
+//--------------------------------------------------------------------------
+// M-HWC-CONTRACT-REFS: $ref bundle resolution, media-typed bodies, query
+// discriminators, validation eligibility (D-HWC-9).
+//--------------------------------------------------------------------------
+
+namespace
+{
+    // Build a ref_resolver backed by an in-memory map of bundle-relative path
+    // -> document bytes. Mirrors how a sibling-directory reader would behave
+    // under `.pilcfg`, but with no file I/O.
+    ref_resolver
+    map_resolver(std::map<std::string, std::string> docs)
+    {
+        return [docs = std::move(docs)](std::string_view rel)
+            -> std::optional<std::string>
+        {
+            auto const it = docs.find(std::string(rel));
+            if (it == docs.end())
+                return std::nullopt;
+            return it->second;
+        };
+    }
+} // namespace
+
+TEST(OpenApiModel, NormalizePathKeySplitsQueryDiscriminator)
+{
+    auto const parts = normalize_path_key("/machine?comp=package"sv);
+    EXPECT_EQ(parts.clean_path, "/machine");
+    ASSERT_EQ(parts.discriminators.size(), 1u);
+    EXPECT_EQ(parts.discriminators[0].first, "comp");
+    EXPECT_EQ(parts.discriminators[0].second, "package");
+}
+
+TEST(OpenApiModel, NormalizePathKeyNoQueryIsUnchanged)
+{
+    auto const parts = normalize_path_key("/machine/{id}"sv);
+    EXPECT_EQ(parts.clean_path, "/machine/{id}");
+    EXPECT_TRUE(parts.discriminators.empty());
+}
+
+TEST(OpenApiModel, ResolvesInternalRef)
+{
+    // A $ref into #/components/schemas within the same document.
+    constexpr std::string_view spec = R"(
+openapi: "3.0.0"
+paths:
+  /widgets:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Widget"
+      responses:
+        "201":
+          description: created
+components:
+  schemas:
+    Widget:
+      type: object
+      properties:
+        kind:
+          type: string
+)";
+    auto const model = load_openapi_model(spec);
+    auto const m     = match_operation(model, "POST", "/widgets");
+    ASSERT_TRUE(m.has_value());
+    auto const& body = m->operation->request_body_schema;
+    ASSERT_TRUE(body.contains("type"));
+    EXPECT_EQ(body["type"], "object");
+    EXPECT_TRUE(body["properties"].contains("kind"));
+}
+
+TEST(OpenApiModel, ResolvesRelativeFileRef)
+{
+    constexpr std::string_view root = R"(
+openapi: "3.0.0"
+paths:
+  /widgets:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "schemas.yml#/Widget"
+      responses:
+        "201":
+          description: created
+)";
+    constexpr std::string_view schemas = R"(
+Widget:
+  type: object
+  properties:
+    color:
+      type: string
+)";
+    auto const model = load_openapi_model(
+        root, map_resolver({{"schemas.yml", std::string(schemas)}}));
+    auto const m = match_operation(model, "POST", "/widgets");
+    ASSERT_TRUE(m.has_value());
+    auto const& body = m->operation->request_body_schema;
+    EXPECT_EQ(body["type"], "object");
+    EXPECT_TRUE(body["properties"].contains("color"));
+}
+
+TEST(OpenApiModel, ResolvesTransitiveRefAcrossDocuments)
+{
+    // root -> schemas.yml -> common.yml
+    constexpr std::string_view root = R"(
+openapi: "3.0.0"
+paths:
+  /widgets:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "schemas.yml#/Widget"
+)";
+    constexpr std::string_view schemas = R"(
+Widget:
+  type: object
+  properties:
+    id:
+      $ref: "common.yml#/Id"
+)";
+    constexpr std::string_view common = R"(
+Id:
+  type: string
+  format: uuid
+)";
+    auto const model = load_openapi_model(
+        root,
+        map_resolver({{"schemas.yml", std::string(schemas)},
+                      {"common.yml", std::string(common)}}));
+    auto const m = match_operation(model, "GET", "/widgets");
+    ASSERT_TRUE(m.has_value());
+    auto const& resp   = m->operation->responses.at(200);
+    auto const& schema = resp.body_schema;
+    ASSERT_TRUE(schema["properties"].contains("id"));
+    EXPECT_EQ(schema["properties"]["id"]["format"], "uuid");
+}
+
+TEST(OpenApiModel, UnresolvedRefThrows)
+{
+    constexpr std::string_view root = R"(
+openapi: "3.0.0"
+paths:
+  /widgets:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "missing.yml#/Widget"
+      responses:
+        "201":
+          description: created
+)";
+    // No resolver supplied: the external document cannot be fetched.
+    EXPECT_ANY_THROW(load_openapi_model(root));
+    // Resolver that returns nullopt for the requested document.
+    EXPECT_ANY_THROW(load_openapi_model(
+        root, map_resolver({{"other.yml", "{}"}})));
+}
+
+TEST(OpenApiModel, RefCycleIsBroken)
+{
+    // A self-referential schema must not loop forever.
+    constexpr std::string_view spec = R"(
+openapi: "3.0.0"
+paths:
+  /nodes:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+components:
+  schemas:
+    Node:
+      type: object
+      properties:
+        next:
+          $ref: "#/components/schemas/Node"
+)";
+    auto const model = load_openapi_model(spec);
+    auto const m     = match_operation(model, "GET", "/nodes");
+    ASSERT_TRUE(m.has_value());
+    EXPECT_EQ(m->operation->responses.at(200).body_schema["type"], "object");
+}
+
+TEST(OpenApiModel, CapturesMultipleMediaTypeBodies)
+{
+    constexpr std::string_view spec = R"(
+openapi: "3.0.0"
+paths:
+  /docs:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+          text/xml:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+            text/xml:
+              schema:
+                type: string
+)";
+    auto const model = load_openapi_model(spec);
+    auto const m     = match_operation(model, "POST", "/docs");
+    ASSERT_TRUE(m.has_value());
+    auto const& req = m->operation->request_body_content;
+    EXPECT_EQ(req.size(), 2u);
+    ASSERT_TRUE(req.count("application/json"));
+    ASSERT_TRUE(req.count("text/xml"));
+    EXPECT_EQ(req.at("application/json").schema["type"], "object");
+    EXPECT_EQ(req.at("text/xml").schema["type"], "string");
+
+    auto const& resp = m->operation->responses.at(200).content;
+    EXPECT_EQ(resp.size(), 2u);
+    ASSERT_TRUE(resp.count("text/xml"));
+    EXPECT_EQ(resp.at("text/xml").schema["type"], "string");
+}
+
+TEST(OpenApiModel, Oas2BodyMapsUnderConsumesMediaType)
+{
+    constexpr std::string_view spec = R"(
+swagger: "2.0"
+consumes:
+  - text/xml
+paths:
+  /docs:
+    post:
+      parameters:
+        - name: body
+          in: body
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+)";
+    auto const model = load_openapi_model(spec);
+    auto const m     = match_operation(model, "POST", "/docs");
+    ASSERT_TRUE(m.has_value());
+    auto const& req = m->operation->request_body_content;
+    ASSERT_TRUE(req.count("text/xml"));
+    EXPECT_EQ(req.at("text/xml").schema["type"], "string");
+}
+
+TEST(OpenApiModel, QueryDiscriminatorRoutesToCorrectOperation)
+{
+    // Two operations on the same clean path discriminated by a query value.
+    constexpr std::string_view spec = R"(
+openapi: "3.0.0"
+paths:
+  "/machine?comp=package":
+    get:
+      responses:
+        "200":
+          description: package
+  "/machine?comp=packageStatus":
+    get:
+      responses:
+        "200":
+          description: status
+)";
+    auto const model = load_openapi_model(spec);
+
+    auto const a = match_operation(model, "GET", "/machine?comp=package");
+    ASSERT_TRUE(a.has_value());
+    ASSERT_EQ(a->operation->query_discriminators.size(), 1u);
+    EXPECT_EQ(a->operation->query_discriminators[0].second, "package");
+
+    auto const b = match_operation(model, "GET", "/machine?comp=packageStatus");
+    ASSERT_TRUE(b.has_value());
+    ASSERT_EQ(b->operation->query_discriminators.size(), 1u);
+    EXPECT_EQ(b->operation->query_discriminators[0].second, "packageStatus");
+
+    // No matching discriminator value -> no match.
+    EXPECT_FALSE(match_operation(model, "GET", "/machine?comp=other").has_value());
+}
+
+TEST(OpenApiModel, DiscriminatorBecomesRequiredQueryParameter)
+{
+    constexpr std::string_view spec = R"(
+openapi: "3.0.0"
+paths:
+  "/machine?comp=package":
+    get:
+      responses:
+        "200":
+          description: ok
+)";
+    auto const model = load_openapi_model(spec);
+    auto const m     = match_operation(model, "GET", "/machine?comp=package");
+    ASSERT_TRUE(m.has_value());
+    bool found = false;
+    for (auto const& p : m->operation->parameters)
+    {
+        if (p.name == "comp")
+        {
+            found = true;
+            EXPECT_EQ(p.location, parameter_location::query);
+            EXPECT_TRUE(p.required);
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST(OpenApiModel, ValidationEligibilityDefaultsTrue)
+{
+    auto const model = load_openapi_model(k_petstore_3_0);
+    auto const m     = match_operation(model, "GET", "/pets");
+    ASSERT_TRUE(m.has_value());
+    EXPECT_TRUE(m->operation->validation_eligible);
+}
+
+TEST(OpenApiModel, ValidationEligibilityHonorsExtension)
+{
+    constexpr std::string_view spec = R"(
+openapi: "3.0.0"
+paths:
+  /opaque:
+    get:
+      x-validated: false
+      responses:
+        "200":
+          description: ok
+  /checked:
+    get:
+      responses:
+        "200":
+          description: ok
+)";
+    auto const model = load_openapi_model(spec);
+    auto const opaque = match_operation(model, "GET", "/opaque");
+    ASSERT_TRUE(opaque.has_value());
+    EXPECT_FALSE(opaque->operation->validation_eligible);
+
+    auto const checked = match_operation(model, "GET", "/checked");
+    ASSERT_TRUE(checked.has_value());
+    EXPECT_TRUE(checked->operation->validation_eligible);
+}
+
+TEST(OpenApiModel, ValidationEligibilityInheritsFromPathItem)
+{
+    // x-validated on the path item is inherited by its operations.
+    constexpr std::string_view spec = R"(
+openapi: "3.0.0"
+paths:
+  /opaque:
+    x-validated: false
+    get:
+      responses:
+        "200":
+          description: ok
+)";
+    auto const model = load_openapi_model(spec);
+    auto const m     = match_operation(model, "GET", "/opaque");
+    ASSERT_TRUE(m.has_value());
+    EXPECT_FALSE(m->operation->validation_eligible);
+}
+

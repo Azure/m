@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -56,6 +57,16 @@ namespace m::pil
     };
 
     //
+    // One media type's body description: its schema and optional example. Both
+    // are stored as nlohmann::json (null when the spec gave none).
+    //
+    struct openapi_media_body
+    {
+        nlohmann::json schema;
+        nlohmann::json example;
+    };
+
+    //
     // A single non-body operation parameter.
     //
     struct openapi_parameter
@@ -77,7 +88,12 @@ namespace m::pil
     struct openapi_response
     {
         // JSON Schema for the JSON response body (null json when none / non-JSON).
+        // Convenience view of the application/json entry in `content`.
         nlohmann::json body_schema;
+
+        // Every declared media type -> its schema + example (D-HWC-9). Includes
+        // non-JSON content (e.g. text/xml). `body_schema` mirrors the JSON entry.
+        std::map<std::string, openapi_media_body> content;
 
         // Header names the response declares as required.
         std::vector<std::string> required_headers;
@@ -89,18 +105,33 @@ namespace m::pil
     struct openapi_operation
     {
         std::string method;        // Upper-case: "GET", "POST", ...
-        std::string path_template; // e.g. "/items/{id}"
+        std::string path_template; // Clean path (query discriminator stripped), e.g. "/items/{id}"
 
         // Pre-split path template segments (no empty segments). A segment of the
         // form "{name}" is a capture; all others are literals.
         std::vector<std::string> segments;
 
+        // Required query key=value pairs lifted from a query-in-path-key (e.g. a
+        // path key of "/machine?comp=package" yields {"comp","package"}). The
+        // matcher requires every pair to be present in the request query, and an
+        // operation with more discriminators is the more specific match. Each
+        // pair is also surfaced as a required query parameter in `parameters`.
+        std::vector<std::pair<std::string, std::string>> query_discriminators;
+
+        // Authored validation eligibility (vendor extension `x-validated`).
+        // Defaults true; an operation (or its path item) declaring
+        // `x-validated: false` is skipped by validate mode (D-HWC-9).
+        bool validation_eligible{true};
+
         std::vector<openapi_parameter> parameters;
 
         // Request body. body schema is null json when the operation has no body.
-        bool           has_request_body{false};
-        nlohmann::json request_body_schema;
-        nlohmann::json request_body_example; // null json when none
+        // `request_body_schema`/`request_body_example` are the application/json
+        // convenience view; `request_body_content` is every declared media type.
+        bool                                      has_request_body{false};
+        nlohmann::json                            request_body_schema;
+        nlohmann::json                            request_body_example; // null json when none
+        std::map<std::string, openapi_media_body> request_body_content;
 
         // status code -> response (literal HTTP status, e.g. 200).
         std::map<int, openapi_response> responses;
@@ -119,14 +150,50 @@ namespace m::pil
     };
 
     //
-    // Load a spec (YAML or JSON bytes) into a normalized model. The caller owns
-    // file I/O and passes the document text. Throws std::runtime_error when the
-    // text is not valid YAML/JSON, is not an object, lacks a recognizable
-    // version, or has a malformed `paths` structure (diagnostic-by-exception,
-    // mirroring parse_pilcfg).
+    // Resolves a referenced document, given the bundle-relative path taken from a
+    // `$ref` (e.g. "components/schemas.yml"), to that document's text bytes.
+    // Returns nullopt when the path cannot be resolved. PIL decides what to fetch
+    // and how to splice it; the caller decides where the bytes come from (an
+    // in-memory map in tests, a sibling-directory read under `.pilcfg`). This
+    // keeps file I/O at the boundary, mirroring parse_pilcfg (D-HWC-9).
+    //
+    using ref_resolver = std::function<std::optional<std::string>(std::string_view relative_path)>;
+
+    //
+    // The clean path plus the query discriminators lifted from an OpenAPI path
+    // key. A key of "/machine?comp=package" normalizes to clean_path
+    // "/machine" with discriminator {"comp","package"}.
+    //
+    struct path_key_parts
+    {
+        std::string                                      clean_path;
+        std::vector<std::pair<std::string, std::string>> discriminators;
+    };
+
+    //
+    // Split an OpenAPI path key into its clean path and any query discriminators
+    // embedded in the key. Non-standard `?key=value` suffixes on a path key are
+    // a routing discriminator; this helper lifts them out so they can also be
+    // surfaced as required query parameters (D-HWC-9). A key with no query
+    // returns the key unchanged and no discriminators.
+    //
+    path_key_parts
+    normalize_path_key(std::string_view path_key);
+
+    //
+    // Load a spec (YAML or JSON bytes) into a normalized model, resolving `$ref`
+    // bundles. The caller owns file I/O: the root document text is passed
+    // directly, and any referenced documents are fetched through `resolver`
+    // (relative-file and transitive refs). Internal refs (`#/...`) resolve within
+    // the documents already loaded; an external ref encountered with no resolver
+    // (or one returning nullopt) is a load diagnostic. Throws std::runtime_error
+    // when the text is not valid YAML/JSON, is not an object, lacks a
+    // recognizable version, has a malformed `paths` structure, or references a
+    // document that cannot be resolved (diagnostic-by-exception, mirroring
+    // parse_pilcfg).
     //
     openapi_model
-    load_openapi_model(std::string_view spec_text);
+    load_openapi_model(std::string_view spec_text, ref_resolver resolver = {});
 
     //
     // The result of matching a concrete request against the model: the matched

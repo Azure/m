@@ -31,6 +31,8 @@
       "host": true
     },
     "wil",
-    "nlohmann-json"
+    "nlohmann-json",
+    "yaml-cpp",
+    "json-schema-validator"
   ]
 }

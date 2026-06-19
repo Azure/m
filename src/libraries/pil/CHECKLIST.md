@@ -366,3 +366,94 @@ short-name aliasing is the new behavior).
 - [x] M-FS-SHORTNAME-4 (integration): the 8.3 repro test and the six previously CI-failing
       filesystem tests pass in debug and release; remove the verbose per-lookup traces (or keep
       gated) so normal runs are quiet.
+
+---
+
+# Phase 4 — OpenAPI/Swagger contract binding on the HTTP edge (D-HWC-8)
+
+Bind the team's OpenAPI (Swagger) documents to the HWC HTTP edge so the same spec both
+**validates** traffic crossing the synthetic edge and **drives** example traffic into the engine.
+Design rationale: **D-HWC-8**. Specs are YAML (any version); they are parsed to an internal model
+once, so the validator/matcher never see YAML. New dependencies (`yaml-cpp`,
+`json-schema-validator`) land in M-HWC-CONTRACT-MODEL. The `.pilcfg` binding that selects
+a spec + endpoint + mode is the cross-component companion work in `mwin32` (M-HWC-CONTRACTCFG) and
+is gated behind the surface landing here first.
+
+## Milestone M-HWC-CONTRACT-MODEL — spec loading + internal model (D-HWC-8)
+
+- [x] M-HWC-CONTRACT-MODEL-1: Add `yaml-cpp` and `json-schema-validator` (CMake package
+      `nlohmann_json_schema_validator`) to [vcpkg.json](../../../vcpkg.json) (done) and link them into `m_pil`
+      ([src/CMakeLists.txt](src/CMakeLists.txt)). Add a `contract/` source subdirectory.
+- [x] M-HWC-CONTRACT-MODEL-2: Add `openapi_model.{h,cpp}` (internal, `m::pil`): a YAML→model
+      loader. Parse the YAML with `yaml-cpp`, convert the node tree to `nlohmann::json`, detect the
+      version (`swagger: "2.0"` vs `openapi: "3.x"`), and normalize into a flat model — a list of
+      operations each carrying `method`, a path **template** (`/items/{id}`), the parameter list
+      (name / in / required / schema), the optional request-body schema, and a status→response map
+      (each response carrying an optional body schema + declared headers). Body schemas are stored
+      as `nlohmann::json` ready for the validator. The loader takes spec **bytes** (the caller owns
+      file I/O, mirroring `parse_pilcfg`'s pure-text contract) and returns the model or a
+      diagnostic on malformed input.
+- [x] M-HWC-CONTRACT-MODEL-3: Add the path-template matcher: given a request method + concrete
+      path, find the operation whose template matches (literal segments + `{param}` captures),
+      returning the operation and the captured path parameters. Pure function over the model; no
+      HTTP types.
+- [x] M-HWC-CONTRACT-MODEL-4 (unit tests): small inline YAML specs (OAS 2.0 and 3.0/3.1) exercise
+      version detection, operation/parameter/body/response extraction, path-template matching
+      (literal, single param, multi param, trailing, no-match), and malformed-spec diagnostics.
+      ≥10 cases, sub-second.
+
+## Milestone M-HWC-CONTRACT-IFACE — `ihttp_contract` surface + null provider (D-HWC-8)
+
+- [ ] M-HWC-CONTRACT-IFACE-1: Add `http_contract_interfaces.h` (`m::pil`): `ihttp_contract` with
+      ec-primitive `load(spec_bytes, std::unique_ptr<ihttp_contract_document>&, std::error_code&)`
+      and, on the document, `validate_request(method, path, headers, body, …, std::error_code&)`
+      and `validate_response(method, path, status, headers, body, …, std::error_code&)` returning
+      a `disposition` whose contractual non-success codes are the violation kinds (unknown
+      operation, parameter invalid, body-schema invalid, undeclared status). Add `null_http_contract`
+      whose operations are `M_NOT_IMPLEMENTED`.
+- [ ] M-HWC-CONTRACT-IFACE-2: Add `iplatform::get_http_contract(get_http_contract_flags,
+      std::shared_ptr<ihttp_contract>&)` to
+      [platform_interfaces.h](include/m/pil/platform_interfaces.h) with a **default** yielding
+      `null_http_contract` (mirrors `get_webcore` / `get_http_listener`), plus the friendly
+      `get_http_contract()` accessor.
+- [ ] M-HWC-CONTRACT-IFACE-3: Add the public façade in a new `http_contract.h` that re-declares the
+      `contract_mode` enum (`validate` / `drive`) bit-for-bit and maps it onto the interface enum,
+      so the public header carries no `ihttp_contract` dependency.
+- [ ] M-HWC-CONTRACT-IFACE-4 (integration): the null provider surfaces not-implemented through the
+      façade and each existing decorator forwards `get_http_contract` to its underlying without
+      crashing.
+
+## Milestone M-HWC-CONTRACT-VALIDATE — validate mode on the synthetic edge (D-HWC-8, D6)
+
+- [ ] M-HWC-CONTRACT-VALIDATE-1: Live `ihttp_contract` provider backed by the M-HWC-CONTRACT-MODEL
+      loader + matcher; `load` builds a document holding the model and a
+      `nlohmann-json-schema-validator` per body schema. `validate_request` runs method/path match →
+      parameter checks → request-body schema; `validate_response` runs status lookup → response-body
+      schema → declared-header presence. JSON bodies only (non-JSON content types: structural
+      checks only, no schema), per D-HWC-8 limits.
+- [ ] M-HWC-CONTRACT-VALIDATE-2: Validating decorator facet (sibling to the logging facet) that, on
+      each `synthetic_http_request` / `captured_http_response` crossing the edge, invokes the bound
+      contract and **traces** violations as a side diagnostic (D6 — persists nothing). An opt-in
+      flag surfaces a contract-violation `error_code` so tests can assert; off by default the facet
+      only traces.
+- [ ] M-HWC-CONTRACT-VALIDATE-3 (integration): load a tiny YAML spec, push a conforming request +
+      response and a violating request + response through the synthetic edge, and assert each is
+      detected (and not detected for the conforming case). Sub-second.
+
+## Milestone M-HWC-CONTRACT-DRIVE — drive mode (spec examples → traffic) (D-HWC-8)
+
+- [ ] M-HWC-CONTRACT-DRIVE-1: Example extractor over the model — for each operation synthesize a
+      `synthetic_http_request` from the operation's `example` / `examples` (parameters and request
+      body), falling back to schema-derived defaults where no example is present. Pure over the
+      model; emits the request list.
+- [ ] M-HWC-CONTRACT-DRIVE-2: Driver that enqueues the synthesized requests into the synthetic
+      queue and (when validate is also bound) runs each captured response through
+      `validate_response`, reporting the conforming/violating tally.
+- [ ] M-HWC-CONTRACT-DRIVE-3 (integration): a YAML spec carrying request examples drives the fake
+      engine end to end; responses are captured and validated (validate + drive composed). Asserts
+      every example operation produced a request and each response was contract-checked.
+
+      > **➡ CROSS-COMPONENT HANDOFF:** the `.pilcfg` binding (`webcore.contracts`: spec + endpoint
+      > + mode) that selects and wires these modes is next, in component
+      > `src/Windows/libraries/mwin32` → milestone `M-HWC-CONTRACTCFG`. See
+      > [`src/Windows/libraries/mwin32/CHECKLIST.md`](../../Windows/libraries/mwin32/CHECKLIST.md).

@@ -277,4 +277,39 @@ choice. Existing release pipeline to extend:
       `mwin32-sdk-<tag>.zip`, and attaches it to the GitHub Release alongside the
       existing full-`m` zip. Document the cut-a-release steps in the workflow header.
 
+## Milestone M-HWC-CONTRACTCFG — `.pilcfg` OpenAPI/Swagger contract binding (PIL D-HWC-8)
+
+Goal: let a `.pilcfg` reference the team's OpenAPI (Swagger) specs and bind each to a
+webcore endpoint in `validate` and/or `drive` mode, wiring the PIL contract surface onto
+the HWC HTTP edge. The contract surface itself (loader, `ihttp_contract`, validating facet,
+example driver) is PIL Phase 4.
+
+> **⬅ CROSS-COMPONENT PREREQUISITE:** the PIL `ihttp_contract` surface and its validate/drive
+> facets must land first — `src/libraries/pil/CHECKLIST.md` → M-HWC-CONTRACT-MODEL,
+> M-HWC-CONTRACT-IFACE, M-HWC-CONTRACT-VALIDATE, M-HWC-CONTRACT-DRIVE.
+
+- [ ] M-HWC-CONTRACTCFG-1: Extend `pilcfg::webcore_config`
+      ([`src/pilcfg.h`](src/pilcfg.h)) with a `contracts` vector: each entry carries a `spec`
+      host path (`%VAR%`-expanded, D17), an `endpoint` logical key (taken literally, like
+      `webcore.endpoints`), and a `mode` enum (`validate` / `drive`). Default: empty (no
+      contracts).
+- [ ] M-HWC-CONTRACTCFG-2: Parse the optional `webcore.contracts` array in
+      [`src/pilcfg.cpp`](src/pilcfg.cpp) next to `read_endpoints_member` — strict like the rest
+      of `parse_pilcfg` (non-array throws; each element must be an object with string `spec`,
+      string `endpoint`, and `mode` one of `"validate"`/`"drive"`; wrong type/shape throws).
+      Apply `%VAR%` expansion to `spec` only.
+- [ ] M-HWC-CONTRACTCFG-3: In `build_platform_from_config`, for each contract entry load the
+      spec bytes, call PIL `get_http_contract().load(...)`, and attach the validating facet
+      (and, for `drive`, run the example driver) bound to the named endpoint. A missing/malformed
+      spec is tolerant (best-effort, per D5/D7): it leaves the engine unwrapped rather than
+      breaking the host.
+- [ ] M-HWC-CONTRACTCFG-4 (unit tests): `parse_pilcfg` tests for `webcore.contracts` —
+      absent (empty), single entry, multiple entries (order preserved), `%VAR%` expansion of
+      `spec`, and the negative cases (non-array, element not an object, missing/empty `spec` or
+      `endpoint`, unknown `mode`). ≥10 cases, sub-second.
+- [ ] M-HWC-CONTRACTCFG-5 (integration): a `.pilcfg` referencing a small YAML spec drives and
+      validates a fake engine end to end through the synthetic edge — assert the configured
+      mode produced the expected request traffic and that a deliberately non-conforming response
+      is reported as a contract violation.
+
 

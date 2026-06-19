@@ -31,6 +31,7 @@ decisions. Each decision has a stable D-number referenced from CHECKLIST.md item
 | D-HWC-5 | Single activation per process, enforced on the session |
 | D-HWC-6 | Network edge is the deferred `ihttp_listener` surface via namespace redirection (private addresses/ports) |
 | D-HWC-7 | Detours is an opt-in, module-scoped, off-by-default complementary envelope bounded to the HWC surface |
+| D-HWC-8 | OpenAPI/Swagger contracts bind to the HWC HTTP edge via `.pilcfg`, driving both response/request **validation** and example-**driven** traffic |
 
 ---
 
@@ -560,6 +561,52 @@ mechanism (mwin32 D8). HWC is the bounded exception: the engine is a black box w
   default**; passthrough / materialization (D-HWC-4) remains the default path.
 
 This keeps the experiment controlled and bounded to the HWC surface rather than ambient hooking.
+
+---
+
+## D-HWC-8 — OpenAPI/Swagger contracts bind to the HTTP edge via `.pilcfg`
+
+The HWC engine serves an HTTP API; teams already describe that API with OpenAPI (a.k.a.
+"Swagger") documents. PIL consumes those documents as a **contract surface** over the existing
+synthetic HTTP edge (D-HWC-6, Tier B), so the same spec the team authors can both *check* and
+*generate* traffic. The decision has four parts.
+
+- **The spec describes the engine's HTTP wire contract, never PIL's C/C++ ABI.** OpenAPI models
+  HTTP (paths, operations, parameters, request/response bodies keyed by status). It is not applied
+  to `iwebcore` / `ihttp_listener` / the `mWebCore*` shims — those are C ABIs, outside OpenAPI's
+  domain. The contract surface acts on `synthetic_http_request` / `captured_http_response` as they
+  cross the in-process queue (the deterministic edge), and on the real-`http.sys` private prefix
+  for Tier A.
+
+- **Behavior is owned by PIL, not "whatever the validator does" (Design Autonomy).** PIL's
+  specified contract behavior is: match an HTTP message's method + path against the spec's
+  templated paths; validate path/query/header parameters and the body schema; for a response,
+  confirm the status code is declared and validate its body/headers. The *body-schema* check is
+  delegated to a JSON Schema validator (chosen because its behavior matches our spec for JSON
+  bodies); the *path/operation/parameter matching* is code PIL owns. YAML specs are parsed to an
+  internal model first, so the validator and matcher never see YAML.
+
+- **Two modes, one binding — `validate` then `drive`.** A bound spec runs in one of two modes:
+  `validate` (every request/response crossing the edge is contract-checked; violations are a
+  **side diagnostic** per D6 — they trace and optionally surface a contract-violation `error_code`
+  for tests, but are never written into any persisted artifact) and `drive` (the spec's
+  `example`/`examples` are synthesized into `synthetic_http_request`s and enqueued, so the spec
+  *generates* the traffic). `drive` composes on top of `validate`.
+
+- **Bound from `.pilcfg`, like every other HWC facet.** The binding lives in the `webcore`
+  object as a `contracts` array — each entry names a spec file (a **host path**, so it gets D17
+  `%VAR%` expansion), the logical `endpoint` it applies to (taken literally, like
+  `webcore.endpoints`), and the `mode`. The surface follows the established shape: an
+  `ihttp_contract` interface on `iplatform` with a **default null provider**
+  (`M_NOT_IMPLEMENTED`, mirroring `get_webcore` / `get_http_listener`), a public façade header
+  that re-declares the mode enum bit-for-bit, and a validating decorator facet sibling to the
+  logging facet.
+
+**Acknowledged limits.** OpenAPI validates *shape*, not *values* or *behavior* — it is a contract
+guard, not a correctness oracle. Body validation only engages for JSON content types. OAS 3.1
+aligns with JSON Schema 2020-12, whose keyword coverage in the chosen validator is partial; specs
+relying on 2020-12-only keywords may validate loosely until the validator catches up (the gap is
+in the dependency, not in PIL's specification).
 
 ---
 

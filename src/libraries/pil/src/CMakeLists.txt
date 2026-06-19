@@ -29,6 +29,7 @@ add_subdirectory(logging)
 add_subdirectory(materializing)
 add_subdirectory(passthrough)
 add_subdirectory(redirecting)
+add_subdirectory(contract)
 
 target_compile_definitions(m_pil PRIVATE _CRT_SECURE_NO_WARNINGS)
 

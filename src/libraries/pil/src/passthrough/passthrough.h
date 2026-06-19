@@ -26,6 +26,9 @@
 #include <m/strings/compare.h>
 #include <m/utility/locked.h>
 
+#include <m/pil/file_path.h>
+#include <m/pil/filesystem_interfaces.h>
+
 using namespace std::string_view_literals;
 
 namespace m::pil::impl::passthrough
@@ -121,7 +124,8 @@ namespace m::pil::impl::passthrough
         open_key(ikey::open_key_flags           flags,
                  std::optional<key_path> const& key_name,
                  sam                            sam_desired,
-                 std::shared_ptr<ikey>&         returned_key) override;
+                 std::shared_ptr<ikey>&         returned_key,
+                 std::error_code&               ec) override;
 
         ikey::query_information_key_disposition
         query_information_key(ikey::query_information_key_flags flags,
@@ -252,6 +256,239 @@ namespace m::pil::impl::passthrough
         std::unique_ptr<iregistry_monitor_token>            m_underlying_token;
     };
 
+    //
+    // Filesystem facet (D9). Each wrapper forwards every operation to its
+    // underlying node unchanged, re-wrapping any returned directory / file so
+    // the entire subtree stays inside the transparent layer. This mirrors the
+    // registry facet (key / registry) exactly.
+    //
+
+    class file : public ifile, public std::enable_shared_from_this<file>
+    {
+    public:
+        file() = delete;
+        file(std::shared_ptr<ifile> const& underlying_file);
+        file(file const&)           = delete;
+        file(file&& other) noexcept = delete;
+        ~file()                     = default;
+
+        file&
+        operator=(file const&) = delete;
+        file&
+        operator=(file&& other) noexcept = delete;
+
+        void
+        swap(file& other) noexcept = delete;
+
+        ifile::query_information_disposition
+        query_information(query_information_flags flags, file_metadata& metadata) override;
+
+        ifile::read_content_disposition
+        read_content(read_content_flags   flags,
+                     std::uint64_t        offset,
+                     std::span<std::byte> buffer,
+                     std::size_t&         bytes_read,
+                     std::error_code&     ec) override;
+
+        ifile::write_content_disposition
+        write_content(write_content_flags        flags,
+                      std::uint64_t              offset,
+                      std::span<std::byte const> buffer,
+                      std::size_t&               bytes_written,
+                      std::error_code&           ec) override;
+
+        ifile::enumerate_streams_disposition
+        enumerate_streams(enumerate_streams_flags                       flags,
+                          std::size_t                                   starting_index,
+                          std::span<stream_entry, std::dynamic_extent>& entries,
+                          std::error_code&                              ec) override;
+
+    private:
+        std::shared_ptr<ifile> m_file;
+    };
+
+    class directory : public idirectory, public std::enable_shared_from_this<directory>
+    {
+    public:
+        directory() = delete;
+        directory(std::shared_ptr<idirectory> const& underlying_directory);
+        directory(directory const&)           = delete;
+        directory(directory&& other) noexcept = delete;
+        ~directory()                          = default;
+
+        directory&
+        operator=(directory const&) = delete;
+        directory&
+        operator=(directory&& other) noexcept = delete;
+
+        void
+        swap(directory& other) noexcept = delete;
+
+        idirectory::create_directory_disposition
+        create_directory(create_directory_flags       flags,
+                         file_path const&             path,
+                         file_access                  access,
+                         std::shared_ptr<idirectory>& returned_directory) override;
+
+        idirectory::create_file_disposition
+        create_file(create_file_flags       flags,
+                    file_path const&        path,
+                    file_access             access,
+                    std::shared_ptr<ifile>& returned_file) override;
+
+        idirectory::open_directory_disposition
+        open_directory(open_directory_flags         flags,
+                       file_path const&             path,
+                       file_access                  access,
+                       std::shared_ptr<idirectory>& returned_directory,
+                       std::error_code&             ec) override;
+
+        idirectory::open_file_disposition
+        open_file(open_file_flags         flags,
+                  file_path const&        path,
+                  file_access             access,
+                  std::shared_ptr<ifile>& returned_file,
+                  std::error_code&        ec) override;
+
+        idirectory::remove_entry_disposition
+        remove_entry(remove_entry_flags flags, file_path const& name) override;
+
+        idirectory::delete_tree_disposition
+        delete_tree(delete_tree_flags flags, std::optional<file_path> const& name) override;
+
+        idirectory::rename_entry_disposition
+        rename_entry(rename_entry_flags flags,
+                     file_path const&   old_path,
+                     file_path const&   new_path) override;
+
+        idirectory::enumerate_entries_disposition
+        enumerate_entries(enumerate_entries_flags                          flags,
+                          std::size_t                                      starting_index,
+                          std::span<directory_entry, std::dynamic_extent>& entries) override;
+
+        idirectory::query_information_disposition
+        query_information(query_information_flags flags, file_metadata& metadata) override;
+
+    private:
+        std::shared_ptr<idirectory> m_directory;
+    };
+
+    class filesystem_monitor :
+        public ifilesystem_monitor,
+        public std::enable_shared_from_this<filesystem_monitor>
+    {
+    public:
+        filesystem_monitor() = default;
+        filesystem_monitor(std::shared_ptr<ifilesystem_monitor> const& underlying_filesystem_monitor);
+        filesystem_monitor(filesystem_monitor&& other) noexcept = delete;
+        filesystem_monitor(filesystem_monitor const&)           = delete;
+        ~filesystem_monitor()                                   = default;
+
+        filesystem_monitor&
+        operator=(filesystem_monitor&& other) noexcept = delete;
+
+        filesystem_monitor&
+        operator=(filesystem_monitor const&) = delete;
+
+        void
+        swap(filesystem_monitor& other) noexcept = delete;
+
+        register_watch_disposition
+        register_watch(
+            register_watch_flags                                  flags,
+            file_path const&                                      directory,
+            m::not_null<ifilesystem_monitor_change_notification*> change_notification_ptr,
+            std::unique_ptr<ifilesystem_monitor_token>&           returned_ptr) override;
+
+    private:
+        std::shared_ptr<ifilesystem_monitor> m_underlying_filesystem_monitor;
+    };
+
+    class filesystem_monitor_change_notification_wrapper :
+        public ifilesystem_monitor_change_notification,
+        public ifilesystem_monitor_token
+    {
+    public:
+        filesystem_monitor_change_notification_wrapper() = delete;
+        filesystem_monitor_change_notification_wrapper(
+            m::not_null<ifilesystem_monitor_change_notification*> change_notification);
+        filesystem_monitor_change_notification_wrapper(
+            filesystem_monitor_change_notification_wrapper const&) = delete;
+        filesystem_monitor_change_notification_wrapper(
+            filesystem_monitor_change_notification_wrapper&&) noexcept = delete;
+        ~filesystem_monitor_change_notification_wrapper()             = default;
+
+        filesystem_monitor_change_notification_wrapper&
+        operator=(filesystem_monitor_change_notification_wrapper const&) = delete;
+
+        filesystem_monitor_change_notification_wrapper&
+        operator=(filesystem_monitor_change_notification_wrapper&&) noexcept = delete;
+
+        void
+        swap(filesystem_monitor_change_notification_wrapper& other) noexcept = delete;
+
+        void
+        on_begin(utc_time_point_type const& when) override;
+
+        std::optional<requeue_directory_access_attempt>
+        on_directory_access_failure(utc_time_point_type const& when,
+                                    file_path const&           directory,
+                                    std::system_error const&   ec) override;
+
+        std::optional<requeue_change_notification_attempt>
+        on_change_notification_attempt_failure(utc_time_point_type const& when,
+                                               file_path const&           directory,
+                                               std::system_error const&   ec) override;
+
+        void
+        on_change(utc_time_point_type const& when,
+                  file_path const&           directory,
+                  filesystem_change_kind     kind,
+                  file_path const&           entry_name) override;
+
+        void
+        on_cancelled(utc_time_point_type const& when) override;
+
+        // protected:
+        m::not_null<ifilesystem_monitor_change_notification*> m_change_notification;
+        std::unique_ptr<ifilesystem_monitor_token>            m_underlying_token;
+    };
+
+    class filesystem : public ifilesystem, public std::enable_shared_from_this<filesystem>
+    {
+    public:
+        filesystem() = delete;
+        filesystem(std::shared_ptr<ifilesystem> const& underlying_filesystem);
+        filesystem(filesystem const&)           = delete;
+        filesystem(filesystem&& other) noexcept = delete;
+        ~filesystem()                           = default;
+
+        filesystem&
+        operator=(filesystem const&) = delete;
+        filesystem&
+        operator=(filesystem&& other) noexcept = delete;
+
+        void
+        swap(filesystem& other) noexcept = delete;
+
+        ifilesystem::open_root_disposition
+        open_root(open_root_flags              flags,
+                  file_root const&             root,
+                  file_access                  access,
+                  std::shared_ptr<idirectory>& returned_directory) override;
+
+        ifilesystem::monitor_disposition
+        monitor(monitor_flags                                 flags,
+                std::shared_ptr<m::pil::ifilesystem_monitor>& returned_filesystem_monitor) override;
+
+    private:
+        void initialize_monitor(m::locked_t);
+
+        std::mutex                           m_mutex;
+        std::shared_ptr<ifilesystem>         m_filesystem;
+        std::shared_ptr<ifilesystem_monitor> m_monitor;
+    };
+
     class platform : public iplatform, public std::enable_shared_from_this<platform>
     {
     public:
@@ -274,12 +511,26 @@ namespace m::pil::impl::passthrough
         get_registry(get_registry_flags          flags,
                      std::shared_ptr<iregistry>& returned_registry) override;
 
+        get_filesystem_disposition
+        get_filesystem(get_filesystem_flags          flags,
+                       std::shared_ptr<ifilesystem>& returned_filesystem) override;
+
+        get_webcore_disposition
+        get_webcore(get_webcore_flags          flags,
+                    std::shared_ptr<iwebcore>& returned_webcore) override;
+
         save_disposition
         save(save_flags flags, save_contents contents, pugi::xml_node& platform_element) override;
 
+        // D6: forward the diagnostic-log request down so a logging tap placed
+        // beneath this transparent layer is reachable from the top.
+        save_disposition
+        save_diagnostic_log(save_flags flags, pugi::xml_node& diagnostic_element) override;
+
     protected:
-        std::shared_ptr<iplatform> m_underlying_platform;
-        std::shared_ptr<registry>  m_registry;
+        std::shared_ptr<iplatform>  m_underlying_platform;
+        std::shared_ptr<registry>   m_registry;
+        std::shared_ptr<filesystem> m_filesystem;
     };
 
 } // namespace m::pil::impl::passthrough

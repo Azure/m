@@ -31,8 +31,8 @@ namespace m::pil::impl
 {
     std::shared_ptr<iplatform>
     create_platform_interface(
-        create_platform_interface_flags                                             flags,
-        std::initializer_list<std::pair<std::u16string_view, std::u16string_view>>* redirections)
+        create_platform_interface_flags                                     flags,
+        std::span<std::pair<std::u16string_view, std::u16string_view> const> redirections)
     {
         M_VALIDATE_FLAGS_PARAMETER(flags,
                                    create_platform_interface_flags::record_modifications |
@@ -48,8 +48,15 @@ namespace m::pil::impl
         if (!!(flags & create_platform_interface_flags::buffer_updates))
             top = std::make_shared<m::pil::impl::buffered::platform>(top);
 
-        if (redirections)
-            top = std::make_shared<redirecting::platform>(top, redirections);
+        if (!redirections.empty())
+            // The public factory exposes a single redirection table, which applies
+            // to the whole platform surface: the same prefix map is installed for
+            // both the registry and the filesystem. Each surface only matches paths
+            // of its own shape, so a registry-shaped rule is inert against
+            // filesystem paths and vice versa. (Passing the table only as the
+            // registry argument here would silently drop filesystem redirection,
+            // since the filesystem table defaults to empty.)
+            top = std::make_shared<redirecting::platform>(top, redirections, redirections);
 
         if (!!(flags & create_platform_interface_flags::record_modifications))
             top = std::make_shared<logging::platform>(top);

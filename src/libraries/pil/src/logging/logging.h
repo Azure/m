@@ -20,9 +20,12 @@
 #include <utility>
 #include <vector>
 
+#include <m/pil/file_path.h>
+#include <m/pil/filesystem_interfaces.h>
 #include <m/pil/platform.h>
 #include <m/pil/registry.h>
 #include <m/pil/registry_interfaces.h>
+#include <m/pil/webcore_interfaces.h>
 #include <m/strings/compare.h>
 #include <m/utility/locked.h>
 
@@ -130,6 +133,49 @@ namespace m::pil::impl::logging
             a.set_value(pugi::string_view_t(
                 m::to_basic_string_t<pugi::char_t>(path.value().native().view())));
         }
+    }
+
+    template <typename TChar1>
+        requires(m::character<TChar1>)
+    void
+    write_attribute(pugi::xml_node& n, std::basic_string_view<TChar1> name, file_path const& path)
+    {
+        auto a = append_attribute(n, name);
+        a.set_value(m::to_string(path.native().view()).c_str());
+    }
+
+    template <typename TChar1>
+        requires(m::character<TChar1>)
+    void
+    write_attribute(pugi::xml_node&                 n,
+                    std::basic_string_view<TChar1>  name,
+                    std::optional<file_path> const& path)
+    {
+        if (path.has_value())
+        {
+            auto a = append_attribute(n, name);
+            a.set_value(pugi::string_view_t(
+                m::to_basic_string_t<pugi::char_t>(path.value().native().view())));
+        }
+    }
+
+    template <typename TChar1>
+        requires(m::character<TChar1>)
+    void
+    write_attribute(pugi::xml_node& n, std::basic_string_view<TChar1> name, bool value)
+    {
+        auto a = append_attribute(n, name);
+        a.set_value(value ? M_PUGIXML_T("true") : M_PUGIXML_T("false"));
+    }
+
+    template <typename TChar1, typename TChar2>
+        requires(m::character<TChar1> && m::character<TChar2>)
+    void
+    write_attribute(pugi::xml_node&                    n,
+                    std::basic_string_view<TChar1>     name,
+                    std::basic_string<TChar2> const&   value)
+    {
+        write_attribute(n, name, std::basic_string_view<TChar2>(value));
     }
 
     template <typename TChar1, typename TValue>
@@ -426,7 +472,8 @@ namespace m::pil::impl::logging
         open_key(ikey::open_key_flags           flags,
                  std::optional<key_path> const& key_name,
                  sam                            sam_desired,
-                 std::shared_ptr<ikey>&         returned_key) override;
+                 std::shared_ptr<ikey>&         returned_key,
+                 std::error_code&               ec) override;
 
         ikey::query_information_key_disposition
         query_information_key(ikey::query_information_key_flags flags,
@@ -558,6 +605,452 @@ namespace m::pil::impl::logging
         std::unique_ptr<iregistry_monitor_token>            m_underlying_token;
     };
 
+    //
+    // Filesystem facet (D6 / D9). The logging tap records every namespace
+    // mutation (CreateDirectory, CreateFile, Remove, DeleteTree, Rename) into the
+    // floating diagnostic <Log> with the requested-vs-done shape, then forwards
+    // the operation to the underlying node unchanged. Reads (open, enumerate,
+    // query_information) pass straight through and are never logged. The log is
+    // emitted only by save_diagnostic_log, never into the persisted <Platform>.
+    //
+    // The FS log entries are named with an `fs_` prefix to avoid colliding with
+    // the registry log-entry types declared above.
+    //
+
+    class fs_create_directory_log_entry : public log_entry
+    {
+    public:
+        fs_create_directory_log_entry(idirectory::create_directory_flags flags,
+                                      file_path const&                   path,
+                                      file_access                        access);
+
+        void
+        set_disposition(idirectory::create_directory_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        idirectory::create_directory_flags       m_flags;
+        file_path                                m_path;
+        file_access                              m_access;
+        idirectory::create_directory_disposition m_disposition;
+    };
+
+    class fs_create_file_log_entry : public log_entry
+    {
+    public:
+        fs_create_file_log_entry(idirectory::create_file_flags flags,
+                                 file_path const&              path,
+                                 file_access                   access);
+
+        void
+        set_disposition(idirectory::create_file_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        idirectory::create_file_flags       m_flags;
+        file_path                           m_path;
+        file_access                         m_access;
+        idirectory::create_file_disposition m_disposition;
+    };
+
+    class fs_remove_entry_log_entry : public log_entry
+    {
+    public:
+        fs_remove_entry_log_entry(idirectory::remove_entry_flags flags, file_path const& name);
+
+        void
+        set_disposition(idirectory::remove_entry_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        idirectory::remove_entry_flags       m_flags;
+        file_path                            m_name;
+        idirectory::remove_entry_disposition m_disposition;
+    };
+
+    class fs_delete_tree_log_entry : public log_entry
+    {
+    public:
+        fs_delete_tree_log_entry(idirectory::delete_tree_flags   flags,
+                                 std::optional<file_path> const& name);
+
+        void
+        set_disposition(idirectory::delete_tree_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        idirectory::delete_tree_flags       m_flags;
+        std::optional<file_path>            m_name;
+        idirectory::delete_tree_disposition m_disposition;
+    };
+
+    class fs_rename_entry_log_entry : public log_entry
+    {
+    public:
+        fs_rename_entry_log_entry(idirectory::rename_entry_flags flags,
+                                  file_path const&               old_path,
+                                  file_path const&               new_path);
+
+        void
+        set_disposition(idirectory::rename_entry_disposition disposition);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    protected:
+        idirectory::rename_entry_flags       m_flags;
+        file_path                            m_old_path;
+        file_path                            m_new_path;
+        idirectory::rename_entry_disposition m_disposition;
+    };
+
+    class file : public ifile, public std::enable_shared_from_this<file>
+    {
+    public:
+        file() = delete;
+        file(std::shared_ptr<ifile> const& underlying_file, std::shared_ptr<log> const& log_ptr);
+        file(file const&)           = delete;
+        file(file&& other) noexcept = delete;
+        ~file()                     = default;
+
+        file&
+        operator=(file const&) = delete;
+        file&
+        operator=(file&& other) noexcept = delete;
+
+        void
+        swap(file& other) noexcept = delete;
+
+        ifile::query_information_disposition
+        query_information(query_information_flags flags, file_metadata& metadata) override;
+
+        ifile::read_content_disposition
+        read_content(read_content_flags   flags,
+                     std::uint64_t        offset,
+                     std::span<std::byte> buffer,
+                     std::size_t&         bytes_read,
+                     std::error_code&     ec) override;
+
+        ifile::write_content_disposition
+        write_content(write_content_flags        flags,
+                      std::uint64_t              offset,
+                      std::span<std::byte const> buffer,
+                      std::size_t&               bytes_written,
+                      std::error_code&           ec) override;
+
+        ifile::enumerate_streams_disposition
+        enumerate_streams(enumerate_streams_flags                       flags,
+                          std::size_t                                   starting_index,
+                          std::span<stream_entry, std::dynamic_extent>& entries,
+                          std::error_code&                              ec) override;
+
+    private:
+        std::shared_ptr<ifile> m_file;
+        std::shared_ptr<log>   m_log;
+    };
+
+    class directory : public idirectory, public std::enable_shared_from_this<directory>
+    {
+    public:
+        directory() = delete;
+        directory(std::shared_ptr<idirectory> const& underlying_directory,
+                  std::shared_ptr<log> const&        log_ptr);
+        directory(directory const&)           = delete;
+        directory(directory&& other) noexcept = delete;
+        ~directory()                          = default;
+
+        directory&
+        operator=(directory const&) = delete;
+        directory&
+        operator=(directory&& other) noexcept = delete;
+
+        void
+        swap(directory& other) noexcept = delete;
+
+        idirectory::create_directory_disposition
+        create_directory(create_directory_flags       flags,
+                         file_path const&             path,
+                         file_access                  access,
+                         std::shared_ptr<idirectory>& returned_directory) override;
+
+        idirectory::create_file_disposition
+        create_file(create_file_flags       flags,
+                    file_path const&        path,
+                    file_access             access,
+                    std::shared_ptr<ifile>& returned_file) override;
+
+        idirectory::open_directory_disposition
+        open_directory(open_directory_flags         flags,
+                       file_path const&             path,
+                       file_access                  access,
+                       std::shared_ptr<idirectory>& returned_directory,
+                       std::error_code&             ec) override;
+
+        idirectory::open_file_disposition
+        open_file(open_file_flags         flags,
+                  file_path const&        path,
+                  file_access             access,
+                  std::shared_ptr<ifile>& returned_file,
+                  std::error_code&        ec) override;
+
+        idirectory::remove_entry_disposition
+        remove_entry(remove_entry_flags flags, file_path const& name) override;
+
+        idirectory::delete_tree_disposition
+        delete_tree(delete_tree_flags flags, std::optional<file_path> const& name) override;
+
+        idirectory::rename_entry_disposition
+        rename_entry(rename_entry_flags flags,
+                     file_path const&   old_path,
+                     file_path const&   new_path) override;
+
+        idirectory::enumerate_entries_disposition
+        enumerate_entries(enumerate_entries_flags                          flags,
+                          std::size_t                                      starting_index,
+                          std::span<directory_entry, std::dynamic_extent>& entries) override;
+
+        idirectory::query_information_disposition
+        query_information(query_information_flags flags, file_metadata& metadata) override;
+
+    private:
+        std::shared_ptr<idirectory> m_directory;
+        std::shared_ptr<log>        m_log;
+    };
+
+    class filesystem_monitor :
+        public ifilesystem_monitor,
+        public std::enable_shared_from_this<filesystem_monitor>
+    {
+    public:
+        filesystem_monitor() = default;
+        filesystem_monitor(std::shared_ptr<ifilesystem_monitor> const& underlying_filesystem_monitor);
+        filesystem_monitor(filesystem_monitor&& other) noexcept = delete;
+        filesystem_monitor(filesystem_monitor const&)           = delete;
+        ~filesystem_monitor()                                   = default;
+
+        filesystem_monitor&
+        operator=(filesystem_monitor&& other) noexcept = delete;
+
+        filesystem_monitor&
+        operator=(filesystem_monitor const&) = delete;
+
+        void
+        swap(filesystem_monitor& other) noexcept = delete;
+
+        register_watch_disposition
+        register_watch(
+            register_watch_flags                                  flags,
+            file_path const&                                      directory,
+            m::not_null<ifilesystem_monitor_change_notification*> change_notification_ptr,
+            std::unique_ptr<ifilesystem_monitor_token>&           returned_ptr) override;
+
+    private:
+        std::shared_ptr<ifilesystem_monitor> m_underlying_filesystem_monitor;
+    };
+
+    class filesystem_monitor_change_notification_wrapper :
+        public ifilesystem_monitor_change_notification,
+        public ifilesystem_monitor_token
+    {
+    public:
+        filesystem_monitor_change_notification_wrapper() = delete;
+        filesystem_monitor_change_notification_wrapper(
+            m::not_null<ifilesystem_monitor_change_notification*> change_notification);
+        filesystem_monitor_change_notification_wrapper(
+            filesystem_monitor_change_notification_wrapper const&) = delete;
+        filesystem_monitor_change_notification_wrapper(
+            filesystem_monitor_change_notification_wrapper&&) noexcept = delete;
+        ~filesystem_monitor_change_notification_wrapper()             = default;
+
+        filesystem_monitor_change_notification_wrapper&
+        operator=(filesystem_monitor_change_notification_wrapper const&) = delete;
+
+        filesystem_monitor_change_notification_wrapper&
+        operator=(filesystem_monitor_change_notification_wrapper&&) noexcept = delete;
+
+        void
+        swap(filesystem_monitor_change_notification_wrapper& other) noexcept = delete;
+
+        void
+        on_begin(utc_time_point_type const& when) override;
+
+        std::optional<requeue_directory_access_attempt>
+        on_directory_access_failure(utc_time_point_type const& when,
+                                    file_path const&           directory,
+                                    std::system_error const&   ec) override;
+
+        std::optional<requeue_change_notification_attempt>
+        on_change_notification_attempt_failure(utc_time_point_type const& when,
+                                               file_path const&           directory,
+                                               std::system_error const&   ec) override;
+
+        void
+        on_change(utc_time_point_type const& when,
+                  file_path const&           directory,
+                  filesystem_change_kind     kind,
+                  file_path const&           entry_name) override;
+
+        void
+        on_cancelled(utc_time_point_type const& when) override;
+
+        // protected:
+        m::not_null<ifilesystem_monitor_change_notification*> m_change_notification;
+        std::unique_ptr<ifilesystem_monitor_token>            m_underlying_token;
+    };
+
+    class filesystem : public ifilesystem, public std::enable_shared_from_this<filesystem>
+    {
+    public:
+        filesystem() = delete;
+        filesystem(std::shared_ptr<ifilesystem> const& underlying_filesystem,
+                   std::shared_ptr<log> const&         log_ptr);
+        filesystem(filesystem const&)           = delete;
+        filesystem(filesystem&& other) noexcept = delete;
+        ~filesystem()                           = default;
+
+        filesystem&
+        operator=(filesystem const&) = delete;
+        filesystem&
+        operator=(filesystem&& other) noexcept = delete;
+
+        void
+        swap(filesystem& other) noexcept = delete;
+
+        ifilesystem::open_root_disposition
+        open_root(open_root_flags              flags,
+                  file_root const&             root,
+                  file_access                  access,
+                  std::shared_ptr<idirectory>& returned_directory) override;
+
+        ifilesystem::monitor_disposition
+        monitor(monitor_flags                                 flags,
+                std::shared_ptr<m::pil::ifilesystem_monitor>& returned_filesystem_monitor) override;
+
+    private:
+        void initialize_monitor(m::locked_t);
+
+        std::mutex                           m_mutex;
+        std::shared_ptr<ifilesystem>         m_filesystem;
+        std::shared_ptr<log>                 m_log;
+        std::shared_ptr<ifilesystem_monitor> m_monitor;
+    };
+
+    //
+    // Webcore facet (D6 / M-HWC-FACETS-2). The logging tap records activate,
+    // shutdown, and set_metadata calls into the floating diagnostic <Log> with
+    // the requested-vs-done shape, then forwards the operation to the underlying
+    // webcore. The log is emitted only by save_diagnostic_log, never into the
+    // persisted <Platform>.
+    //
+
+    class webcore_activate_log_entry : public log_entry
+    {
+    public:
+        webcore_activate_log_entry(iwebcore::activate_flags flags,
+                                   activation_request const& request);
+
+        void
+        set_disposition(iwebcore::activate_disposition disposition, std::error_code const& ec);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    private:
+        iwebcore::activate_flags       m_flags;
+        file_path                      m_app_host_config;
+        std::optional<file_path>       m_root_web_config;
+        std::u16string                 m_instance_name;
+        iwebcore::activate_disposition m_disposition;
+        std::error_code                m_ec;
+    };
+
+    class webcore_set_metadata_log_entry : public log_entry
+    {
+    public:
+        webcore_set_metadata_log_entry(iwebcore::set_metadata_flags flags,
+                                       std::u16string_view type,
+                                       std::u16string_view value);
+
+        void
+        set_disposition(iwebcore::set_metadata_disposition disposition, std::error_code const& ec);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    private:
+        iwebcore::set_metadata_flags       m_flags;
+        std::u16string                     m_type;
+        std::u16string                     m_value;
+        iwebcore::set_metadata_disposition m_disposition;
+        std::error_code                    m_ec;
+    };
+
+    class webcore_shutdown_log_entry : public log_entry
+    {
+    public:
+        webcore_shutdown_log_entry(bool immediate);
+
+        void
+        save(pugi::xml_node& parent) const override;
+
+    private:
+        bool m_immediate;
+    };
+
+    class webcore_instance : public iwebcore_instance
+    {
+    public:
+        webcore_instance(std::unique_ptr<iwebcore_instance> underlying_instance,
+                         std::shared_ptr<log> const& log_ptr,
+                         bool immediate_shutdown);
+        ~webcore_instance() override;
+
+    private:
+        std::unique_ptr<iwebcore_instance> m_underlying_instance;
+        std::shared_ptr<log>               m_log;
+        bool                               m_immediate_shutdown;
+    };
+
+    class webcore : public iwebcore, public std::enable_shared_from_this<webcore>
+    {
+    public:
+        webcore() = delete;
+        webcore(std::shared_ptr<iwebcore> const& underlying_webcore,
+                std::shared_ptr<log> const& log_ptr);
+        webcore(webcore const&)           = delete;
+        webcore(webcore&& other) noexcept = delete;
+        ~webcore()                        = default;
+
+        webcore&
+        operator=(webcore const&) = delete;
+        webcore&
+        operator=(webcore&& other) noexcept = delete;
+
+        activate_disposition
+        activate(activate_flags                      flags,
+                 activation_request const&           request,
+                 std::unique_ptr<iwebcore_instance>& returned_instance,
+                 std::error_code&                    ec) override;
+
+        set_metadata_disposition
+        set_metadata(set_metadata_flags  flags,
+                     std::u16string_view type,
+                     std::u16string_view value,
+                     std::error_code&    ec) override;
+
+    private:
+        std::shared_ptr<iwebcore> m_webcore;
+        std::shared_ptr<log>      m_log;
+    };
+
     class platform : public iplatform, public std::enable_shared_from_this<platform>
     {
     public:
@@ -580,13 +1073,26 @@ namespace m::pil::impl::logging
         get_registry(get_registry_flags          flags,
                      std::shared_ptr<iregistry>& returned_registry) override;
 
+        get_filesystem_disposition
+        get_filesystem(get_filesystem_flags          flags,
+                       std::shared_ptr<ifilesystem>& returned_filesystem) override;
+
+        get_webcore_disposition
+        get_webcore(get_webcore_flags          flags,
+                    std::shared_ptr<iwebcore>& returned_webcore) override;
+
         save_disposition
         save(save_flags flags, save_contents contents, pugi::xml_node& platform_element) override;
 
+        save_disposition
+        save_diagnostic_log(save_flags flags, pugi::xml_node& diagnostic_element) override;
+
     protected:
-        std::shared_ptr<iplatform> m_underlying_platform;
-        std::shared_ptr<log>       m_log;
-        std::shared_ptr<registry>  m_registry;
+        std::shared_ptr<iplatform>  m_underlying_platform;
+        std::shared_ptr<log>        m_log;
+        std::shared_ptr<registry>   m_registry;
+        std::shared_ptr<filesystem> m_filesystem;
+        std::shared_ptr<webcore>    m_webcore;
     };
 
 } // namespace m::pil::impl::logging

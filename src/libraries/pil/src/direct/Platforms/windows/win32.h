@@ -22,6 +22,7 @@
 #include <m/pil/registry_interfaces.h>
 #include <m/threadpool/threadpool.h>
 #include <m/utility/locked.h>
+#include <m/win32/handle.h>
 #include <m/win32/registry.h>
 #include <m/win32/threadpool.h>
 
@@ -58,6 +59,14 @@ namespace m::pil::impl::win32
         get_registry(get_registry_flags          flags,
                      std::shared_ptr<iregistry>& returned_registry) override;
 
+        get_filesystem_disposition
+        get_filesystem(get_filesystem_flags          flags,
+                       std::shared_ptr<ifilesystem>& returned_filesystem) override;
+
+        get_webcore_disposition
+        get_webcore(get_webcore_flags          flags,
+                    std::shared_ptr<iwebcore>& returned_webcore) override;
+
         save_disposition
         save(save_flags flags, save_contents contents, pugi::xml_node& platform_element) override;
 
@@ -87,6 +96,12 @@ namespace m::pil::impl::win32
             default: M_UNREACHABLE_CODE();
         }
     }
+
+    // Maps a file_path to the string Win32 should see (extended-length prefix
+    // handling for fully qualified drive / UNC paths). Shared between the live
+    // filesystem provider and the change-notification token.
+    std::u16string
+    to_win32_path(file_path const& path);
 
     class registry : public iregistry, public std::enable_shared_from_this<registry>
     {
@@ -172,7 +187,8 @@ namespace m::pil::impl::win32
         open_key(open_key_flags                      flags,
                  std::optional<pil::key_path> const& key_name,
                  sam                                 sam_desired,
-                 std::shared_ptr<ikey>&              returned_key) override;
+                 std::shared_ptr<ikey>&              returned_key,
+                 std::error_code&                    ec) override;
 
         query_information_key_disposition
         query_information_key(query_information_key_flags flags,
@@ -273,7 +289,7 @@ namespace m::pil::impl::win32
             m::not_null<iregistry_monitor_change_notification*> change_notification_ptr);
         registry_monitor_token(registry_monitor_token const& other)     = delete;
         registry_monitor_token(registry_monitor_token&& other) noexcept = delete;
-        ~registry_monitor_token()                                       = default;
+        ~registry_monitor_token();
 
         registry_monitor_token&
         operator=(registry_monitor_token&& other) noexcept = delete;
@@ -325,6 +341,11 @@ namespace m::pil::impl::win32
         m::pil::iregistry_monitor::register_watch_flags m_flags;
         m::win32::registry::notify_filters              m_filters;
         state                                           m_state{state::to_open_key};
+        // Set under m_mutex by the destructor before it quiesces the wait and
+        // timers. Once set, every wait/timer callback that wins the lock
+        // becomes a no-op and cannot re-arm the notify or schedule a timer, so
+        // teardown drains to a fixed point instead of racing a re-arm.
+        bool                                            m_shutting_down{false};
         pil::key_path                                   m_key_path;
         m::u16sstring                                   m_key_name;
         hkey                                            m_hkey;
@@ -335,6 +356,319 @@ namespace m::pil::impl::win32
         std::unique_ptr<timer>                              m_timer;
         std::unique_ptr<timer>                              m_notification_timer;
         utc_time_point_type                                 m_notification_time;
+    };
+
+    //
+    // Live Windows filesystem change-notification monitor (M-FS-MONITOR-1).
+    // Mirrors registry_monitor: a long-lived object that mints one
+    // ReadDirectoryChangesW-backed token per registered watch.
+    //
+    class filesystem_monitor :
+        public m::pil::ifilesystem_monitor,
+        public std::enable_shared_from_this<m::pil::impl::win32::filesystem_monitor>
+    {
+    public:
+        filesystem_monitor() = default;
+        filesystem_monitor(std::shared_ptr<m::work_queue> wq);
+        filesystem_monitor(filesystem_monitor const& other)     = delete;
+        filesystem_monitor(filesystem_monitor&& other) noexcept = delete;
+
+        filesystem_monitor&
+        operator=(filesystem_monitor const& other) = delete;
+
+        filesystem_monitor&
+        operator=(filesystem_monitor&& other) = delete;
+
+        ~filesystem_monitor() = default;
+
+        // Cannot swap enable_shared_from_this<>.
+        void
+        swap(filesystem_monitor& other) = delete;
+
+        register_watch_disposition
+        register_watch(
+            register_watch_flags                                  flags,
+            file_path const&                                      directory,
+            m::not_null<ifilesystem_monitor_change_notification*> change_notification_ptr,
+            std::unique_ptr<ifilesystem_monitor_token>&           returned_ptr) override;
+
+    private:
+        std::mutex                  m_mutex;
+        std::shared_ptr<work_queue> m_work_queue;
+    };
+
+    //
+    // A single ReadDirectoryChangesW watch. The state machine mirrors
+    // registry_monitor_token: open the directory, issue the change-notification
+    // read, wait on its event, decode the FILE_NOTIFY_INFORMATION records into
+    // detailed on_change(...) callbacks, and re-issue.
+    //
+    class filesystem_monitor_token : public m::pil::ifilesystem_monitor_token
+    {
+    public:
+        filesystem_monitor_token() = delete;
+        filesystem_monitor_token(
+            std::shared_ptr<m::work_queue>                        work_queue,
+            m::pil::ifilesystem_monitor::register_watch_flags     flags,
+            file_path const&                                      directory,
+            m::not_null<ifilesystem_monitor_change_notification*> change_notification_ptr);
+        filesystem_monitor_token(filesystem_monitor_token const& other)     = delete;
+        filesystem_monitor_token(filesystem_monitor_token&& other) noexcept = delete;
+        ~filesystem_monitor_token();
+
+        filesystem_monitor_token&
+        operator=(filesystem_monitor_token&& other) noexcept = delete;
+
+        filesystem_monitor_token&
+        operator=(filesystem_monitor_token const& other) = delete;
+
+        void
+        swap(filesystem_monitor_token& other) noexcept = delete;
+
+    private:
+        static void __stdcall
+        filesystem_notification_wait_callback(PTP_CALLBACK_INSTANCE Instance,
+                                              PVOID                 Context,
+                                              PTP_WAIT              Wait,
+                                              TP_WAIT_RESULT        WaitResult);
+
+        void
+        on_filesystem_notification(bool timed_out);
+
+        enum class drive_results
+        {
+            waiting,
+            not_waiting,
+        };
+
+        void
+        on_timer(m::locked_t, utc_time_point_type const& when) noexcept;
+
+        void
+        drive_state(m::locked_t, utc_time_point_type const& when) noexcept;
+
+        drive_results
+        drive_state_once(m::locked_t, utc_time_point_type const& when) noexcept;
+
+        // Decodes the FILE_NOTIFY_INFORMATION records currently in m_buffer
+        // (byte_count bytes) into m_pending_changes, to be delivered by the
+        // notification timer outside the lock.
+        void
+        decode_notifications(m::locked_t, std::size_t byte_count);
+
+        enum class state
+        {
+            to_open_directory,
+            to_read_directory_changes,
+            waiting,
+        };
+
+        // Size in bytes of the change-notification buffer. Sized generously so
+        // bursts of changes are unlikely to overflow (an overflow yields zero
+        // bytes and the lost changes are simply not reported).
+        static constexpr std::size_t notification_buffer_byte_count = 64 * 1024;
+
+        std::mutex                                        m_mutex;
+        std::shared_ptr<work_queue>                       m_work_queue;
+        m::pil::ifilesystem_monitor::register_watch_flags m_flags;
+        DWORD                                             m_notify_filter;
+        bool                                              m_watch_subtree;
+        state                                             m_state{state::to_open_directory};
+        // Set under m_mutex by the destructor before it quiesces the wait and
+        // timers. Once set, every wait/timer callback that wins the lock
+        // becomes a no-op and cannot re-arm the read or schedule a timer, so
+        // teardown drains to a fixed point instead of racing a re-arm.
+        bool                                              m_shutting_down{false};
+        file_path                                         m_directory_path;
+        std::u16string                                    m_directory_win32_path;
+        m::win32::handle                                  m_directory_handle;
+        m::win32::event                                   m_event;
+        OVERLAPPED                                        m_overlapped;
+        std::vector<std::byte>                            m_buffer;
+        tp_wait                                           m_tp_wait;
+
+        m::not_null<ifilesystem_monitor_change_notification*>     m_change_notification_ptr;
+        std::unique_ptr<timer>                                    m_timer;
+        std::unique_ptr<timer>                                    m_notification_timer;
+        std::vector<std::pair<filesystem_change_kind, file_path>> m_pending_changes;
+        utc_time_point_type                                       m_notification_time;
+    };
+
+    //
+    // Live Windows filesystem provider (D9, D13). The unified namespace is
+    // anchored by a root directory (open_root, the analogue of
+    // open_predefined_key); from there directories and files are reached by
+    // name. File content is out of scope for now (D14): a file node carries
+    // metadata only.
+    //
+    class filesystem : public ifilesystem, public std::enable_shared_from_this<filesystem>
+    {
+    public:
+        filesystem() = delete;
+
+        filesystem(std::shared_ptr<m::work_queue> wq);
+
+        filesystem(filesystem const&)           = delete;
+        filesystem(filesystem&& other) noexcept = delete;
+        ~filesystem()                           = default;
+
+        filesystem&
+        operator=(filesystem const&) = delete;
+
+        filesystem&
+        operator=(filesystem&& other) noexcept = delete;
+
+        void
+        swap(filesystem& other) noexcept = delete;
+
+        open_root_disposition
+        open_root(open_root_flags              flags,
+                  file_root const&             root,
+                  file_access                  access,
+                  std::shared_ptr<idirectory>& returned_directory) override;
+
+        monitor_disposition
+        monitor(monitor_flags                                 flags,
+                std::shared_ptr<m::pil::ifilesystem_monitor>& returned_filesystem_monitor) override;
+
+    private:
+        void initialize_monitor(m::locked_t);
+
+        std::mutex                           m_mutex;
+        std::shared_ptr<m::work_queue>       m_work_queue;
+        std::shared_ptr<ifilesystem_monitor> m_monitor;
+    };
+
+    //
+    // A live directory node, backed by an open Win32 directory handle plus the
+    // fully qualified path it names (used to compose child paths for the verbs
+    // that take a name).
+    //
+    class directory : public idirectory, public std::enable_shared_from_this<directory>
+    {
+    public:
+        directory() = delete;
+
+        directory(m::win32::handle&& h, file_path path);
+
+        directory(directory const&)           = delete;
+        directory(directory&& other) noexcept = delete;
+        ~directory()                          = default;
+
+        directory&
+        operator=(directory const&) = delete;
+
+        directory&
+        operator=(directory&& other) noexcept = delete;
+
+        void
+        swap(directory& other) noexcept = delete;
+
+        create_directory_disposition
+        create_directory(create_directory_flags       flags,
+                         file_path const&             path,
+                         file_access                  access,
+                         std::shared_ptr<idirectory>& returned_directory) override;
+
+        create_file_disposition
+        create_file(create_file_flags       flags,
+                    file_path const&        path,
+                    file_access             access,
+                    std::shared_ptr<ifile>& returned_file) override;
+
+        open_directory_disposition
+        open_directory(open_directory_flags         flags,
+                       file_path const&             path,
+                       file_access                  access,
+                       std::shared_ptr<idirectory>& returned_directory,
+                       std::error_code&             ec) override;
+
+        open_file_disposition
+        open_file(open_file_flags         flags,
+                  file_path const&        path,
+                  file_access             access,
+                  std::shared_ptr<ifile>& returned_file,
+                  std::error_code&        ec) override;
+
+        remove_entry_disposition
+        remove_entry(remove_entry_flags flags, file_path const& name) override;
+
+        delete_tree_disposition
+        delete_tree(delete_tree_flags flags, std::optional<file_path> const& name) override;
+
+        rename_entry_disposition
+        rename_entry(rename_entry_flags flags,
+                     file_path const&   old_path,
+                     file_path const&   new_path) override;
+
+        enumerate_entries_disposition
+        enumerate_entries(enumerate_entries_flags                          flags,
+                          std::size_t                                      starting_index,
+                          std::span<directory_entry, std::dynamic_extent>& entries) override;
+
+        query_information_disposition
+        query_information(query_information_flags flags, file_metadata& metadata) override;
+
+    private:
+        // The fully qualified path of the child named `name`, relative to this
+        // directory.
+        file_path
+        child_path(file_path const& name) const;
+
+        m::win32::handle m_handle;
+        file_path        m_path;
+    };
+
+    //
+    // A live file node. Metadata, plus redirection-backed byte content (D16,
+    // D17): read_content / write_content serve real bytes off the OS handle.
+    //
+    class file : public ifile, public std::enable_shared_from_this<file>
+    {
+    public:
+        file() = delete;
+
+        file(m::win32::handle&& h, file_path path);
+
+        file(file const&)           = delete;
+        file(file&& other) noexcept = delete;
+        ~file()                     = default;
+
+        file&
+        operator=(file const&) = delete;
+
+        file&
+        operator=(file&& other) noexcept = delete;
+
+        void
+        swap(file& other) noexcept = delete;
+
+        query_information_disposition
+        query_information(query_information_flags flags, file_metadata& metadata) override;
+
+        read_content_disposition
+        read_content(read_content_flags   flags,
+                     std::uint64_t        offset,
+                     std::span<std::byte> buffer,
+                     std::size_t&         bytes_read,
+                     std::error_code&     ec) override;
+
+        write_content_disposition
+        write_content(write_content_flags        flags,
+                      std::uint64_t              offset,
+                      std::span<std::byte const> buffer,
+                      std::size_t&               bytes_written,
+                      std::error_code&           ec) override;
+
+        enumerate_streams_disposition
+        enumerate_streams(enumerate_streams_flags                       flags,
+                          std::size_t                                   starting_index,
+                          std::span<stream_entry, std::dynamic_extent>& entries,
+                          std::error_code&                              ec) override;
+
+    private:
+        m::win32::handle m_handle;
+        file_path        m_path;
     };
 
 } // namespace m::pil::impl::win32

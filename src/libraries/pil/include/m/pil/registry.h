@@ -114,6 +114,24 @@ namespace m::pil
             return do_open_key(key_name);
         }
 
+        //
+        // Tentative open: returns the opened key, or std::nullopt if the key
+        // does not exist. Unlike open_key(), a missing key is not an error.
+        // Other failures (e.g. access denied) still throw.
+        //
+        template <typename CharT>
+        std::optional<key>
+        try_open_key(std::basic_string_view<CharT> key_name)
+        {
+            return do_try_open_key(key_path(key_name));
+        }
+
+        std::optional<key>
+        try_open_key(key_path const& key_name)
+        {
+            return do_try_open_key(key_name);
+        }
+
         time_point_type
         last_write_time();
 
@@ -341,6 +359,9 @@ namespace m::pil
 
         key
         do_open_key(std::optional<key_path> const& key_name);
+
+        std::optional<key>
+        do_try_open_key(std::optional<key_path> const& key_name);
 
         void
         do_rename_key(key_path const& old_key_name, key_path const& new_key_name);

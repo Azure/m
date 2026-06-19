@@ -224,6 +224,49 @@ namespace m
         }
     };
 
+    /// <summary>
+    /// The `m::access_denied` class is thrown when the underlying platform
+    /// refuses an operation because the caller lacks the required rights. It
+    /// mirrors the operating system "access denied" status (for example
+    /// ERROR_ACCESS_DENIED on Windows), which is the most common registry
+    /// failure a consumer must be prepared to handle.
+    /// </summary>
+    class access_denied : public m::runtime_error
+    {
+    public:
+        access_denied(std::string const& what_arg): m::runtime_error(what_arg) {}
+        access_denied(char const* what_arg): m::runtime_error(what_arg) {}
+        access_denied(access_denied const& other) noexcept: m::runtime_error(other) {}
+
+        access_denied&
+        operator=(access_denied const& other)
+        {
+            m::runtime_error::operator=(other);
+            return *this;
+        }
+    };
+
+    /// <summary>
+    /// The `m::out_of_resources` class is thrown when the underlying platform
+    /// cannot complete an operation because a resource has been exhausted (for
+    /// example memory, handles, or quota). It mirrors transient operating
+    /// system "insufficient resources" statuses.
+    /// </summary>
+    class out_of_resources : public m::runtime_error
+    {
+    public:
+        out_of_resources(std::string const& what_arg): m::runtime_error(what_arg) {}
+        out_of_resources(char const* what_arg): m::runtime_error(what_arg) {}
+        out_of_resources(out_of_resources const& other) noexcept: m::runtime_error(other) {}
+
+        out_of_resources&
+        operator=(out_of_resources const& other)
+        {
+            m::runtime_error::operator=(other);
+            return *this;
+        }
+    };
+
     class assertion_failure
     {
     public:

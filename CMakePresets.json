@@ -156,7 +156,7 @@
       }
     },
     {
-      "name": "clang-aarchh64",
+      "name": "clang-aarch64",
       "environment": {
         "CFLAGS": "--target=arm64-pc-windows-msvc",
         "CXXFLAGS": "--target=arm64-pc-windows-msvc"
@@ -289,6 +289,9 @@
         "debug",
         "clang-cl"
       ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
           "hostOS": [
@@ -306,6 +309,9 @@
         "release",
         "clang-cl"
       ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
           "hostOS": [
@@ -316,13 +322,13 @@
     },
     {
       "name": "arm64-windows-debug-clang",
-      "description": "clang-cl for aarchh64 (debug)",
+      "description": "clang-cl for aarch64 (debug)",
       "inherits": [
         "win-base",
         "arm64",
         "debug",
         "clang-cl",
-        "clang-aarchh64"
+        "clang-aarch64"
       ],
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
@@ -334,13 +340,13 @@
     },
     {
       "name": "arm64-windows-release-clang",
-      "description": "clang-cl for aarchh64 (release)",
+      "description": "clang-cl for aarch64 (release)",
       "inherits": [
         "win-base",
         "arm64",
         "release",
         "clang-cl",
-        "clang-aarchh64"
+        "clang-aarch64"
       ],
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {

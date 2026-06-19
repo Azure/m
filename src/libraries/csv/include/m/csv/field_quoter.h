@@ -13,9 +13,11 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include <m/error_handling/macros.h>
 #include <m/utf/transcode.h>
+#include <m/utility/iterator.h>
 
 using namespace std::string_view_literals;
 
@@ -108,7 +110,17 @@ namespace m
                     }
                     else
                     {
-                        *outit++ = static_cast<char8_t>(ch);
+                        //
+                        // The output element type may be wider than a byte (for example a
+                        // char16_t container). Truncate to a byte first, then widen explicitly
+                        // to the destination element type so the assignment is not an implicit
+                        // conversion between distinct character types. Output-only iterators
+                        // expose a void value type, in which case char8_t is used.
+                        //
+                        using out_deduced_t = m::iterator_value_type_t<OutIt>;
+                        using out_byte_t =
+                            std::conditional_t<std::is_void_v<out_deduced_t>, char8_t, out_deduced_t>;
+                        *outit++ = static_cast<out_byte_t>(static_cast<char8_t>(ch));
                     }
                 }
 

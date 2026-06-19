@@ -71,6 +71,11 @@ namespace
                 bytes_to_read =
                     m::to<DWORD>(std::min<std::size_t>(bytes_to_read, buffer_remaining));
 
+                // If there's nothing left to read (empty file, or we've read
+                // exactly file_size bytes), exit before dereferencing end().
+                if (bytes_to_read == 0)
+                    break;
+
                 DWORD bytes_read{};
 
                 if (!::ReadFile(get(), &*out_it, bytes_to_read, &bytes_read, nullptr))

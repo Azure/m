@@ -143,7 +143,7 @@ namespace m
 
             template <typename Fn>
             void
-            for_each_not_found(Fn fn)
+            for_each_not_found(Fn fn) const
             {
                 for (auto&& p: m_resolved)
                 {
@@ -154,7 +154,7 @@ namespace m
 
         protected:
             std::optional<std::filesystem::path>
-            try_resolve(std::wstring_view name);
+            try_resolve(std::wstring_view name) const;
 
             std::queue<std::wstring> m_pending;
 

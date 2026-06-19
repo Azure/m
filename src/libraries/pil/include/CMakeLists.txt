@@ -3,6 +3,11 @@ cmake_minimum_required(VERSION 3.23)
 target_sources(m_pil PUBLIC FILE_SET HEADERS FILES 
     m/pil/common.h
     m/pil/disposition.h
+    m/pil/fault.h
+    m/pil/file_path.h
+    m/pil/filesystem.h
+    m/pil/filesystem_base_types.h
+    m/pil/filesystem_interfaces.h
     m/pil/key_path.h
     m/pil/pil.h
     m/pil/platform.h

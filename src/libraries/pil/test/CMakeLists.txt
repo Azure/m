@@ -7,7 +7,16 @@ include(GoogleTest)
 add_executable(${TEST_EXE_NAME}
     test_pil_registry.cpp
     test_key_path.cpp
+    test_file_path.cpp
+    test_filesystem_base_types.cpp
+    test_filesystem_interfaces.cpp
+    test_filesystem_platform.cpp
+    test_filesystem_wrappers.cpp
     test_redirecting_redirector.cpp
+    test_redirecting_fs_redirector.cpp
+    test_webcore_interfaces.cpp
+    test_http_listener_interfaces.cpp
+    $<$<PLATFORM_ID:Windows>:test_win32_webcore.cpp>
 )
 
 target_compile_features(${TEST_EXE_NAME} PUBLIC ${M_CXX_STD})

@@ -18,6 +18,7 @@
 
 #include <m/pil/common.h>
 #include <m/pil/disposition.h>
+#include <m/pil/filesystem.h>
 #include <m/pil/platform.h>
 #include <m/pil/platform_interfaces.h>
 #include <m/pil/registry.h>
@@ -49,6 +50,9 @@ namespace m::pil
         registry_class
         get_registry();
 
+        filesystem_class
+        get_filesystem();
+
         enum class save_format
         {
             xml,
@@ -72,6 +76,22 @@ namespace m::pil
         {
             auto p = std::filesystem::path(file_name);
             save(p, contents, format);
+        }
+
+        // Write the requested-vs-done diagnostic trace to a side artifact. This
+        // is never part of the persisted <Platform> (D6); it is a separate file
+        // with a <DiagnosticLog> root. When no layer in the stack records a
+        // trace, the artifact is well-formed but empty.
+        void
+        save_diagnostic_log(std::filesystem::path const& p, save_format format = save_format::xml);
+
+        template <typename CharT>
+        void
+        save_diagnostic_log(std::basic_string_view<CharT> file_name,
+                            save_format                   format = save_format::xml)
+        {
+            auto p = std::filesystem::path(file_name);
+            save_diagnostic_log(p, format);
         }
 
     private:

@@ -91,8 +91,7 @@ if (MSVC)
     # string(REGEX REPLACE "/O[1-2]" "/Od" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     # string(REGEX REPLACE "/Ob[1-9]" "/Ob0" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     
-    # work around what appears to be a LTCG bug in MSVC
-    string(REGEX REPLACE "/GL" "/GL-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
 
     if(disable_native_wchar_t)
         add_compile_options("/Zc:wchar_t-")

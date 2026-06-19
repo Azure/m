@@ -10,6 +10,7 @@
 #include <m/pil/common.h>
 #include <m/pil/registry.h>
 #include <m/strings/convert.h>
+#include <m/windows_chrono/windows_chrono_casts.h>
 
 //
 //
@@ -182,9 +183,13 @@ namespace m::pil::impl::win32
     key::open_key(ikey::open_key_flags                flags,
                   std::optional<pil::key_path> const& relative_path,
                   sam                                 sam_in,
-                  std::shared_ptr<ikey>&              returned_key)
+                  std::shared_ptr<ikey>&              returned_key,
+                  std::error_code&                    ec)
     {
-        if (flags != open_key_flags{})
+        ec.clear();
+        returned_key.reset();
+
+        if (m::excess_bits_set(flags, open_key_flags::tolerate_not_found))
             throw std::runtime_error("Invalid flags to key::open_key() call");
 
         m::win32::registry::hkey new_key;
@@ -202,7 +207,21 @@ namespace m::pil::impl::win32
         );
 
         if (status != ERROR_SUCCESS)
-            m::throw_win32_error_code(status);
+        {
+            //
+            // When the caller opted in to tentative-open semantics, a missing
+            // key is reported as a (non-error) disposition rather than through
+            // `ec`. Both ERROR_FILE_NOT_FOUND (the leaf subkey is absent) and
+            // ERROR_PATH_NOT_FOUND (an intermediate component is absent) mean
+            // "the requested key is not there".
+            //
+            if (((status == ERROR_FILE_NOT_FOUND) || (status == ERROR_PATH_NOT_FOUND)) &&
+                !!(flags & open_key_flags::tolerate_not_found))
+                return open_key_disposition{open_key_result_code::key_not_found};
+
+            ec = m::make_win32_error_code(status);
+            return open_key_disposition{};
+        }
 
         returned_key = std::make_shared<key>(std::move(new_key), std::move(new_path));
 
@@ -247,7 +266,7 @@ namespace m::pil::impl::win32
         subkey_count             = dw_subkey_count;
         value_count              = dw_value_count;
         security_descriptor_size = dw_security_descriptor_size;
-        // last_write_time          = std::chrono::time_point_cast<>;
+        last_write_time          = m::clock_cast<m::pil::clock_type>(ft_last_write_time);
 
         return query_information_key_disposition{};
     }

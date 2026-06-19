@@ -99,10 +99,11 @@ namespace m::pil::impl::redirecting
     key::open_key(ikey::open_key_flags                flags,
                   std::optional<pil::key_path> const& key_path,
                   sam                                 sam_desired,
-                  std::shared_ptr<ikey>&              returned_key)
+                  std::shared_ptr<ikey>&              returned_key,
+                  std::error_code&                    ec)
     {
         std::shared_ptr<ikey> temp_key;
-        auto d = m_key->open_key(flags, public_to_private(key_path), sam_desired, temp_key);
+        auto d = m_key->open_key(flags, public_to_private(key_path), sam_desired, temp_key, ec);
         if (temp_key)
             returned_key = std::make_shared<key>(temp_key, m_redirector);
         return d;

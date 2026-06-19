@@ -33,7 +33,7 @@ capture that feeds this recorder lives in
   `emit_spec() -> std::string` returns the YAML (REC-1). Unit tests covering
   multi-operation, multi-status accumulation and idempotent re-observation.
 
-- [ ] **REC-4**: Public façade `make_http_contract_recorder(...)` on the PIL
+- [x] **REC-4**: Public façade `make_http_contract_recorder(...)` on the PIL
   contract surface, plus a closing-the-loop test: feed the recorder a set of
   synthetic crossings, emit the spec, load it with `ihttp_contract::load`, and
   confirm the resulting document `validate_request`/`validate_response` ACCEPTS

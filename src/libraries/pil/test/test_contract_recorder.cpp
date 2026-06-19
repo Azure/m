@@ -7,13 +7,18 @@
 //
 
 #include <algorithm>
+#include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include <m/pil/http_contract_recorder.h>
+
 #include "contract/contract_recorder.h"
+#include "contract/http_contract_provider.h"
 #include "contract/openapi_model.h"
 
 using m::pil::infer_json_schema;
@@ -313,4 +318,95 @@ TEST(ContractRecorder, EmittedSpecReloadsWithObservedOperations)
     ASSERT_TRUE(post.has_value());
     EXPECT_TRUE(post->operation->has_request_body);
     EXPECT_TRUE(post->operation->responses.contains(201));
+}
+
+//--------------------------------------------------------------------------
+// REC-4: public façade (make_http_contract_recorder) + close-the-loop test
+//--------------------------------------------------------------------------
+
+using m::pil::http_header;
+using m::pil::ihttp_contract_document;
+using m::pil::make_http_contract_provider;
+using m::pil::make_http_contract_recorder;
+
+namespace
+{
+    std::vector<std::uint8_t>
+    body_bytes(std::string_view s)
+    {
+        return {s.begin(), s.end()};
+    }
+} // namespace
+
+// The façade exposes the same accumulation the internal recorder provides.
+TEST(ContractRecorderFacade, FacadeAccumulatesAndEmits)
+{
+    auto                     rec = make_http_contract_recorder();
+    std::vector<http_header> json_ct{{"Content-Type", "application/json"}};
+
+    auto const req = body_bytes(R"({"name":"Fido","age":3})");
+    rec->observe_request("POST", "/pets", json_ct, req);
+    auto const resp = body_bytes(R"({"id":1})");
+    rec->observe_response("POST", "/pets", 201, json_ct, resp);
+
+    EXPECT_EQ(rec->operation_count(), 1u);
+
+    auto const reloaded = m::pil::load_openapi_model(rec->emit_spec());
+    EXPECT_TRUE(match_operation(reloaded, "POST", "/pets").has_value());
+}
+
+// The whole point of the recorder: a spec derived from clean traffic, when
+// loaded back through the live provider, ACCEPTS conforming crossings and
+// REJECTS divergent ones (the demo's derive -> validate round trip).
+TEST(ContractRecorderFacade, ClosesTheLoopAcceptCleanRejectMutated)
+{
+    auto                     rec = make_http_contract_recorder();
+    std::vector<http_header> json_ct{{"Content-Type", "application/json"}};
+
+    // Derive: observe clean crossings only.
+    rec->observe_request("POST", "/pets", json_ct, body_bytes(R"({"name":"Fido","age":3})"));
+    rec->observe_response("POST", "/pets", 201, json_ct, body_bytes(R"({"id":1})"));
+
+    // Load the derived spec through the live contract provider.
+    auto                                     provider = make_http_contract_provider();
+    std::unique_ptr<ihttp_contract_document> doc      = provider->load(rec->emit_spec());
+    ASSERT_NE(doc, nullptr);
+
+    // Clean crossings conform (false disposition, no error).
+    {
+        auto const            clean = body_bytes(R"({"name":"Rex","age":5})");
+        std::error_code       ec;
+        auto const            d = doc->validate_request("POST", "/pets", json_ct, clean, ec);
+        EXPECT_FALSE(ec);
+        EXPECT_FALSE(d);
+    }
+    {
+        auto const            clean = body_bytes(R"({"id":2})");
+        std::error_code       ec;
+        auto const            d = doc->validate_response("POST", "/pets", 201, json_ct, clean, ec);
+        EXPECT_FALSE(ec);
+        EXPECT_FALSE(d);
+    }
+
+    // Mutated request: required "age" dropped and "name" wrong type.
+    {
+        auto const            bad = body_bytes(R"({"name":123})");
+        std::error_code       ec;
+        auto const            d = doc->validate_request("POST", "/pets", json_ct, bad, ec);
+        EXPECT_FALSE(ec);
+        EXPECT_TRUE(d);
+        EXPECT_EQ(d.code(),
+                  ihttp_contract_document::validate_request_result_code::body_schema_invalid);
+    }
+
+    // Mutated response: "id" wrong type.
+    {
+        auto const            bad = body_bytes(R"({"id":"two"})");
+        std::error_code       ec;
+        auto const            d = doc->validate_response("POST", "/pets", 201, json_ct, bad, ec);
+        EXPECT_FALSE(ec);
+        EXPECT_TRUE(d);
+        EXPECT_EQ(d.code(),
+                  ihttp_contract_document::validate_response_result_code::body_schema_invalid);
+    }
 }

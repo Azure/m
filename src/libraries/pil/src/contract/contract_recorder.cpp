@@ -5,9 +5,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <memory>
 #include <set>
+#include <span>
 #include <string>
 #include <vector>
+
+#include <m/pil/http_contract_recorder.h>
 
 namespace m::pil
 {
@@ -445,5 +449,73 @@ namespace m::pil
     http_contract_recorder::emit_spec() const
     {
         return emit_openapi_yaml(build_model());
+    }
+
+    namespace
+    {
+        // Reinterpret a byte span as a string_view over the same storage (the
+        // recorder parses bodies as text/JSON). Empty span -> empty view.
+        std::string_view
+        bytes_as_view(std::span<std::uint8_t const> body)
+        {
+            return body.empty()
+                       ? std::string_view{}
+                       : std::string_view{reinterpret_cast<char const*>(body.data()), body.size()};
+        }
+
+        // Public façade (REC-4): adapt the span-based public surface onto the
+        // internal http_contract_recorder. The internal recorder owns the
+        // accumulation and emission behavior; this only translates argument
+        // shapes (http_header span -> recorder_header vector, byte span -> view).
+        class http_contract_recorder_facade final : public ihttp_contract_recorder
+        {
+        public:
+            void
+            observe_request(std::string_view              method,
+                            std::string_view              path,
+                            std::span<http_header const>  headers,
+                            std::span<std::uint8_t const> body) override
+            {
+                m_recorder.observe_request(method, path, to_headers(headers), bytes_as_view(body));
+            }
+
+            void
+            observe_response(std::string_view              method,
+                             std::string_view              path,
+                             std::uint16_t                 status,
+                             std::span<http_header const>  headers,
+                             std::span<std::uint8_t const> body) override
+            {
+                m_recorder.observe_response(method, path, status, to_headers(headers),
+                                            bytes_as_view(body));
+            }
+
+            std::string
+            emit_spec() const override
+            {
+                return m_recorder.emit_spec();
+            }
+
+            std::size_t
+            operation_count() const override
+            {
+                return m_recorder.operation_count();
+            }
+
+        private:
+            static std::vector<recorder_header>
+            to_headers(std::span<http_header const> headers)
+            {
+                return std::vector<recorder_header>{headers.begin(), headers.end()};
+            }
+
+            http_contract_recorder m_recorder;
+        };
+    } // namespace
+
+    std::unique_ptr<ihttp_contract_recorder>
+    make_http_contract_recorder()
+    {
+        return std::make_unique<http_contract_recorder_facade>();
     }
 }

@@ -248,4 +248,16 @@ namespace m::pil
 
         return tally;
     }
+
+    //
+    // Public drive entry point (EXPOSE-2): synthesize from the document, submit,
+    // and validate each response against that same document. A thin wrapper over
+    // the model-level synthesizer (via the document) and the lower-level driver.
+    //
+    drive_tally
+    drive_contract(ihttp_contract_document& document, engine_submit const& submit)
+    {
+        auto const requests = document.synthesize_requests();
+        return drive_contract(requests, submit, &document);
+    }
 } // namespace m::pil

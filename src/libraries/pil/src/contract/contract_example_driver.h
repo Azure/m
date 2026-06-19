@@ -35,45 +35,11 @@
 
 namespace m::pil
 {
-    //
-    // A request synthesized from the spec, in the generic message shape shared
-    // with the synthetic edge (`path` carries any query string).
-    //
-    struct synthesized_request
-    {
-        std::string               method;
-        std::string               path;
-        std::vector<http_header>  headers;
-        std::vector<std::uint8_t> body;
-    };
-
-    //
-    // A response captured back from the engine for a submitted request.
-    //
-    struct captured_contract_response
-    {
-        std::uint16_t             status{0};
-        std::vector<http_header>  headers;
-        std::vector<std::uint8_t> body;
-    };
-
-    //
-    // The engine that turns a synthesized request into a captured response. On
-    // Windows this enqueues into the synthetic queue and waits for the response;
-    // in tests it is a fake engine.
-    //
-    using engine_submit = std::function<captured_contract_response(synthesized_request const&)>;
-
-    //
-    // Outcome of a drive run.
-    //
-    struct drive_tally
-    {
-        std::size_t requests{0};            // requests synthesized + submitted
-        std::size_t responses_validated{0}; // responses run through validate_response
-        std::size_t conforming{0};          // validated responses that conformed
-        std::size_t violating{0};           // validated responses that violated the contract
-    };
+    // `synthesized_request`, `captured_contract_response`, `engine_submit`, and
+    // `drive_tally` are the public drive surface (see http_contract_interfaces.h,
+    // EXPOSE-2). This internal header adds the model-level synthesizer and the
+    // lower-level driver that the live document and the public `drive_contract`
+    // are built on.
 
     //
     // Synthesize one request per operation in the model (DRIVE-1). Pure over the

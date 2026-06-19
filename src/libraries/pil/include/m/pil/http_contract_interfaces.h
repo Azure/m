@@ -4,12 +4,14 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #include <m/error_handling/macros.h>
 #include <m/pil/common.h>
@@ -82,6 +84,23 @@ namespace m::pil
     {
         return static_cast<contract_facet_mode>(static_cast<std::uint32_t>(mode));
     }
+
+    //--------------------------------------------------------------------------
+    // synthesized_request — a request produced from the spec's examples (drive)
+    //--------------------------------------------------------------------------
+    //
+    // Drive mode (D-HWC-8) turns a bound spec into traffic: one request per
+    // operation, filled from each element's authored `example` (schema-derived
+    // default where none is present). `path` carries any query string. The
+    // shape matches the synthetic edge so a consumer can submit it directly.
+    //
+    struct synthesized_request
+    {
+        std::string               method;
+        std::string               path;
+        std::vector<http_header>  headers;
+        std::vector<std::uint8_t> body;
+    };
 
     //--------------------------------------------------------------------------
     // ihttp_contract_document — a loaded spec that validates messages
@@ -200,6 +219,19 @@ namespace m::pil
                 throw std::system_error(ec);
             return d;
         }
+
+        //
+        //  synthesize_requests
+        //
+        //  Drive mode (D-HWC-8): produce one request per operation from the
+        //  spec's examples (schema-derived fallback), in spec order. The default
+        //  yields none (e.g. the null provider); the live document overrides it.
+        //
+        virtual std::vector<synthesized_request>
+        synthesize_requests() const
+        {
+            return {};
+        }
     };
 
     //--------------------------------------------------------------------------
@@ -293,5 +325,47 @@ namespace m::pil
             return {};
         }
     };
+
+    //--------------------------------------------------------------------------
+    // Drive mode: submit synthesized traffic and tally response conformance
+    //--------------------------------------------------------------------------
+    //
+    // A response captured back from the engine for a submitted request.
+    //
+    struct captured_contract_response
+    {
+        std::uint16_t             status{0};
+        std::vector<http_header>  headers;
+        std::vector<std::uint8_t> body;
+    };
+
+    //
+    // The engine that turns a synthesized request into a captured response. On
+    // the synthetic edge this enqueues the request and waits for the response;
+    // in tests it is a fake engine. The contract layer stays engine-agnostic by
+    // submitting through this caller-supplied callable (Design Autonomy).
+    //
+    using engine_submit = std::function<captured_contract_response(synthesized_request const&)>;
+
+    //
+    // Outcome of a drive run.
+    //
+    struct drive_tally
+    {
+        std::size_t requests{0};            // requests synthesized + submitted
+        std::size_t responses_validated{0}; // responses run through validate_response
+        std::size_t conforming{0};          // validated responses that conformed
+        std::size_t violating{0};           // validated responses that violated the contract
+    };
+
+    //
+    // Drive a loaded document (D-HWC-8): synthesize one request per operation
+    // (document.synthesize_requests()), submit each through `submit`, and run the
+    // captured response through the same document's validate_response, tallying
+    // conforming vs violating. Operational failures (a non-contract error from
+    // validate_response) are not counted as violations. Returns the run tally.
+    //
+    drive_tally
+    drive_contract(ihttp_contract_document& document, engine_submit const& submit);
 
 } // namespace m::pil

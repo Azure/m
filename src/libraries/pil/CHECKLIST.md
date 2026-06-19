@@ -496,7 +496,7 @@ wired the live provider into the stack), and the drive synthesizer is `src/`-int
       `get_http_contract` to its underlying platform. Add `src` to `m_pil` private include dirs so
       the win32 platform can include the provider header. Unit test: a live platform's
       `get_http_contract().load(spec)` yields a working document through the full stack.
-- [ ] M-HWC-CONTRACT-EXPOSE-2: Expose the drive surface publicly. Promote `synthesized_request`,
+- [x] M-HWC-CONTRACT-EXPOSE-2: Expose the drive surface publicly. Promote `synthesized_request`,
       `captured_contract_response`, `drive_tally`, and `engine_submit` into the public interface
       header; add `ihttp_contract_document::synthesize_requests()` (virtual, default `{}`; the live
       document overrides it via the internal `synthesize_contract_requests(model)`); add a public

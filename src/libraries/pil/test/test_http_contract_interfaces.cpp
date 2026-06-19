@@ -275,4 +275,60 @@ paths:
                   ihttp_contract_document::validate_request_result_code::unknown_operation);
     }
 
+    //--------------------------------------------------------------------------
+    // Public drive surface: synthesize_requests + drive_contract (EXPOSE-2)
+    //--------------------------------------------------------------------------
+    //
+    // A consumer drives a loaded document with only the public surface: the
+    // document synthesizes one request per operation, the consumer's engine
+    // turns each into a response, and drive_contract validates the responses.
+    //
+    TEST(PlatformHttpContract, PublicDriveSurfaceSynthesizesAndTallies)
+    {
+        constexpr std::string_view spec = R"(
+openapi: 3.0.0
+info:
+  title: drive-test
+  version: "1.0"
+paths:
+  /ping:
+    get:
+      responses:
+        '200':
+          description: ok
+)";
+
+        auto platform = m::pil::make_platform_interface();
+        auto document = platform->get_http_contract()->load(spec);
+        ASSERT_NE(document, nullptr);
+
+        // One operation in the spec -> one synthesized request.
+        auto const requests = document->synthesize_requests();
+        ASSERT_EQ(requests.size(), 1u);
+        EXPECT_EQ(requests[0].method, "GET");
+        EXPECT_EQ(requests[0].path, "/ping");
+
+        // Conforming engine: returns the declared 200.
+        auto const conforming = m::pil::drive_contract(
+            *document,
+            [](m::pil::synthesized_request const&) -> m::pil::captured_contract_response {
+                return {200, {}, {}};
+            });
+        EXPECT_EQ(conforming.requests, 1u);
+        EXPECT_EQ(conforming.responses_validated, 1u);
+        EXPECT_EQ(conforming.conforming, 1u);
+        EXPECT_EQ(conforming.violating, 0u);
+
+        // Non-conforming engine: returns an undeclared 500 -> a violation.
+        auto const violating = m::pil::drive_contract(
+            *document,
+            [](m::pil::synthesized_request const&) -> m::pil::captured_contract_response {
+                return {500, {}, {}};
+            });
+        EXPECT_EQ(violating.requests, 1u);
+        EXPECT_EQ(violating.responses_validated, 1u);
+        EXPECT_EQ(violating.conforming, 0u);
+        EXPECT_EQ(violating.violating, 1u);
+    }
+
 } // namespace

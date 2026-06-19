@@ -20,6 +20,7 @@
 #include <nlohmann/json.hpp>
 #include <nlohmann/json-schema.hpp>
 
+#include "contract_example_driver.h"
 #include "openapi_model.h"
 
 namespace m::pil
@@ -361,6 +362,16 @@ namespace m::pil
                 }
 
                 return {};
+            }
+
+            //
+            // Drive support (EXPOSE-2): synthesize one request per operation from
+            // the model's examples. Delegates to the model-level synthesizer.
+            //
+            std::vector<synthesized_request>
+            synthesize_requests() const override
+            {
+                return synthesize_contract_requests(m_model);
             }
 
         private:

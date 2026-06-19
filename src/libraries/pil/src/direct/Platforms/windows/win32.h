@@ -67,6 +67,10 @@ namespace m::pil::impl::win32
         get_webcore(get_webcore_flags          flags,
                     std::shared_ptr<iwebcore>& returned_webcore) override;
 
+        get_http_contract_disposition
+        get_http_contract(get_http_contract_flags          flags,
+                          std::shared_ptr<ihttp_contract>& returned_http_contract) override;
+
         save_disposition
         save(save_flags flags, save_contents contents, pugi::xml_node& platform_element) override;
 

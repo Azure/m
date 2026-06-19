@@ -4,6 +4,10 @@ target_include_directories(m_pil PUBLIC
     ../include
 )
 
+# Allow source files anywhere under src/ to include sibling subdirectory headers
+# with a directory-qualified path (e.g. "contract/http_contract_provider.h").
+target_include_directories(m_pil PRIVATE .)
+
 target_sources(m_pil PRIVATE
     create_platform.cpp
     fault_interface.cpp

@@ -482,7 +482,28 @@ is gated behind the surface landing here first.
       engine end to end; responses are captured and validated (validate + drive composed). Asserts
       every example operation produced a request and each response was contract-checked.
 
-      > **➡ CROSS-COMPONENT HANDOFF:** the `.pilcfg` binding (`webcore.contracts`: spec + endpoint
-      > + mode) that selects and wires these modes is next, in component
+## Milestone M-HWC-CONTRACT-EXPOSE — public binding surface for consumers (D-HWC-8)
+
+Goal: make the contract surface reachable from outside `m_pil` so a consumer (mwin32
+M-HWC-CONTRACTCFG) can bind specs without reaching into PIL internals. Discovered during
+mwin32 execution: `iplatform::get_http_contract()` still returns the null provider (nothing
+wired the live provider into the stack), and the drive synthesizer is `src/`-internal.
+
+- [x] M-HWC-CONTRACT-EXPOSE-1: Wire `iplatform::get_http_contract` through the live stack,
+      mirroring `get_webcore`. The bottom live platform (`src/direct/Platforms/windows/win32`)
+      returns `make_http_contract_provider()`; every decorator that overrides `get_webcore`
+      (`passthrough`, `buffered`, `logging`, `redirecting`, `fault`, `journaling`) forwards
+      `get_http_contract` to its underlying platform. Add `src` to `m_pil` private include dirs so
+      the win32 platform can include the provider header. Unit test: a live platform's
+      `get_http_contract().load(spec)` yields a working document through the full stack.
+- [ ] M-HWC-CONTRACT-EXPOSE-2: Expose the drive surface publicly. Promote `synthesized_request`,
+      `captured_contract_response`, `drive_tally`, and `engine_submit` into the public interface
+      header; add `ihttp_contract_document::synthesize_requests()` (virtual, default `{}`; the live
+      document overrides it via the internal `synthesize_contract_requests(model)`); add a public
+      `drive_contract(document, submit)` convenience. Refactor the internal driver and its tests
+      onto the public types. Tests stay green in both configs.
+
+      > **➡ CROSS-COMPONENT HANDOFF:** with the binding surface exposed, the `.pilcfg` binding
+      > (`webcore.contracts`: spec + endpoint + mode) resumes in component
       > `src/Windows/libraries/mwin32` → milestone `M-HWC-CONTRACTCFG`. See
       > [`src/Windows/libraries/mwin32/CHECKLIST.md`](../../Windows/libraries/mwin32/CHECKLIST.md).

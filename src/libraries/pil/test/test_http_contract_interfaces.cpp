@@ -12,6 +12,8 @@
 
 #include <m/pil/http_contract.h>
 #include <m/pil/http_contract_interfaces.h>
+#include <m/pil/pil.h>
+#include <m/pil/platform.h>
 #include <m/pil/platform_interfaces.h>
 
 //
@@ -224,6 +226,53 @@ namespace
         contract->load(ihttp_contract::load_flags{}, "paths: {}", document, ec);
         EXPECT_EQ(ec, std::make_error_code(std::errc::function_not_supported));
         EXPECT_EQ(document, nullptr);
+    }
+
+    //--------------------------------------------------------------------------
+    // Live platform stack surfaces a working contract provider (EXPOSE-1)
+    //--------------------------------------------------------------------------
+    //
+    // make_platform_interface() builds the real decorator stack down to the
+    // bottom live platform, which now returns make_http_contract_provider().
+    // Loading a spec and validating a conforming request through that provider
+    // proves get_http_contract is wired end to end (not the null default).
+    //
+    TEST(PlatformHttpContract, LiveStackProviderLoadsAndValidates)
+    {
+        constexpr std::string_view spec = R"(
+openapi: 3.0.0
+info:
+  title: expose-test
+  version: "1.0"
+paths:
+  /ping:
+    get:
+      responses:
+        '200':
+          description: ok
+)";
+
+        auto platform = m::pil::make_platform_interface();
+        auto contract = platform->get_http_contract();
+        ASSERT_NE(contract, nullptr);
+
+        std::unique_ptr<ihttp_contract_document> document;
+        std::error_code                          ec;
+        contract->load(ihttp_contract::load_flags{}, spec, document, ec);
+        ASSERT_FALSE(ec) << ec.message();
+        ASSERT_NE(document, nullptr);
+
+        // A conforming request: known operation, no params/body required.
+        auto const d = document->validate_request("GET", "/ping", {}, {}, ec);
+        EXPECT_FALSE(ec) << ec.message();
+        EXPECT_FALSE(d);
+
+        // An unknown path is reported as a contract violation, not an error.
+        auto const d2 = document->validate_request("GET", "/nope", {}, {}, ec);
+        EXPECT_FALSE(ec) << ec.message();
+        EXPECT_TRUE(d2);
+        EXPECT_EQ(d2.code(),
+                  ihttp_contract_document::validate_request_result_code::unknown_operation);
     }
 
 } // namespace

@@ -84,6 +84,19 @@ namespace m::pil::impl::buffered
         M_NOT_IMPLEMENTED("buffered::platform::get_webcore");
     }
 
+    iplatform::get_http_contract_disposition
+    platform::get_http_contract(get_http_contract_flags          flags,
+                                std::shared_ptr<ihttp_contract>& returned_http_contract)
+    {
+        // Contracts are pure spec validators, independent of engine liveness, so
+        // unlike get_webcore the buffered layer forwards rather than refusing.
+        // In snapshot mode (no underlying) there is no provider to reach.
+        if (m_underlying_platform)
+            return m_underlying_platform->get_http_contract(flags, returned_http_contract);
+        returned_http_contract = std::make_shared<null_http_contract>();
+        return get_http_contract_disposition{};
+    }
+
     iplatform::save_disposition
     platform::save(save_flags flags, save_contents contents, pugi::xml_node& platform_element)
     {

@@ -11,6 +11,7 @@
 #include <m/pil/registry.h>
 #include <m/strings/convert.h>
 
+#include "contract/http_contract_provider.h"
 #include "pcwstr.h"
 #include "win32.h"
 #include "win32_security_attributes.h"
@@ -50,6 +51,16 @@ namespace m::pil::impl::win32
         auto newwc       = std::make_shared<m::pil::impl::win32::webcore>();
         returned_webcore = newwc;
         return get_webcore_disposition{};
+    }
+
+    iplatform::get_http_contract_disposition
+    platform::get_http_contract(get_http_contract_flags          flags,
+                                std::shared_ptr<ihttp_contract>& returned_http_contract)
+    {
+        M_VALIDATE_FLAGS_PARAMETER(flags, get_http_contract_flags{});
+        auto l                 = std::unique_lock(m_mutex);
+        returned_http_contract = m::pil::make_http_contract_provider();
+        return get_http_contract_disposition{};
     }
 
     iplatform::save_disposition

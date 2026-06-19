@@ -65,6 +65,14 @@ namespace m::pil::impl::passthrough
         return m_underlying_platform->get_webcore(flags, returned_webcore);
     }
 
+    iplatform::get_http_contract_disposition
+    platform::get_http_contract(get_http_contract_flags          flags,
+                                std::shared_ptr<ihttp_contract>& returned_http_contract)
+    {
+        // Passthrough forwards get_http_contract to the underlying platform.
+        return m_underlying_platform->get_http_contract(flags, returned_http_contract);
+    }
+
     iplatform::save_disposition
     platform::save(save_flags flags, save_contents contents, pugi::xml_node& platform_element)
     {

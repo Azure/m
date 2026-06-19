@@ -402,6 +402,32 @@ is gated behind the surface landing here first.
       (literal, single param, multi param, trailing, no-match), and malformed-spec diagnostics.
       ≥10 cases, sub-second.
 
+## Milestone M-HWC-CONTRACT-REFS — bundle resolution + media-typed bodies (D-HWC-9)
+
+- [ ] M-HWC-CONTRACT-REFS-1: Extend `load_openapi_model` to take a caller-supplied
+      `ref_resolver` (a `(std::string_view relative_path) -> std::optional<std::string>` callable)
+      alongside the root spec bytes. PIL owns ref-splicing; the caller owns where bytes come from
+      (an in-memory map in tests, a sibling-directory read under `.pilcfg`). A spec with no
+      external refs never invokes the resolver. Caller-owns-I/O is preserved (mirrors
+      `parse_pilcfg`).
+- [ ] M-HWC-CONTRACT-REFS-2: Resolve `$ref` in the model: internal (`#/components/…`),
+      relative-file (`other.yml#/components/…`), and **transitive** refs, with cycle detection
+      (an unresolved or cyclic ref is a load diagnostic, never a silent omission). Component
+      libraries (`parameters` / `schemas` / `requestBodies` / `responses`) are merged into the
+      flat model so operations carry fully-resolved parameters, bodies, and responses.
+- [ ] M-HWC-CONTRACT-REFS-3: Replace the single-body-schema fields with a **media-type → schema**
+      map on request bodies and responses (capturing e.g. `application/json` and `text/xml`),
+      preserving each media type's schema and example. The matcher and downstream validators read
+      the map; JSON remains the schema-validated type (D-HWC-9).
+- [ ] M-HWC-CONTRACT-REFS-4: Operation identity honors a **query discriminator** — when a path key
+      carries a query key that selects the operation, matching considers it; and read an authored
+      validation-eligibility vendor extension (`x-…`) into the operation (never a YAML comment).
+      Add a normalization helper that lifts a query-in-path-key into a real parameter.
+- [ ] M-HWC-CONTRACT-REFS-5 (unit tests): in-memory multi-document fixtures exercise internal +
+      relative-file + transitive ref resolution, cycle/unresolved-ref diagnostics, media-type maps
+      (JSON and XML bodies), query-discriminated operation matching, and the `x-…` eligibility
+      read. ≥10 cases, sub-second.
+
 ## Milestone M-HWC-CONTRACT-IFACE — `ihttp_contract` surface + null provider (D-HWC-8)
 
 - [ ] M-HWC-CONTRACT-IFACE-1: Add `http_contract_interfaces.h` (`m::pil`): `ihttp_contract` with
@@ -423,14 +449,17 @@ is gated behind the surface landing here first.
       façade and each existing decorator forwards `get_http_contract` to its underlying without
       crashing.
 
-## Milestone M-HWC-CONTRACT-VALIDATE — validate mode on the synthetic edge (D-HWC-8, D6)
+## Milestone M-HWC-CONTRACT-VALIDATE — validate mode on the synthetic edge (D-HWC-8, D-HWC-9, D6)
 
 - [ ] M-HWC-CONTRACT-VALIDATE-1: Live `ihttp_contract` provider backed by the M-HWC-CONTRACT-MODEL
       loader + matcher; `load` builds a document holding the model and a
-      `nlohmann-json-schema-validator` per body schema. `validate_request` runs method/path match →
-      parameter checks → request-body schema; `validate_response` runs status lookup → response-body
-      schema → declared-header presence. JSON bodies only (non-JSON content types: structural
-      checks only, no schema), per D-HWC-8 limits.
+      `nlohmann-json-schema-validator` per **JSON** body schema. `validate_request` runs
+      method/path (+ query discriminator) match → parameter checks → request-body schema for JSON
+      content; `validate_response` runs status lookup → response-body schema (JSON) → declared-header
+      presence. Validation is **media-type-aware** (D-HWC-9): non-JSON bodies (e.g. `text/xml`) get
+      method/path/status + parameter + header checks only — body *value* validation for XML is a
+      scoped follow-on with its own recorded strategy, not done here. Operations marked
+      not-eligible by the `x-…` extension are skipped.
 - [ ] M-HWC-CONTRACT-VALIDATE-2: Validating decorator facet (sibling to the logging facet) that, on
       each `synthetic_http_request` / `captured_http_response` crossing the edge, invokes the bound
       contract and **traces** violations as a side diagnostic (D6 — persists nothing). An opt-in

@@ -32,6 +32,7 @@ decisions. Each decision has a stable D-number referenced from CHECKLIST.md item
 | D-HWC-6 | Network edge is the deferred `ihttp_listener` surface via namespace redirection (private addresses/ports) |
 | D-HWC-7 | Detours is an opt-in, module-scoped, off-by-default complementary envelope bounded to the HWC surface |
 | D-HWC-8 | OpenAPI/Swagger contracts bind to the HWC HTTP edge via `.pilcfg`, driving both response/request **validation** and example-**driven** traffic |
+| D-HWC-9 | A contract is a multi-document `$ref` bundle with media-typed (incl. XML) bodies, query-discriminated operations, and authored validation-eligibility — refining D-HWC-8 to match real specs |
 
 ---
 
@@ -607,6 +608,52 @@ guard, not a correctness oracle. Body validation only engages for JSON content t
 aligns with JSON Schema 2020-12, whose keyword coverage in the chosen validator is partial; specs
 relying on 2020-12-only keywords may validate loosely until the validator catches up (the gap is
 in the dependency, not in PIL's specification).
+
+---
+
+## D-HWC-9 — a contract is a multi-document bundle, not a single self-contained file
+
+D-HWC-8 framed a contract as one spec's bytes parsed to a flat model. Authored OpenAPI corpora in
+practice are structured very differently, and PIL's model must match that reality rather than the
+idealized single-file case. D-HWC-9 refines D-HWC-8 in four ways; none of it changes the binding
+or the two modes, only what "a contract" *is* and how its bodies are checked.
+
+- **A contract is a `$ref` bundle the loader resolves, but PIL never owns the I/O.** Root specs are
+  routinely thin, delegating parameters, schemas, request bodies, and responses to a shared
+  component library held in *sibling files*. References are internal (`#/components/…`),
+  relative-file (`other.yml#/components/…`), and **transitive** (a response ref reaches a schema in
+  a third file). The loader resolves all three with cycle detection. To keep file I/O at the
+  boundary (the same discipline as `parse_pilcfg`), the loader takes the root bytes **plus a
+  caller-supplied resolver** — a `(relative_path) -> optional<bytes>` callable. PIL decides *what*
+  to fetch and *how* to splice it; the caller decides *where bytes come from* (an in-memory map in
+  tests, a sibling-directory read under `.pilcfg`). A spec with no external refs simply never
+  invokes the resolver.
+
+- **Bodies are media-typed, and the media type is not always JSON.** A body carries a media-type →
+  schema map, not one schema. Real specs are heavily `text/xml` (with schema-level XML annotations
+  — element vs. attribute, wrapped arrays) alongside `application/json`. The model stores every
+  media type's schema; validation is **media-type-aware**.
+
+- **XML body validation is an explicit, separately-scoped capability — not assumed.** The chosen
+  JSON Schema validator validates JSON. PIL's specified behavior is: for JSON content types,
+  validate the body against its schema; for non-JSON content types, validate method/path/status,
+  parameters, and declared headers, and treat the body as a *scoped follow-on* with its own
+  recorded strategy (canonical XML→JSON projection guided by the XML annotations, versus
+  structural-only). PIL owns this boundary deliberately so that "we don't validate XML bodies yet"
+  is a stated limit, never an accidental gap.
+
+- **Operation identity may include a query discriminator, and eligibility is authored, not
+  inferred.** Some routes share a base path and select an operation by a query key (the query
+  string appears in the path key itself). Operation matching therefore considers a query
+  discriminator, and a normalization pass is expected to lift such keys into real parameters.
+  Likewise, whether an operation is *eligible for validation* is an authored decision and must live
+  in a vendor extension (`x-…`) the model reads — never in a YAML comment, which the parser drops.
+
+**Acknowledged limits.** Bundling assumes refs resolve to documents the caller can supply; an
+unresolved ref is a load diagnostic, not a silent omission. XML body *value* validation is out of
+scope until its strategy lands; structural and parameter/header/status checks still apply. The
+query-discriminator and `x-…` eligibility conventions presume the authored corpus is normalized to
+use them; un-normalized specs validate loosely until the cleanup pass runs.
 
 ---
 

@@ -543,3 +543,88 @@ to live edge traffic; the validating facet is `src/`-internal.
       > to live edge traffic resumes in component `src/Windows/libraries/mwin32` → milestone
       > `M-HWC-CONTRACTCFG` → `M-HWC-CONTRACTCFG-6`. See
       > [`src/Windows/libraries/mwin32/CHECKLIST.md`](../../Windows/libraries/mwin32/CHECKLIST.md).
+
+## Milestone M-HWC-ENGINE-EDGE — activatable synthetic HTTP engine + public submit/observe seam (D-HWC-11)
+
+Goal: make an `iwebcore` engine *activatable and drivable in CI* — without IIS / a real
+`hwebcore.dll` — and give a consumer a public seam to (a) submit a request into the activated
+engine's in-process synthetic HTTP edge and get the captured response back, and (b) observe every
+request/response **crossing** that edge (drive-injected *and* autonomous client traffic). This is
+the missing prerequisite for mwin32 `M-HWC-CONTRACTCFG-7`, whose stated goal — "requests/responses
+crossing the synthetic edge are auto-validated, and drive mode executes against the running
+engine" — needs both a live crossing tap and a real activated engine to validate against.
+
+Background (execution finding): `M-HWC-HTTP-3` built `synthetic_http_queue` and the
+`HttpReceiveHttpRequest` / `HttpSendHttpResponse` hooks, but those hooks only fire when a real
+engine module is IAT-hooked, and the only tests are direct queue-data-structure tests. Nothing
+services the queue in-process, so there is no engine to activate in CI and no public way to submit
+into it or tap its crossings. `webcore_config_platform::get_webcore` therefore still forwards
+unchanged. D-HWC-10's edge is engine-pluggable but its production engine (the synthetic queue
+behind an activated engine) was explicitly deferred here. This milestone supplies it.
+
+> **⬅ CROSS-COMPONENT PREREQUISITE:** consumed by `src/Windows/libraries/mwin32/CHECKLIST.md` →
+> `M-HWC-CONTRACTCFG` → `M-HWC-CONTRACTCFG-7`. The public contract message types
+> (`synthesized_request` / `captured_contract_response` / `engine_submit`) this milestone speaks
+> were promoted by `M-HWC-CONTRACT-EXPOSE-2`.
+
+- [ ] M-HWC-ENGINE-EDGE-1: Record decision **D-HWC-11** in [`DESIGN-NOTES.md`](DESIGN-NOTES.md)
+      (Tier 1 index + detail; no Tier 2 in PIL): a public, cross-platform synthetic-HTTP edge seam
+      with two realizations (the intercepting webcore over a real engine; an in-process engine for
+      CI), plus the rule that validate-mode *live tapping* is a per-crossing observer (D6: a side
+      diagnostic that never alters the engine). State the acknowledged limit that real `hwebcore`
+      activation (IIS) stays outside CI and is exercised only by sharing the identical bridge code.
+      Then add the public header [`include/m/pil/synthetic_http_edge.h`](include/m/pil/synthetic_http_edge.h)
+      (namespace `m::pil`): `using crossing_observer = std::function<void(synthesized_request const&,
+      captured_contract_response const&)>;`, a `struct isynthetic_http_edge` with pure virtual
+      `captured_contract_response submit(synthesized_request const&, std::chrono::milliseconds
+      timeout)` and `void add_crossing_observer(crossing_observer)`, and a free
+      `engine_submit make_engine_submit(isynthetic_http_edge&, std::chrono::milliseconds timeout)`
+      adapter. Add an `iwebcore_instance::synthetic_http_edge()` accessor (virtual, default
+      `nullptr`) to [`include/m/pil/webcore_interfaces.h`](include/m/pil/webcore_interfaces.h) using
+      only a forward declaration of `isynthetic_http_edge` (no coupling of the webcore header to the
+      contract types). `null_webcore_instance` keeps the default `nullptr`. The header names only
+      public contract types — no Win32 / `<http.h>`. Builds clean debug+release.
+
+- [ ] M-HWC-ENGINE-EDGE-2: Give the internal `synthetic_http_queue`
+      ([`src/intercepting/intercepting_webcore.h/.cpp`](src/intercepting/intercepting_webcore.cpp))
+      an optional crossing-observer hook invoked when a response completes
+      (`complete_response`), delivering the originating `synthetic_http_request` paired with its
+      `captured_http_response`. The queue must retain enough of each dequeued request (keyed by
+      `HTTP_REQUEST_ID`) to hand the observer the request that produced the response. Observers are
+      invoked outside the queue lock. Keep the existing direct-API tests green and add a unit test
+      that a serviced request→response pair reaches a registered observer.
+
+- [ ] M-HWC-ENGINE-EDGE-3: Implement the intercepting `webcore_instance`'s
+      `synthetic_http_edge()` over its `synthetic_queue` (the real-engine path). Activation with
+      synthetic mode enabled creates the queue; the instance returns an adapter that translates the
+      public `synthesized_request` ↔ internal `synthetic_http_request` and `captured_http_response`
+      ↔ `captured_contract_response`, implements `submit` as enqueue + `wait_for_response(timeout)`,
+      and forwards `add_crossing_observer` to the queue hook from EDGE-2. Unit test by servicing the
+      queue directly (the test plays the engine: dequeue, build a response, `capture_response` /
+      `complete_response`) and asserting `submit` returns it and observers fire.
+
+- [ ] M-HWC-ENGINE-EDGE-4: Add an **in-process engine** provider
+      `std::shared_ptr<iwebcore> make_in_process_webcore(synthetic_request_handler handler)` (new
+      `using synthetic_request_handler = std::function<captured_contract_response(synthesized_request
+      const&)>;`) — an `iwebcore` whose `activate` enables synthetic mode, owns a
+      `synthetic_http_queue`, and runs a worker thread that loops `dequeue_request` → `handler` →
+      `capture_response` / `complete_response`; the returned instance exposes `synthetic_http_edge()`
+      over that queue and joins the worker on destruction. This is the deterministic, IIS-free
+      engine the synthetic edge (D-HWC-6 Tier B) was designed for. Unit tests: activate, build an
+      `engine_submit` via `make_engine_submit`, submit conforming + violating requests and assert
+      the handler's responses come back; a registered crossing observer sees every serviced
+      crossing; a `null_webcore_instance` yields no edge (`synthetic_http_edge() == nullptr`, and
+      `make_engine_submit` over a null edge is a null `engine_submit`); clean shutdown with
+      in-flight requests. ≥10 cases, sub-second.
+
+- [ ] M-HWC-ENGINE-EDGE-5 (integration): over an activated `make_in_process_webcore`, compose both
+      modes against one engine: `drive_contract(document, make_engine_submit(edge, timeout))` for a
+      drive document, and `edge.add_crossing_observer(...)` running a validate document's
+      `validate_request` / `validate_response` for the live tap. Drive a YAML spec end to end and
+      assert every example operation produced a request, a deliberately non-conforming response is
+      reported as a violation, and the validate observer saw the same crossings. Sub-second.
+
+      > **➡ CROSS-COMPONENT HANDOFF:** with an activatable engine and the public submit/observe
+      > seam landed, the production wiring resumes in component `src/Windows/libraries/mwin32` →
+      > milestone `M-HWC-CONTRACTCFG` → `M-HWC-CONTRACTCFG-7`. See
+      > [`src/Windows/libraries/mwin32/CHECKLIST.md`](../../Windows/libraries/mwin32/CHECKLIST.md).

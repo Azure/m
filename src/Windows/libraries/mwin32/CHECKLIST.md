@@ -290,7 +290,8 @@ example driver) is PIL Phase 4.
 > M-HWC-CONTRACT-EXPOSE (which wires `iplatform::get_http_contract` through the live stack and
 > exposes the public drive surface this milestone consumes), and — for CONTRACTCFG-6 —
 > M-HWC-CONTRACT-EDGE (the public `ihttp_contract_edge` seam this milestone attaches bound
-> documents to).
+> documents to), and — for CONTRACTCFG-7 — M-HWC-ENGINE-EDGE (an activatable in-process engine
+> plus the public synthetic-edge submit/observe seam this milestone wires bound documents onto).
 
 - [x] M-HWC-CONTRACTCFG-1: Extend `pilcfg::webcore_config`
       ([`src/pilcfg.h`](src/pilcfg.h)) with a `contracts` vector: each entry carries a `spec`
@@ -337,14 +338,41 @@ example driver) is PIL Phase 4.
       assert the drive contract produced the expected request traffic, a deliberately
       non-conforming response is tallied as a violation, and the attached validate document observed
       the crossings. Sub-second.
-- [ ] M-HWC-CONTRACTCFG-7 (deferred — gated on a running engine): provide the production
-      `engine_submit` that bridges the contract edge to the activated engine's Windows
-      `synthetic_http_queue` (D-HWC-8: "wiring the synthesized requests into that queue is the
-      Windows consumer's job"), and have `webcore_config_platform::get_webcore` construct an
-      intercepting webcore (synthetic edge enabled) and an edge bound to that engine instead of
-      forwarding unchanged. Blocked until an `hwebcore` engine can be activated in test (PIL
-      interception hooks are still stubs); pick up when that lands. The CONTRACTCFG-6 helper and
-      edge are engine-agnostic, so this item only supplies the real `engine_submit` and the
-      construction site.
+- [ ] M-HWC-CONTRACTCFG-7 (umbrella — production live-edge wiring; now unblocked by PIL
+      M-HWC-ENGINE-EDGE): wire bound contracts onto a *running* engine's synthetic HTTP edge so
+      autonomous request/response traffic crossing the edge is auto-validated and drive contracts
+      execute against the activated engine, instead of `webcore_config_platform::get_webcore`
+      forwarding unchanged. Split into the items below.
+
+      > **⬅ CROSS-COMPONENT PREREQUISITE:** requires PIL `src/libraries/pil/CHECKLIST.md` →
+      > `M-HWC-ENGINE-EDGE` (1–5): the public `isynthetic_http_edge` submit/observe seam,
+      > `iwebcore_instance::synthetic_http_edge()`, `make_engine_submit`, and the activatable
+      > `make_in_process_webcore` test engine. CONTRACTCFG-7.1/7.2 cannot start until those land.
+
+- [ ] M-HWC-CONTRACTCFG-7.1: Contract-wiring webcore decorator. Add a webcore decorator (in
+      `webcore_config_platform`, alongside `wire_contracts_to_edge`) whose `activate` forwards to
+      the underlying (configured) webcore, then — on the activated instance's
+      `synthetic_http_edge()` — registers every `validate`-mode bound document as a
+      `crossing_observer` that runs the document's `validate_request` / `validate_response` and
+      tallies (a side diagnostic, D6 — never altering the engine), and drives every `drive`-mode
+      bound document via `drive_contract(*document, m::pil::make_engine_submit(edge, timeout))`. The
+      decorator's returned instance owns the registered observers / wiring for the activation's
+      lifetime. If the activated instance exposes no synthetic edge (`synthetic_http_edge() ==
+      nullptr`, e.g. the null engine), wiring is a tolerant no-op. `get_webcore` returns this
+      decorator wrapping the configured engine (the intercepting webcore with synthetic mode
+      enabled in production; the in-process engine in test). Reuse the bound-contract loading from
+      CONTRACTCFG-3 and the validate/tally shape from CONTRACTCFG-6; no `.pilcfg` schema change.
+
+- [ ] M-HWC-CONTRACTCFG-7.2 (integration): build the config platform (`apply_webcore_config`) over
+      an underlying platform whose `get_webcore` returns `m::pil::make_in_process_webcore(handler)`,
+      where the handler returns a configurable (deliberately non-conforming) response; load a
+      `.pilcfg` carrying one `validate` and one `drive` contract; activate through the config
+      platform and assert (a) the drive contract produced the expected request traffic against the
+      engine, (b) the non-conforming response is tallied as a violation, and (c) the `validate`
+      document observed the live crossings via the registered observer (drive the engine with an
+      independent autonomous request and confirm the observer validated it). Sub-second. Record in a
+      note that the real-`hwebcore` path is the *same* decorator with the intercepting webcore over
+      a real `hwebcore.dll` as the config-selected engine — the only element not exercised in CI is
+      IIS itself (D-HWC-11 acknowledged limit).
 
 

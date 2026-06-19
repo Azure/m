@@ -567,7 +567,7 @@ behind an activated engine) was explicitly deferred here. This milestone supplie
 > (`synthesized_request` / `captured_contract_response` / `engine_submit`) this milestone speaks
 > were promoted by `M-HWC-CONTRACT-EXPOSE-2`.
 
-- [ ] M-HWC-ENGINE-EDGE-1: Record decision **D-HWC-11** in [`DESIGN-NOTES.md`](DESIGN-NOTES.md)
+- [x] M-HWC-ENGINE-EDGE-1: Record decision **D-HWC-11** in [`DESIGN-NOTES.md`](DESIGN-NOTES.md)
       (Tier 1 index + detail; no Tier 2 in PIL): a public, cross-platform synthetic-HTTP edge seam
       with two realizations (the intercepting webcore over a real engine; an in-process engine for
       CI), plus the rule that validate-mode *live tapping* is a per-crossing observer (D6: a side

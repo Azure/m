@@ -2,12 +2,14 @@
 // Licensed under the MIT License.
 
 #include <memory>
+#include <chrono>
 #include <string_view>
 #include <system_error>
 
 #include <gtest/gtest.h>
 
 #include <m/pil/file_path.h>
+#include <m/pil/synthetic_http_edge.h>
 #include <m/pil/webcore.h>
 #include <m/pil/webcore_interfaces.h>
 
@@ -23,6 +25,7 @@ namespace
     using m::pil::file_path;
     using m::pil::iwebcore;
     using m::pil::iwebcore_instance;
+    using m::pil::make_engine_submit;
     using m::pil::null_webcore;
     using m::pil::null_webcore_instance;
     using m::pil::webcore_host;
@@ -36,6 +39,22 @@ namespace
     {
         null_webcore_instance instance;
         // The null instance does nothing; this just proves construction works.
+    }
+
+    //
+    // A null instance has no in-process synthetic edge (D-HWC-11), and
+    // make_engine_submit over a null edge yields a null engine_submit.
+    //
+    TEST(NullWebcoreInstance, HasNoSyntheticHttpEdge)
+    {
+        null_webcore_instance instance;
+        iwebcore_instance&    as_iface = instance;
+
+        EXPECT_EQ(as_iface.synthetic_http_edge(), nullptr);
+
+        auto submit = make_engine_submit(as_iface.synthetic_http_edge(),
+                                         std::chrono::milliseconds{0});
+        EXPECT_FALSE(static_cast<bool>(submit));
     }
 
     //--------------------------------------------------------------------------

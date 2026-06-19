@@ -42,6 +42,14 @@
 namespace m::pil
 {
     //
+    // Forward declaration of the public synthetic-HTTP edge seam (D-HWC-11). An
+    // activated instance may expose one via `synthetic_http_edge()`. We only
+    // name the pointer here, so this header gains no dependency on the contract
+    // message types the seam speaks (it is defined in m/pil/synthetic_http_edge.h).
+    //
+    struct isynthetic_http_edge;
+
+    //
     // The inputs to a single HWC activation. The config paths are carried as
     // `file_path` values — paths *in the isolated filesystem* (D-HWC-2), not raw
     // OS paths — which is what wires the engine's config reads to the isolated
@@ -64,6 +72,15 @@ namespace m::pil
     struct iwebcore_instance
     {
         virtual ~iwebcore_instance() {}
+
+        //
+        // The activation's in-process synthetic-HTTP edge (D-HWC-11), or null if
+        // this instance has none (e.g. the null engine). The edge is the seam a
+        // consumer submits drive traffic into and taps crossing traffic from;
+        // see m/pil/synthetic_http_edge.h. The returned edge is owned by the
+        // instance and valid for the instance's lifetime.
+        //
+        virtual isynthetic_http_edge* synthetic_http_edge() { return nullptr; }
     };
 
     //

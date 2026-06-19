@@ -34,6 +34,7 @@ decisions. Each decision has a stable D-number referenced from CHECKLIST.md item
 | D-HWC-8 | OpenAPI/Swagger contracts bind to the HWC HTTP edge via `.pilcfg`, driving both response/request **validation** and example-**driven** traffic |
 | D-HWC-9 | A contract is a multi-document `$ref` bundle with media-typed (incl. XML) bodies, query-discriminated operations, and authored validation-eligibility — refining D-HWC-8 to match real specs |
 | D-HWC-10 | A public `ihttp_contract_edge` seam ties N bound contracts (validate-on-crossing + drive) to one pluggable engine, so a consumer (mwin32) wires contracts against a fake engine in tests and the real engine in production |
+| D-HWC-11 | A public synthetic-HTTP edge seam (`isynthetic_http_edge`: submit + crossing-observe) plus an activatable in-process engine make the synthetic edge drivable in CI without IIS; the intercepting webcore shares the identical seam over a real engine |
 
 ---
 
@@ -730,6 +731,55 @@ D-HWC-8's shape-not-value limits). The real-engine bridge — an `engine_submit`
 Windows `synthetic_http_queue` against an *activated* `hwebcore` engine — is **not** part of this
 decision and remains gated on a running engine; tests exercise the edge with a fake engine, which
 is the deterministic, CI-friendly realization the synthetic edge was designed for.
+
+---
+
+## D-HWC-11 — an activatable in-process engine + a public synthetic-edge submit/observe seam
+
+D-HWC-10 left its production engine — the synthetic HTTP queue behind an *activated* engine —
+explicitly deferred, "gated on a running engine." That gate was real: `M-HWC-HTTP-3` built
+`synthetic_http_queue` and the `HttpReceiveHttpRequest` / `HttpSendHttpResponse` hooks, but those
+hooks only fire when a real engine module is IAT-hooked, and nothing services the queue
+in-process. So there was no engine to activate in CI, no public way to submit into the edge, and
+no way to observe traffic crossing it. mwin32 `M-HWC-CONTRACTCFG-7` — whose goal is that traffic
+*crossing the synthetic edge* is auto-validated and that drive mode executes against the running
+engine — could not be built or tested. D-HWC-11 supplies the two missing pieces.
+
+- **A public, cross-platform synthetic-edge seam.** A new `isynthetic_http_edge` (header
+  `m/pil/synthetic_http_edge.h`) is the single object a consumer's traffic crosses into the engine.
+  `submit(synthesized_request, timeout) -> captured_contract_response` is the drive-injection path
+  (on the real edge it enqueues onto the synthetic queue and waits for the captured response);
+  `add_crossing_observer(observer)` registers a per-crossing tap invoked with every completed
+  `(request, response)` pair — both drive-injected *and* autonomous client traffic the engine
+  services. A free `make_engine_submit(edge, timeout)` adapts the seam to the `engine_submit`
+  `drive_contract` consumes (a pointer overload yields a null `engine_submit` when there is no
+  edge). The seam names only the public contract message types — never the Win32
+  `synthetic_http_queue` / `<http.h>` — so it stays cross-platform-clean (Design Autonomy). An
+  `iwebcore_instance::synthetic_http_edge()` accessor (default `nullptr`) exposes it from an
+  activation; `webcore_interfaces.h` only forward-declares the seam, so the webcore header gains no
+  dependency on the contract types.
+
+- **Live validate tapping is a crossing observer, not the edge's submit.** Validate mode on
+  *autonomous* engine traffic cannot go through the edge's `submit` (the client uses the engine's
+  own HTTP path, not our object). The observer is the tap: per crossing it runs a validate
+  document's `validate_request` / `validate_response`. Per D6 this is a side diagnostic — it never
+  alters the engine's behavior or its response. Drive mode still composes via `submit` /
+  `make_engine_submit`.
+
+- **An activatable in-process engine makes the edge drivable in CI.** `make_in_process_webcore(handler)`
+  is an `iwebcore` whose activation enables synthetic mode, owns a `synthetic_http_queue`, and runs
+  a worker thread that services it (`dequeue_request` → `handler` → `capture_response`). Its
+  instance exposes `synthetic_http_edge()` over that queue. This is the deterministic, IIS-free
+  realization the synthetic edge (D-HWC-6 Tier B) was designed for — a real engine for the seam's
+  purposes, just not IIS. The *intercepting* webcore exposes the identical `synthetic_http_edge()`
+  over its real queue (serviced by the engine's hooks), so a consumer's wiring code is the same for
+  both; only the config-selected underlying engine differs.
+
+**Acknowledged limits.** Real `hwebcore` activation needs IIS and so stays outside CI; it is
+covered only by sharing the identical seam + wiring code with the in-process engine, which is fully
+tested. The observer inherits D-HWC-8's shape-not-value validation limits. The in-process engine's
+handler is a test-supplied function, not a spec executor — it models whatever response the test
+needs, conforming or not.
 
 ---
 

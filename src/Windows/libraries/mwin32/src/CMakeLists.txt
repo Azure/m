@@ -6,6 +6,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 # The DLL links this (whole-archive) and tests link it directly. This avoids
 # manually listing internal sources in test/CMakeLists.txt.
 add_library(m_mwin32_internal STATIC
+    http_reassembler.cpp
     pilcfg.cpp
     session.cpp
     webcore_config_platform.cpp

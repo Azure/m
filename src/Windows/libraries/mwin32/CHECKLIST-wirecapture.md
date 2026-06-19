@@ -40,7 +40,7 @@ the violation tallies are equal across every transport is the headline result.
   exports to `mwin32.def` and the alias generation. Smoke test: passthrough is
   byte-identical (tee never mutates the stream).
 
-- [ ] **WC-2**: HTTP/1.1 reassembler. Per-connection request-stream and
+- [x] **WC-2**: HTTP/1.1 reassembler. Per-connection request-stream and
   response-stream parsers that turn the teed byte stream into complete messages:
   request `(method, path, headers, body)`, response `(status, headers, body)`,
   `Content-Length` framed. Handle partial reads and multiple messages on a

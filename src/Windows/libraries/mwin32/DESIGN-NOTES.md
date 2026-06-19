@@ -1127,3 +1127,44 @@ Decisions:
   `LoopbackFixture`), which needs no capture readback. Observing a DLL-shim capture
   end-to-end is deferred to the sink-seam and integration milestones.
 
+## D21 — HTTP/1.1 reassembler is pure, family-blind, Content-Length-framed (WC-2)
+
+The teed byte stream (D20) is turned into complete HTTP/1.1 messages by a pure
+reassembler ([`src/http_reassembler.h`](src/http_reassembler.h),
+[`src/http_reassembler.cpp`](src/http_reassembler.cpp)) that lives in
+`m_mwin32_internal` so it is unit-testable without the DLL or any socket.
+
+Decisions:
+
+- **No transport dependency (family-blind, D19).** The reassembler never sees a
+  `SOCKET`, an address family, or any OS facility — it consumes raw bytes via
+  `feed(const void*, size_t)` and emits `http_request` / `http_response` values via
+  `next(out)`. The identical code therefore reassembles IPv4, IPv6, DNS-resolved,
+  and in-process loopback captures, which is what lets WC-11 assert the derived
+  contract is identical across transports.
+
+- **Single shared framing engine.** Requests and responses frame identically (start
+  line, CRLF-separated headers, blank line, `Content-Length` body); only the
+  start-line grammar differs. `http_framing` owns the byte buffer and the
+  headers/body state machine and yields a generic `http_frame`; the request and
+  response reassemblers add only start-line parsing (request-line vs status-line) on
+  top. This keeps the partial-read and pipelining logic in exactly one place.
+
+- **`Content-Length` framing only; absence means empty body (v1).** Consistent with
+  D19/D20, a message with no `Content-Length` is framed as having a zero-length body
+  and the following bytes begin the next message; `Transfer-Encoding: chunked` is not
+  decoded. The body is length-delimited opaque bytes, so NULs and embedded CRLFs in
+  the body never confuse framing (covered by `BodyWithBinaryAndEmbeddedCrlf`).
+
+- **Tolerant parsing at the edges.** Header names are matched case-insensitively
+  (ASCII) and values are OWS-trimmed per RFC 9110; a `Content-Length` value that is
+  empty or contains a non-digit is treated as zero rather than raising (the capture
+  path is a side-channel and must never throw into a shim). A header line with no
+  colon is skipped. These are pragmatic v1 choices for a diagnostic capture, not a
+  conformant HTTP parser.
+
+- **Incremental, allocation-simple buffering.** `feed` appends to a byte vector and
+  `next` consumes a complete message by erasing its bytes from the front. Message
+  sizes in the demo are small, so the simple erase-from-front buffer is preferred
+  over a ring buffer; if large bodies ever matter this is the obvious place to add a
+  read offset.

@@ -7,6 +7,7 @@ if(BUILD_TESTING)
 
     add_executable(test_mwin32
         test_handle_table.cpp
+        test_http_reassembler.cpp
         test_mwinhwc.cpp
         test_mwinreg_open_close.cpp
         test_mwinreg_predefined.cpp

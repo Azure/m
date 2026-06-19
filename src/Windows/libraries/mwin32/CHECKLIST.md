@@ -288,7 +288,7 @@ example driver) is PIL Phase 4.
 > facets must land first — `src/libraries/pil/CHECKLIST.md` → M-HWC-CONTRACT-MODEL,
 > M-HWC-CONTRACT-IFACE, M-HWC-CONTRACT-VALIDATE, M-HWC-CONTRACT-DRIVE.
 
-- [ ] M-HWC-CONTRACTCFG-1: Extend `pilcfg::webcore_config`
+- [x] M-HWC-CONTRACTCFG-1: Extend `pilcfg::webcore_config`
       ([`src/pilcfg.h`](src/pilcfg.h)) with a `contracts` vector: each entry carries a `spec`
       host path (`%VAR%`-expanded, D17), an `endpoint` logical key (taken literally, like
       `webcore.endpoints`), and a `mode` enum (`validate` / `drive`). Default: empty (no

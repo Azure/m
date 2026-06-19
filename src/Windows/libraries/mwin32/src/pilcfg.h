@@ -98,6 +98,42 @@ namespace m::mwin32_impl
             // webcore surface is additionally wrapped with fault injection
             // driven by this script (separate from the global fault_script).
             std::u16string fault_script;
+
+            // The mode in which a bound contract is applied to its endpoint
+            // (PIL D-HWC-8).
+            enum class contract_mode
+            {
+                // Observe live traffic against the spec and surface contract
+                // violations (PIL validate mode).
+                validate,
+
+                // Synthesize example traffic from the spec and drive it through
+                // the endpoint, validating the captured responses (PIL drive
+                // mode). Drive composes on top of validate.
+                drive,
+            };
+
+            // A single OpenAPI/Swagger contract bound to a webcore endpoint
+            // (D-HWC-8). Built from an element of the optional
+            // "webcore.contracts" array.
+            struct contract_binding
+            {
+                // Host path to the OpenAPI/Swagger spec file. %VAR%-expanded on
+                // load (D17), like the other host-path members.
+                std::u16string spec;
+
+                // Logical endpoint key the contract binds to. Taken literally,
+                // like the keys in `endpoints`.
+                std::u16string endpoint;
+
+                // The mode in which the contract is applied to the endpoint.
+                contract_mode mode = contract_mode::validate;
+            };
+
+            // OpenAPI/Swagger contracts bound to webcore endpoints (D-HWC-8).
+            // Empty by default (no contracts). Built from the optional
+            // "webcore.contracts" array; order is preserved.
+            std::vector<contract_binding> contracts;
         };
 
         // Optional webcore configuration. std::nullopt means "not configured" —

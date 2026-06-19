@@ -9,6 +9,12 @@
 #include <utility>
 #include <vector>
 
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <system_error>
+
+#include <m/pil/http_contract_interfaces.h>
 #include <m/pil/platform_interfaces.h>
 #include <m/pil/webcore_interfaces.h>
 
@@ -58,6 +64,7 @@ namespace m::mwin32_impl
         private:
             std::shared_ptr<m::pil::iplatform> m_underlying_platform;
             pilcfg::webcore_config             m_webcore_cfg;
+            std::vector<bound_contract>        m_bound_contracts;
             std::shared_ptr<m::pil::iwebcore>  m_webcore;
             std::mutex                         m_mutex;
         };
@@ -72,6 +79,9 @@ namespace m::mwin32_impl
             m_underlying_platform(std::move(underlying_platform)),
             m_webcore_cfg(std::move(webcore_cfg))
         {
+            // Bind the configured contracts up front (M-HWC-CONTRACTCFG-3).
+            // Tolerant: a missing/malformed spec is skipped, never fatal.
+            m_bound_contracts = load_webcore_contracts(*m_underlying_platform, m_webcore_cfg);
         }
 
         m::pil::iplatform::get_registry_disposition
@@ -153,6 +163,57 @@ namespace m::mwin32_impl
     //--------------------------------------------------------------------------
     // Public API
     //--------------------------------------------------------------------------
+
+    std::vector<bound_contract>
+    load_webcore_contracts(m::pil::iplatform&            platform,
+                           pilcfg::webcore_config const& webcore_cfg)
+    {
+        std::vector<bound_contract> bound;
+
+        if (webcore_cfg.contracts.empty())
+            return bound;
+
+        // The contract provider is reachable through the live platform stack
+        // (PIL M-HWC-CONTRACT-EXPOSE-1). A null provider simply yields no
+        // documents, which the tolerant loop below treats as "nothing bound".
+        auto provider = platform.get_http_contract();
+        if (!provider)
+            return bound;
+
+        for (auto const& binding: webcore_cfg.contracts)
+        {
+            try
+            {
+                std::filesystem::path const spec_path(binding.spec);
+
+                std::ifstream in(spec_path, std::ios::binary);
+                if (!in)
+                    continue; // missing spec: skip (tolerant, D5/D7)
+
+                std::string const spec_bytes((std::istreambuf_iterator<char>(in)),
+                                             std::istreambuf_iterator<char>());
+
+                std::error_code                                       ec;
+                std::unique_ptr<m::pil::ihttp_contract_document>      document;
+                provider->load(m::pil::ihttp_contract::load_flags{}, spec_bytes, document, ec);
+                if (ec || !document)
+                    continue; // malformed spec: skip (tolerant, D5/D7)
+
+                bound_contract bc;
+                bc.endpoint = binding.endpoint;
+                bc.mode     = binding.mode;
+                bc.document = std::shared_ptr<m::pil::ihttp_contract_document>(std::move(document));
+                bound.push_back(std::move(bc));
+            }
+            catch (...)
+            {
+                // Any unexpected failure binding one contract leaves the host
+                // running with that contract simply unbound.
+            }
+        }
+
+        return bound;
+    }
 
     std::shared_ptr<m::pil::iplatform>
     apply_webcore_config(std::shared_ptr<m::pil::iplatform> const& underlying_platform,

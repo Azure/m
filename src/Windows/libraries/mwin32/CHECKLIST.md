@@ -286,7 +286,9 @@ example driver) is PIL Phase 4.
 
 > **⬅ CROSS-COMPONENT PREREQUISITE:** the PIL `ihttp_contract` surface and its validate/drive
 > facets must land first — `src/libraries/pil/CHECKLIST.md` → M-HWC-CONTRACT-MODEL,
-> M-HWC-CONTRACT-IFACE, M-HWC-CONTRACT-VALIDATE, M-HWC-CONTRACT-DRIVE.
+> M-HWC-CONTRACT-IFACE, M-HWC-CONTRACT-VALIDATE, M-HWC-CONTRACT-DRIVE, and
+> M-HWC-CONTRACT-EXPOSE (which wires `iplatform::get_http_contract` through the live stack and
+> exposes the public drive surface this milestone consumes).
 
 - [x] M-HWC-CONTRACTCFG-1: Extend `pilcfg::webcore_config`
       ([`src/pilcfg.h`](src/pilcfg.h)) with a `contracts` vector: each entry carries a `spec`
@@ -298,18 +300,33 @@ example driver) is PIL Phase 4.
       of `parse_pilcfg` (non-array throws; each element must be an object with string `spec`,
       string `endpoint`, and `mode` one of `"validate"`/`"drive"`; wrong type/shape throws).
       Apply `%VAR%` expansion to `spec` only.
-- [ ] M-HWC-CONTRACTCFG-3: In `build_platform_from_config`, for each contract entry load the
-      spec bytes, call PIL `get_http_contract().load(...)`, and attach the validating facet
-      (and, for `drive`, run the example driver) bound to the named endpoint. A missing/malformed
-      spec is tolerant (best-effort, per D5/D7): it leaves the engine unwrapped rather than
-      breaking the host.
+- [x] M-HWC-CONTRACTCFG-3: In `webcore_config_platform` (built by `build_platform_from_config`),
+      load and bind every `webcore.contracts` entry: read the spec bytes from the
+      (`%VAR%`-expanded) host path, call PIL `get_http_contract().load(...)` to produce a
+      validating document, and hold the bound documents keyed by endpoint + mode
+      (`load_webcore_contracts`). A missing/malformed spec is tolerant (best-effort, per D5/D7):
+      it leaves that binding absent rather than breaking the host.
+
+      Note (re-plan, execution finding): the live-edge *attachment* the original wording implied —
+      auto-validating real request/response traffic and executing the example driver against the
+      running engine — is gated on the webcore interception edge, which `webcore_config_platform`
+      still forwards as a placeholder (no public attach hook exists yet). That work is split out as
+      CONTRACTCFG-6 below. The bound documents are reachable via the public PIL surface
+      (`validate_request` / `validate_response` / `synthesize_requests` / `drive_contract`), which
+      is what CONTRACTCFG-5 exercises with a fake engine.
 - [ ] M-HWC-CONTRACTCFG-4 (unit tests): `parse_pilcfg` tests for `webcore.contracts` —
       absent (empty), single entry, multiple entries (order preserved), `%VAR%` expansion of
       `spec`, and the negative cases (non-array, element not an object, missing/empty `spec` or
       `endpoint`, unknown `mode`). ≥10 cases, sub-second.
-- [ ] M-HWC-CONTRACTCFG-5 (integration): a `.pilcfg` referencing a small YAML spec drives and
-      validates a fake engine end to end through the synthetic edge — assert the configured
-      mode produced the expected request traffic and that a deliberately non-conforming response
-      is reported as a contract violation.
+- [ ] M-HWC-CONTRACTCFG-5 (integration): a `.pilcfg` referencing a small YAML spec binds through
+      `load_webcore_contracts`, then drives and validates a fake engine end to end via the public
+      drive surface (`drive_contract(document, submit)`) — assert the configured mode produced the
+      expected request traffic and that a deliberately non-conforming response is reported as a
+      contract violation.
+- [ ] M-HWC-CONTRACTCFG-6 (deferred — gated on webcore interception edge): attach the bound
+      validating documents to live edge traffic so requests/responses crossing the synthetic edge
+      are auto-validated, and execute drive mode against the running engine. Blocked until
+      `webcore_config_platform` performs real interception (today it forwards `get_webcore`
+      unchanged); pick up when that edge infrastructure lands.
 
 

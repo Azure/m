@@ -609,6 +609,22 @@ aligns with JSON Schema 2020-12, whose keyword coverage in the chosen validator 
 relying on 2020-12-only keywords may validate loosely until the validator catches up (the gap is
 in the dependency, not in PIL's specification).
 
+**Implementation (M-HWC-CONTRACT-VALIDATE).** The live provider
+(`src/contract/http_contract_provider.*`) builds one JSON Schema validator per JSON body schema at
+`load` time; a malformed spec or unresolvable `$ref` is an operational failure reported through
+`ec` (never a contract violation). When the validator cannot *compile* a particular body schema,
+that body degrades to **no value-check** (the operation's other checks still run) rather than
+failing the whole load — this is the "validate loosely" stance above made concrete: our
+specification is "JSON bodies are validated when the validator supports the schema." The
+validating decorator facet (`src/contract/contract_validating_facet.*`, the contract sibling of
+the logging facet) acts on the generic message shape (method / path / headers / body / status)
+shared by `synthetic_http_request` / `captured_http_response`, so a thin edge adapter feeds
+messages straight through. Per D6 it traces every violation and persists nothing; surfacing a
+`contract_error` (`request_violation` / `response_violation`, an internal category — not a wire
+contract) is opt-in via `surface_violations`, off by default so a `validate` binding never alters
+the engine's behavior. Operational failures from the document always surface regardless of the
+flag.
+
 ---
 
 ## D-HWC-9 — a contract is a multi-document bundle, not a single self-contained file

@@ -6,6 +6,9 @@ find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
 
 target_sources(m_pil PRIVATE
     openapi_model.cpp
+    http_contract_provider.cpp
+    contract_errors.cpp
+    contract_validating_facet.cpp
 )
 
 # nlohmann_json is exposed through the internal contract headers (body/parameter

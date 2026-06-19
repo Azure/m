@@ -451,7 +451,7 @@ is gated behind the surface landing here first.
 
 ## Milestone M-HWC-CONTRACT-VALIDATE — validate mode on the synthetic edge (D-HWC-8, D-HWC-9, D6)
 
-- [ ] M-HWC-CONTRACT-VALIDATE-1: Live `ihttp_contract` provider backed by the M-HWC-CONTRACT-MODEL
+- [x] M-HWC-CONTRACT-VALIDATE-1: Live `ihttp_contract` provider backed by the M-HWC-CONTRACT-MODEL
       loader + matcher; `load` builds a document holding the model and a
       `nlohmann-json-schema-validator` per **JSON** body schema. `validate_request` runs
       method/path (+ query discriminator) match → parameter checks → request-body schema for JSON
@@ -460,12 +460,12 @@ is gated behind the surface landing here first.
       method/path/status + parameter + header checks only — body *value* validation for XML is a
       scoped follow-on with its own recorded strategy, not done here. Operations marked
       not-eligible by the `x-…` extension are skipped.
-- [ ] M-HWC-CONTRACT-VALIDATE-2: Validating decorator facet (sibling to the logging facet) that, on
+- [x] M-HWC-CONTRACT-VALIDATE-2: Validating decorator facet (sibling to the logging facet) that, on
       each `synthetic_http_request` / `captured_http_response` crossing the edge, invokes the bound
       contract and **traces** violations as a side diagnostic (D6 — persists nothing). An opt-in
       flag surfaces a contract-violation `error_code` so tests can assert; off by default the facet
       only traces.
-- [ ] M-HWC-CONTRACT-VALIDATE-3 (integration): load a tiny YAML spec, push a conforming request +
+- [x] M-HWC-CONTRACT-VALIDATE-3 (integration): load a tiny YAML spec, push a conforming request +
       response and a violating request + response through the synthetic edge, and assert each is
       detected (and not detected for the conforming case). Sub-second.
 

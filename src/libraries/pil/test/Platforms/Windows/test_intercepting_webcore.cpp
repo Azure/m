@@ -496,6 +496,57 @@ TEST(InterceptingWebcore, SyntheticQueueRequeueFrontPreservesOrder)
     EXPECT_FALSE(queue.try_dequeue_request().has_value());
 }
 
+TEST(InterceptingWebcore, SyntheticQueueCrossingObserverSeesServicedPair)
+{
+    // A serviced request -> response pair must reach a registered crossing
+    // observer (D-HWC-11), delivering the originating request paired with the
+    // captured response, fired when the response completes.
+    intcimpl::synthetic_http_queue queue;
+
+    int                                     fire_count = 0;
+    std::optional<std::string>              seen_method;
+    std::optional<std::wstring>             seen_url;
+    std::optional<std::uint16_t>            seen_status;
+    std::optional<std::vector<std::uint8_t>> seen_body;
+
+    queue.add_crossing_observer(
+        [&](intcimpl::synthetic_http_request const& req,
+            intcimpl::captured_http_response const& resp) {
+            ++fire_count;
+            seen_method = req.method;
+            seen_url    = req.url;
+            seen_status = resp.status_code;
+            seen_body   = resp.body;
+        });
+
+    intcimpl::synthetic_http_request request;
+    request.method = "POST";
+    request.url    = L"http://localhost/widgets";
+    HTTP_REQUEST_ID const id = queue.enqueue_request(request);
+
+    // The engine receives the request (dequeue records it in-flight).
+    auto serviced = queue.dequeue_request(std::chrono::milliseconds{0});
+    ASSERT_TRUE(serviced.has_value());
+    EXPECT_EQ(serviced->request_id, id);
+
+    // No observer fires until the response completes.
+    EXPECT_EQ(fire_count, 0);
+
+    intcimpl::captured_http_response response;
+    response.status_code = 201;
+    response.body        = {std::uint8_t{'o'}, std::uint8_t{'k'}};
+    queue.capture_response(id, response);
+    EXPECT_EQ(fire_count, 0);
+
+    queue.complete_response(id);
+
+    ASSERT_EQ(fire_count, 1);
+    EXPECT_EQ(seen_method.value(), "POST");
+    EXPECT_EQ(seen_url.value(), L"http://localhost/widgets");
+    EXPECT_EQ(seen_status.value(), 201);
+    EXPECT_EQ(seen_body.value(), (std::vector<std::uint8_t>{std::uint8_t{'o'}, std::uint8_t{'k'}}));
+}
+
 TEST(InterceptingWebcore, SyntheticFileHandleReadWriteSeek)
 {
     // A handle minted by allocate_file_handle must be usable: the context's

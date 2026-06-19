@@ -585,7 +585,7 @@ behind an activated engine) was explicitly deferred here. This milestone supplie
       contract types). `null_webcore_instance` keeps the default `nullptr`. The header names only
       public contract types — no Win32 / `<http.h>`. Builds clean debug+release.
 
-- [ ] M-HWC-ENGINE-EDGE-2: Give the internal `synthetic_http_queue`
+- [x] M-HWC-ENGINE-EDGE-2: Give the internal `synthetic_http_queue`
       ([`src/intercepting/intercepting_webcore.h/.cpp`](src/intercepting/intercepting_webcore.cpp))
       an optional crossing-observer hook invoked when a response completes
       (`complete_response`), delivering the originating `synthetic_http_request` paired with its

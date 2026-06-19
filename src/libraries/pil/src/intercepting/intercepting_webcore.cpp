@@ -82,6 +82,9 @@ namespace m::pil::impl::intercepting
             return std::nullopt;
         synthetic_http_request request = std::move(m_pending_requests.front());
         m_pending_requests.pop_front();
+        // Retain a copy so a later complete_response can pair this request with
+        // its response for crossing observers (D-HWC-11).
+        m_inflight_requests[request.request_id] = request;
         return request;
     }
 
@@ -89,6 +92,10 @@ namespace m::pil::impl::intercepting
     synthetic_http_queue::requeue_front(synthetic_http_request request)
     {
         std::lock_guard<std::mutex> guard(m_mutex);
+        // The request is going back to pending (it was not actually handed to
+        // the engine); drop its in-flight record so it is re-recorded on the
+        // next successful dequeue.
+        m_inflight_requests.erase(request.request_id);
         m_pending_requests.push_front(std::move(request));
         m_request_cv.notify_one();
     }
@@ -111,6 +118,9 @@ namespace m::pil::impl::intercepting
         }
         synthetic_http_request request = std::move(m_pending_requests.front());
         m_pending_requests.pop_front();
+        // Retain a copy so a later complete_response can pair this request with
+        // its response for crossing observers (D-HWC-11).
+        m_inflight_requests[request.request_id] = request;
         return request;
     }
 
@@ -137,12 +147,43 @@ namespace m::pil::impl::intercepting
     void
     synthetic_http_queue::complete_response(HTTP_REQUEST_ID request_id)
     {
-        std::lock_guard<std::mutex> guard(m_mutex);
-        auto it = m_responses.find(request_id);
-        if (it != m_responses.end())
+        // Snapshot the completed (request, response) pair and the observer list
+        // under the lock, then invoke observers AFTER unlocking so an observer
+        // can re-enter the queue and never runs while we hold m_mutex.
+        synthetic_http_request        request;
+        captured_http_response        response;
+        std::vector<crossing_observer> observers;
+        bool                          notify = false;
+
         {
-            it->second.complete = true;
-            m_response_cv.notify_all();
+            std::lock_guard<std::mutex> guard(m_mutex);
+            auto it = m_responses.find(request_id);
+            if (it != m_responses.end())
+            {
+                it->second.complete = true;
+                m_response_cv.notify_all();
+                notify = true;
+
+                if (!m_crossing_observers.empty())
+                {
+                    response = it->second;
+                    auto req_it = m_inflight_requests.find(request_id);
+                    if (req_it != m_inflight_requests.end())
+                    {
+                        request   = req_it->second;
+                        observers = m_crossing_observers;
+                    }
+                }
+                // The crossing has been paired; the in-flight record is no
+                // longer needed (the response remains in m_responses).
+                m_inflight_requests.erase(request_id);
+            }
+        }
+
+        if (notify)
+        {
+            for (auto const& observer : observers)
+                observer(request, response);
         }
     }
 
@@ -178,6 +219,7 @@ namespace m::pil::impl::intercepting
         std::lock_guard<std::mutex> guard(m_mutex);
         m_pending_requests.clear();
         m_responses.clear();
+        m_inflight_requests.clear();
     }
 
     bool
@@ -185,6 +227,13 @@ namespace m::pil::impl::intercepting
     {
         std::lock_guard<std::mutex> guard(m_mutex);
         return !m_pending_requests.empty();
+    }
+
+    void
+    synthetic_http_queue::add_crossing_observer(crossing_observer observer)
+    {
+        std::lock_guard<std::mutex> guard(m_mutex);
+        m_crossing_observers.push_back(std::move(observer));
     }
 
     //--------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #include <cstring>
 #include <algorithm>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -114,6 +115,16 @@ namespace m::pil::impl::intercepting
     class synthetic_http_queue
     {
     public:
+        //
+        // A per-crossing observer (D-HWC-11). Invoked once, outside the queue
+        // lock, when a response completes — delivering the originating request
+        // paired with the captured response. This is how an activated edge taps
+        // live traffic for validate-mode checking (D6: a side diagnostic that
+        // never alters the engine). Observers must not throw.
+        //
+        using crossing_observer =
+            std::function<void(synthetic_http_request const&, captured_http_response const&)>;
+
         synthetic_http_queue() = default;
         ~synthetic_http_queue() = default;
 
@@ -196,6 +207,13 @@ namespace m::pil::impl::intercepting
         bool
         has_pending_requests() const;
 
+        //
+        // Register a per-crossing observer (D-HWC-11). The observer fires for
+        // every request whose response completes from registration onward.
+        //
+        void
+        add_crossing_observer(crossing_observer observer);
+
     private:
         mutable std::mutex                                     m_mutex;
         std::condition_variable                                m_request_cv;
@@ -203,6 +221,13 @@ namespace m::pil::impl::intercepting
 
         std::deque<synthetic_http_request>                     m_pending_requests;
         std::unordered_map<HTTP_REQUEST_ID, captured_http_response> m_responses;
+
+        // Requests handed to the engine (dequeued) but whose response has not
+        // yet completed, keyed by request id. Retained so complete_response can
+        // pair the originating request with its response for crossing observers.
+        std::unordered_map<HTTP_REQUEST_ID, synthetic_http_request> m_inflight_requests;
+
+        std::vector<crossing_observer>                         m_crossing_observers;
 
         HTTP_REQUEST_ID                                        m_next_request_id{1};
     };

@@ -518,7 +518,7 @@ the activated engine's synthetic queue in production, per D-HWC-8). Discovered d
 CONTRACTCFG execution: CONTRACTCFG-3 binds documents but there is no public object to attach them
 to live edge traffic; the validating facet is `src/`-internal.
 
-- [ ] M-HWC-CONTRACT-EDGE-1: Public `ihttp_contract_edge` seam. New public header
+- [x] M-HWC-CONTRACT-EDGE-1: Public `ihttp_contract_edge` seam. New public header
       [`include/m/pil/http_contract_edge.h`](include/m/pil/http_contract_edge.h): a
       `contract_edge_tally` struct (`requests`, `responses`, `request_violations`,
       `response_violations`), an `ihttp_contract_edge` interface (`submit(synthesized_request) ->

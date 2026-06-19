@@ -105,7 +105,10 @@ namespace m
     to_span(m::multi_byte::code_page        cp,
             std::basic_string_view<TCharIn> in,
             std::span<TCharOut>&            spn,
-            std::error_code&                ec);
+            std::error_code&                ec)
+    {
+        view_to_span(cp, in, spn, ec);
+    }
 
     template <typename TCharIn, typename TCharOut>
         requires(m::character<TCharIn> && m::character<TCharOut>)
@@ -123,13 +126,5 @@ namespace m
 
         spn = std::span<TCharOut>{};
     }
-
-    template <typename TCharIn, typename TCharOut>
-        requires(m::character<TCharIn> && m::character<TCharOut>)
-    void
-    to_span(m::multi_byte::code_page        cp,
-            std::basic_string_view<TCharIn> in,
-            std::span<TCharOut>&            spn,
-            std::error_code&                ec);
 
 } // namespace m

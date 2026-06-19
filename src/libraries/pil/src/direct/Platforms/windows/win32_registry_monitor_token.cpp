@@ -73,6 +73,8 @@ namespace m::pil::impl::win32
             utc_time_point_type when{};
             {
                 auto l = std::unique_lock(m_mutex);
+                if (m_shutting_down)
+                    return;
                 when   = m_notification_time;
             }
             on_timer(m::locked, when);
@@ -85,6 +87,8 @@ namespace m::pil::impl::win32
             utc_time_point_type when{};
             {
                 auto l = std::unique_lock(m_mutex);
+                if (m_shutting_down)
+                    return;
                 when   = m_notification_time;
             }
             m_change_notification_ptr->on_change(when, m_key_path);
@@ -107,6 +111,38 @@ namespace m::pil::impl::win32
         drive_state(m::locked, m::clock_type::now());
     }
 
+    registry_monitor_token::~registry_monitor_token()
+    {
+        // Signal shutdown first: any wait or timer callback that wins m_mutex
+        // from here on observes the flag and returns without re-arming the
+        // notify or scheduling a timer, so the quiesce steps below drain to a
+        // fixed point rather than racing an in-flight callback that re-arms
+        // work.
+        {
+            auto l          = std::unique_lock(m_mutex);
+            m_shutting_down = true;
+        }
+
+        // Quiesce the threadpool wait while every member it touches is still
+        // alive. reset() disarms the wait, waits for any in-flight callback to
+        // finish, and closes the wait object, so after it returns no wait
+        // callback can fire. The wait callback is what arms the timers, so
+        // draining it first guarantees no new timer is scheduled past this
+        // point.
+        m_tp_wait.reset();
+
+        // Now quiesce the timer callbacks while the members they touch
+        // (m_change_notification_ptr, m_key_path, ...) are still alive. Member
+        // destruction runs in reverse declaration order, which would destroy
+        // the timers (declared after m_tp_wait) before m_tp_wait drains; a wait
+        // callback firing in that window would dereference an already-destroyed
+        // m_timer / m_notification_timer -- the intermittent abort this token
+        // exhibited. Resetting the timers here drains their callbacks up front,
+        // closing that window.
+        m_notification_timer.reset();
+        m_timer.reset();
+    }
+
     void
     registry_monitor_token::on_timer(m::locked_t, utc_time_point_type const& when) noexcept
     {
@@ -116,6 +152,11 @@ namespace m::pil::impl::win32
     void
     registry_monitor_token::drive_state(m::locked_t, utc_time_point_type const& when) noexcept
     {
+        // Once teardown has begun, do nothing: arming a notify or a timer here
+        // would re-introduce the very callback the destructor is draining.
+        if (m_shutting_down)
+            return;
+
         for (;;)
         {
             if (drive_state_once(m::locked, when) == drive_results::waiting)

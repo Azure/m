@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_pil PRIVATE
+    filesystem.cpp
+    filesystem_monitor.cpp
+    filesystem_monitor_change_notification_wrapper.cpp
     platform.cpp
     registry.cpp
     registry_key.cpp

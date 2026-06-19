@@ -84,7 +84,7 @@ m::pe::loader_context::unresolved_count() const
 }
 
 std::optional<std::filesystem::path>
-m::pe::loader_context::try_resolve(std::wstring_view name)
+m::pe::loader_context::try_resolve(std::wstring_view name) const
 {
     for (auto&& e: m_search_path)
     {

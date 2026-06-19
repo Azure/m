@@ -1,0 +1,185 @@
+name: mwin32 SDK
+
+# Tag-triggered mwin32 SDK release artifact.
+#
+# This is a sibling of release.yml. It fires on the same vX.Y.Z tag and produces
+# a SECOND artifact on the same GitHub Release: a self-contained mwin32 SDK
+# (the Win32-shaped isolation shim), packaged for BOTH x64 and ARM64.
+#
+# How to cut a release (identical to release.yml -- one tag drives both):
+#
+#   git tag v0.3.3        # pick the next version; must start with "v"
+#   git push origin v0.3.3
+#
+# What this workflow does:
+#   1. build (matrix x64, ARM64): configure + build the mwin32 shim, run the
+#      in-scope mwin32 test suite on the arch that can execute here (x64 only;
+#      ARM64 is cross-compiled on the x64 runner and cannot run its own tests),
+#      then `cmake --install --component mwin32_sdk` into a per-arch staging
+#      tree and upload it as a build artifact.
+#   2. merge-and-publish: download both per-arch staging trees, run the
+#      merge-mwin32-sdk.cmake script (M-SDK-4) to fold them into the single SDK
+#      layout (shared include/ lib/cmake/ docs/ examples/, arch-specific x64/
+#      and arm64/ binary subtrees), zip it as mwin32-sdk-<tag>.zip, and attach
+#      it to the GitHub Release created by release.yml. The upload is idempotent
+#      and order-independent: whichever workflow reaches the release first
+#      creates it; this one just adds its asset.
+
+on:
+  push:
+    tags:
+      - "v[0-9]*.[0-9]*.[0-9]*"
+
+permissions:
+  contents: write   # needed to upload the asset to the GitHub Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            cmake_platform: x64
+            triplet: x64-windows
+            can_run_tests: true
+          - arch: arm64
+            cmake_platform: ARM64
+            triplet: arm64-windows
+            can_run_tests: false
+    env:
+      VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+      VCPKG_TARGET_TRIPLET: ${{ matrix.triplet }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: 'recursive'
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "build-output-dir=${{ github.workspace }}/build-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
+          echo "stage-dir=${{ github.workspace }}/stage-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat
+
+      - name: Run vcpkg
+        shell: pwsh
+        run: ${{ github.workspace }}/vcpkg/vcpkg.exe install --triplet ${{ matrix.triplet }}
+
+      - name: Configure CMake
+        # Multi-config VS generator; build type is chosen at build time. The
+        # alias import-lib /machine flag and the mwin32_sdk arch subtree both
+        # follow CMAKE_CXX_COMPILER_ARCHITECTURE_ID, which the VS generator sets
+        # from -A, so no extra arch wiring is needed here.
+        run: >
+          cmake
+          -A ${{ matrix.cmake_platform }}
+          -D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+          -D VCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
+          -D BUILD_TESTING=ON
+          -B ${{ steps.strings.outputs.build-output-dir }}
+          -S ${{ github.workspace }}
+
+      - name: Build mwin32
+        # Build the shim DLL, its arch-correct alias import lib, and the alias
+        # objects; for the test-capable arch also build the test suite.
+        run: >
+          cmake --build ${{ steps.strings.outputs.build-output-dir }}
+          --config Release --parallel
+
+      - name: Test (in-scope mwin32 suite)
+        if: ${{ matrix.can_run_tests }}
+        working-directory: ${{ steps.strings.outputs.build-output-dir }}
+        # Only the mwin32 component is in scope for this artifact. ARM64 is
+        # cross-built on an x64 runner and cannot execute, so it is skipped.
+        # Scope by the mwin32 build subdirectory: gtest_discover_tests registers
+        # tests under their gtest suite names (not the executable name), so a
+        # name regex can't target the component -- the subtree path can.
+        run: ctest --test-dir src/Windows/libraries/mwin32 --build-config Release --output-on-failure
+
+      - name: Install mwin32_sdk component
+        run: >
+          cmake --install ${{ steps.strings.outputs.build-output-dir }}
+          --config Release
+          --component mwin32_sdk
+          --prefix ${{ steps.strings.outputs.stage-dir }}
+
+      - name: Upload per-arch SDK staging tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: mwin32-sdk-stage-${{ matrix.arch }}
+          path: ${{ steps.strings.outputs.stage-dir }}
+          retention-days: 1
+
+  merge-and-publish:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Only the merge script is needed here; a shallow checkout is enough.
+          submodules: false
+          fetch-depth: 1
+
+      - name: Download x64 staging tree
+        uses: actions/download-artifact@v4
+        with:
+          name: mwin32-sdk-stage-x64
+          path: ${{ github.workspace }}/stage-x64
+
+      - name: Download arm64 staging tree
+        uses: actions/download-artifact@v4
+        with:
+          name: mwin32-sdk-stage-arm64
+          path: ${{ github.workspace }}/stage-arm64
+
+      - name: Merge per-arch trees into the unified SDK
+        # M-SDK-4 merge primitive: folds the two single-arch installs into the
+        # single SDK layout (shared include/ lib/cmake/ docs/ examples/ plus
+        # x64/ and arm64/ binary subtrees) and validates the result.
+        shell: pwsh
+        run: >
+          cmake
+          -D "SDK_INPUTS=${{ github.workspace }}/stage-x64;${{ github.workspace }}/stage-arm64"
+          -D "SDK_OUTPUT=${{ github.workspace }}/mwin32-sdk"
+          -P ${{ github.workspace }}/src/Windows/libraries/mwin32/cmake/merge-mwin32-sdk.cmake
+
+      - name: Zip the unified SDK
+        shell: pwsh
+        run: >
+          Compress-Archive
+          -Path "${{ github.workspace }}/mwin32-sdk/*"
+          -DestinationPath "${{ github.workspace }}/mwin32-sdk-${{ github.ref_name }}.zip"
+          -Force
+
+      - name: Attach SDK to the GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # release.yml and this workflow race on the same tag. Whichever reaches
+          # the release first creates it; the other just uploads. Create is
+          # therefore best-effort (ignore "already exists"), and the upload uses
+          # --clobber so re-runs replace the asset cleanly.
+          tag="${{ github.ref_name }}"
+          version_no_build="${tag%%+*}"
+          PRERELEASE_FLAG=""
+          case "$version_no_build" in
+            *-*) PRERELEASE_FLAG="--prerelease" ;;
+          esac
+
+          gh release create "$tag" \
+            --title "$tag" \
+            --generate-notes \
+            $PRERELEASE_FLAG || echo "Release $tag already exists; uploading asset to it."
+
+          gh release upload "$tag" \
+            "${{ github.workspace }}/mwin32-sdk-${tag}.zip" \
+            --clobber

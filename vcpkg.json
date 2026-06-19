@@ -30,6 +30,7 @@
       "name": "wil",
       "host": true
     },
-    "wil"
+    "wil",
+    "nlohmann-json"
   ]
 }

@@ -19,7 +19,7 @@ using namespace std::string_view_literals;
 
 TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoft)
 {
-    auto p    = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
+    auto p    = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates);
     auto r    = p.get_registry();
     auto k1   = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2   = k1.open_key(L"Software\\Microsoft"sv);
@@ -45,7 +45,7 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoft)
 
 TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoftWindiff)
 {
-    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates);
     auto r  = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
     try
@@ -76,7 +76,7 @@ TEST(BufferedOverDirectRegistry, TryEnumeratingSoftwareMicrosoftWindiff)
 
 TEST(BufferedOverDirectRegistry, TrySettingStringValue)
 {
-    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates);
     auto r  = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2 = k1.open_key(L"Software\\Microsoft"sv);
@@ -93,7 +93,7 @@ TEST(BufferedOverDirectRegistry, TrySettingStringValue)
 
 TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint)
 {
-    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates);
     auto r  = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2 = k1.open_key(L"Software\\Microsoft"sv);
@@ -111,7 +111,7 @@ TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint)
 
 TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint2)
 {
-    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates, nullptr);
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates);
     auto r  = p.get_registry();
     auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
     auto k2 = k1.open_key(L"Software\\Microsoft"sv);
@@ -129,6 +129,59 @@ TEST(BufferedOverDirectRegistry, TrySettingStringValuesBreakingEmplaceWithHint2)
     m::println("Value was: {}", m::to_string(v));
 
     EXPECT_EQ(1, 1);
+}
+
+TEST(BufferedOverDirectRegistry, TryOpenKeyFindsExistingKey)
+{
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates);
+    auto r  = p.get_registry();
+    auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
+
+    auto k2 = k1.try_open_key(L"Software"sv);
+
+    EXPECT_TRUE(k2.has_value());
+}
+
+TEST(BufferedOverDirectRegistry, TryOpenKeyReturnsNulloptForMissingKey)
+{
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates);
+    auto r  = p.get_registry();
+    auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
+
+    // A key that is exceedingly unlikely to exist: a tentative open of it
+    // must report absence as std::nullopt rather than throwing.
+    auto k2 = k1.try_open_key(
+        L"Software\\m-pil-test-this-key-does-not-exist-7b3f1c9e"sv);
+
+    EXPECT_FALSE(k2.has_value());
+}
+
+TEST(BufferedOverDirectRegistry, OpenAfterDeleteFails)
+{
+    // All buffered mutations stay in the in-memory overlay; the underlying
+    // registry is never touched.
+    auto p  = m::pil::make_platform(m::pil::make_platform_flags::buffer_updates);
+    auto r  = p.get_registry();
+    auto k1 = r.open_predefined_key(m::pil::predefined_key::current_user);
+    auto k2 = k1.open_key(L"Software"sv);
+
+    constexpr auto child_name = L"m-pil-test-open-after-delete-2e9a4d61"sv;
+
+    // Create the child so there is something concrete to delete.
+    k2.create_key(child_name);
+
+    // It exists now: both open flavors must succeed.
+    EXPECT_TRUE(k2.try_open_key(child_name).has_value());
+    EXPECT_NO_THROW(std::ignore = k2.open_key(child_name));
+
+    // Delete it (leaving a tombstone in the overlay).
+    k2.delete_key(child_name);
+
+    // Tentative open must now report absence as std::nullopt.
+    EXPECT_FALSE(k2.try_open_key(child_name).has_value());
+
+    // The throwing open flavor must fail rather than resurrect the key.
+    EXPECT_THROW(std::ignore = k2.open_key(child_name), std::exception);
 }
 
 #endif

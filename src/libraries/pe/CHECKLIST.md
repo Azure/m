@@ -48,8 +48,11 @@
 - [ ] **pe_decoder.h**: No const member functions for read-only access
   - All member data is public, so no accessors exist
   - **Recommendation**: After making members private, add const accessors
+  - **Blocked on item #1** (members are still public): const accessors can only be added once read-only access is funneled through accessors. Tracked under item #1.
 
-- [ ] **loader_context.h line 98**: `unresolved_count()` is const (good) but needs verification other methods maintain const correctness
+- [x] **loader_context.h line 98**: `unresolved_count()` is const (good) but needs verification other methods maintain const correctness
+  - Verified: `unresolved_count()`, `pe_record::name()`, `pe_record::not_found()` already const; `resolve()` correctly mutating/non-const.
+  - Fixed: `try_resolve()` (reads only `m_search_path`) and `for_each_not_found()` (reads only `m_resolved`) are read-only and are now `const`.
 
 ### 8. Magic Numbers and Hardcoded Values
 - [ ] **pe_decoder.cpp**: Contains inline magic numbers for directory entry indices

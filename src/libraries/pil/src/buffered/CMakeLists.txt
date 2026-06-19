@@ -3,6 +3,11 @@ cmake_minimum_required(VERSION 3.23)
 find_package(pugixml CONFIG REQUIRED)
 
 target_sources(m_pil PRIVATE
+    directory_mutation_operations.cpp
+    directory_read_operations.cpp
+    filesystem.cpp
+    filesystem_monitor.cpp
+    filesystem_serialization.cpp
     platform.cpp
     registry.cpp
     registry_key_key_operations.cpp

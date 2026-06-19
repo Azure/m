@@ -1,0 +1,36 @@
+# Copyright (c) Microsoft Corporation.
+#
+# Standalone build of the mwin32 SDK examples. This is the top-level CMakeLists
+# that ships inside the SDK's examples/ folder; it consumes the SDK exactly as an
+# external user would — via find_package(m) and the m:: imported targets — rather
+# than the in-tree build targets. See docs/mwin32-sdk-guide.md §6 and DESIGN-NOTES
+# D-SDK.
+#
+# To build (from the unpacked SDK root):
+#   cmake -S examples -B build-examples -D CMAKE_PREFIX_PATH=<sdk-root>
+#   cmake --build build-examples
+#
+# On a multi-arch SDK, add -D M_SDK_ARCH=arm64 to target the ARM64 binaries.
+
+cmake_minimum_required(VERSION 3.23)
+project(mwin32_sdk_examples CXX)
+
+find_package(m CONFIG REQUIRED)
+
+# Each example is an ordinary Win32 client that links the alias object and so is
+# redirected into the shim with no source change. A .pilcfg sidecar (not shipped —
+# author your own next to the built .exe) selects passthrough / buffered / etc.
+foreach(_ex
+        mwin32_sample_client
+        mwin32_fs_sample_client
+        mwin32_notify_sample_client)
+    add_executable(${_ex} ${_ex}.cpp)
+    target_compile_features(${_ex} PRIVATE cxx_std_20)
+    target_link_libraries(${_ex} PRIVATE m::mwin32_alias)
+
+    # Copy m_mwin32.dll next to the example so it can launch.
+    add_custom_command(TARGET ${_ex} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:${_ex}> $<TARGET_FILE_DIR:${_ex}>
+        COMMAND_EXPAND_LISTS)
+endforeach()

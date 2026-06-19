@@ -11,6 +11,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <type_traits>
 #include <vector>
 
@@ -102,6 +103,16 @@ namespace m::pil
             return returned_key;
         }
 
+        std::shared_ptr<ikey>
+        create_key(key_path const& path)
+        {
+            std::shared_ptr<ikey> returned_key;
+            auto const            d = create_key(
+                create_key_flags{}, path, sam::default_create_key, std::nullopt, returned_key);
+            M_INTERNAL_ERROR_CHECK(!d);
+            return returned_key;
+        }
+
         //
         //  delete_key
         //
@@ -127,6 +138,13 @@ namespace m::pil
         delete_key(key_path const& path)
         {
             auto const d = delete_key(delete_key_flags{}, path, sam::default_delete_key);
+            M_INTERNAL_ERROR_CHECK(!d);
+        }
+
+        void
+        delete_key(key_path const& path, sam sam_desired)
+        {
+            auto const d = delete_key(delete_key_flags{}, path, sam_desired);
             M_INTERNAL_ERROR_CHECK(!d);
         }
 
@@ -242,11 +260,33 @@ namespace m::pil
 
         enum class open_key_flags : uint64_t
         {
-            open_link = 1ull < 0, // semantically maps to REG_OPTION_OPEN_LINK
+            open_link = 1ull << 0, // semantically maps to REG_OPTION_OPEN_LINK
+
+            //
+            // Opt-in to "tentative open" semantics: when set, asking to open a
+            // key that does not exist is not an error. Instead `ec` is left
+            // clear, `returned_key` is left null, and the returned disposition's
+            // code is open_key_result_code::key_not_found.
+            //
+            // The caller is probing for a key whose absence is an expected,
+            // non-error outcome. Per the disposition opt-in gate, this code is
+            // only ever produced when this flag was passed; callers that pass
+            // open_key_flags{} continue to receive a missing key through `ec`.
+            //
+            tolerate_not_found = 1ull << 1,
         };
 
         enum class open_key_result_code : uint32_t
         {
+            //
+            // The requested key did not exist. Only produced when the caller
+            // passed open_key_flags::tolerate_not_found.
+            //
+            // Note: the underlying provider error happens to be a "file not
+            // found" code, but this contract is expressed in terms of the
+            // public surface of the API, which is keys.
+            //
+            key_not_found = 1,
         };
 
         enum class open_key_result_flags : uint32_t
@@ -255,11 +295,33 @@ namespace m::pil
 
         using open_key_disposition = disposition<open_key_result_code, open_key_result_flags>;
 
+        //
+        // Primitive: providers implement this non-throwing form. Errors are
+        // reported through ec; the disposition carries only contractual
+        // (non-error) outcomes. The two channels are independent.
+        //
         virtual open_key_disposition
         open_key(open_key_flags                 flags,
                  std::optional<key_path> const& path,
                  sam                            sam_desired,
-                 std::shared_ptr<ikey>&         returned_key) = 0;
+                 std::shared_ptr<ikey>&         returned_key,
+                 std::error_code&               ec) = 0;
+
+        //
+        // Throwing wrapper over the ec-form primitive.
+        //
+        open_key_disposition
+        open_key(open_key_flags                 flags,
+                 std::optional<key_path> const& path,
+                 sam                            sam_desired,
+                 std::shared_ptr<ikey>&         returned_key)
+        {
+            std::error_code ec;
+            auto const      d = open_key(flags, path, sam_desired, returned_key, ec);
+            if (ec)
+                throw std::system_error(ec);
+            return d;
+        }
 
         std::shared_ptr<ikey>
         open_key(std::optional<key_path> const& path, sam sam_desired)
@@ -274,6 +336,25 @@ namespace m::pil
         open_key(std::optional<key_path> const& path)
         {
             return open_key(path, sam::default_open_key);
+        }
+
+        //
+        // Tentative open: returns the opened key, or a null shared_ptr if the
+        // key does not exist. Other failures (e.g. access denied) still throw,
+        // because only "not found" is opted into via tolerate_not_found.
+        //
+        std::shared_ptr<ikey>
+        try_open_key(std::optional<key_path> const& path, sam sam_desired)
+        {
+            std::shared_ptr<ikey> returned_key;
+            open_key(open_key_flags::tolerate_not_found, path, sam_desired, returned_key);
+            return returned_key;
+        }
+
+        std::shared_ptr<ikey>
+        try_open_key(std::optional<key_path> const& path)
+        {
+            return try_open_key(path, sam::default_open_key);
         }
 
         //
@@ -375,6 +456,13 @@ namespace m::pil
         {
             auto const d = delete_value(delete_value_flags{}, value_name);
             M_INTERNAL_ERROR_CHECK(!d);
+        }
+
+        template <typename TChar>
+        void
+        delete_value(TChar const* ptr)
+        {
+            delete_value(to_value_name_string_type(ptr));
         }
 
         //

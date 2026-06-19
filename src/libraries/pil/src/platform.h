@@ -34,6 +34,5 @@ namespace m::pil::impl
     std::shared_ptr<iplatform>
     create_platform_interface(
         create_platform_interface_flags flags = create_platform_interface_flags{},
-        std::initializer_list<std::pair<std::u16string_view, std::u16string_view>>* redirections =
-            nullptr);
+        std::span<std::pair<std::u16string_view, std::u16string_view> const> redirections = {});
 } // namespace m::pil::impl

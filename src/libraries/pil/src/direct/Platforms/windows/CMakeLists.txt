@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.23)
 
 target_sources(m_pil PRIVATE
     pcwstr.cpp
+    win32_filesystem.cpp
+    win32_filesystem_monitor.cpp
+    win32_filesystem_monitor_token.cpp
     win32_platform.cpp
     win32_registry.cpp
     win32_registry_key_key_operations.cpp
@@ -9,6 +12,7 @@ target_sources(m_pil PRIVATE
     win32_registry_monitor.cpp
     win32_registry_monitor_token.cpp
     win32_security_attributes.cpp
+    win32_webcore.cpp
 )
 
 target_link_libraries(m_pil PUBLIC
@@ -18,6 +22,7 @@ target_link_libraries(m_pil PUBLIC
     m_sstring
     m_threadpool
     m_win32
+    m_windows_chrono
     m_windows_strings
 )
 

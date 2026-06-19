@@ -10,6 +10,7 @@
 #include <tuple>
 
 #include <m/error_handling/macros.h>
+#include <m/exception/exception.h>
 #include <m/pil/pil.h>
 #include <m/pil/platform.h>
 #include <m/pil/registry.h>
@@ -111,10 +112,47 @@ namespace m::pil::impl::buffered
         {
             auto key_node  = reg_node.append_child(M_PUGIXML_T("Key"sv));
             auto name_attr = key_node.append_attribute(M_PUGIXML_T("name"sv));
-            name_attr.set_value(m::to_string(map_predefined_key_to_string(e.first).view()).c_str());
+            name_attr.set_value(m::to_wstring(map_predefined_key_to_string(e.first).view()).c_str());
 
             e.second->save_xml(key_node);
         }
+    }
+
+    std::shared_ptr<registry>
+    registry::load_xml(pugi::xml_node const& platform_node)
+    {
+        // A snapshot registry has no underlying (live) registry; every key it
+        // serves is materialized from the persisted file.
+        auto reg = std::make_shared<registry>(std::shared_ptr<iregistry>{});
+
+        // D5: capture a single T_load for the whole snapshot. Lazy consistency
+        // repair restamps any key from which it drops an unmaterializable
+        // name-only subkey to this value.
+        auto const t_load = clock_type::now();
+
+        auto const registry_node = platform_node.child(M_PUGIXML_T("Registry"sv));
+        if (!registry_node)
+            return reg;
+
+        for (auto key_element = registry_node.child(M_PUGIXML_T("Key"sv)); key_element;
+             key_element      = key_element.next_sibling(M_PUGIXML_T("Key"sv)))
+        {
+            auto const name_attr = key_element.attribute(M_PUGIXML_T("name"sv));
+            auto const name_u16 =
+                m::u16sstring(m::to_u16string(std::wstring_view(name_attr.as_string())));
+
+            auto const pk = try_map_string_to_predefined_key(name_u16);
+            if (!pk.has_value())
+                throw m::invalid_parameter(
+                    "buffered::registry::load_xml: unknown predefined key name");
+
+            auto k = std::make_shared<key>(key_path(pk.value()), (time_point_type::min)());
+            k->load_children_xml(key_element, t_load);
+
+            reg->m_predefined_keys.emplace(pk.value(), std::move(k));
+        }
+
+        return reg;
     }
 
 } // namespace m::pil::impl::buffered

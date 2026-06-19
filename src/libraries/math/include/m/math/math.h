@@ -3,17 +3,9 @@
 
 #pragma once
 
-#include <array>
-#include <climits>
-#include <cstddef>
 #include <cstdint>
-#include <exception>
-#include <format>
-#include <functional>
-#include <map>
-#include <mutex>
+#include <limits>
 #include <stdexcept>
-#include <tuple>
 #include <type_traits>
 
 #include <m/cast/cast.h>
@@ -78,6 +70,60 @@ namespace m
         template <typename InputT, typename ResultT, typename Enable = void>
         struct unary_safe_math_helper;
 
+        namespace detail
+        {
+            //
+            // Centralized overflow / domain-error reporting for the safe-math
+            // operations. Following the C++ standard library convention (see
+            // microsoft/STL, e.g. "stoi argument out of range"), each message
+            // is a concise static string that names the operation and the
+            // failing condition, with no runtime values formatted in.
+            //
+            // These are the single source of truth for the operations'
+            // exception text. Changing any of these strings is an observable,
+            // breaking change.
+            //
+            // They are intentionally not constexpr: like the std::overflow_error
+            // constructor they invoke, they are only ever reached on the error
+            // path, which is never part of a constant expression.
+            //
+            [[noreturn]] inline void
+            throw_add_overflow()
+            {
+                throw std::overflow_error("m::math::add result out of range");
+            }
+
+            [[noreturn]] inline void
+            throw_subtract_overflow()
+            {
+                throw std::overflow_error("m::math::subtract result out of range");
+            }
+
+            [[noreturn]] inline void
+            throw_multiply_overflow()
+            {
+                throw std::overflow_error("m::math::multiply result out of range");
+            }
+
+            [[noreturn]] inline void
+            throw_divide_by_zero()
+            {
+                throw std::overflow_error("m::math::divide division by zero");
+            }
+
+            [[noreturn]] inline void
+            throw_divide_overflow()
+            {
+                throw std::overflow_error("m::math::divide result out of range");
+            }
+
+            [[noreturn]] inline void
+            throw_negate_overflow()
+            {
+                throw std::overflow_error("m::math::negate result out of range");
+            }
+        }
+
         //
         // Handle (unsigned [op] unsigned) -> unsigned
         //
@@ -95,9 +141,7 @@ namespace m
                 auto const rv   = uintmax_t{lmax + rmax};
 
                 if ((rv < lmax) || (rv < rmax))
-                    throw std::overflow_error(std::format(
-                        "m::math::add overflow: {} + {} = {} exceeds maximum representable value",
-                        lmax, rmax, rv));
+                    detail::throw_add_overflow();
 
                 return m::try_cast<ResultT>(rv);
             }
@@ -106,9 +150,7 @@ namespace m
             subtract(LeftT l, RightT r)
             {
                 if (r > l)
-                    throw std::overflow_error(std::format(
-                        "m::math::subtract overflow: {} - {} would be negative (unsigned types cannot represent negative values)",
-                        static_cast<uintmax_t>(l), static_cast<uintmax_t>(r)));
+                    detail::throw_subtract_overflow();
 
                 auto       lmax = uintmax_t{l};
                 auto       rmax = uintmax_t{r};
@@ -145,9 +187,7 @@ namespace m
 
                             if ((prod / lmax) != r || (prod / rmax) != l)
                             {
-                                throw std::overflow_error(std::format(
-                                    "m::math::multiply overflow: {} × {} exceeds maximum representable value",
-                                    lmax, rmax));
+                                detail::throw_multiply_overflow();
                             }
 
                             return m::to<ResultT>(prod);
@@ -157,9 +197,7 @@ namespace m
                         divide(LeftT l, RightT r)
                         {
                             if (r == 0)
-                                throw std::overflow_error(std::format(
-                                    "m::math::divide overflow: division by zero ({} / 0)",
-                                    static_cast<uintmax_t>(l)));
+                                detail::throw_divide_by_zero();
 
                             // For unsigned division, overflow can only occur if the result
                             // doesn't fit in ResultT. Division by non-zero always produces
@@ -318,7 +356,7 @@ namespace m
                     uintmax_t const sum = promoted_l + r_as_unsigned;
 
                     if ((sum < promoted_l) || (sum < r_as_unsigned))
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
 
                     return m::try_cast<ResultT>(sum);
                 }
@@ -341,7 +379,7 @@ namespace m
                     constexpr uintmax_t subtrahend =
                         static_cast<uintmax_t>((std::numeric_limits<intmax_t>::max)());
                     if (subtrahend > promoted_l)
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
 
                     promoted_l -= subtrahend;
                     promoted_r += (std::numeric_limits<intmax_t>::max)();
@@ -355,7 +393,7 @@ namespace m
                 uintmax_t that_which_remains = static_cast<uintmax_t>(-promoted_r);
 
                 if (that_which_remains > promoted_l)
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_add_overflow();
 
                 promoted_l -= that_which_remains;
 
@@ -370,8 +408,7 @@ namespace m
                     if (r == (std::numeric_limits<intmax_t>::min)())
                     {
                         // We can't overcome this case just throw
-                        throw std::overflow_error(std::format(
-                            "m::math::add overflow: cannot add most negative signed value"));
+                        detail::throw_subtract_overflow();
                     }
 
                     // since r is not the most negative number, and we know since we're
@@ -390,7 +427,7 @@ namespace m
                 // positive answer, so if r > l, overflow.
 
                 if (static_cast<uintmax_t>(r) > static_cast<uintmax_t>(l))
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_subtract_overflow();
 
                 return m::to<ResultT>(static_cast<uintmax_t>(l) - static_cast<uintmax_t>(r));
             }
@@ -408,8 +445,7 @@ namespace m
                 // r is non-zero and negative: product is negative, cannot fit in
                 // an unsigned ResultT → overflow.
                 if (r < 0)
-                    throw std::overflow_error(std::format(
-                        "m::math overflow: operation with negative value cannot be represented in unsigned result type"));
+                    detail::throw_multiply_overflow();
 
                 // r is positive, safe to cast to unsigned
                 auto l_promoted = static_cast<uintmax_t>(l);
@@ -420,7 +456,7 @@ namespace m
                 // Check for overflow using division
                 if (prod / l_promoted != r_as_unsigned || prod / r_as_unsigned != l_promoted)
                 {
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_multiply_overflow();
                 }
 
                 return m::try_cast<ResultT>(prod);
@@ -432,8 +468,7 @@ namespace m
                 // Unsigned / signed with unsigned result.
 
                 if (r == 0)
-                    throw std::overflow_error(std::format(
-                    "m::math::divide overflow: division by zero"));
+                    detail::throw_divide_by_zero();
 
                 if (r < 0)
 
@@ -444,10 +479,7 @@ namespace m
                     // Dividing by negative gives negative result
 
 
-                    throw std::overflow_error(std::format(
-
-
-                        "m::math overflow: operation with negative value cannot be represented in unsigned result type"));
+                    detail::throw_divide_overflow();
                 }
 
                 // r is positive, safe to cast to unsigned
@@ -493,7 +525,7 @@ namespace m
                     uintmax_t const sum = promoted_r + l_as_unsigned;
 
                     if ((sum < promoted_r) || (sum < l_as_unsigned))
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
 
                     return m::try_cast<ResultT>(sum);
                 }
@@ -513,7 +545,7 @@ namespace m
                     // We're adding a negative, thus it's a subtrahend
                     constexpr uintmax_t subtrahend = (std::numeric_limits<intmax_t>::max)();
                     if (subtrahend > promoted_r)
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
 
                     promoted_r -= subtrahend;
                     promoted_l += (std::numeric_limits<intmax_t>::max)();
@@ -529,7 +561,7 @@ namespace m
                     constexpr uintmax_t max_neg = static_cast<uintmax_t>(
                         -(static_cast<intmax_t>((std::numeric_limits<ResultT>::min)()) + 1)) + 1;
                     if (magnitude > max_neg)
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
                     if (magnitude == max_neg)
                         return (std::numeric_limits<ResultT>::min)();
                     return -m::try_cast<ResultT>(magnitude);
@@ -582,7 +614,7 @@ namespace m
 
                     // Guard against uintmax_t overflow of the magnitude sum.
                     if (promoted_r > (std::numeric_limits<uintmax_t>::max)() - abs_l)
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_subtract_overflow();
 
                     return unary_safe_math_helper<uintmax_t, ResultT>::negate(abs_l + promoted_r);
                 }
@@ -608,7 +640,7 @@ namespace m
                     // Check overflow
                     if (prod / l_as_unsigned != promoted_r || prod / promoted_r != l_as_unsigned)
                     {
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_multiply_overflow();
                     }
 
                     return m::try_cast<ResultT>(prod);
@@ -628,13 +660,12 @@ namespace m
                         // Check overflow
                         if (prod / abs_min != promoted_r || prod / promoted_r != abs_min)
                         {
-                            throw std::overflow_error("integer overflow");
+                            detail::throw_multiply_overflow();
                         }
 
                         if (prod > abs_min)
                         {
-                            throw std::overflow_error(std::format(
-                                "m::math::multiply overflow: result magnitude exceeds target type limits"));
+                            detail::throw_multiply_overflow();
                         }
 
                         if (prod == abs_min)
@@ -651,7 +682,7 @@ namespace m
                     // Check overflow
                     if (prod / abs_l != promoted_r || prod / promoted_r != abs_l)
                     {
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_multiply_overflow();
                     }
 
                     // Negate and check it fits
@@ -660,8 +691,7 @@ namespace m
 
                     if (prod > max_negative)
                     {
-                        throw std::overflow_error(std::format(
-                            "m::math::multiply overflow: result magnitude exceeds target type limits"));
+                        detail::throw_multiply_overflow();
                     }
 
                     if (prod == max_negative)
@@ -679,8 +709,7 @@ namespace m
                 // Signed / unsigned with signed result.
 
                 if (r == 0)
-                    throw std::overflow_error(std::format(
-                        "m::math::divide overflow: division by zero"));
+                    detail::throw_divide_by_zero();
 
                 auto promoted_l = static_cast<intmax_t>(l);
                 auto promoted_r = static_cast<uintmax_t>(r);
@@ -765,7 +794,7 @@ namespace m
                     uintmax_t const sum = promoted_l + r_as_unsigned;
 
                     if ((sum < promoted_l) || (sum < r_as_unsigned))
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
 
                     return m::try_cast<ResultT>(sum);
                 }
@@ -785,7 +814,7 @@ namespace m
                     // We're adding a negative, thus it's a subtrahend
                     constexpr uintmax_t subtrahend = (std::numeric_limits<intmax_t>::max)();
                     if (subtrahend > promoted_l)
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
 
                     promoted_l -= subtrahend;
                     promoted_r += (std::numeric_limits<intmax_t>::max)();
@@ -806,7 +835,7 @@ namespace m
                     constexpr uintmax_t max_neg = static_cast<uintmax_t>(
                         -(static_cast<intmax_t>((std::numeric_limits<ResultT>::min)()) + 1)) + 1;
                     if (magnitude > max_neg)
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
                     if (magnitude == max_neg)
                         return (std::numeric_limits<ResultT>::min)();
                     return -m::try_cast<ResultT>(magnitude);
@@ -828,7 +857,7 @@ namespace m
                     {
                         // |intmax_t::min()| overflows intmax_t and exceeds the
                         // positive range of any signed ResultT, so always throw.
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_subtract_overflow();
                     }
 
                     // C++20 guarantees two's complement, so negation is safe here.
@@ -863,7 +892,7 @@ namespace m
                 // Check overflow
                 if (prod / promoted_l != r_as_unsigned || prod / r_as_unsigned != promoted_l)
                 {
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_multiply_overflow();
                 }
 
                 return m::try_cast<ResultT>(prod);
@@ -883,15 +912,13 @@ namespace m
                     // Check overflow
                     if (prod / promoted_l != abs_min || prod / abs_min != promoted_l)
                     {
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_multiply_overflow();
                     }
 
                     if (prod > abs_min)
-                {
-                    throw std::overflow_error(std::format(
-                        "m::math::multiply overflow: result magnitude exceeds target type limits"));
+                    {
+                        detail::throw_multiply_overflow();
                     }
-
                     if (prod == abs_min)
                     {
                         return (std::numeric_limits<ResultT>::min)();
@@ -906,7 +933,7 @@ namespace m
                 // Check overflow
                 if (prod / promoted_l != abs_r || prod / abs_r != promoted_l)
                 {
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_multiply_overflow();
                 }
 
                 // Negate and check it fits
@@ -915,8 +942,7 @@ namespace m
 
                 if (prod > max_negative)
                 {
-                    throw std::overflow_error(std::format(
-                        "m::math::multiply overflow: result magnitude exceeds target type limits"));
+                    detail::throw_multiply_overflow();
                 }
 
                 if (prod == max_negative)
@@ -934,8 +960,7 @@ namespace m
             // Unsigned / signed with signed result.
             
             if (r == 0)
-                throw std::overflow_error(std::format(
-                    "m::math::divide overflow: division by zero"));
+                detail::throw_divide_by_zero();
             
             if (r < 0)
             {
@@ -1019,7 +1044,7 @@ namespace m
                         
                         if (promoted_r < abs_min)
                         {
-                            throw std::overflow_error("integer overflow");
+                            detail::throw_add_overflow();
                         }
                         
                         return m::try_cast<ResultT>(promoted_r - abs_min);
@@ -1032,7 +1057,7 @@ namespace m
                     if (promoted_r < abs_l)
                     {
                         // Result would be negative
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
                     }
                     
                     return m::try_cast<ResultT>(promoted_r - abs_l);
@@ -1047,7 +1072,7 @@ namespace m
                 // Check for unsigned overflow
                 if (sum < l_as_unsigned || sum < promoted_r)
                 {
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_add_overflow();
                 }
                 
                 return m::try_cast<ResultT>(sum);
@@ -1065,7 +1090,7 @@ namespace m
                 if (l < 0)
                 {
                     // l is negative, so l - r is definitely negative
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_subtract_overflow();
                 }
                 
                 // l is non-negative
@@ -1075,7 +1100,7 @@ namespace m
                 if (l_as_unsigned < promoted_r)
                 {
                     // Result would be negative
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_subtract_overflow();
                 }
                 
                 auto diff = l_as_unsigned - promoted_r;
@@ -1101,10 +1126,7 @@ namespace m
                     // Negative × positive = negative (cannot represent in unsigned)
 
 
-                    throw std::overflow_error(std::format(
-
-
-                        "m::math::multiply overflow: negative value cannot be represented in unsigned result type"));
+                    detail::throw_multiply_overflow();
                 }
 
                 // Both effectively unsigned now
@@ -1116,7 +1138,7 @@ namespace m
                 // Check overflow
                 if (prod / l_as_unsigned != r_promoted || prod / r_promoted != l_as_unsigned)
                 {
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_multiply_overflow();
                 }
 
                 return m::try_cast<ResultT>(prod);
@@ -1129,13 +1151,12 @@ namespace m
                 // Result must be non-negative, so l must be non-negative.
             
             if (r == 0)
-                throw std::overflow_error(std::format(
-                    "m::math::divide overflow: division by zero"));
+                detail::throw_divide_by_zero();
             
             if (l < 0)
             {
                 // Negative / positive = negative (can't represent in unsigned)
-                throw std::overflow_error("integer overflow");
+                detail::throw_divide_overflow();
             }
             
             // Both effectively unsigned now
@@ -1181,12 +1202,12 @@ namespace m
 
                 if (promoted_r > 0 && promoted_l > max_intmax - promoted_r)
                 {
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_add_overflow();
                 }
 
                 if (promoted_r < 0 && promoted_l < min_intmax - promoted_r)
                 {
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_add_overflow();
                 }
 
                 intmax_t const rv = promoted_l + promoted_r;
@@ -1212,12 +1233,12 @@ namespace m
 
                 if (promoted_r < 0 && promoted_l > max_intmax + promoted_r)
                 {
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_subtract_overflow();
                 }
 
                 if (promoted_r > 0 && promoted_l < min_intmax + promoted_r)
                 {
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_subtract_overflow();
                 }
 
                 intmax_t const rv = promoted_l - promoted_r;
@@ -1265,7 +1286,7 @@ namespace m
             // Check for overflow in the multiplication itself
             if (prod / abs_l != abs_r || prod / abs_r != abs_l)
             {
-                throw std::overflow_error("integer overflow");
+                detail::throw_multiply_overflow();
             }
 
             // Check if the result fits in the signed range
@@ -1276,8 +1297,7 @@ namespace m
             {
                 if (prod > max_negative)
                 {
-                    throw std::overflow_error(std::format(
-                        "m::math::multiply overflow: result magnitude exceeds target type limits"));
+                    detail::throw_multiply_overflow();
                 }
 
                 if (prod == max_negative)
@@ -1291,8 +1311,7 @@ namespace m
             {
                 if (prod > max_positive)
                 {
-                    throw std::overflow_error(std::format(
-                        "m::math::multiply overflow: result magnitude exceeds target type limits"));
+                    detail::throw_multiply_overflow();
                 }
 
                 return m::try_cast<ResultT>(static_cast<intmax_t>(prod));
@@ -1306,8 +1325,7 @@ namespace m
             // Special case: INT_MIN / -1 = overflow (result would be INT_MAX + 1)
             
             if (r == 0)
-                throw std::overflow_error(std::format(
-                    "m::math::divide overflow: division by zero"));
+                detail::throw_divide_by_zero();
             
             auto promoted_l = static_cast<intmax_t>(l);
             auto promoted_r = static_cast<intmax_t>(r);
@@ -1315,7 +1333,7 @@ namespace m
             // Check for INT_MIN / -1
             if (promoted_l == (std::numeric_limits<intmax_t>::min)() && promoted_r == -1)
             {
-                throw std::overflow_error("integer overflow");
+                detail::throw_divide_overflow();
             }
             
             auto quot = promoted_l / promoted_r;
@@ -1365,7 +1383,7 @@ namespace m
                     auto const sum = ul + ur;
 
                     if (sum < ul || sum < ur)
-                        throw std::overflow_error("integer overflow");
+                        detail::throw_add_overflow();
 
                     return m::try_cast<ResultT>(sum);
                 }
@@ -1373,7 +1391,7 @@ namespace m
                 if (pl < 0 && pr < 0)
                 {
                     // Sum of two negatives is negative: not representable.
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_add_overflow();
                 }
 
                 // Mixed signs: the magnitudes partially cancel, so the sum is
@@ -1381,7 +1399,7 @@ namespace m
                 intmax_t const sum = pl + pr;
 
                 if (sum < 0)
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_add_overflow();
 
                 return m::try_cast<ResultT>(static_cast<uintmax_t>(sum));
             }
@@ -1394,7 +1412,7 @@ namespace m
                 auto const pr = static_cast<intmax_t>(r);
 
                 if (pl < pr)
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_subtract_overflow();
 
                 // pl >= pr, so the mathematical result is non-negative. Compute
                 // the magnitude in unsigned space, handling the case where the
@@ -1417,7 +1435,7 @@ namespace m
                         result          = upl + abs_r;
 
                         if (result < upl)
-                            throw std::overflow_error("integer overflow");
+                            detail::throw_subtract_overflow();
                     }
                     else
                     {
@@ -1440,15 +1458,14 @@ namespace m
 
                 // A negative product cannot be represented in an unsigned type.
                 if ((pl < 0) != (pr < 0))
-                    throw std::overflow_error(std::format(
-                        "m::math::multiply overflow: negative value cannot be represented in unsigned result type"));
+                    detail::throw_multiply_overflow();
 
                 auto const abs_l = abs_to_unsigned(pl);
                 auto const abs_r = abs_to_unsigned(pr);
                 auto const prod  = abs_l * abs_r;
 
                 if (prod / abs_l != abs_r || prod / abs_r != abs_l)
-                    throw std::overflow_error("integer overflow");
+                    detail::throw_multiply_overflow();
 
                 return m::try_cast<ResultT>(prod);
             }
@@ -1457,8 +1474,7 @@ namespace m
             divide(LeftT l, RightT r)
             {
                 if (r == 0)
-                    throw std::overflow_error(std::format(
-                        "m::math::divide overflow: division by zero"));
+                    detail::throw_divide_by_zero();
 
                 auto const pl = static_cast<intmax_t>(l);
                 auto const pr = static_cast<intmax_t>(r);
@@ -1475,8 +1491,7 @@ namespace m
                     if (quot == 0)
                         return 0;
 
-                    throw std::overflow_error(std::format(
-                        "m::math::divide overflow: negative value cannot be represented in unsigned result type"));
+                    detail::throw_divide_overflow();
                 }
 
                 return m::try_cast<ResultT>(quot);
@@ -1496,8 +1511,7 @@ namespace m
                     (std::numeric_limits<InputT>::digits == std::numeric_limits<intmax_t>::digits))
                 {
                     // There is no way to negate the most negative intmax_t
-                    throw std::overflow_error(std::format(
-                    "m::math::negate overflow: value cannot be negated in target type"));
+                    detail::throw_negate_overflow();
                 }
 
                 // lazy implementation for other cases
@@ -1525,8 +1539,7 @@ namespace m
                     (std::numeric_limits<InputT>::digits == std::numeric_limits<intmax_t>::digits))
                 {
                     // There is no way to negate the most negative intmax_t
-                    throw std::overflow_error(std::format(
-                    "m::math::negate overflow: value cannot be negated in target type"));
+                    detail::throw_negate_overflow();
                 }
 
                 // lazy implementation for other cases
@@ -1554,8 +1567,7 @@ namespace m
                                         1;
 
                 if (vmax > negmax)
-                    throw std::overflow_error(std::format(
-                    "m::math::negate overflow: value cannot be negated in target type"));
+                    detail::throw_negate_overflow();
 
                 if (vmax == negmax)
                     return (std::numeric_limits<ResultT>::min)();
@@ -1577,8 +1589,7 @@ namespace m
                 if (v == 0)
                     return 0;
 
-                throw std::overflow_error(std::format(
-                    "m::math::negate overflow: value cannot be negated in target type"));
+                detail::throw_negate_overflow();
             }
         };
 

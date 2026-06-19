@@ -6,6 +6,9 @@ target_include_directories(m_pil PUBLIC
 
 target_sources(m_pil PRIVATE
     create_platform.cpp
+    fault_interface.cpp
+    filesystem.cpp
+    filesystem_monitor.cpp
     pil.cpp
     platform.cpp
     registry.cpp
@@ -13,11 +16,17 @@ target_sources(m_pil PRIVATE
     registry_key.cpp
     registry_monitor.cpp
     key_path.cpp
+    file_path.cpp
+    webcore.cpp
 )
 
 add_subdirectory(buffered)
 add_subdirectory(direct)
+add_subdirectory(fault)
+add_subdirectory(intercepting)
+add_subdirectory(journaling)
 add_subdirectory(logging)
+add_subdirectory(materializing)
 add_subdirectory(passthrough)
 add_subdirectory(redirecting)
 

@@ -187,6 +187,38 @@ namespace m::pil
         return result;
     }
 
+    std::optional<key>
+    key::do_try_open_key(std::optional<pil::key_path> const& key_name)
+    {
+        if (!key_name.has_value())
+            return *this;
+
+        key  result{*this};
+        auto name = static_cast<typename pil::key_path::string_type>(key_name.value());
+
+        for (;;)
+        {
+            auto [left, right] = name.split_at(uregistry_delimiter);
+
+            if (!left.empty())
+            {
+                auto next = result.m_key->try_open_key(pil::key_path(left));
+
+                if (!next)
+                    return std::nullopt;
+
+                result = key(std::move(next));
+            }
+
+            if (right.empty())
+                break;
+
+            name = right;
+        }
+
+        return result;
+    }
+
     void
     key::do_rename_key(pil::key_path const& old_key_name, pil::key_path const& new_key_name)
     {

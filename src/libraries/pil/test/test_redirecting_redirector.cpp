@@ -3,8 +3,8 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <format>
-#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -22,15 +22,15 @@ using namespace std::string_view_literals;
 
 using P = std::pair<std::u16string_view, std::u16string_view>;
 
-auto r_il_1 = std::initializer_list<P>{
+std::array<P, 3> const r_il_1 = {{
     P{u"HKLM\\Software"sv, u"HKCU\\FooTemp1234\\Software"sv},
     P{u"HKLM\\Software\\Microsoft\\Xyz"sv, u"HKCU\\Temp987\\Pdq\\MjgWasHere"sv},
     P{u"HKEY_CLASSES_ROOT\\CLSID"sv, u"HKCU\\FooTemp1234\\HKCR"sv},
-};
+}};
 
 TEST(TestRedirectingRedirector, ValidateHKLMNotMapped)
 {
-    auto r = std::make_shared<m::pil::impl::redirecting::redirector>(&r_il_1);
+    auto r = std::make_shared<m::pil::impl::redirecting::redirector>(r_il_1);
 
     // HKLM itself is not mapped
     EXPECT_EQ(r->map_public_to_private(key_path(u"HKLM"sv)), key_path(u"HKLM"sv));
@@ -38,7 +38,7 @@ TEST(TestRedirectingRedirector, ValidateHKLMNotMapped)
 
 TEST(TestRedirectingRedirector, ValidateHKLMSoftwareMicrosoftMapped)
 {
-    auto r = std::make_shared<m::pil::impl::redirecting::redirector>(&r_il_1);
+    auto r = std::make_shared<m::pil::impl::redirecting::redirector>(r_il_1);
 
     EXPECT_EQ(r->map_public_to_private(key_path(u"HKLM\\Software\\Microsoft"sv)),
               key_path(u"HKCU\\FooTemp1234\\Software\\Microsoft"sv));

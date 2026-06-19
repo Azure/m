@@ -21,7 +21,17 @@ namespace m
                      (sizeof(OutCharT) == 1)
         constexpr OutIterT encode_utf8(char32_t ch, OutIterT it)
         {
-            using byte_t = OutCharT;
+            //
+            // The UTF-8 code units are byte values, but they are stored through the output
+            // iterator whose element type may be wider than a byte (for example a char16_t
+            // container). When the destination element type is known, use it as the
+            // intermediate so the final assignment is not an implicit conversion between
+            // distinct character types; otherwise (output-only iterators expose a void value
+            // type) fall back to OutCharT. All values written below are masked to a single
+            // byte, so widening is value-preserving.
+            //
+            using deduced_t = iterator_value_type_t<OutIterT>;
+            using byte_t    = std::conditional_t<std::is_void_v<deduced_t>, OutCharT, deduced_t>;
 
             if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
                 throw utf_invalid_encoding_error("invalid character");
@@ -74,7 +84,8 @@ namespace m
                      (sizeof(OutCharT) == 1)
         constexpr OutIterT encode_utf8(char32_t ch, OutIterT it, std::error_code& ec)
         {
-            using byte_t = OutCharT;
+            using deduced_t = iterator_value_type_t<OutIterT>;
+            using byte_t    = std::conditional_t<std::is_void_v<deduced_t>, OutCharT, deduced_t>;
 
             if ((ch >= 0x110000) || ((ch >= 0xd800) && (ch <= 0xdfff)))
             {

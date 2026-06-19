@@ -36,6 +36,7 @@ target_sources(m_mwin32 PRIVATE
     mwinfile.cpp
     mwinhwc.cpp
     mwinreg.cpp
+    mwinsock.cpp
 )
 
 target_include_directories(m_mwin32 PUBLIC
@@ -49,6 +50,7 @@ target_link_libraries(m_mwin32 PUBLIC
 
 target_link_libraries(m_mwin32 PRIVATE
     nlohmann_json::nlohmann_json
+    ws2_32
 )
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

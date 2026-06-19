@@ -11,6 +11,7 @@ if(BUILD_TESTING)
         test_mwinreg_open_close.cpp
         test_mwinreg_predefined.cpp
         test_mwinreg_value_ops.cpp
+        test_mwinsock.cpp
         test_contractcfg.cpp
         test_pilcfg.cpp
         test_session_snapshot.cpp
@@ -27,6 +28,7 @@ if(BUILD_TESTING)
         m_strings
         nlohmann_json::nlohmann_json
         GTest::gtest_main
+        ws2_32
     )
 
     enable_testing()

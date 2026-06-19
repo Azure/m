@@ -76,9 +76,13 @@ foreach(raw_line IN LISTS def_lines)
     # Every export must be a shim name: 'm' followed by an uppercase letter, or
     # 'm' followed by an underscore for the dusty-deck legacy primitives whose
     # genuine names start with an underscore (`_lopen`, `_lcreat`, `_lread`,
-    # `_lclose`, ...). The Win32 name is still the mechanical strip of the
-    # leading 'm' (`m_lopen` -> `_lopen`), so the redirect emission is unchanged.
-    if(NOT shim_name MATCHES "^m([A-Z]|_)")
+    # `_lclose`, ...), or 'm' followed by a lowercase letter for the Winsock
+    # wire-capture shims whose genuine names are lowercase (`socket`, `connect`,
+    # `accept`, `send`, `recv`, `closesocket`; see CHECKLIST-wirecapture.md /
+    # DESIGN-NOTES D20). The Win32 name is still the mechanical strip of the
+    # leading 'm' (`m_lopen` -> `_lopen`, `msocket` -> `socket`), so the redirect
+    # emission is unchanged.
+    if(NOT shim_name MATCHES "^m([A-Za-z]|_)")
         message(FATAL_ERROR
             "generate_mwin32_alias: export '${shim_name}' does not match the m<Name> shim shape")
     endif()

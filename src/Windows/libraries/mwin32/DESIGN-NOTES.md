@@ -1074,3 +1074,56 @@ Decisions:
   details it has no business knowing and would break the family-blindness property
   above.
 
+## D20 — Winsock shims tee transferred bytes per socket; lowercase shim names; synchronous-only v1 (WC-1)
+
+The wire-capture feature's first layer is a set of Winsock interception shims
+(`msocket`, `mconnect`, `maccept`, `msend`, `mrecv`, `mclosesocket`, `mWSASend`,
+`mWSARecv`; [`src/mwinsock.cpp`](src/mwinsock.cpp), [`include/m/mwin32/mwinsock.h`](include/m/mwin32/mwinsock.h)).
+Each mirrors the genuine ws2_32 signature, forwards to the real ws2_32 export, and
+tees the bytes ws2_32 reports actually transferred into a per-socket capture buffer
+owned by the process-wide session ([`src/session.cpp`](src/session.cpp)). The teed
+bytes feed the reassembler / sink built in later milestones.
+
+Decisions:
+
+- **The tee is a pure side-channel (D6), driven by the *reported* transfer count.**
+  The shim calls the genuine function first, then tees exactly the `send`/`recv`
+  return value (or the `WSASend`/`WSARecv` `lpNumberOfBytes*` out-parameter) of bytes —
+  never the requested length. A short transfer therefore tees only what crossed the
+  wire, so the capture is byte-exact even under partial sends/reads. The shim's return
+  value and any caller buffer are never altered. Outbound (`send`/`WSASend`) and
+  inbound (`recv`/`WSARecv`) streams are captured separately, keyed by the raw `SOCKET`
+  value; `closesocket` releases the socket's buffers.
+
+- **Synchronous transfers only in v1.** `WSASend`/`WSARecv` are teed only on
+  synchronous completion (`lpOverlapped == NULL` and an immediate success); an
+  overlapped (asynchronous) call reports its byte count through the `OVERLAPPED`
+  later, which the shim does not observe, so overlapped completions are forwarded
+  faithfully but **not** teed. This is a documented v1 limitation, consistent with the
+  HTTP/1.1-`Content-Length`-only framing scope (D19) — the demo's samples use blocking
+  sockets, so the synchronous path is the exercised one.
+
+- **The alias name-shape validation was loosened for lowercase genuine names.** The
+  Winsock genuine names (`socket`, `connect`, `send`, ...) are lowercase, so the shim
+  names are `m` + a lowercase letter. The alias generator's export-name validation
+  regex ([`generate_mwin32_alias.cmake`](generate_mwin32_alias.cmake)) was widened from
+  `^m([A-Z]|_)` to `^m([A-Za-z]|_)` to admit them. The mechanical Win32-name derivation
+  (strip the leading `m`: `msocket` → `socket`) is unchanged, and no existing export is
+  affected — the change only *accepts* a previously rejected shape, at the cost of a
+  slightly weaker typo guard.
+
+- **The shim never recurses into itself.** The link-time alias redirects a *client's*
+  Win32 calls into these shims, but `m_mwin32.dll` does not link the alias object, so
+  the unqualified `::socket` / `::send` / ... calls inside the shims bind to ws2_32
+  normally.
+
+- **Cross-module singleton note (testing).** The shims run inside `m_mwin32.dll`, which
+  owns one session singleton; a test that links `m_mwin32_internal` directly compiles a
+  *second*, independent copy of that singleton. A capture written by a DLL shim is
+  therefore not observable through the in-test session accessors. The WC-1 tests respect
+  this split: the capture mechanism is unit-tested directly against the in-test session
+  (`MWinSockTee.*`), and the shims are exercised end-to-end over a real IPv4 loopback
+  connection asserting only byte-identical passthrough (`MWinSockPassthrough` /
+  `LoopbackFixture`), which needs no capture readback. Observing a DLL-shim capture
+  end-to-end is deferred to the sink-seam and integration milestones.
+

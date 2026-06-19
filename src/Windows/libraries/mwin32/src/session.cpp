@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+#include <cstddef>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -233,6 +235,64 @@ namespace m::mwin32_impl
                 return S_OK;
             }
 
+            //
+            // Per-socket wire-capture tee (WC-1). Append `length` bytes from
+            // `data` to the socket's outbound / inbound capture stream. A pure
+            // side-channel: callers (the Winsock shims) invoke this *after* the
+            // genuine ws2_32 call, with the count ws2_32 reported actually moved,
+            // and ignore its effect on the bytes returned to the host.
+            //
+            void
+            socket_tee_outbound(std::uintptr_t socket_value, void const* data, std::size_t length)
+            {
+                if (data == nullptr || length == 0)
+                    return;
+
+                auto l = std::unique_lock(m_mutex);
+                auto& cap = m_socket_captures[socket_value];
+                auto const* bytes = static_cast<std::uint8_t const*>(data);
+                cap.outbound.insert(cap.outbound.end(), bytes, bytes + length);
+            }
+
+            void
+            socket_tee_inbound(std::uintptr_t socket_value, void const* data, std::size_t length)
+            {
+                if (data == nullptr || length == 0)
+                    return;
+
+                auto l = std::unique_lock(m_mutex);
+                auto& cap = m_socket_captures[socket_value];
+                auto const* bytes = static_cast<std::uint8_t const*>(data);
+                cap.inbound.insert(cap.inbound.end(), bytes, bytes + length);
+            }
+
+            void
+            socket_closed(std::uintptr_t socket_value)
+            {
+                auto l = std::unique_lock(m_mutex);
+                m_socket_captures.erase(socket_value);
+            }
+
+            std::vector<std::uint8_t>
+            socket_captured_outbound(std::uintptr_t socket_value)
+            {
+                auto l = std::unique_lock(m_mutex);
+                auto it = m_socket_captures.find(socket_value);
+                if (it == m_socket_captures.end())
+                    return {};
+                return it->second.outbound;
+            }
+
+            std::vector<std::uint8_t>
+            socket_captured_inbound(std::uintptr_t socket_value)
+            {
+                auto l = std::unique_lock(m_mutex);
+                auto it = m_socket_captures.find(socket_value);
+                if (it == m_socket_captures.end())
+                    return {};
+                return it->second.inbound;
+            }
+
         private:
             session(): session(load_pilcfg()) {}
 
@@ -286,6 +346,18 @@ namespace m::mwin32_impl
             std::shared_ptr<m::pil::iwebcore>                              m_webcore;
             std::unique_ptr<m::pil::iwebcore_instance>                     m_webcore_instance;
             std::map<m::pil::predefined_key, std::shared_ptr<m::pil::ikey>> m_predefined_cache;
+
+            //
+            // Per-socket wire-capture buffers (WC-1). Keyed by the raw SOCKET
+            // value; each holds the bytes teed off that socket in each
+            // direction. Guarded by m_mutex.
+            //
+            struct socket_capture
+            {
+                std::vector<std::uint8_t> outbound;
+                std::vector<std::uint8_t> inbound;
+            };
+            std::map<std::uintptr_t, socket_capture>                       m_socket_captures;
         };
     } // namespace
 
@@ -407,6 +479,36 @@ namespace m::mwin32_impl
         {
             return map_pil_exception_to_hresult();
         }
+    }
+
+    void
+    session_socket_tee_outbound(std::uintptr_t socket_value, void const* data, std::size_t length)
+    {
+        session::instance().socket_tee_outbound(socket_value, data, length);
+    }
+
+    void
+    session_socket_tee_inbound(std::uintptr_t socket_value, void const* data, std::size_t length)
+    {
+        session::instance().socket_tee_inbound(socket_value, data, length);
+    }
+
+    void
+    session_socket_closed(std::uintptr_t socket_value)
+    {
+        session::instance().socket_closed(socket_value);
+    }
+
+    std::vector<std::uint8_t>
+    session_socket_captured_outbound(std::uintptr_t socket_value)
+    {
+        return session::instance().socket_captured_outbound(socket_value);
+    }
+
+    std::vector<std::uint8_t>
+    session_socket_captured_inbound(std::uintptr_t socket_value)
+    {
+        return session::instance().socket_captured_inbound(socket_value);
     }
 
 } // namespace m::mwin32_impl

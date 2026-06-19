@@ -196,3 +196,11 @@ EXPORTS
  mWebCoreActivate
  mWebCoreSetMetadata
  mWebCoreShutdown
+ msocket
+ mconnect
+ maccept
+ msend
+ mrecv
+ mclosesocket
+ mWSASend
+ mWSARecv

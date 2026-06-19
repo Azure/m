@@ -34,7 +34,7 @@ the violation tallies are equal across every transport is the headline result.
 
 ## Milestone M-WIRECAP-SOCK — Winsock interception
 
-- [ ] **WC-1**: Add Winsock shims (`msocket`, `mconnect`, `maccept`, `msend`,
+- [x] **WC-1**: Add Winsock shims (`msocket`, `mconnect`, `maccept`, `msend`,
   `mrecv`, `mclosesocket`, plus `mWSASend`/`mWSARecv` as needed) that forward to
   the genuine `ws2_32` entry points and tee transferred bytes per socket. Add
   exports to `mwin32.def` and the alias generation. Smoke test: passthrough is

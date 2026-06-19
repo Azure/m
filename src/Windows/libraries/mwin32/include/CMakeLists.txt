@@ -5,6 +5,7 @@ target_sources(m_mwin32 PUBLIC FILE_SET HEADERS FILES
     m/mwin32/mwinreg.h
     m/mwin32/mwinfile.h
     m/mwin32/mwinhwc.h
+    m/mwin32/mwinsock.h
 )
 
 set(m_installation_targets ${m_installation_targets} PARENT_SCOPE)

@@ -3,8 +3,10 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #undef NOMINMAX
 #define NOMINMAX
@@ -106,5 +108,44 @@ namespace m::mwin32_impl
 
     HRESULT
     session_webcore_set_metadata(PCWSTR pszMetadataType, PCWSTR pszValue);
+
+    //
+    // Per-socket wire-capture tee (M-WIRECAP-SOCK / WC-1, DESIGN-NOTES D20).
+    // The Winsock shims forward every byte they observe on a socket to these
+    // sinks: bytes the process sent (`send` / `WSASend`) go to the outbound
+    // stream, bytes it received (`recv` / `WSARecv`) go to the inbound stream.
+    // The capture is a pure side-channel (D6): it never alters the bytes the
+    // shim returns to the caller. The socket is passed as a raw `uintptr_t` so
+    // this header need not pull in the Winsock headers; the shims cast their
+    // `SOCKET` to it. Zero-length or null transfers are ignored.
+    //
+    void
+    session_socket_tee_outbound(std::uintptr_t socket_value,
+                                void const*     data,
+                                std::size_t     length);
+
+    void
+    session_socket_tee_inbound(std::uintptr_t socket_value,
+                               void const*     data,
+                               std::size_t     length);
+
+    //
+    // Release the per-socket capture buffers when a socket is closed
+    // (`closesocket`). Idempotent and safe for sockets that were never teed.
+    //
+    void
+    session_socket_closed(std::uintptr_t socket_value);
+
+    //
+    // Test accessors: a copy of the captured outbound / inbound byte streams
+    // for a socket (empty if the socket has no capture). Exposed so the
+    // byte-identical passthrough smoke test can assert the tee mirrored exactly
+    // the bytes that crossed the wire.
+    //
+    std::vector<std::uint8_t>
+    session_socket_captured_outbound(std::uintptr_t socket_value);
+
+    std::vector<std::uint8_t>
+    session_socket_captured_inbound(std::uintptr_t socket_value);
 
 } // namespace m::mwin32_impl

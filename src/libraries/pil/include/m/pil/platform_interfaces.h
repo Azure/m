@@ -21,6 +21,7 @@
 #include <m/pil/registry_base_types.h>
 #include <m/pil/registry_interfaces.h>
 #include <m/pil/security_attributes.h>
+#include <m/pil/http_contract_interfaces.h>
 #include <m/pil/http_listener_interfaces.h>
 #include <m/pil/webcore_interfaces.h>
 #include <m/strings/convert.h>
@@ -206,6 +207,47 @@ namespace m::pil
         }
 
         //
+        //  get_http_contract
+        //
+        //  Returns the HTTP contract (OpenAPI/Swagger) surface (D-HWC-8,
+        //  D-HWC-9). Like get_webcore / get_http_listener, this has a default
+        //  that yields a null provider whose operations are not-implemented
+        //  (until a provider overrides it, e.g. the live validating provider in
+        //  M-HWC-CONTRACT-VALIDATE).
+        //
+
+        enum class get_http_contract_flags : uint64_t
+        {
+        };
+
+        enum class get_http_contract_result_code : uint32_t
+        {
+        };
+
+        enum class get_http_contract_result_flags : uint32_t
+        {
+        };
+
+        using get_http_contract_disposition =
+            disposition<get_http_contract_result_code, get_http_contract_result_flags>;
+
+        virtual get_http_contract_disposition
+        get_http_contract(get_http_contract_flags, std::shared_ptr<ihttp_contract>& returned_http_contract)
+        {
+            returned_http_contract = std::make_shared<null_http_contract>();
+            return {};
+        }
+
+        std::shared_ptr<m::pil::ihttp_contract>
+        get_http_contract()
+        {
+            std::shared_ptr<ihttp_contract> returned_http_contract;
+            auto const d = get_http_contract(get_http_contract_flags{}, returned_http_contract);
+            M_INTERNAL_ERROR_CHECK(!d);
+            return returned_http_contract;
+        }
+
+        //
         // save
         //
 
@@ -275,6 +317,9 @@ namespace m::pil
 
     M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iplatform::get_http_listener_flags);
     M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iplatform::get_http_listener_result_flags);
+
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iplatform::get_http_contract_flags);
+    M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iplatform::get_http_contract_result_flags);
 
     M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iplatform::save_flags);
     M_DEFINE_SCOPED_ENUM_BITFLAG_OPS(iplatform::save_result_flags);

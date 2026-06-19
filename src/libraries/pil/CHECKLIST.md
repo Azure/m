@@ -430,22 +430,22 @@ is gated behind the surface landing here first.
 
 ## Milestone M-HWC-CONTRACT-IFACE — `ihttp_contract` surface + null provider (D-HWC-8)
 
-- [ ] M-HWC-CONTRACT-IFACE-1: Add `http_contract_interfaces.h` (`m::pil`): `ihttp_contract` with
+- [x] M-HWC-CONTRACT-IFACE-1: Add `http_contract_interfaces.h` (`m::pil`): `ihttp_contract` with
       ec-primitive `load(spec_bytes, std::unique_ptr<ihttp_contract_document>&, std::error_code&)`
       and, on the document, `validate_request(method, path, headers, body, …, std::error_code&)`
       and `validate_response(method, path, status, headers, body, …, std::error_code&)` returning
       a `disposition` whose contractual non-success codes are the violation kinds (unknown
       operation, parameter invalid, body-schema invalid, undeclared status). Add `null_http_contract`
       whose operations are `M_NOT_IMPLEMENTED`.
-- [ ] M-HWC-CONTRACT-IFACE-2: Add `iplatform::get_http_contract(get_http_contract_flags,
+- [x] M-HWC-CONTRACT-IFACE-2: Add `iplatform::get_http_contract(get_http_contract_flags,
       std::shared_ptr<ihttp_contract>&)` to
       [platform_interfaces.h](include/m/pil/platform_interfaces.h) with a **default** yielding
       `null_http_contract` (mirrors `get_webcore` / `get_http_listener`), plus the friendly
       `get_http_contract()` accessor.
-- [ ] M-HWC-CONTRACT-IFACE-3: Add the public façade in a new `http_contract.h` that re-declares the
+- [x] M-HWC-CONTRACT-IFACE-3: Add the public façade in a new `http_contract.h` that re-declares the
       `contract_mode` enum (`validate` / `drive`) bit-for-bit and maps it onto the interface enum,
       so the public header carries no `ihttp_contract` dependency.
-- [ ] M-HWC-CONTRACT-IFACE-4 (integration): the null provider surfaces not-implemented through the
+- [x] M-HWC-CONTRACT-IFACE-4 (integration): the null provider surfaces not-implemented through the
       façade and each existing decorator forwards `get_http_contract` to its underlying without
       crashing.
 

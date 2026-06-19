@@ -19,12 +19,14 @@
 #include <mutex>
 #include <string>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
 #include <m/error_handling/macros.h>
 #include <m/errors/errors.h>
 #include <m/pil/file_path.h>
+#include <m/pil/in_process_webcore.h>
 #include <m/pil/synthetic_http_edge.h>
 #include <m/strings/convert.h>
 
@@ -2745,7 +2747,123 @@ namespace m::pil::impl::intercepting
         private:
             synthetic_http_queue& m_queue;
         };
+
+        // How long the in-process engine's worker waits in each dequeue poll
+        // before re-checking its stop flag. A request enqueued meanwhile wakes
+        // the worker immediately (the queue notifies on enqueue), so this only
+        // bounds shutdown latency, not request-servicing latency.
+        inline constexpr std::chrono::milliseconds in_process_worker_poll{5};
+
+        //
+        // The activation instance of the in-process engine (D-HWC-11): owns a
+        // synthetic_http_queue, a worker thread that services it through the
+        // handler, and the public edge adapter over that queue. The worker is
+        // joined on destruction.
+        //
+        class in_process_webcore_instance final : public m::pil::iwebcore_instance
+        {
+        public:
+            explicit in_process_webcore_instance(m::pil::synthetic_request_handler handler):
+                m_queue(std::make_unique<synthetic_http_queue>()),
+                m_handler(std::move(handler)),
+                m_edge(std::make_unique<synthetic_http_edge_adapter>(*m_queue))
+            {
+                m_worker = std::thread([this] { run(); });
+            }
+
+            in_process_webcore_instance(in_process_webcore_instance const&)            = delete;
+            in_process_webcore_instance& operator=(in_process_webcore_instance const&) = delete;
+
+            ~in_process_webcore_instance() override
+            {
+                m_stop.store(true, std::memory_order_release);
+                if (m_worker.joinable())
+                    m_worker.join();
+            }
+
+            m::pil::isynthetic_http_edge*
+            synthetic_http_edge() override
+            {
+                return m_edge.get();
+            }
+
+        private:
+            void
+            run()
+            {
+                while (!m_stop.load(std::memory_order_acquire))
+                {
+                    auto req = m_queue->dequeue_request(in_process_worker_poll);
+                    if (!req.has_value())
+                        continue;
+
+                    HTTP_REQUEST_ID const id = req->request_id;
+
+                    m::pil::captured_contract_response contract_response =
+                        m_handler(to_synthesized_request(*req));
+
+                    captured_http_response internal_response;
+                    internal_response.status_code = contract_response.status;
+                    internal_response.headers     = contract_response.headers;
+                    internal_response.body        = contract_response.body;
+
+                    m_queue->capture_response(id, std::move(internal_response));
+                    m_queue->complete_response(id);
+                }
+            }
+
+            std::unique_ptr<synthetic_http_queue>          m_queue;
+            m::pil::synthetic_request_handler              m_handler;
+            std::unique_ptr<m::pil::isynthetic_http_edge>  m_edge;
+            std::atomic<bool>                              m_stop{false};
+            std::thread                                    m_worker;
+        };
+
+        //
+        // The in-process engine surface (D-HWC-11): each activation yields a new
+        // serviced instance. There is no IIS dependency and no single-activation
+        // constraint — this is a deterministic test/CI engine.
+        //
+        class in_process_webcore final : public m::pil::iwebcore
+        {
+        public:
+            explicit in_process_webcore(m::pil::synthetic_request_handler handler):
+                m_handler(std::move(handler))
+            {}
+
+            activate_disposition
+            activate(activate_flags /*flags*/,
+                     activation_request const& /*request*/,
+                     std::unique_ptr<iwebcore_instance>& returned_instance,
+                     std::error_code&                    ec) override
+            {
+                ec.clear();
+                returned_instance = std::make_unique<in_process_webcore_instance>(m_handler);
+                return {};
+            }
+
+            set_metadata_disposition
+            set_metadata(set_metadata_flags /*flags*/,
+                         std::u16string_view /*type*/,
+                         std::u16string_view /*value*/,
+                         std::error_code&    ec) override
+            {
+                ec.clear();
+                return {};
+            }
+
+        private:
+            m::pil::synthetic_request_handler m_handler;
+        };
     } // namespace
+
+    // Bridge for the public m::pil::make_in_process_webcore factory: constructs
+    // the anonymous-namespace engine, which is visible here in the same TU.
+    std::shared_ptr<iwebcore>
+    create_in_process_webcore(m::pil::synthetic_request_handler handler)
+    {
+        return std::make_shared<in_process_webcore>(std::move(handler));
+    }
 
     webcore_instance::webcore_instance(std::unique_ptr<iwebcore_instance>    underlying_instance,
                                        std::unique_ptr<interception_context> context,
@@ -3000,3 +3118,12 @@ namespace m::pil::impl::intercepting
     }
 
 } // namespace m::pil::impl::intercepting
+
+namespace m::pil
+{
+    std::shared_ptr<iwebcore>
+    make_in_process_webcore(synthetic_request_handler handler)
+    {
+        return impl::intercepting::create_in_process_webcore(std::move(handler));
+    }
+} // namespace m::pil

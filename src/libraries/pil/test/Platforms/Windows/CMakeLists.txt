@@ -22,6 +22,7 @@ add_executable(${TEST_EXE_NAME}
     test_fault_public.cpp
     test_fault_filesystem.cpp
     test_intercepting_webcore.cpp
+    test_in_process_webcore.cpp
     test_journaling.cpp
     test_journaling_filesystem.cpp
     test_logging_float.cpp

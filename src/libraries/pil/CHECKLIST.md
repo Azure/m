@@ -603,7 +603,7 @@ behind an activated engine) was explicitly deferred here. This milestone supplie
       queue directly (the test plays the engine: dequeue, build a response, `capture_response` /
       `complete_response`) and asserting `submit` returns it and observers fire.
 
-- [ ] M-HWC-ENGINE-EDGE-4: Add an **in-process engine** provider
+- [x] M-HWC-ENGINE-EDGE-4: Add an **in-process engine** provider
       `std::shared_ptr<iwebcore> make_in_process_webcore(synthetic_request_handler handler)` (new
       `using synthetic_request_handler = std::function<captured_contract_response(synthesized_request
       const&)>;`) — an `iwebcore` whose `activate` enables synthetic mode, owns a

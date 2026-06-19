@@ -20,7 +20,7 @@ capture that feeds this recorder lives in
   round-trip a known in-repo spec (load → emit → reload) and assert structural
   equality on the operation set.
 
-- [ ] **REC-2**: Body-shape inference. Given one or more observed JSON request/
+- [x] **REC-2**: Body-shape inference. Given one or more observed JSON request/
   response bodies for an operation, infer a minimal JSON Schema (object with
   `type` per field; `required` = intersection of keys seen across samples; arrays
   inferred from element shape). Non-JSON bodies recorded by media type only.

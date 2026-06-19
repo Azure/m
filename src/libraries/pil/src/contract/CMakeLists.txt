@@ -10,6 +10,7 @@ target_sources(m_pil PRIVATE
     contract_errors.cpp
     contract_validating_facet.cpp
     contract_example_driver.cpp
+    contract_recorder.cpp
     http_contract_edge.cpp
 )
 

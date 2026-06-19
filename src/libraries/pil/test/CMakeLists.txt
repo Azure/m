@@ -21,6 +21,7 @@ add_executable(${TEST_EXE_NAME}
     test_http_contract_drive.cpp
     test_http_contract_edge.cpp
     test_openapi_model.cpp
+    test_contract_recorder.cpp
     $<$<PLATFORM_ID:Windows>:test_win32_webcore.cpp>
 )
 

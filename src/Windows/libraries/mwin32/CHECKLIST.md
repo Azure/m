@@ -318,7 +318,7 @@ example driver) is PIL Phase 4.
       absent (empty), single entry, multiple entries (order preserved), `%VAR%` expansion of
       `spec`, and the negative cases (non-array, element not an object, missing/empty `spec` or
       `endpoint`, unknown `mode`). ≥10 cases, sub-second.
-- [ ] M-HWC-CONTRACTCFG-5 (integration): a `.pilcfg` referencing a small YAML spec binds through
+- [x] M-HWC-CONTRACTCFG-5 (integration): a `.pilcfg` referencing a small YAML spec binds through
       `load_webcore_contracts`, then drives and validates a fake engine end to end via the public
       drive surface (`drive_contract(document, submit)`) — assert the configured mode produced the
       expected request traffic and that a deliberately non-conforming response is reported as a

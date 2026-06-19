@@ -12,8 +12,11 @@
 //
 
 #include <cstdint>
+#include <condition_variable>
 #include <filesystem>
 #include <fstream>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -22,9 +25,13 @@
 
 #include <gtest/gtest.h>
 
+#include <m/pil/file_path.h>
 #include <m/pil/http_contract_interfaces.h>
+#include <m/pil/in_process_webcore.h>
 #include <m/pil/pil.h>
 #include <m/pil/platform_interfaces.h>
+#include <m/pil/synthetic_http_edge.h>
+#include <m/pil/webcore_interfaces.h>
 
 #include "pilcfg.h"
 #include "webcore_config_platform.h"
@@ -94,6 +101,76 @@ paths:
         cfg.contracts.push_back(std::move(binding));
         return cfg;
     }
+
+    // A platform that forwards every surface to the real PIL stack but serves an
+    // in-process engine for get_webcore. This lets the config platform wire its
+    // bound contracts onto a *live* synthetic HTTP edge (the in-process engine),
+    // exactly as production wires them onto the intercepting webcore's edge — the
+    // only difference being which engine sits behind the edge.
+    class in_process_engine_platform final : public m::pil::iplatform
+    {
+    public:
+        in_process_engine_platform(std::shared_ptr<m::pil::iplatform> underlying,
+                                   m::pil::synthetic_request_handler  handler):
+            m_underlying(std::move(underlying)),
+            m_handler(std::move(handler))
+        {}
+
+        get_registry_disposition
+        get_registry(get_registry_flags flags, std::shared_ptr<m::pil::iregistry>& returned) override
+        {
+            return m_underlying->get_registry(flags, returned);
+        }
+
+        get_filesystem_disposition
+        get_filesystem(get_filesystem_flags flags, std::shared_ptr<m::pil::ifilesystem>& returned) override
+        {
+            return m_underlying->get_filesystem(flags, returned);
+        }
+
+        get_http_contract_disposition
+        get_http_contract(get_http_contract_flags                   flags,
+                          std::shared_ptr<m::pil::ihttp_contract>&  returned) override
+        {
+            return m_underlying->get_http_contract(flags, returned);
+        }
+
+        get_http_listener_disposition
+        get_http_listener(get_http_listener_flags                   flags,
+                          std::shared_ptr<m::pil::ihttp_listener>&  returned) override
+        {
+            return m_underlying->get_http_listener(flags, returned);
+        }
+
+        get_webcore_disposition
+        get_webcore(get_webcore_flags, std::shared_ptr<m::pil::iwebcore>& returned) override
+        {
+            returned = m::pil::make_in_process_webcore(m_handler);
+            return {};
+        }
+
+        save_disposition
+        save(save_flags flags, save_contents contents, pugi::xml_node& platform_element) override
+        {
+            return m_underlying->save(flags, contents, platform_element);
+        }
+
+    private:
+        std::shared_ptr<m::pil::iplatform> m_underlying;
+        m::pil::synthetic_request_handler  m_handler;
+    };
+
+    // The activation request used to bring up an in-process engine instance.
+    m::pil::activation_request
+    make_activation_request()
+    {
+        m::pil::activation_request request;
+        request.app_host_config = m::pil::file_path(u"C:\\test\\applicationHost.config");
+        request.instance_name   = u"InProcess";
+        return request;
+    }
+
+    constexpr std::chrono::milliseconds k_live_timeout{4000};
 } // namespace
 
 //
@@ -327,3 +404,121 @@ TEST(ContractCfgIntegration, WiringEmptyContractsIsNoOp)
     EXPECT_EQ(summary.drive.requests, 0u);
     EXPECT_EQ(edge->tally().requests, 0u);
 }
+
+//
+// CONTRACTCFG-7.2 (integration): the config platform wires its bound contracts
+// onto a *live* engine's synthetic HTTP edge. We build the config platform over
+// an underlying platform whose get_webcore yields an in-process engine, and the
+// engine's handler returns a deliberately non-conforming (undeclared 500)
+// response. After activation the config platform's decorator (a) drove the
+// drive-mode contract's synthesized traffic against the engine, (b) tallied the
+// non-conforming response as a violation, and (c) registered the validate-mode
+// document as a live crossing observer — which we confirm by driving the engine
+// with an independent autonomous request and watching the observer validate it.
+//
+// The production real-hwebcore path is the same decorator with the intercepting
+// webcore (synthetic mode) over a real hwebcore.dll as the config-selected
+// engine; the only element not exercised in CI is IIS itself (D-HWC-11).
+//
+TEST(ContractCfgIntegration, LiveEdgeWiresValidateAndDriveOverInProcessEngine)
+{
+    scoped_spec_file const spec_validate(k_ping_spec);
+    scoped_spec_file const spec_drive(k_ping_spec);
+
+    auto real = m::pil::make_platform_interface();
+    ASSERT_NE(real, nullptr);
+
+    // Underlying platform: forwards to the real PIL stack, but serves an
+    // in-process engine whose handler returns an undeclared 500 for every
+    // request (deliberately non-conforming).
+    auto underlying = std::make_shared<in_process_engine_platform>(
+        real,
+        [](m::pil::synthesized_request const&) -> m::pil::captured_contract_response {
+            return {500, {}, {}};
+        });
+
+    // One validate binding and one drive binding, both over the GET /ping spec.
+    pilcfg::webcore_config cfg;
+    {
+        pilcfg::webcore_config::contract_binding b;
+        b.spec     = spec_validate.path().u16string();
+        b.endpoint = u"watch";
+        b.mode     = pilcfg::webcore_config::contract_mode::validate;
+        cfg.contracts.push_back(std::move(b));
+    }
+    {
+        pilcfg::webcore_config::contract_binding b;
+        b.spec     = spec_drive.path().u16string();
+        b.endpoint = u"ping";
+        b.mode     = pilcfg::webcore_config::contract_mode::drive;
+        cfg.contracts.push_back(std::move(b));
+    }
+
+    auto diag            = std::make_shared<m::mwin32_impl::live_contract_diagnostics>();
+    auto config_platform = m::mwin32_impl::apply_webcore_config(underlying, cfg, diag);
+    ASSERT_NE(config_platform, nullptr);
+
+    auto webcore = config_platform->get_webcore();
+    ASSERT_NE(webcore, nullptr);
+
+    // Activate the engine through the config platform. The decorator wires the
+    // bound contracts onto the activated instance's synthetic edge: it registers
+    // the validate document as a crossing observer, then drives the drive
+    // document's synthesized traffic against the live engine.
+    std::unique_ptr<m::pil::iwebcore_instance> instance;
+    std::error_code                            ec;
+    auto                                       request = make_activation_request();
+    webcore->activate(m::pil::iwebcore::activate_flags{}, request, instance, ec);
+    ASSERT_FALSE(ec);
+    ASSERT_NE(instance, nullptr);
+
+    // (a) + (b): the drive contract synthesized its single GET /ping and
+    // submitted it to the engine synchronously during activation; the undeclared
+    // 500 is tallied as a violation. (These counts are settled by the time
+    // activate returns — drive_contract submits and waits inline.)
+    {
+        std::lock_guard<std::mutex> lock(diag->mutex);
+        EXPECT_EQ(diag->validate_bindings, 1u);
+        EXPECT_EQ(diag->drive_bindings, 1u);
+        EXPECT_EQ(diag->drive.requests, 1u);
+        EXPECT_EQ(diag->drive.responses_validated, 1u);
+        EXPECT_EQ(diag->drive.conforming, 0u);
+        EXPECT_EQ(diag->drive.violating, 1u);
+    }
+
+    // (c): drive the live engine with an INDEPENDENT autonomous request and
+    // confirm the registered validate observer validated that crossing. We
+    // register our own observer as the synchronization point: the wiring's
+    // validate observer was registered first, so once ours fires for a crossing
+    // the validate observer has already tallied it (observers run in order).
+    auto* edge = instance->synthetic_http_edge();
+    ASSERT_NE(edge, nullptr);
+
+    std::mutex              obs_mutex;
+    std::condition_variable obs_cv;
+    std::size_t             observed = 0;
+    edge->add_crossing_observer(
+        [&](m::pil::synthesized_request const&, m::pil::captured_contract_response const&) {
+            std::lock_guard<std::mutex> lock(obs_mutex);
+            ++observed;
+            obs_cv.notify_all();
+        });
+
+    m::pil::synthesized_request autonomous;
+    autonomous.method = "GET";
+    autonomous.path   = "/ping";
+    edge->submit(autonomous, k_live_timeout);
+
+    {
+        std::unique_lock<std::mutex> lock(obs_mutex);
+        ASSERT_TRUE(obs_cv.wait_for(lock, k_live_timeout, [&] { return observed >= 1; }));
+    }
+
+    // The validate observer saw the autonomous crossing (and the earlier drive
+    // crossing); each undeclared 500 is a contract violation (a side diagnostic,
+    // D6 — the engine's behavior is never altered).
+    std::lock_guard<std::mutex> lock(diag->mutex);
+    EXPECT_GE(diag->validate_crossings, 1u);
+    EXPECT_GE(diag->validate_violations, 1u);
+}
+

@@ -338,7 +338,7 @@ example driver) is PIL Phase 4.
       assert the drive contract produced the expected request traffic, a deliberately
       non-conforming response is tallied as a violation, and the attached validate document observed
       the crossings. Sub-second.
-- [ ] M-HWC-CONTRACTCFG-7 (umbrella — production live-edge wiring; now unblocked by PIL
+- [x] M-HWC-CONTRACTCFG-7 (umbrella — production live-edge wiring; now unblocked by PIL
       M-HWC-ENGINE-EDGE): wire bound contracts onto a *running* engine's synthetic HTTP edge so
       autonomous request/response traffic crossing the edge is auto-validated and drive contracts
       execute against the activated engine, instead of `webcore_config_platform::get_webcore`
@@ -363,7 +363,7 @@ example driver) is PIL Phase 4.
       enabled in production; the in-process engine in test). Reuse the bound-contract loading from
       CONTRACTCFG-3 and the validate/tally shape from CONTRACTCFG-6; no `.pilcfg` schema change.
 
-- [ ] M-HWC-CONTRACTCFG-7.2 (integration): build the config platform (`apply_webcore_config`) over
+- [x] M-HWC-CONTRACTCFG-7.2 (integration): build the config platform (`apply_webcore_config`) over
       an underlying platform whose `get_webcore` returns `m::pil::make_in_process_webcore(handler)`,
       where the handler returns a configurable (deliberately non-conforming) response; load a
       `.pilcfg` carrying one `validate` and one `drive` contract; activate through the config

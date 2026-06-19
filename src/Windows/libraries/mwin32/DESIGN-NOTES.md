@@ -986,3 +986,49 @@ Decisions:
 The helper (`expand_environment_path`, `pilcfg.cpp`) and its per-member application
 are unit-tested in `test_pilcfg.cpp` (`PilcfgExpand.*`), including the negative cases
 that redirection keys and webcore endpoints are preserved verbatim.
+
+
+## D18 — Production live-edge contract wiring is a webcore decorator (M-HWC-CONTRACTCFG-7)
+
+`.pilcfg` contract bindings (D-HWC-8) are wired onto a *running* engine, not merely
+held as standalone documents. `webcore_config_platform::get_webcore` wraps the
+configured engine in a **contract-wiring webcore decorator**
+(`make_contract_wiring_webcore`, `webcore_config_platform.cpp`). The decorator's
+`activate` forwards to the underlying webcore, then — on the activated instance's
+`synthetic_http_edge()` — does two things, reusing the bound-contract set from
+CONTRACTCFG-3 and the validate/drive tally shape from CONTRACTCFG-6:
+
+1. **Validate-mode** documents are registered as `crossing_observer`s. Every
+   autonomous request/response that crosses the live edge is contract-checked
+   (`validate_request` / `validate_response`) and tallied into a
+   `live_contract_diagnostics` side record. This is a pure side diagnostic (D6): the
+   engine's behavior is never altered by validation, and an observer never feeds back
+   into the request path.
+2. **Drive-mode** documents are driven against the activated engine via
+   `drive_contract(*document, m::pil::make_engine_submit(edge, timeout))`, generating
+   the spec's synthesized traffic through the same public submit seam.
+
+Decisions:
+
+- **Decorator, not a platform rewrite.** The wiring lives entirely in the webcore
+  decorator returned by `get_webcore`; the rest of the platform stack forwards
+  unchanged. When no contracts are bound the decorator is a transparent pass-through,
+  and when the activated instance exposes no synthetic edge (`synthetic_http_edge() ==
+  nullptr`, e.g. the null engine) wiring is a tolerant no-op. The returned instance
+  owns the registered observers / wiring for the activation's lifetime.
+
+- **Per-instance validate serialization.** Crossing observers may fire concurrently on
+  the engine's servicing thread(s), so each activation guards its validate-document
+  access with a per-instance mutex (`m_validate_mutex`); the diagnostics record is
+  guarded by its own mutex. Drive and validate documents are distinct document objects,
+  so the two modes never contend on the same document.
+
+- **Engine-agnostic seam; only IIS is unexercised in CI.** The decorator wires onto
+  the public `isynthetic_http_edge` seam, which is engine-agnostic. The CI integration
+  test (`ContractCfgIntegration.LiveEdgeWiresValidateAndDriveOverInProcessEngine`)
+  drives the **same** decorator over an in-process engine
+  (`m::pil::make_in_process_webcore`). The production real-`hwebcore` path is the
+  *same* decorator with the intercepting webcore (synthetic mode) over a real
+  `hwebcore.dll` as the config-selected engine. The only element not exercised in CI
+  is IIS / `hwebcore.dll` itself — an acknowledged limit (PIL D-HWC-11), not a gap in
+  the wiring, which is identical on both paths.

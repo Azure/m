@@ -471,14 +471,14 @@ is gated behind the surface landing here first.
 
 ## Milestone M-HWC-CONTRACT-DRIVE — drive mode (spec examples → traffic) (D-HWC-8)
 
-- [ ] M-HWC-CONTRACT-DRIVE-1: Example extractor over the model — for each operation synthesize a
+- [x] M-HWC-CONTRACT-DRIVE-1: Example extractor over the model — for each operation synthesize a
       `synthetic_http_request` from the operation's `example` / `examples` (parameters and request
       body), falling back to schema-derived defaults where no example is present. Pure over the
       model; emits the request list.
-- [ ] M-HWC-CONTRACT-DRIVE-2: Driver that enqueues the synthesized requests into the synthetic
+- [x] M-HWC-CONTRACT-DRIVE-2: Driver that enqueues the synthesized requests into the synthetic
       queue and (when validate is also bound) runs each captured response through
       `validate_response`, reporting the conforming/violating tally.
-- [ ] M-HWC-CONTRACT-DRIVE-3 (integration): a YAML spec carrying request examples drives the fake
+- [x] M-HWC-CONTRACT-DRIVE-3 (integration): a YAML spec carrying request examples drives the fake
       engine end to end; responses are captured and validated (validate + drive composed). Asserts
       every example operation produced a request and each response was contract-checked.
 

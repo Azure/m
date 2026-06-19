@@ -625,6 +625,22 @@ contract) is opt-in via `surface_violations`, off by default so a `validate` bin
 the engine's behavior. Operational failures from the document always surface regardless of the
 flag.
 
+**Implementation (M-HWC-CONTRACT-DRIVE).** Drive mode
+(`src/contract/contract_example_driver.*`) is two pure pieces. `synthesize_contract_requests`
+walks the model and emits one request per operation: path-template captures, required query
+parameters (query discriminators included), declared header parameters, and the JSON request body
+are filled from each element's authored `example`, falling back to a schema-derived default
+(`default_for_schema`: an object carrying its required properties, an empty array, `""`, `0`, or
+`false`) when no example is present — so the synthesized traffic conforms to the contract by
+construction. `drive_contract` then submits each request through a caller-supplied
+`engine_submit` callable and, when a validate document is also bound, runs each captured response
+through `validate_response`, reporting a conforming / violating tally; drive composes on top of
+validate exactly as the mode description above states. The driver is **engine-agnostic on
+purpose**: the actual edge it drives — the Windows `synthetic_http_queue` — is platform-specific
+and lives outside this cross-platform layer, so wiring the synthesized requests into that queue is
+the Windows consumer's job (mwin32 M-HWC-CONTRACTCFG), not the contract layer's. This keeps the
+contract layer free of any dependency on the Windows synthetic edge (Design Autonomy).
+
 ---
 
 ## D-HWC-9 — a contract is a multi-document bundle, not a single self-contained file

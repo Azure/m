@@ -9,6 +9,7 @@ target_sources(m_pil PRIVATE
     http_contract_provider.cpp
     contract_errors.cpp
     contract_validating_facet.cpp
+    contract_example_driver.cpp
 )
 
 # nlohmann_json is exposed through the internal contract headers (body/parameter

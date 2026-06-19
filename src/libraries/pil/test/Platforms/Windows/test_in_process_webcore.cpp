@@ -11,6 +11,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -28,6 +29,8 @@
 #include <m/pil/synthetic_http_edge.h>
 #include <m/pil/webcore_interfaces.h>
 
+#include "contract/http_contract_provider.h"
+
 namespace
 {
     using m::pil::activation_request;
@@ -39,6 +42,7 @@ namespace
     using m::pil::iwebcore;
     using m::pil::iwebcore_instance;
     using m::pil::make_engine_submit;
+    using m::pil::make_http_contract_provider;
     using m::pil::make_in_process_webcore;
     using m::pil::null_webcore_instance;
     using m::pil::synthesized_request;
@@ -367,5 +371,116 @@ namespace
 
         auto response = edge->submit(request_for("GET", "/slow"), std::chrono::milliseconds{1});
         EXPECT_EQ(response.status, 0);
+    }
+
+    //
+    // M-HWC-ENGINE-EDGE-5 (integration): compose both contract modes against one
+    // activated in-process engine. drive_contract synthesizes one request per
+    // operation and submits each through make_engine_submit(edge); a crossing
+    // observer runs a *separate* validate document over every serviced crossing
+    // as a live tap. The engine returns a deliberately undeclared status for one
+    // operation so both the drive tally and the live tap report exactly one
+    // violation over the same set of crossings.
+    //
+    TEST(InProcessWebcore, DriveAndValidateComposeOverOneEngine)
+    {
+        // Three operations; one (POST /widgets) will be answered with an
+        // undeclared 500 to force a single contract violation.
+        constexpr std::string_view spec = R"(
+openapi: 3.0.0
+info:
+  title: drive-validate-integration
+  version: "1.0"
+paths:
+  /widgets:
+    get:
+      responses:
+        '200':
+          description: ok
+    post:
+      responses:
+        '201':
+          description: created
+  /health:
+    get:
+      responses:
+        '200':
+          description: ok
+)";
+
+        // Separate documents for the two modes so the drive (test thread) and the
+        // live tap (worker thread) never touch the same document concurrently.
+        auto drive_doc    = make_http_contract_provider()->load(spec);
+        auto validate_doc = make_http_contract_provider()->load(spec);
+        ASSERT_NE(drive_doc, nullptr);
+        ASSERT_NE(validate_doc, nullptr);
+
+        std::size_t const operation_count = drive_doc->synthesize_requests().size();
+        ASSERT_EQ(operation_count, 3u);
+
+        // The engine: answer each operation with a declared status, except
+        // POST /widgets which gets an undeclared 500 (the planted violation).
+        auto engine = make_in_process_webcore([](synthesized_request const& req) {
+            captured_contract_response resp;
+            if (req.method == "POST" && req.path == "/widgets")
+                resp.status = 500; // undeclared -> violation
+            else if (req.method == "POST")
+                resp.status = 201;
+            else
+                resp.status = 200;
+            return resp;
+        });
+
+        auto  instance = engine->activate(make_request());
+        auto* edge     = instance->synthetic_http_edge();
+        ASSERT_NE(edge, nullptr);
+
+        // The live tap: validate every crossing through the validate document and
+        // count crossings + violations. The worker thread is single-threaded, so
+        // validate_doc is only ever touched from one thread at a time.
+        std::mutex              tap_mutex;
+        std::condition_variable tap_cv;
+        std::size_t             tap_crossings  = 0;
+        std::size_t             tap_violations = 0;
+        edge->add_crossing_observer(
+            [&](synthesized_request const& req, captured_contract_response const& resp) {
+                std::error_code ec;
+                auto const      response_check =
+                    validate_doc->validate_response(req.method,
+                                                    req.path,
+                                                    resp.status,
+                                                    resp.headers,
+                                                    resp.body,
+                                                    ec);
+                bool const violated = !ec && static_cast<bool>(response_check);
+
+                std::lock_guard<std::mutex> guard(tap_mutex);
+                ++tap_crossings;
+                if (violated)
+                    ++tap_violations;
+                tap_cv.notify_all();
+            });
+
+        // Drive the spec end to end over the activated engine.
+        auto const tally = m::pil::drive_contract(*drive_doc, make_engine_submit(edge, k_timeout));
+
+        // Every example operation produced a request, and exactly one response
+        // (the planted 500) was a violation.
+        EXPECT_EQ(tally.requests, operation_count);
+        EXPECT_EQ(tally.responses_validated, operation_count);
+        EXPECT_EQ(tally.violating, 1u);
+        EXPECT_EQ(tally.conforming, operation_count - 1u);
+
+        // The live tap observer fires from the worker thread, which may lag the
+        // returning submit slightly; wait until it has seen every crossing.
+        {
+            std::unique_lock<std::mutex> lock(tap_mutex);
+            ASSERT_TRUE(tap_cv.wait_for(lock, std::chrono::seconds{2}, [&] {
+                return tap_crossings == operation_count;
+            }));
+            // The validate observer saw the same crossings and the same violation.
+            EXPECT_EQ(tap_crossings, operation_count);
+            EXPECT_EQ(tap_violations, 1u);
+        }
     }
 } // namespace

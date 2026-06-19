@@ -617,7 +617,7 @@ behind an activated engine) was explicitly deferred here. This milestone supplie
       `make_engine_submit` over a null edge is a null `engine_submit`); clean shutdown with
       in-flight requests. ≥10 cases, sub-second.
 
-- [ ] M-HWC-ENGINE-EDGE-5 (integration): over an activated `make_in_process_webcore`, compose both
+- [x] M-HWC-ENGINE-EDGE-5 (integration): over an activated `make_in_process_webcore`, compose both
       modes against one engine: `drive_contract(document, make_engine_submit(edge, timeout))` for a
       drive document, and `edge.add_crossing_observer(...)` running a validate document's
       `validate_request` / `validate_response` for the live tap. Drive a YAML spec end to end and

@@ -47,7 +47,7 @@ the violation tallies are equal across every transport is the headline result.
   keep-alive connection. Unit tests with canned byte streams (split reads,
   pipelined keep-alive, missing/zero body).
 
-- [ ] **WC-3**: Capture sink seam. A diagnostics object that receives reassembled
+- [x] **WC-3**: Capture sink seam. A diagnostics object that receives reassembled
   request/response pairs and tallies them; pure side-channel (D6 — never alters or
   blocks the bytes). Unit tests assert byte forwarding is unaffected by the sink.
 

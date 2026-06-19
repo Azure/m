@@ -6,6 +6,7 @@ if(BUILD_TESTING)
     find_package(nlohmann_json CONFIG REQUIRED)
 
     add_executable(test_mwin32
+        test_capture_sink.cpp
         test_handle_table.cpp
         test_http_reassembler.cpp
         test_mwinhwc.cpp

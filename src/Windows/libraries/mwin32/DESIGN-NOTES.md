@@ -1168,3 +1168,36 @@ Decisions:
   sizes in the demo are small, so the simple erase-from-front buffer is preferred
   over a ring buffer; if large bodies ever matter this is the obvious place to add a
   read offset.
+
+## D22 — Capture sink seam: observational consumer that pairs crossings FIFO (WC-3)
+
+The reassembled messages (D21) are delivered to a `capture_sink`
+([`src/capture_sink.h`](src/capture_sink.h),
+[`src/capture_sink.cpp`](src/capture_sink.cpp)) — the seam where later milestones
+plug in a tally, a PIL recorder (`record` mode), or a PIL validator (`validate`
+mode). The seam lives in `m_mwin32_internal` and is pure logic.
+
+Decisions:
+
+- **The seam is the consuming end of an observational tee (D6).** A
+  `connection_capture` owns a request reassembler and a response reassembler and is
+  fed the bytes that were *also* sent to the genuine socket. It returns nothing the
+  shim hands back to the caller and holds no socket, so by construction it cannot
+  alter, delay, or block the wire. The `ByteForwardingIsUnaffectedBySink` test makes
+  this concrete: it models the shim's tee (genuine bytes to a `wire` buffer, a copy
+  to the seam) and asserts the wire is byte-identical whether a no-op sink or a
+  tallying sink is attached.
+
+- **Crossings are paired FIFO per connection.** `connection_capture` notifies the
+  sink `on_request` / `on_response` as each message completes, and emits
+  `on_crossing` whenever an unpaired request and an unpaired response are both
+  available, popping both from their queues. FIFO order is correct for HTTP/1.1
+  keep-alive (responses return in request order), and the queues mean either stream
+  may drain first — a response that arrives before its request simply waits.
+
+- **Default-no-op callbacks.** `capture_sink`'s three hooks default to doing
+  nothing so a sink that only wants crossings (or only wants per-message events)
+  overrides just what it needs. `tallying_capture_sink` is the WC-3 concrete sink:
+  it counts requests, responses, and crossings with per-method and per-status
+  breakdowns, holds no reference to the wire, and never throws into the capture
+  path.

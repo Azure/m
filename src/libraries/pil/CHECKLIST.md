@@ -594,7 +594,7 @@ behind an activated engine) was explicitly deferred here. This milestone supplie
       invoked outside the queue lock. Keep the existing direct-API tests green and add a unit test
       that a serviced request→response pair reaches a registered observer.
 
-- [ ] M-HWC-ENGINE-EDGE-3: Implement the intercepting `webcore_instance`'s
+- [x] M-HWC-ENGINE-EDGE-3: Implement the intercepting `webcore_instance`'s
       `synthetic_http_edge()` over its `synthetic_queue` (the real-engine path). Activation with
       synthetic mode enabled creates the queue; the instance returns an adapter that translates the
       public `synthesized_request` ↔ internal `synthetic_http_request` and `captured_http_response`

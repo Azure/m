@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -24,6 +25,7 @@
 #include <m/error_handling/macros.h>
 #include <m/errors/errors.h>
 #include <m/pil/file_path.h>
+#include <m/pil/synthetic_http_edge.h>
 #include <m/strings/convert.h>
 
 // Additional Windows headers
@@ -2641,6 +2643,110 @@ namespace m::pil::impl::intercepting
     // webcore_instance
     //--------------------------------------------------------------------------
 
+    namespace
+    {
+        // Widen an ASCII URL path to wide for the internal request's `url`
+        // field (the inverse of narrow_ascii). Non-ASCII is replaced with '?';
+        // the synthetic edge speaks ASCII paths.
+        std::wstring
+        widen_ascii(std::string_view s)
+        {
+            std::wstring w;
+            w.reserve(s.size());
+            for (char c : s)
+                w.push_back(static_cast<unsigned char>(c) <= 0x7F ? static_cast<wchar_t>(c)
+                                                                   : L'?');
+            return w;
+        }
+
+        // Narrow a wide ASCII URL path back to narrow (inverse of widen_ascii).
+        std::string
+        narrow_ascii_path(std::wstring_view w)
+        {
+            std::string s;
+            s.reserve(w.size());
+            for (wchar_t c : w)
+                s.push_back(c <= 0x7F ? static_cast<char>(c) : '?');
+            return s;
+        }
+
+        // Public synthesized_request -> internal synthetic_http_request. The
+        // contract path (with any query string) is carried verbatim in `url`.
+        synthetic_http_request
+        to_internal_request(m::pil::synthesized_request const& req)
+        {
+            synthetic_http_request out;
+            out.method  = req.method;
+            out.url     = widen_ascii(req.path);
+            out.headers = req.headers;
+            out.body    = req.body;
+            return out;
+        }
+
+        // Internal synthetic_http_request -> public synthesized_request (for the
+        // crossing observer). Recovers the path from the `url` field.
+        m::pil::synthesized_request
+        to_synthesized_request(synthetic_http_request const& req)
+        {
+            m::pil::synthesized_request out;
+            out.method  = req.method;
+            out.path    = narrow_ascii_path(req.url);
+            out.headers = req.headers;
+            out.body    = req.body;
+            return out;
+        }
+
+        // Internal captured_http_response -> public captured_contract_response.
+        m::pil::captured_contract_response
+        to_contract_response(captured_http_response const& resp)
+        {
+            m::pil::captured_contract_response out;
+            out.status  = resp.status_code;
+            out.headers = resp.headers;
+            out.body    = resp.body;
+            return out;
+        }
+
+        //
+        // Adapts a synthetic_http_queue onto the public isynthetic_http_edge
+        // seam (D-HWC-11): submit enqueues + waits; add_crossing_observer wraps
+        // the public observer over the internal queue hook (EDGE-2), translating
+        // each crossing's internal types to the public contract types. Holds a
+        // reference to the queue, which must outlive the adapter.
+        //
+        class synthetic_http_edge_adapter final : public m::pil::isynthetic_http_edge
+        {
+        public:
+            explicit synthetic_http_edge_adapter(synthetic_http_queue& queue):
+                m_queue(queue)
+            {}
+
+            m::pil::captured_contract_response
+            submit(m::pil::synthesized_request const& request,
+                   std::chrono::milliseconds          timeout) override
+            {
+                HTTP_REQUEST_ID const id = m_queue.enqueue_request(to_internal_request(request));
+                auto                  response = m_queue.wait_for_response(id, timeout);
+                if (!response.has_value())
+                    return m::pil::captured_contract_response{}; // status 0 on timeout
+                return to_contract_response(*response);
+            }
+
+            void
+            add_crossing_observer(m::pil::crossing_observer observer) override
+            {
+                m_queue.add_crossing_observer(
+                    [obs = std::move(observer)](synthetic_http_request const& req,
+                                                captured_http_response const& resp) {
+                        obs(to_synthesized_request(req), to_contract_response(resp));
+                    });
+            }
+
+        private:
+            synthetic_http_queue& m_queue;
+        };
+    } // namespace
+
     webcore_instance::webcore_instance(std::unique_ptr<iwebcore_instance>    underlying_instance,
                                        std::unique_ptr<interception_context> context,
                                        HMODULE                               target_module,
@@ -2649,7 +2755,20 @@ namespace m::pil::impl::intercepting
         m_target_module(target_module),
         m_installed_hooks(std::move(installed_hooks)),
         m_context(std::move(context))
-    {}
+    {
+        // If synthetic mode is enabled, expose the public edge over the queue.
+        if (m_context && m_context->synthetic_http_enabled && m_context->synthetic_queue)
+        {
+            m_synthetic_edge =
+                std::make_unique<synthetic_http_edge_adapter>(*m_context->synthetic_queue);
+        }
+    }
+
+    isynthetic_http_edge*
+    webcore_instance::synthetic_http_edge()
+    {
+        return m_synthetic_edge.get();
+    }
 
     webcore_instance::~webcore_instance()
     {

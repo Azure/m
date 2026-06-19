@@ -755,11 +755,25 @@ namespace m::pil::impl::intercepting
 
         ~webcore_instance() override;
 
+        //
+        // The activation's in-process synthetic-HTTP edge (D-HWC-11), or null
+        // when synthetic mode was not enabled for this activation. The returned
+        // edge adapts the public contract message types onto this instance's
+        // internal synthetic_http_queue.
+        //
+        isynthetic_http_edge*
+        synthetic_http_edge() override;
+
     private:
         std::unique_ptr<iwebcore_instance>    m_underlying_instance;
         HMODULE                               m_target_module;
         std::vector<iat_hook>                 m_installed_hooks;
         std::unique_ptr<interception_context> m_context;
+
+        // The public-typed edge adapter over m_context->synthetic_queue, created
+        // at construction iff synthetic mode is enabled. Declared after m_context
+        // so it is destroyed before the queue it points into.
+        std::unique_ptr<isynthetic_http_edge> m_synthetic_edge;
     };
 
     //--------------------------------------------------------------------------

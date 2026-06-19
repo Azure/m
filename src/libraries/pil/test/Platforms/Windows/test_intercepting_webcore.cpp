@@ -20,10 +20,12 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <optional>
 #include <span>
+#include <thread>
 
 #include <gtest/gtest.h>
 
@@ -37,6 +39,7 @@
 #include <m/pil/pil.h>
 #include <m/pil/platform_interfaces.h>
 #include <m/pil/registry_interfaces.h>
+#include <m/pil/synthetic_http_edge.h>
 #include <m/pil/webcore_interfaces.h>
 
 #include <pugixml.hpp>
@@ -545,6 +548,67 @@ TEST(InterceptingWebcore, SyntheticQueueCrossingObserverSeesServicedPair)
     EXPECT_EQ(seen_url.value(), L"http://localhost/widgets");
     EXPECT_EQ(seen_status.value(), 201);
     EXPECT_EQ(seen_body.value(), (std::vector<std::uint8_t>{std::uint8_t{'o'}, std::uint8_t{'k'}}));
+}
+
+TEST(InterceptingWebcore, SyntheticHttpEdgeSubmitAndObserve)
+{
+    // The intercepting webcore_instance exposes a public synthetic_http_edge()
+    // over its synthetic_queue when synthetic mode is enabled (D-HWC-11). The
+    // test plays the engine (services the queue on a worker thread) and asserts
+    // submit() returns the captured response and a registered crossing observer
+    // sees the paired (request, response) with the path translated back.
+    auto context = std::make_unique<intcimpl::interception_context>();
+    context->synthetic_http_enabled = true;
+    context->synthetic_queue        = std::make_unique<intcimpl::synthetic_http_queue>();
+    intcimpl::synthetic_http_queue* queue = context->synthetic_queue.get();
+
+    intcimpl::webcore_instance instance(
+        /*underlying_instance*/ nullptr,
+        std::move(context),
+        /*target_module*/ nullptr,
+        /*installed_hooks*/ {});
+
+    m::pil::isynthetic_http_edge* edge = instance.synthetic_http_edge();
+    ASSERT_NE(edge, nullptr);
+
+    int                          observed = 0;
+    std::optional<std::string>   obs_path;
+    std::optional<std::uint16_t> obs_status;
+    edge->add_crossing_observer(
+        [&](m::pil::synthesized_request const&        req,
+            m::pil::captured_contract_response const& resp) {
+            ++observed;
+            obs_path   = req.path;
+            obs_status = resp.status;
+        });
+
+    // Worker thread: receive one request, produce a 200 response.
+    std::thread engine([queue] {
+        auto req = queue->dequeue_request(std::chrono::milliseconds{2000});
+        if (req.has_value())
+        {
+            intcimpl::captured_http_response resp;
+            resp.status_code = 200;
+            resp.body        = {std::uint8_t{'h'}, std::uint8_t{'i'}};
+            queue->capture_response(req->request_id, resp);
+            queue->complete_response(req->request_id);
+        }
+    });
+
+    m::pil::synthesized_request request;
+    request.method = "GET";
+    request.path   = "/widgets?limit=5";
+    auto response  = edge->submit(request, std::chrono::milliseconds{4000});
+
+    engine.join();
+
+    EXPECT_EQ(response.status, 200);
+    EXPECT_EQ(response.body,
+              (std::vector<std::uint8_t>{std::uint8_t{'h'}, std::uint8_t{'i'}}));
+
+    ASSERT_EQ(observed, 1);
+    EXPECT_EQ(obs_path.value(), "/widgets?limit=5");
+    EXPECT_EQ(obs_status.value(), 200);
 }
 
 TEST(InterceptingWebcore, SyntheticFileHandleReadWriteSeek)

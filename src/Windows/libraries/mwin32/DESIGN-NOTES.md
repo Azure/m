@@ -1231,3 +1231,44 @@ Decisions:
   `mode = validate | drive`; capture uses `mode = record | validate`. They are
   separate namespaces — `"drive"` is rejected by the capture parser — so the two
   features cannot be confused by a config author who knows one of them.
+
+## D24 — Capture sinks bind the seam to PIL: record derives, validate checks (WC-5)
+
+The two capture modes (D23) are realized as two concrete `capture_sink`s
+([`src/capture_sink.h`](src/capture_sink.h),
+[`src/capture_sink.cpp`](src/capture_sink.cpp)) that consume the paired
+`http_crossing` (D22) and route it to the matching PIL surface. Both live in
+`m_mwin32_internal` (which already links `m_pil`) and are pure logic.
+
+Decisions:
+
+- **Both sinks act on the paired crossing, not the per-message hooks.** A
+  `recording_capture_sink` forwards a crossing to a PIL `ihttp_contract_recorder`
+  (`observe_request` + `observe_response`), and a `validating_capture_sink` runs a
+  crossing through a PIL `ihttp_contract_document` (`validate_request` +
+  `validate_response`). Pairing first is required by PIL's API — `validate_response`
+  and `observe_response` are keyed on the request's method + path — and it keeps
+  request and response analysis together. A request without a matching response (a
+  half-open connection) is simply never analyzed; the demo's streams always pair.
+
+- **The wire vocabularies are converted, not adapted.** The reassembler's
+  `http_header{name,value}` (D21) becomes PIL's `http_header` (a name/value pair)
+  by a flat copy, and the body `vector<uint8_t>` is passed as a `span`. The request
+  target is passed verbatim — PIL strips the query string and uses the observed
+  path as the operation's path template, so no URL parsing happens on the mwin32
+  side. This is why `record` mode collapses `/search?q=a` and `/search?q=b` into a
+  single operation.
+
+- **Violations are tallied per direction; operational errors are not violations.**
+  `validating_capture_sink` keeps a `validation_tally` with separate request- and
+  response-direction counts. A truthy validate disposition is a violation in that
+  direction; a clean disposition is a conforming check; an error reported through
+  the `std::error_code` channel (e.g. a malformed spec) is neither checked nor a
+  violation. This mirrors PIL's own `drive_contract` accounting so the derive→detect
+  demo reports both sides consistently.
+
+- **The sinks never touch the wire (D6).** Like every sink, these read only the
+  observational copy and return nothing the shim feeds back, so attaching either
+  one leaves the bytes on the genuine socket byte-identical (asserted by
+  `ValidatingCaptureSink.DoesNotAlterTheWire`).
+

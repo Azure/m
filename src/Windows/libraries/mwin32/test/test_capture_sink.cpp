@@ -4,8 +4,11 @@
 #include "capture_sink.h"
 
 #include <cstdint>
+#include <memory>
+#include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -15,7 +18,9 @@ using m::mwin32_impl::connection_capture;
 using m::mwin32_impl::http_crossing;
 using m::mwin32_impl::http_request;
 using m::mwin32_impl::http_response;
+using m::mwin32_impl::recording_capture_sink;
 using m::mwin32_impl::tallying_capture_sink;
+using m::mwin32_impl::validating_capture_sink;
 
 namespace
 {
@@ -212,3 +217,227 @@ TEST(ConnectionCapture, ByteForwardingIsUnaffectedBySink)
     EXPECT_EQ(tally.response_count(), 1u);
     EXPECT_EQ(tally.crossing_count(), 1u);
 }
+
+// ---------------------------------------------------------------------------
+// WC-5: record mode wires the seam to the PIL contract recorder.
+// ---------------------------------------------------------------------------
+
+TEST(RecordingCaptureSink, FeedsObservedCrossingsToRecorder)
+{
+    auto recorder = m::pil::make_http_contract_recorder();
+    recording_capture_sink sink(*recorder);
+    connection_capture cap(sink);
+
+    feed_request(cap, "GET /a HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    feed_request(cap, "POST /items HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n");
+
+    // Two distinct (method, path) operations were observed.
+    EXPECT_EQ(recorder->operation_count(), 2u);
+}
+
+TEST(RecordingCaptureSink, EmittedSpecNamesObservedPaths)
+{
+    auto recorder = m::pil::make_http_contract_recorder();
+    recording_capture_sink sink(*recorder);
+    connection_capture cap(sink);
+
+    feed_request(cap, "GET /widgets HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+
+    std::string const spec = recorder->emit_spec();
+    EXPECT_NE(spec.find("openapi"), std::string::npos);
+    EXPECT_NE(spec.find("/widgets"), std::string::npos);
+}
+
+TEST(RecordingCaptureSink, QueryStringIsStrippedFromOperationPath)
+{
+    auto recorder = m::pil::make_http_contract_recorder();
+    recording_capture_sink sink(*recorder);
+    connection_capture cap(sink);
+
+    // Same path, two different query strings: one operation, not two.
+    feed_request(cap, "GET /search?q=a HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    feed_request(cap, "GET /search?q=b HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+
+    EXPECT_EQ(recorder->operation_count(), 1u);
+}
+
+// ---------------------------------------------------------------------------
+// WC-5: validate mode runs each crossing through a loaded contract document
+// and tallies violations per direction. A fake document stands in for the PIL
+// validating provider so the sink's tallying logic is what is under test.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+    // A fake contract document with configurable verdicts. A request whose path
+    // contains "/bad" is a request-direction violation; a response with status
+    // >= 500 is a response-direction violation. When `fail_with_ec` is set, both
+    // validations report an operational error instead of a verdict.
+    class fake_document final : public m::pil::ihttp_contract_document
+    {
+    public:
+        bool fail_with_ec = false;
+        std::size_t request_calls = 0;
+        std::size_t response_calls = 0;
+
+        validate_request_disposition
+        validate_request(std::string_view              /*method*/,
+                         std::string_view              path,
+                         std::span<m::pil::http_header const> /*headers*/,
+                         std::span<std::uint8_t const> /*body*/,
+                         std::error_code&              ec) override
+        {
+            ++request_calls;
+            if (fail_with_ec)
+            {
+                ec = std::make_error_code(std::errc::invalid_argument);
+                return {};
+            }
+            ec.clear();
+            if (path.find("/bad") != std::string_view::npos)
+                return validate_request_disposition(
+                    validate_request_result_code::parameter_invalid);
+            return {};
+        }
+
+        validate_response_disposition
+        validate_response(std::string_view              /*method*/,
+                          std::string_view              /*path*/,
+                          std::uint16_t                 status,
+                          std::span<m::pil::http_header const> /*headers*/,
+                          std::span<std::uint8_t const> /*body*/,
+                          std::error_code&              ec) override
+        {
+            ++response_calls;
+            if (fail_with_ec)
+            {
+                ec = std::make_error_code(std::errc::invalid_argument);
+                return {};
+            }
+            ec.clear();
+            if (status >= 500)
+                return validate_response_disposition(
+                    validate_response_result_code::undeclared_status);
+            return {};
+        }
+    };
+} // namespace
+
+TEST(ValidatingCaptureSink, ConformingCrossingHasNoViolations)
+{
+    fake_document document;
+    validating_capture_sink sink(document);
+    connection_capture cap(sink);
+
+    feed_request(cap, "GET /ok HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+
+    EXPECT_EQ(sink.tally().requests_checked, 1u);
+    EXPECT_EQ(sink.tally().request_violations, 0u);
+    EXPECT_EQ(sink.tally().responses_checked, 1u);
+    EXPECT_EQ(sink.tally().response_violations, 0u);
+}
+
+TEST(ValidatingCaptureSink, BadRequestCountedAsRequestViolation)
+{
+    fake_document document;
+    validating_capture_sink sink(document);
+    connection_capture cap(sink);
+
+    feed_request(cap, "POST /bad HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+
+    EXPECT_EQ(sink.tally().requests_checked, 1u);
+    EXPECT_EQ(sink.tally().request_violations, 1u);
+    EXPECT_EQ(sink.tally().responses_checked, 1u);
+    EXPECT_EQ(sink.tally().response_violations, 0u);
+}
+
+TEST(ValidatingCaptureSink, BadResponseCountedAsResponseViolation)
+{
+    fake_document document;
+    validating_capture_sink sink(document);
+    connection_capture cap(sink);
+
+    feed_request(cap, "GET /ok HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 500 Server Error\r\nContent-Length: 0\r\n\r\n");
+
+    EXPECT_EQ(sink.tally().requests_checked, 1u);
+    EXPECT_EQ(sink.tally().request_violations, 0u);
+    EXPECT_EQ(sink.tally().responses_checked, 1u);
+    EXPECT_EQ(sink.tally().response_violations, 1u);
+}
+
+TEST(ValidatingCaptureSink, ViolationsCountIndependentlyPerDirection)
+{
+    // A single crossing can violate in both directions; each is tallied once.
+    fake_document document;
+    validating_capture_sink sink(document);
+    connection_capture cap(sink);
+
+    feed_request(cap, "POST /bad HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 503 Unavailable\r\nContent-Length: 0\r\n\r\n");
+
+    EXPECT_EQ(sink.tally().request_violations, 1u);
+    EXPECT_EQ(sink.tally().response_violations, 1u);
+}
+
+TEST(ValidatingCaptureSink, TalliesAcrossMultipleCrossings)
+{
+    fake_document document;
+    validating_capture_sink sink(document);
+    connection_capture cap(sink);
+
+    feed_request(cap, "GET /ok HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    feed_request(cap, "GET /bad HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    feed_request(cap, "GET /ok HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 500 Err\r\nContent-Length: 0\r\n\r\n");
+
+    EXPECT_EQ(sink.tally().requests_checked, 3u);
+    EXPECT_EQ(sink.tally().request_violations, 1u);
+    EXPECT_EQ(sink.tally().responses_checked, 3u);
+    EXPECT_EQ(sink.tally().response_violations, 1u);
+}
+
+TEST(ValidatingCaptureSink, OperationalErrorIsNotCounted)
+{
+    // A malformed-spec error (reported through the error_code channel) is
+    // neither a check nor a violation in either direction.
+    fake_document document;
+    document.fail_with_ec = true;
+    validating_capture_sink sink(document);
+    connection_capture cap(sink);
+
+    feed_request(cap, "GET /bad HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    feed_response(cap, "HTTP/1.1 500 Err\r\nContent-Length: 0\r\n\r\n");
+
+    // The document was consulted, but no clean verdict was tallied.
+    EXPECT_GT(document.request_calls, 0u);
+    EXPECT_GT(document.response_calls, 0u);
+    EXPECT_EQ(sink.tally().requests_checked, 0u);
+    EXPECT_EQ(sink.tally().request_violations, 0u);
+    EXPECT_EQ(sink.tally().responses_checked, 0u);
+    EXPECT_EQ(sink.tally().response_violations, 0u);
+}
+
+TEST(ValidatingCaptureSink, DoesNotAlterTheWire)
+{
+    // D6: the validating sink reads the observational copy only; with a sink
+    // attached the wire is byte-identical to the no-op run.
+    fake_document document;
+    validating_capture_sink sink(document);
+    std::vector<std::uint8_t> const wire_validate = run_exchange(sink);
+
+    capture_sink null_sink;
+    std::vector<std::uint8_t> const wire_null = run_exchange(null_sink);
+
+    EXPECT_EQ(wire_validate, wire_null);
+}
+

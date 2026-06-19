@@ -8,6 +8,9 @@
 #include <map>
 #include <string>
 
+#include <m/pil/http_contract_interfaces.h>
+#include <m/pil/http_contract_recorder.h>
+
 #include "http_reassembler.h"
 
 namespace m::mwin32_impl
@@ -86,6 +89,68 @@ namespace m::mwin32_impl
         std::size_t m_crossing_count = 0;
         std::map<std::string, std::size_t> m_by_method;
         std::map<int, std::size_t> m_by_status;
+    };
+
+    //
+    // A sink that feeds every reassembled crossing to a PIL contract recorder
+    // (WC-5, "record" mode). The recorder derives an OpenAPI contract from the
+    // observed traffic; the owner calls the recorder's emit_spec() at shutdown
+    // to obtain the YAML. The sink converts the wire-shaped messages (D21) into
+    // the recorder's call shape and otherwise holds no state of its own — the
+    // recorder owns the accumulated model.
+    //
+    class recording_capture_sink final : public capture_sink
+    {
+    public:
+        explicit recording_capture_sink(m::pil::ihttp_contract_recorder& recorder)
+            : m_recorder(recorder)
+        {
+        }
+
+        void on_crossing(http_crossing const& crossing) override;
+
+    private:
+        m::pil::ihttp_contract_recorder& m_recorder;
+    };
+
+    //
+    // What a validating run observed, tallied per direction (WC-5). A
+    // "violation" is a non-conforming request or response — a truthy validate
+    // disposition. Operational failures (a malformed-spec error reported through
+    // the error_code channel) are neither checked nor violations and are not
+    // counted here.
+    //
+    struct validation_tally
+    {
+        std::size_t requests_checked    = 0;
+        std::size_t request_violations  = 0;
+        std::size_t responses_checked   = 0;
+        std::size_t response_violations = 0;
+    };
+
+    //
+    // A sink that checks every reassembled crossing against a loaded PIL
+    // contract document (WC-5, "validate" mode). Each crossing's request is run
+    // through validate_request and its response through validate_response (the
+    // response check is keyed on the request's method + path), tallying
+    // violations per direction. The sink never alters the wire (D6); it only
+    // reads the observational copy and accumulates the tally.
+    //
+    class validating_capture_sink final : public capture_sink
+    {
+    public:
+        explicit validating_capture_sink(m::pil::ihttp_contract_document& document)
+            : m_document(document)
+        {
+        }
+
+        void on_crossing(http_crossing const& crossing) override;
+
+        validation_tally const& tally() const { return m_tally; }
+
+    private:
+        m::pil::ihttp_contract_document& m_document;
+        validation_tally m_tally;
     };
 
     //

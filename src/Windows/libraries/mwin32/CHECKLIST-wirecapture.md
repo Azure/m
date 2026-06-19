@@ -63,7 +63,7 @@ Clean debug+release build of m_mwin32 (zero warnings), run test_mwin32, sync.
   > [`CHECKLIST-contract-recorder.md`](../../../libraries/pil/CHECKLIST-contract-recorder.md))
   > must land first — `record` mode emits via the PIL recorder.
 
-- [ ] **WC-5**: Wire the sink to PIL. `record` mode feeds reassembled crossings to
+- [x] **WC-5**: Wire the sink to PIL. `record` mode feeds reassembled crossings to
   `make_http_contract_recorder` and writes the emitted YAML at process shutdown.
   `validate` mode loads the spec and runs `validate_request`/`validate_response`,
   tallying violations per direction. Unit tests with synthetic byte streams for

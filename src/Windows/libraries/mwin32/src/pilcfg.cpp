@@ -42,6 +42,14 @@ namespace m::mwin32_impl
         constexpr std::string_view k_private              = "private";
         constexpr std::string_view k_materialization_dir  = "materialization_dir";
 
+        // Webcore contract-binding JSON member names (D-HWC-8).
+        constexpr std::string_view k_contracts            = "contracts";
+        constexpr std::string_view k_spec                 = "spec";
+        constexpr std::string_view k_endpoint             = "endpoint";
+        constexpr std::string_view k_mode                 = "mode";
+        constexpr std::string_view k_mode_validate        = "validate";
+        constexpr std::string_view k_mode_drive           = "drive";
+
         // Upper bound on the module path length we will accept, to bound the
         // GetModuleFileNameW growth loop. Far larger than any real path.
         constexpr DWORD k_max_module_path_chars = 0x10000;
@@ -230,9 +238,70 @@ namespace m::mwin32_impl
             return endpoints;
         }
 
-        // Parse the optional "webcore" object member. Absent yields std::nullopt
-        // (no webcore configuration). Present must be an object; anything else
-        // throws.
+        // Parse the optional "webcore.contracts" array (D-HWC-8). Absent yields an
+        // empty vector. Present must be an array whose every element is an object
+        // carrying non-empty string "spec" and "endpoint" members and a "mode"
+        // member that is "validate" or "drive"; anything else throws. The "spec"
+        // host path is %VAR%-expanded; "endpoint" is a logical key taken
+        // literally (like the keys in "endpoints"). Order is preserved.
+        std::vector<pilcfg::webcore_config::contract_binding>
+        read_contracts_member(nlohmann::json const& j)
+        {
+            std::vector<pilcfg::webcore_config::contract_binding> contracts;
+
+            auto const it = j.find(k_contracts);
+            if (it == j.end())
+                return contracts;
+
+            if (!it->is_array())
+                throw std::runtime_error("pilcfg: 'webcore.contracts' must be an array");
+
+            for (auto const& element: *it)
+            {
+                if (!element.is_object())
+                    throw std::runtime_error(
+                        "pilcfg: each 'webcore.contracts' element must be an object");
+
+                auto const spec_it     = element.find(k_spec);
+                auto const endpoint_it = element.find(k_endpoint);
+                auto const mode_it     = element.find(k_mode);
+
+                if (spec_it == element.end() || endpoint_it == element.end() ||
+                    mode_it == element.end())
+                    throw std::runtime_error(
+                        "pilcfg: each 'webcore.contracts' element must have "
+                        "'spec', 'endpoint', and 'mode' members");
+
+                pilcfg::webcore_config::contract_binding binding;
+                binding.spec     = expand_environment_path(json_string_to_u16(*spec_it, k_spec));
+                binding.endpoint = json_string_to_u16(*endpoint_it, k_endpoint);
+
+                if (binding.spec.empty())
+                    throw std::runtime_error(
+                        "pilcfg: 'webcore.contracts' 'spec' must be a non-empty string");
+                if (binding.endpoint.empty())
+                    throw std::runtime_error(
+                        "pilcfg: 'webcore.contracts' 'endpoint' must be a non-empty string");
+
+                if (!mode_it->is_string())
+                    throw std::runtime_error(
+                        "pilcfg: 'webcore.contracts' 'mode' must be a string");
+
+                auto const& mode_s = mode_it->get_ref<nlohmann::json::string_t const&>();
+                if (mode_s == k_mode_validate)
+                    binding.mode = pilcfg::webcore_config::contract_mode::validate;
+                else if (mode_s == k_mode_drive)
+                    binding.mode = pilcfg::webcore_config::contract_mode::drive;
+                else
+                    throw std::runtime_error(
+                        "pilcfg: 'webcore.contracts' 'mode' must be 'validate' or 'drive'");
+
+                contracts.push_back(std::move(binding));
+            }
+
+            return contracts;
+        }
+
         std::optional<pilcfg::webcore_config>
         read_webcore_member(nlohmann::json const& j)
         {
@@ -246,6 +315,7 @@ namespace m::mwin32_impl
             pilcfg::webcore_config cfg;
             cfg.interception       = read_bool_member(*it, k_interception);
             cfg.endpoints          = read_endpoints_member(*it);
+            cfg.contracts          = read_contracts_member(*it);
             cfg.materialization_dir =
                 expand_environment_path(read_optional_string_member(*it, k_materialization_dir));
             cfg.fault_script =

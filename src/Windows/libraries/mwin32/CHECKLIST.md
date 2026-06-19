@@ -293,7 +293,7 @@ example driver) is PIL Phase 4.
       host path (`%VAR%`-expanded, D17), an `endpoint` logical key (taken literally, like
       `webcore.endpoints`), and a `mode` enum (`validate` / `drive`). Default: empty (no
       contracts).
-- [ ] M-HWC-CONTRACTCFG-2: Parse the optional `webcore.contracts` array in
+- [x] M-HWC-CONTRACTCFG-2: Parse the optional `webcore.contracts` array in
       [`src/pilcfg.cpp`](src/pilcfg.cpp) next to `read_endpoints_member` — strict like the rest
       of `parse_pilcfg` (non-array throws; each element must be an object with string `spec`,
       string `endpoint`, and `mode` one of `"validate"`/`"drive"`; wrong type/shape throws).

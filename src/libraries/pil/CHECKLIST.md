@@ -531,7 +531,7 @@ to live edge traffic; the validating facet is `src/`-internal.
       calls the engine, validates the response, updates the tally, and returns the engine's
       response. Validation reuses the tested `contract_validating_facet` (surfacing on, interpreted
       for the tally and swallowed so the engine is never altered — D6). Builds clean debug+release.
-- [ ] M-HWC-CONTRACT-EDGE-2 (unit tests): inline-spec tests
+- [x] M-HWC-CONTRACT-EDGE-2 (unit tests): inline-spec tests
       ([`test/test_http_contract_edge.cpp`](test/test_http_contract_edge.cpp)) — a conforming
       request+response crossing tallies no violations; a violating request and a violating response
       are each counted; `drive_contract(document, edge.as_engine_submit())` runs through the edge

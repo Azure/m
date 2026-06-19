@@ -215,6 +215,51 @@ namespace m::mwin32_impl
         return bound;
     }
 
+    contract_wiring_summary
+    wire_contracts_to_edge(std::vector<bound_contract> const& contracts,
+                           m::pil::ihttp_contract_edge&       edge)
+    {
+        contract_wiring_summary summary;
+
+        // First pass: attach every validate-mode document so it observes every
+        // crossing — including the drive traffic generated below — regardless of
+        // configuration order.
+        for (auto const& contract: contracts)
+        {
+            if (!contract.document)
+                continue;
+            if (contract.mode == pilcfg::webcore_config::contract_mode::validate)
+            {
+                // Every request/response crossing the edge is contract-checked
+                // (a side diagnostic, D6 — the engine's behavior is unchanged).
+                edge.attach_validation(contract.document);
+                ++summary.validate_bindings;
+            }
+        }
+
+        // Second pass: drive every drive-mode document through the edge,
+        // synthesizing the spec's examples and validating each response against
+        // this same document. Sum the per-binding tally into the aggregate.
+        for (auto const& contract: contracts)
+        {
+            if (!contract.document)
+                continue;
+            if (contract.mode == pilcfg::webcore_config::contract_mode::drive)
+            {
+                m::pil::drive_tally const tally =
+                    m::pil::drive_contract(*contract.document, edge.as_engine_submit());
+
+                summary.drive.requests += tally.requests;
+                summary.drive.responses_validated += tally.responses_validated;
+                summary.drive.conforming += tally.conforming;
+                summary.drive.violating += tally.violating;
+                ++summary.drive_bindings;
+            }
+        }
+
+        return summary;
+    }
+
     std::shared_ptr<m::pil::iplatform>
     apply_webcore_config(std::shared_ptr<m::pil::iplatform> const& underlying_platform,
                          pilcfg::webcore_config const&             webcore_cfg)

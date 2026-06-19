@@ -325,7 +325,7 @@ example driver) is PIL Phase 4.
       drive surface (`drive_contract(document, submit)`) — assert the configured mode produced the
       expected request traffic and that a deliberately non-conforming response is reported as a
       contract violation.
-- [ ] M-HWC-CONTRACTCFG-6: attach the bound contracts to a PIL contract edge
+- [x] M-HWC-CONTRACTCFG-6: attach the bound contracts to a PIL contract edge
       (`m::pil::ihttp_contract_edge`, M-HWC-CONTRACT-EDGE). Add a helper in `webcore_config_platform`
       that, given the `std::vector<bound_contract>` produced by `load_webcore_contracts` and an
       `ihttp_contract_edge&`, attaches every `validate`-mode document via `attach_validation` and

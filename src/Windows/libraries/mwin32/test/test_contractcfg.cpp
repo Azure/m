@@ -199,3 +199,131 @@ TEST(ContractCfgIntegration, MultipleBindingsPreserveOrder)
     EXPECT_EQ(bound[1].endpoint, u"second");
     EXPECT_EQ(bound[1].mode, pilcfg::webcore_config::contract_mode::drive);
 }
+
+//
+// CONTRACTCFG-6: the bound contracts are wired onto a PIL contract edge backed
+// by a fake engine. The validate-mode document is attached and observes every
+// crossing; the drive-mode document generates traffic through the same edge. A
+// deliberately non-conforming (undeclared 500) engine response is reported both
+// in the drive tally and by the attached validate document.
+//
+TEST(ContractCfgIntegration, WiresBoundContractsToEdge)
+{
+    scoped_spec_file const spec_validate(k_ping_spec);
+    scoped_spec_file const spec_drive(k_ping_spec);
+
+    auto platform = m::pil::make_platform_interface();
+    ASSERT_NE(platform, nullptr);
+
+    pilcfg::webcore_config cfg;
+    {
+        pilcfg::webcore_config::contract_binding b;
+        b.spec     = spec_validate.path().u16string();
+        b.endpoint = u"watch";
+        b.mode     = pilcfg::webcore_config::contract_mode::validate;
+        cfg.contracts.push_back(std::move(b));
+    }
+    {
+        pilcfg::webcore_config::contract_binding b;
+        b.spec     = spec_drive.path().u16string();
+        b.endpoint = u"ping";
+        b.mode     = pilcfg::webcore_config::contract_mode::drive;
+        cfg.contracts.push_back(std::move(b));
+    }
+
+    auto const bound = load_webcore_contracts(*platform, cfg);
+    ASSERT_EQ(bound.size(), 2u);
+
+    // Fake engine playing the role behind the synthetic edge: it returns an
+    // undeclared 500 for every request, so each crossing violates the contract.
+    auto edge = m::pil::make_contract_edge(
+        [](m::pil::synthesized_request const&) -> m::pil::captured_contract_response {
+            return {500, {}, {}};
+        });
+    ASSERT_NE(edge, nullptr);
+
+    auto const summary = m::mwin32_impl::wire_contracts_to_edge(bound, *edge);
+
+    EXPECT_EQ(summary.validate_bindings, 1u);
+    EXPECT_EQ(summary.drive_bindings, 1u);
+
+    // Drive: the single GET /ping was synthesized and submitted; its undeclared
+    // 500 response is a violation.
+    EXPECT_EQ(summary.drive.requests, 1u);
+    EXPECT_EQ(summary.drive.responses_validated, 1u);
+    EXPECT_EQ(summary.drive.conforming, 0u);
+    EXPECT_EQ(summary.drive.violating, 1u);
+
+    // The drive request crossed the edge; the attached validate document saw the
+    // same crossing and flagged the undeclared 500 (a side diagnostic, D6).
+    auto const tally = edge->tally();
+    EXPECT_EQ(tally.requests, 1u);
+    EXPECT_EQ(tally.responses, 1u);
+    EXPECT_EQ(tally.response_violations, 1u);
+}
+
+//
+// CONTRACTCFG-6: a conforming engine produces no violations on either path.
+//
+TEST(ContractCfgIntegration, WiredEdgeConformingEngineHasNoViolations)
+{
+    scoped_spec_file const spec_validate(k_ping_spec);
+    scoped_spec_file const spec_drive(k_ping_spec);
+
+    auto platform = m::pil::make_platform_interface();
+    ASSERT_NE(platform, nullptr);
+
+    pilcfg::webcore_config cfg;
+    {
+        pilcfg::webcore_config::contract_binding b;
+        b.spec     = spec_validate.path().u16string();
+        b.endpoint = u"watch";
+        b.mode     = pilcfg::webcore_config::contract_mode::validate;
+        cfg.contracts.push_back(std::move(b));
+    }
+    {
+        pilcfg::webcore_config::contract_binding b;
+        b.spec     = spec_drive.path().u16string();
+        b.endpoint = u"ping";
+        b.mode     = pilcfg::webcore_config::contract_mode::drive;
+        cfg.contracts.push_back(std::move(b));
+    }
+
+    auto const bound = load_webcore_contracts(*platform, cfg);
+    ASSERT_EQ(bound.size(), 2u);
+
+    // Conforming fake engine: returns the declared 200.
+    auto edge = m::pil::make_contract_edge(
+        [](m::pil::synthesized_request const&) -> m::pil::captured_contract_response {
+            return {200, {}, {}};
+        });
+
+    auto const summary = m::mwin32_impl::wire_contracts_to_edge(bound, *edge);
+
+    EXPECT_EQ(summary.drive.requests, 1u);
+    EXPECT_EQ(summary.drive.conforming, 1u);
+    EXPECT_EQ(summary.drive.violating, 0u);
+
+    auto const tally = edge->tally();
+    EXPECT_EQ(tally.requests, 1u);
+    EXPECT_EQ(tally.request_violations, 0u);
+    EXPECT_EQ(tally.response_violations, 0u);
+}
+
+//
+// CONTRACTCFG-6: an empty binding set wires nothing and leaves the edge idle.
+//
+TEST(ContractCfgIntegration, WiringEmptyContractsIsNoOp)
+{
+    auto edge = m::pil::make_contract_edge(
+        [](m::pil::synthesized_request const&) -> m::pil::captured_contract_response {
+            return {200, {}, {}};
+        });
+
+    auto const summary = m::mwin32_impl::wire_contracts_to_edge({}, *edge);
+
+    EXPECT_EQ(summary.validate_bindings, 0u);
+    EXPECT_EQ(summary.drive_bindings, 0u);
+    EXPECT_EQ(summary.drive.requests, 0u);
+    EXPECT_EQ(edge->tally().requests, 0u);
+}

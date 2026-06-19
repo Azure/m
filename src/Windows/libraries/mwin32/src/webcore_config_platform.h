@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include <m/pil/http_contract_edge.h>
 #include <m/pil/http_contract_interfaces.h>
 #include <m/pil/platform_interfaces.h>
 
@@ -59,6 +60,32 @@ namespace m::mwin32_impl
     std::vector<bound_contract>
     load_webcore_contracts(m::pil::iplatform&            platform,
                            pilcfg::webcore_config const& webcore_cfg);
+
+    //
+    // Aggregate outcome of wiring bound contracts onto a contract edge
+    // (M-HWC-CONTRACTCFG-6, PIL D-HWC-10). `validate_bindings` / `drive_bindings`
+    // count how many of each mode were wired; `drive` sums every drive binding's
+    // tally. The edge's own tally (`edge.tally()`) reports the validate-mode
+    // crossings observed by the attached documents.
+    //
+    struct contract_wiring_summary
+    {
+        std::size_t         validate_bindings{0};
+        std::size_t         drive_bindings{0};
+        m::pil::drive_tally drive;
+    };
+
+    //
+    // Wire the bound contracts onto `edge` (M-HWC-CONTRACTCFG-6, PIL D-HWC-10):
+    // attach every `validate`-mode document so it auto-checks each request and
+    // response crossing the edge, and submit every `drive`-mode document through
+    // the edge (`drive_contract`), summing their tallies. A binding whose document
+    // failed to load (null) is skipped. Returns the aggregate summary; the edge's
+    // validate-mode crossings are read separately from `edge.tally()`.
+    //
+    contract_wiring_summary
+    wire_contracts_to_edge(std::vector<bound_contract> const& contracts,
+                           m::pil::ihttp_contract_edge&       edge);
 
     //
     // Create a platform that wraps the underlying platform and applies the

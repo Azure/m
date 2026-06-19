@@ -349,7 +349,7 @@ example driver) is PIL Phase 4.
       > `iwebcore_instance::synthetic_http_edge()`, `make_engine_submit`, and the activatable
       > `make_in_process_webcore` test engine. CONTRACTCFG-7.1/7.2 cannot start until those land.
 
-- [ ] M-HWC-CONTRACTCFG-7.1: Contract-wiring webcore decorator. Add a webcore decorator (in
+- [x] M-HWC-CONTRACTCFG-7.1: Contract-wiring webcore decorator. Add a webcore decorator (in
       `webcore_config_platform`, alongside `wire_contracts_to_edge`) whose `activate` forwards to
       the underlying (configured) webcore, then — on the activated instance's
       `synthetic_http_edge()` — registers every `validate`-mode bound document as a

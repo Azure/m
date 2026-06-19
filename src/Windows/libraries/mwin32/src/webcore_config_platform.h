@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include <chrono>
+#include <cstddef>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
@@ -12,6 +15,7 @@
 #include <m/pil/http_contract_edge.h>
 #include <m/pil/http_contract_interfaces.h>
 #include <m/pil/platform_interfaces.h>
+#include <m/pil/webcore_interfaces.h>
 
 #include "pilcfg.h"
 
@@ -88,10 +92,72 @@ namespace m::mwin32_impl
                            m::pil::ihttp_contract_edge&       edge);
 
     //
+    // Live wiring of bound contracts onto a *running* engine's synthetic HTTP
+    // edge (M-HWC-CONTRACTCFG-7.1, PIL D-HWC-11). Unlike `wire_contracts_to_edge`
+    // (which drives a synchronous `ihttp_contract_edge`), this wires onto the
+    // activated engine instance's `isynthetic_http_edge`: `validate`-mode
+    // documents become crossing observers that auto-check autonomous traffic, and
+    // `drive`-mode documents are driven against the activated engine.
+    //
+    // Accumulated live-wiring diagnostics (a side diagnostic, D6 — never altering
+    // the engine). `validate_crossings` / `validate_violations` count what the
+    // registered `validate`-mode observers saw across every crossing (including
+    // drive traffic); `drive` sums each `drive`-mode binding's tally captured at
+    // activation. All fields are read/written under `mutex`, since the validate
+    // observers run on the engine's servicing thread.
+    //
+    struct live_contract_diagnostics
+    {
+        std::mutex          mutex;
+        std::size_t         validate_bindings{0};
+        std::size_t         drive_bindings{0};
+        m::pil::drive_tally drive;
+        std::size_t         validate_crossings{0};
+        std::size_t         validate_violations{0};
+    };
+
+    //
+    // How long a `drive`-mode binding waits for each submitted request's response
+    // when driven against the activated engine (M-HWC-CONTRACTCFG-7.1). The
+    // in-process and intercepting engines service synthetic requests promptly;
+    // this is a generous upper bound, not an expected latency.
+    //
+    inline constexpr std::chrono::milliseconds default_contract_drive_timeout{5000};
+
+    //
+    // Wrap an engine with the contract-wiring decorator (M-HWC-CONTRACTCFG-7.1).
+    // The returned `iwebcore` forwards `activate` / `set_metadata` to `underlying`;
+    // each activation additionally wires `contracts` onto the activated instance's
+    // `synthetic_http_edge()` — registering `validate`-mode observers and driving
+    // `drive`-mode documents — and the returned instance owns that wiring for its
+    // lifetime. If an activated instance exposes no synthetic edge
+    // (`synthetic_http_edge() == nullptr`, e.g. the null engine), wiring is a
+    // tolerant no-op. Observations accumulate into `diagnostics` (shared so a
+    // caller can read them, D6).
+    //
+    std::shared_ptr<m::pil::iwebcore>
+    make_contract_wiring_webcore(std::shared_ptr<m::pil::iwebcore>          underlying,
+                                 std::vector<bound_contract>                contracts,
+                                 std::shared_ptr<live_contract_diagnostics> diagnostics,
+                                 std::chrono::milliseconds                  drive_timeout =
+                                     default_contract_drive_timeout);
+
+    //
     // Create a platform that wraps the underlying platform and applies the
     // webcore configuration when get_webcore() is called.
     //
     std::shared_ptr<m::pil::iplatform>
     apply_webcore_config(std::shared_ptr<m::pil::iplatform> const& underlying_platform,
                          pilcfg::webcore_config const&             webcore_cfg);
+
+    //
+    // Diagnostic overload (M-HWC-CONTRACTCFG-7.2): identical to the two-argument
+    // form, but the contract-wiring decorator's live diagnostics accumulate into
+    // the caller-supplied `diagnostics`, so a test can confirm the validate
+    // observers ran and the drive contracts executed against the activated engine.
+    //
+    std::shared_ptr<m::pil::iplatform>
+    apply_webcore_config(std::shared_ptr<m::pil::iplatform> const&   underlying_platform,
+                         pilcfg::webcore_config const&               webcore_cfg,
+                         std::shared_ptr<live_contract_diagnostics>  diagnostics);
 } // namespace m::mwin32_impl

@@ -141,19 +141,65 @@ namespace m::mwin32_impl
         // no additional wrapping. A present-but-default webcore_config enables
         // the webcore surface with materialization mode and no endpoints.
         std::optional<webcore_config> webcore;
+
+        // Optional wire-capture configuration (WC-4). When present, the session
+        // observes the host's HTTP/1.1 socket traffic (captured by the Winsock
+        // shims, D20, and reassembled per D21/D22) and either derives a contract
+        // from it or validates it against one. std::nullopt means "no wire
+        // capture" — the socket shims still tee bytes but nothing consumes them.
+        struct capture_config
+        {
+            // What the capture does with the reassembled crossings.
+            enum class capture_mode
+            {
+                // Derive a contract from observed traffic and emit it to `spec`
+                // at process shutdown (drives the PIL contract recorder).
+                record,
+
+                // Load the contract at `spec` and check observed traffic
+                // against it, tallying violations per direction.
+                validate,
+            };
+
+            // Required. Selects record vs validate. Built from the "mode"
+            // string member ("record" or "validate").
+            capture_mode mode = capture_mode::record;
+
+            // Required, non-empty. Host path to the contract spec file:
+            // the OUTPUT written in `record` mode, the INPUT read in `validate`
+            // mode. %VAR%-expanded on load (D17), like the other host-path
+            // members. Built from the "spec" string member.
+            std::u16string spec;
+
+            // Optional Host-header filter. When non-empty, only crossings whose
+            // request `Host` header matches (ASCII case-insensitive) are
+            // captured; empty (the default) captures every crossing. A logical
+            // value taken literally (not %VAR%-expanded), stored as UTF-8 so it
+            // compares directly against reassembled header values. Built from
+            // the optional "host" string member.
+            std::string host;
+        };
+
+        // Optional wire-capture configuration. std::nullopt means "not
+        // configured".
+        std::optional<capture_config> capture;
     };
 
     //
     // Parse the JSON text of a `.pilcfg` file into a pilcfg. The accepted schema
     // is an object with optional boolean members "buffer_updates" and
     // "record_modifications", an optional "redirections" array of objects
-    // each carrying string members "from" and "to", and an optional
-    // "persisted_state" string naming a snapshot file, and an optional
-    // "fault_script" string naming a `<FaultScript>` file. Absent members keep
-    // their default and unknown members are ignored. Throws if the text is not
-    // valid JSON, is not a JSON object, a recognized member is present with the
-    // wrong type, or a "redirections" element is not an object with string
-    // "from" and "to" members.
+    // each carrying string members "from" and "to", an optional
+    // "persisted_state" string naming a snapshot file, an optional
+    // "fault_script" string naming a `<FaultScript>` file, an optional
+    // "webcore" object, and an optional "capture" object carrying a required
+    // "mode" string ("record" or "validate"), a required non-empty "spec"
+    // string, and an optional "host" string. Absent members keep their default
+    // and unknown members are ignored. Throws if the text is not valid JSON, is
+    // not a JSON object, a recognized member is present with the wrong type, a
+    // "redirections" element is not an object with string "from" and "to"
+    // members, or a "capture" object is missing "mode"/"spec" or has an invalid
+    // "mode".
     //
     pilcfg
     parse_pilcfg(std::string_view json_text);

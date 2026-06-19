@@ -50,6 +50,13 @@ namespace m::mwin32_impl
         constexpr std::string_view k_mode_validate        = "validate";
         constexpr std::string_view k_mode_drive           = "drive";
 
+        // Wire-capture configuration JSON member names (WC-4). The "mode",
+        // "spec", and "validate" names are shared with the webcore contract
+        // schema above; "record" and "host" are specific to capture.
+        constexpr std::string_view k_capture              = "capture";
+        constexpr std::string_view k_host                 = "host";
+        constexpr std::string_view k_mode_record          = "record";
+
         // Upper bound on the module path length we will accept, to bound the
         // GetModuleFileNameW growth loop. Far larger than any real path.
         constexpr DWORD k_max_module_path_chars = 0x10000;
@@ -323,6 +330,62 @@ namespace m::mwin32_impl
             return cfg;
         }
 
+        // Parse the optional "capture" object (WC-4). Absent yields
+        // std::nullopt. Present must be an object with a required "mode" string
+        // ("record" or "validate"), a required non-empty "spec" string (the
+        // contract path, %VAR%-expanded), and an optional "host" string filter;
+        // anything else throws.
+        std::optional<pilcfg::capture_config>
+        read_capture_member(nlohmann::json const& j)
+        {
+            auto const it = j.find(k_capture);
+            if (it == j.end())
+                return std::nullopt;
+
+            if (!it->is_object())
+                throw std::runtime_error("pilcfg: 'capture' must be an object");
+
+            auto const& obj      = *it;
+            auto const  mode_it  = obj.find(k_mode);
+            auto const  spec_it  = obj.find(k_spec);
+
+            if (mode_it == obj.end() || spec_it == obj.end())
+                throw std::runtime_error(
+                    "pilcfg: 'capture' must have 'mode' and 'spec' members");
+
+            pilcfg::capture_config cfg;
+
+            if (!mode_it->is_string())
+                throw std::runtime_error("pilcfg: 'capture' 'mode' must be a string");
+
+            auto const& mode_s = mode_it->get_ref<nlohmann::json::string_t const&>();
+            if (mode_s == k_mode_record)
+                cfg.mode = pilcfg::capture_config::capture_mode::record;
+            else if (mode_s == k_mode_validate)
+                cfg.mode = pilcfg::capture_config::capture_mode::validate;
+            else
+                throw std::runtime_error(
+                    "pilcfg: 'capture' 'mode' must be 'record' or 'validate'");
+
+            cfg.spec = expand_environment_path(json_string_to_u16(*spec_it, k_spec));
+            if (cfg.spec.empty())
+                throw std::runtime_error(
+                    "pilcfg: 'capture' 'spec' must be a non-empty string");
+
+            // Optional Host-header filter: a literal UTF-8 value (not
+            // %VAR%-expanded) so it compares directly against reassembled
+            // header values.
+            auto const host_it = obj.find(k_host);
+            if (host_it != obj.end())
+            {
+                if (!host_it->is_string())
+                    throw std::runtime_error("pilcfg: 'capture' 'host' must be a string");
+                cfg.host = host_it->get_ref<nlohmann::json::string_t const&>();
+            }
+
+            return cfg;
+        }
+
         // Parse the optional "redirections" array. Absent yields an empty
         // vector. Present must be an array whose every element is an object
         // carrying string "from" and "to" members; anything else throws.
@@ -412,6 +475,7 @@ namespace m::mwin32_impl
         cfg.diagnostic_log       = read_diagnostic_log_member(j);
         cfg.fault_script         = read_fault_script_member(j);
         cfg.webcore              = read_webcore_member(j);
+        cfg.capture              = read_capture_member(j);
         return cfg;
     }
 

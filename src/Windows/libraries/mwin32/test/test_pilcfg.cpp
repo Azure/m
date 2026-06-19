@@ -13,6 +13,7 @@
 using namespace std::string_view_literals;
 using m::mwin32_impl::parse_pilcfg;
 using contract_mode = m::mwin32_impl::pilcfg::webcore_config::contract_mode;
+using capture_mode  = m::mwin32_impl::pilcfg::capture_config::capture_mode;
 
 namespace
 {
@@ -548,4 +549,101 @@ TEST(PilcfgParse, ContractsNonStringMemberThrows)
         R"({ "webcore": { "contracts": [ { "spec": 7, "endpoint": "ping", "mode": "validate" } ] } })"sv));
     EXPECT_ANY_THROW(parse_pilcfg(
         R"({ "webcore": { "contracts": [ { "spec": "C:\\a.yaml", "endpoint": "ping", "mode": true } ] } })"sv));
+}
+
+//
+// capture parsing (WC-4). The optional "capture" object selects a wire-capture
+// mode ("record" or "validate"), a contract spec host path (%VAR%-expanded),
+// and an optional Host-header filter (literal). Absent yields std::nullopt;
+// malformed shapes throw.
+//
+
+TEST(PilcfgParse, CaptureAbsentIsNullopt)
+{
+    auto const cfg = parse_pilcfg(R"({ "buffer_updates": true })"sv);
+    EXPECT_FALSE(cfg.capture.has_value());
+}
+
+TEST(PilcfgParse, CaptureRecordMode)
+{
+    auto const cfg = parse_pilcfg(
+        R"({ "capture": { "mode": "record", "spec": "C:\\out\\api.yaml" } })"sv);
+    ASSERT_TRUE(cfg.capture.has_value());
+    EXPECT_EQ(cfg.capture->mode, capture_mode::record);
+    EXPECT_EQ(cfg.capture->spec, u"C:\\out\\api.yaml");
+    EXPECT_TRUE(cfg.capture->host.empty());
+}
+
+TEST(PilcfgParse, CaptureValidateMode)
+{
+    auto const cfg = parse_pilcfg(
+        R"({ "capture": { "mode": "validate", "spec": "C:\\in\\api.yaml" } })"sv);
+    ASSERT_TRUE(cfg.capture.has_value());
+    EXPECT_EQ(cfg.capture->mode, capture_mode::validate);
+    EXPECT_EQ(cfg.capture->spec, u"C:\\in\\api.yaml");
+}
+
+TEST(PilcfgParse, CaptureWithHostFilter)
+{
+    auto const cfg = parse_pilcfg(
+        R"({ "capture": { "mode": "validate", "spec": "C:\\api.yaml", "host": "example.com" } })"sv);
+    ASSERT_TRUE(cfg.capture.has_value());
+    EXPECT_EQ(cfg.capture->host, "example.com");
+}
+
+TEST(PilcfgParse, CaptureSpecExpandsToken)
+{
+    scoped_env_var const env(k_env_name, k_env_value);
+    auto const           cfg = parse_pilcfg(
+        R"({ "capture": { "mode": "record", "spec": "%M_PILCFG_TEST_DIR%\\api.yaml" } })"sv);
+    ASSERT_TRUE(cfg.capture.has_value());
+    EXPECT_EQ(cfg.capture->spec, u"C:\\expanded\\api.yaml");
+}
+
+TEST(PilcfgParse, CaptureHostIsNotExpanded)
+{
+    // The host filter is a logical value, not a host path; it is taken
+    // literally even if it contains a %VAR% token.
+    scoped_env_var const env(k_env_name, k_env_value);
+    auto const           cfg = parse_pilcfg(
+        R"({ "capture": { "mode": "validate", "spec": "C:\\api.yaml", "host": "%M_PILCFG_TEST_DIR%" } })"sv);
+    ASSERT_TRUE(cfg.capture.has_value());
+    EXPECT_EQ(cfg.capture->host, "%M_PILCFG_TEST_DIR%");
+}
+
+TEST(PilcfgParse, CaptureNonObjectThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(R"({ "capture": "nope" })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(R"({ "capture": [ ] })"sv));
+}
+
+TEST(PilcfgParse, CaptureMissingMemberThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(R"({ "capture": { "spec": "C:\\api.yaml" } })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(R"({ "capture": { "mode": "record" } })"sv));
+}
+
+TEST(PilcfgParse, CaptureUnknownModeThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "capture": { "mode": "observe", "spec": "C:\\api.yaml" } })"sv));
+    // "drive" is a webcore-contract mode, not a capture mode.
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "capture": { "mode": "drive", "spec": "C:\\api.yaml" } })"sv));
+}
+
+TEST(PilcfgParse, CaptureEmptySpecThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "capture": { "mode": "record", "spec": "" } })"sv));
+}
+
+TEST(PilcfgParse, CaptureNonStringMemberThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "capture": { "mode": 7, "spec": "C:\\api.yaml" } })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "capture": { "mode": "record", "spec": 7 } })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "capture": { "mode": "validate", "spec": "C:\\api.yaml", "host": 7 } })"sv));
 }

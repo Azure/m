@@ -56,7 +56,7 @@ Clean debug+release build of m_mwin32 (zero warnings), run test_mwin32, sync.
 
 ## Milestone M-WIRECAP-CFG — pilcfg wiring + capture modes
 
-- [ ] **WC-4**: `.pilcfg` capture schema: a `capture` section selecting
+- [x] **WC-4**: `.pilcfg` capture schema: a `capture` section selecting
   `mode = record | validate`, the contract spec path (input for validate, output
   for record), and optional endpoint/host filter. Parser + unit tests.
   > **CROSS-COMPONENT PREREQUISITE:** PIL `M-REC` (recorder + emitter,

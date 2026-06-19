@@ -1201,3 +1201,33 @@ Decisions:
   it counts requests, responses, and crossings with per-method and per-status
   breakdowns, holds no reference to the wire, and never throws into the capture
   path.
+
+## D23 — `.pilcfg` capture schema: mode + spec + optional host filter (WC-4)
+
+The wire-capture feature is driven from the existing `.pilcfg` document via a new
+optional top-level `capture` object, parsed into `pilcfg::capture_config`
+([`src/pilcfg.h`](src/pilcfg.h), [`src/pilcfg.cpp`](src/pilcfg.cpp)). Absent
+`capture` yields `std::nullopt`; a present-but-malformed shape throws, consistent
+with the rest of the parser.
+
+Decisions:
+
+- **Two modes, one spec path, opposite roles.** `mode` is required and is exactly
+  `"record"` or `"validate"` (any other value throws). `spec` is the contract
+  document path and is required and non-empty. The same member names the *output*
+  in `record` mode and the *input* in `validate` mode — there is one spec path, and
+  the mode decides whether it is written or read. This keeps the schema minimal and
+  makes the record→validate round-trip a one-word edit.
+
+- **`spec` is a host path; `host` is a logical value.** `spec` is `%VAR%`-expanded
+  via the same `expand_environment_path` path as every other host-filesystem member
+  (D-PILCFG host-path rule), so a checked-in config can reference per-machine
+  locations. The optional `host` member is a Host-header filter taken **literally**
+  (never `%VAR%`-expanded) and stored as UTF-8 `std::string` so it can be compared
+  directly against the bytes of an HTTP `Host:` header without re-encoding. Absent
+  `host` is an empty string meaning "capture all".
+
+- **`"drive"` is not a capture mode.** The webcore-contract schema (D-HWC-8) uses
+  `mode = validate | drive`; capture uses `mode = record | validate`. They are
+  separate namespaces — `"drive"` is rejected by the capture parser — so the two
+  features cannot be confused by a config author who knows one of them.

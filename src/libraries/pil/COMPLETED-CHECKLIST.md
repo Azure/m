@@ -319,3 +319,14 @@ Content is **not** captured (D14) — the snapshot is namespace + metadata.
       logging facets as the registry monitor has). Tests for create / rename / delete
       notifications. May be scheduled after M-FS-FAULT if change notification is not yet
       needed by a consumer.
+
+## Moved 2026-06-19 - HTTP contract recorder (derive OpenAPI YAML from observed traffic)
+
+Feature: PIL side of the wire-capture lifecycle demo - observe clean request/response crossings and emit a loadable OpenAPI 3.0 YAML spec (the `derive the contracts` capability), the inverse of `ihttp_contract::load`.
+
+### Milestone M-REC - recorder + OpenAPI YAML emitter
+
+- [x] REC-1: OpenAPI model -> YAML emitter (`emit_openapi_yaml`); round-trip load->emit->reload structural-equality test.
+- [x] REC-2: Body-shape inference (`infer_json_schema` / `merge_json_schema`); object/array/scalar/empty + required-key intersection tests.
+- [x] REC-3: Internal `http_contract_recorder` accumulation (observe_request/observe_response, correlate by method+path, merge schemas + statuses, emit_spec); multi-op/multi-status/idempotent tests.
+- [x] REC-4: Public facade `make_http_contract_recorder` + close-the-loop test (derive spec, load through `make_http_contract_provider`, validate accepts clean / rejects mutated request+response). CROSS-COMPONENT HANDOFF to mwin32 M-WIRECAP-CFG WC-5.

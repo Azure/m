@@ -507,3 +507,39 @@ wired the live provider into the stack), and the drive synthesizer is `src/`-int
       > (`webcore.contracts`: spec + endpoint + mode) resumes in component
       > `src/Windows/libraries/mwin32` → milestone `M-HWC-CONTRACTCFG`. See
       > [`src/Windows/libraries/mwin32/CHECKLIST.md`](../../Windows/libraries/mwin32/CHECKLIST.md).
+
+## Milestone M-HWC-CONTRACT-EDGE — public contract-edge seam (D-HWC-10)
+
+Goal: give a consumer one public, stateful seam that ties N bound contracts to one engine —
+`validate`-mode documents auto-validate every request/response crossing it, `drive`-mode
+documents are submitted through the same seam — so mwin32 M-HWC-CONTRACTCFG-6 can attach the
+documents it binds without reaching into PIL internals. The engine is pluggable (fake in tests,
+the activated engine's synthetic queue in production, per D-HWC-8). Discovered during mwin32
+CONTRACTCFG execution: CONTRACTCFG-3 binds documents but there is no public object to attach them
+to live edge traffic; the validating facet is `src/`-internal.
+
+- [ ] M-HWC-CONTRACT-EDGE-1: Public `ihttp_contract_edge` seam. New public header
+      [`include/m/pil/http_contract_edge.h`](include/m/pil/http_contract_edge.h): a
+      `contract_edge_tally` struct (`requests`, `responses`, `request_violations`,
+      `response_violations`), an `ihttp_contract_edge` interface (`submit(synthesized_request) ->
+      captured_contract_response`; `attach_validation(shared_ptr<ihttp_contract_document>)`;
+      `tally()`; non-virtual `as_engine_submit()` adapting to `engine_submit`), and a free
+      `make_contract_edge(engine_submit) -> shared_ptr<ihttp_contract_edge>` factory. The header
+      names only public contract types (no Win32 / `<http.h>`). Implementation in
+      [`src/contract/http_contract_edge.cpp`](src/contract/http_contract_edge.cpp) (added to the
+      contract `target_sources`): `submit` validates the request against each attached document,
+      calls the engine, validates the response, updates the tally, and returns the engine's
+      response. Validation reuses the tested `contract_validating_facet` (surfacing on, interpreted
+      for the tally and swallowed so the engine is never altered — D6). Builds clean debug+release.
+- [ ] M-HWC-CONTRACT-EDGE-2 (unit tests): inline-spec tests
+      ([`test/test_http_contract_edge.cpp`](test/test_http_contract_edge.cpp)) — a conforming
+      request+response crossing tallies no violations; a violating request and a violating response
+      are each counted; `drive_contract(document, edge.as_engine_submit())` runs through the edge
+      and the edge's attached validate document sees the same crossings; an edge with no attached
+      documents passes traffic through untouched; the engine is never altered by a violation.
+      ≥10 cases, sub-second.
+
+      > **➡ CROSS-COMPONENT HANDOFF:** with the public edge seam landed, attaching bound documents
+      > to live edge traffic resumes in component `src/Windows/libraries/mwin32` → milestone
+      > `M-HWC-CONTRACTCFG` → `M-HWC-CONTRACTCFG-6`. See
+      > [`src/Windows/libraries/mwin32/CHECKLIST.md`](../../Windows/libraries/mwin32/CHECKLIST.md).

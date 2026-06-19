@@ -286,9 +286,11 @@ example driver) is PIL Phase 4.
 
 > **⬅ CROSS-COMPONENT PREREQUISITE:** the PIL `ihttp_contract` surface and its validate/drive
 > facets must land first — `src/libraries/pil/CHECKLIST.md` → M-HWC-CONTRACT-MODEL,
-> M-HWC-CONTRACT-IFACE, M-HWC-CONTRACT-VALIDATE, M-HWC-CONTRACT-DRIVE, and
+> M-HWC-CONTRACT-IFACE, M-HWC-CONTRACT-VALIDATE, M-HWC-CONTRACT-DRIVE,
 > M-HWC-CONTRACT-EXPOSE (which wires `iplatform::get_http_contract` through the live stack and
-> exposes the public drive surface this milestone consumes).
+> exposes the public drive surface this milestone consumes), and — for CONTRACTCFG-6 —
+> M-HWC-CONTRACT-EDGE (the public `ihttp_contract_edge` seam this milestone attaches bound
+> documents to).
 
 - [x] M-HWC-CONTRACTCFG-1: Extend `pilcfg::webcore_config`
       ([`src/pilcfg.h`](src/pilcfg.h)) with a `contracts` vector: each entry carries a `spec`
@@ -323,10 +325,26 @@ example driver) is PIL Phase 4.
       drive surface (`drive_contract(document, submit)`) — assert the configured mode produced the
       expected request traffic and that a deliberately non-conforming response is reported as a
       contract violation.
-- [ ] M-HWC-CONTRACTCFG-6 (deferred — gated on webcore interception edge): attach the bound
-      validating documents to live edge traffic so requests/responses crossing the synthetic edge
-      are auto-validated, and execute drive mode against the running engine. Blocked until
-      `webcore_config_platform` performs real interception (today it forwards `get_webcore`
-      unchanged); pick up when that edge infrastructure lands.
+- [ ] M-HWC-CONTRACTCFG-6: attach the bound contracts to a PIL contract edge
+      (`m::pil::ihttp_contract_edge`, M-HWC-CONTRACT-EDGE). Add a helper in `webcore_config_platform`
+      that, given the `std::vector<bound_contract>` produced by `load_webcore_contracts` and an
+      `ihttp_contract_edge&`, attaches every `validate`-mode document via `attach_validation` and
+      submits every `drive`-mode document through the edge via `drive_contract(*document,
+      edge.as_engine_submit())`, returning an aggregate summary (per-binding drive tallies + the
+      edge's validate tally). Integration test: build an edge with `make_contract_edge(fake_engine)`
+      where the fake engine returns a configurable response, load a `.pilcfg` carrying one
+      `validate` and one `drive` contract through `load_webcore_contracts`, run the helper, and
+      assert the drive contract produced the expected request traffic, a deliberately
+      non-conforming response is tallied as a violation, and the attached validate document observed
+      the crossings. Sub-second.
+- [ ] M-HWC-CONTRACTCFG-7 (deferred — gated on a running engine): provide the production
+      `engine_submit` that bridges the contract edge to the activated engine's Windows
+      `synthetic_http_queue` (D-HWC-8: "wiring the synthesized requests into that queue is the
+      Windows consumer's job"), and have `webcore_config_platform::get_webcore` construct an
+      intercepting webcore (synthetic edge enabled) and an edge bound to that engine instead of
+      forwarding unchanged. Blocked until an `hwebcore` engine can be activated in test (PIL
+      interception hooks are still stubs); pick up when that lands. The CONTRACTCFG-6 helper and
+      edge are engine-agnostic, so this item only supplies the real `engine_submit` and the
+      construction site.
 
 

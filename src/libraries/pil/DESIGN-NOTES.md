@@ -33,6 +33,7 @@ decisions. Each decision has a stable D-number referenced from CHECKLIST.md item
 | D-HWC-7 | Detours is an opt-in, module-scoped, off-by-default complementary envelope bounded to the HWC surface |
 | D-HWC-8 | OpenAPI/Swagger contracts bind to the HWC HTTP edge via `.pilcfg`, driving both response/request **validation** and example-**driven** traffic |
 | D-HWC-9 | A contract is a multi-document `$ref` bundle with media-typed (incl. XML) bodies, query-discriminated operations, and authored validation-eligibility — refining D-HWC-8 to match real specs |
+| D-HWC-10 | A public `ihttp_contract_edge` seam ties N bound contracts (validate-on-crossing + drive) to one pluggable engine, so a consumer (mwin32) wires contracts against a fake engine in tests and the real engine in production |
 
 ---
 
@@ -686,6 +687,49 @@ unresolved ref is a load diagnostic, not a silent omission. XML body *value* val
 scope until its strategy lands; structural and parameter/header/status checks still apply. The
 query-discriminator and `x-…` eligibility conventions presume the authored corpus is normalized to
 use them; un-normalized specs validate loosely until the cleanup pass runs.
+
+---
+
+## D-HWC-10 — a public contract-edge seam binds contracts to one pluggable engine
+
+D-HWC-8 left two pieces engine-specific on purpose: drive mode submits through a caller-supplied
+`engine_submit`, and validate mode is realized by an internal facet over the generic message shape.
+A consumer that wants to bind *several* contracts to *one* running engine — some in `validate`
+mode, some in `drive` — had no public object to hold that wiring, and the validating facet lived
+under `src/` (not on the public surface). mwin32 M-HWC-CONTRACTCFG surfaced this: it can load and
+bind documents (CONTRACTCFG-3) but had no public seam to attach them to live edge traffic.
+
+D-HWC-10 adds that seam: a public `ihttp_contract_edge` (header `m/pil/http_contract_edge.h`).
+
+- **One stateful seam, two modes composed.** The edge is the single point a consumer's traffic
+  crosses into the engine. `attach_validation(document)` registers a `validate`-mode document; the
+  edge runs every request *and* response crossing it through each attached document, tracing
+  violations (D6 — never altering the engine's behavior) and counting them in a
+  `contract_edge_tally`. `submit(request)` pushes a request through the same seam and returns the
+  engine's response, so `drive` mode composes by submitting the spec's synthesized requests
+  through `as_engine_submit()` (the edge adapts itself to the `engine_submit` `drive_contract`
+  consumes). A document is *either* attached (validate) *or* driven (drive), never both, so a
+  crossing is counted once per attached document.
+
+- **The engine is pluggable; the edge owns no transport (Design Autonomy).** `make_contract_edge`
+  takes an `engine_submit` — the seam to the engine behind the edge. In production that callable
+  bridges to the activated engine's Windows synthetic queue (still the consumer's job per D-HWC-8);
+  in tests it is a fake engine. The edge itself stays cross-platform-clean: it names only the
+  public contract message types (`synthesized_request` / `captured_contract_response`) and never
+  the Win32 `synthetic_http_queue` / `<http.h>`. This is the same engine-agnostic stance D-HWC-8
+  took for `drive_contract`, generalized to a held object that also validates.
+
+- **Why a held object rather than loose functions.** A consumer binds the whole `.pilcfg`
+  `webcore.contracts` set at once and wants one lifetime-scoped tally across all of them. The edge
+  gives that: attach all validate docs, drive all drive docs through the one seam, read one tally.
+  Built on the tested validating facet (reused with surfacing on, interpreted for the tally and
+  swallowed so the engine is never altered) and the public `drive_contract`.
+
+**Acknowledged limits.** The edge validates and tallies; it is not a correctness oracle (it inherits
+D-HWC-8's shape-not-value limits). The real-engine bridge — an `engine_submit` that drives the
+Windows `synthetic_http_queue` against an *activated* `hwebcore` engine — is **not** part of this
+decision and remains gated on a running engine; tests exercise the edge with a fake engine, which
+is the deterministic, CI-friendly realization the synthetic edge was designed for.
 
 ---
 

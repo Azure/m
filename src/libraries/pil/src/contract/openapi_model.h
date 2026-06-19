@@ -218,4 +218,21 @@ namespace m::pil
     match_operation(openapi_model const& model,
                     std::string_view     method,
                     std::string_view     path);
+
+    //
+    // Serialize a normalized model back into an OpenAPI 3.0 document as YAML text.
+    //
+    // This is the inverse of load_openapi_model: it is the "derive the contract"
+    // emit path used by the HTTP contract recorder (the recorder accumulates
+    // observed traffic into a model, then emits a spec). The emitted text is a
+    // valid OpenAPI 3.0 document and reloads through load_openapi_model.
+    //
+    // Operations sharing a path template are grouped under one path key; query
+    // discriminators are reconstructed into the path key ("/m?comp=pkg") rather
+    // than duplicated as query parameters. Each response carries a (possibly
+    // placeholder) `description`, as OpenAPI requires. Object key order is
+    // deterministic so the output is stable for tests.
+    //
+    std::string
+    emit_openapi_yaml(openapi_model const& model);
 }

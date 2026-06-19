@@ -12,6 +12,7 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 
@@ -26,7 +27,7 @@ using m::pil::normalize_path_key;
 using m::pil::openapi_version;
 using m::pil::parameter_location;
 using m::pil::ref_resolver;
-
+using m::pil::emit_openapi_yaml;
 namespace
 {
     // A minimal but realistic OAS 3.0 document reused across several tests.
@@ -712,5 +713,142 @@ paths:
     auto const m     = match_operation(model, "GET", "/opaque");
     ASSERT_TRUE(m.has_value());
     EXPECT_FALSE(m->operation->validation_eligible);
+}
+
+//--------------------------------------------------------------------------
+// REC-1: emit_openapi_yaml — serialize a model back to OpenAPI YAML that
+// reloads structurally equivalent (the "derive the contract" emit path).
+//--------------------------------------------------------------------------
+
+namespace
+{
+    // A comparable, order-independent summary of a model: per operation, its
+    // method + path template, whether it has a request body, and the sorted set
+    // of declared status codes (with -1 standing in for the default response).
+    std::set<std::string>
+    operation_summary(m::pil::openapi_model const& model)
+    {
+        std::set<std::string> out;
+        for (auto const& op : model.operations)
+        {
+            std::string s = op.method + " " + op.path_template;
+            s += op.has_request_body ? " body" : " nobody";
+            for (auto const& [status, resp] : op.responses)
+                s += " " + std::to_string(status);
+            if (op.default_response)
+                s += " default";
+            out.insert(std::move(s));
+        }
+        return out;
+    }
+} // namespace
+
+TEST(OpenApiModel, EmitYamlIsNotJson)
+{
+    // The emitter must produce YAML, not a JSON dump: a JSON object dump starts
+    // with '{', YAML block mapping does not.
+    auto const model = load_openapi_model(k_petstore_3_0);
+    auto const yaml  = emit_openapi_yaml(model);
+    ASSERT_FALSE(yaml.empty());
+    EXPECT_NE(yaml.front(), '{');
+    EXPECT_NE(yaml.find("paths:"), std::string::npos);
+}
+
+TEST(OpenApiModel, EmitRoundTripsPetstore)
+{
+    auto const original = load_openapi_model(k_petstore_3_0);
+    auto const yaml     = emit_openapi_yaml(original);
+    auto const reloaded = load_openapi_model(yaml);
+
+    EXPECT_EQ(operation_summary(original), operation_summary(reloaded));
+    // GET /pets, POST /pets, GET /pets/{petId}
+    EXPECT_EQ(reloaded.operations.size(), 3u);
+}
+
+TEST(OpenApiModel, EmitPreservesRequestBodyAndResponses)
+{
+    auto const original = load_openapi_model(k_petstore_3_0);
+    auto const reloaded = load_openapi_model(emit_openapi_yaml(original));
+
+    auto const post = match_operation(reloaded, "POST", "/pets");
+    ASSERT_TRUE(post.has_value());
+    EXPECT_TRUE(post->operation->has_request_body);
+    EXPECT_TRUE(post->operation->responses.contains(201));
+
+    auto const get = match_operation(reloaded, "GET", "/pets");
+    ASSERT_TRUE(get.has_value());
+    EXPECT_TRUE(get->operation->responses.contains(200));
+    EXPECT_TRUE(get->operation->default_response.has_value());
+}
+
+TEST(OpenApiModel, EmitPreservesRequiredResponseHeaders)
+{
+    auto const original = load_openapi_model(k_petstore_3_0);
+    auto const reloaded = load_openapi_model(emit_openapi_yaml(original));
+
+    auto const post = match_operation(reloaded, "POST", "/pets");
+    ASSERT_TRUE(post.has_value());
+    auto const it = post->operation->responses.find(201);
+    ASSERT_NE(it, post->operation->responses.end());
+    ASSERT_EQ(it->second.required_headers.size(), 1u);
+    EXPECT_EQ(it->second.required_headers.front(), "Location");
+}
+
+TEST(OpenApiModel, EmitPreservesQueryDiscriminator)
+{
+    constexpr std::string_view spec = R"(
+openapi: "3.0.0"
+paths:
+  "/machine?comp=package":
+    get:
+      responses:
+        "200":
+          description: package
+  "/machine?comp=packageStatus":
+    get:
+      responses:
+        "200":
+          description: status
+)";
+    auto const original = load_openapi_model(spec);
+    auto const reloaded = load_openapi_model(emit_openapi_yaml(original));
+
+    auto const a = match_operation(reloaded, "GET", "/machine?comp=package");
+    ASSERT_TRUE(a.has_value());
+    ASSERT_EQ(a->operation->query_discriminators.size(), 1u);
+    EXPECT_EQ(a->operation->query_discriminators[0].second, "package");
+
+    auto const b = match_operation(reloaded, "GET", "/machine?comp=packageStatus");
+    ASSERT_TRUE(b.has_value());
+    EXPECT_EQ(b->operation->query_discriminators[0].second, "packageStatus");
+
+    EXPECT_FALSE(match_operation(reloaded, "GET", "/machine?comp=other").has_value());
+}
+
+TEST(OpenApiModel, EmitPreservesValidationIneligibility)
+{
+    constexpr std::string_view spec = R"(
+openapi: "3.0.0"
+paths:
+  /opaque:
+    get:
+      x-validated: false
+      responses:
+        "200":
+          description: ok
+)";
+    auto const original = load_openapi_model(spec);
+    auto const reloaded = load_openapi_model(emit_openapi_yaml(original));
+
+    auto const m = match_operation(reloaded, "GET", "/opaque");
+    ASSERT_TRUE(m.has_value());
+    EXPECT_FALSE(m->operation->validation_eligible);
+}
+
+TEST(OpenApiModel, EmitEmptyModelYieldsLoadableDocument)
+{
+    m::pil::openapi_model empty;
+    auto const            reloaded = load_openapi_model(emit_openapi_yaml(empty));
+    EXPECT_TRUE(reloaded.operations.empty());
 }
 

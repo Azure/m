@@ -877,4 +877,211 @@ namespace m::pil
             return std::nullopt;
         return best;
     }
+
+    namespace
+    {
+        //
+        // Recursively convert an nlohmann::json value into a yaml-cpp node tree.
+        // The inverse of yaml_to_json; used by emit_openapi_yaml to render the
+        // OpenAPI document (whose schemas are already json) as YAML text.
+        //
+        YAML::Node
+        json_to_yaml(nlohmann::json const& j)
+        {
+            switch (j.type())
+            {
+            case nlohmann::json::value_t::boolean:
+                return YAML::Node(j.get<bool>());
+            case nlohmann::json::value_t::number_integer:
+                return YAML::Node(j.get<long long>());
+            case nlohmann::json::value_t::number_unsigned:
+                return YAML::Node(j.get<unsigned long long>());
+            case nlohmann::json::value_t::number_float:
+                return YAML::Node(j.get<double>());
+            case nlohmann::json::value_t::string:
+                return YAML::Node(j.get<std::string>());
+            case nlohmann::json::value_t::array:
+            {
+                YAML::Node n(YAML::NodeType::Sequence);
+                for (auto const& e : j)
+                    n.push_back(json_to_yaml(e));
+                return n;
+            }
+            case nlohmann::json::value_t::object:
+            {
+                YAML::Node n(YAML::NodeType::Map);
+                for (auto const& [k, v] : j.items())
+                    n[k] = json_to_yaml(v);
+                return n;
+            }
+            case nlohmann::json::value_t::null:
+            default:
+                return YAML::Node(YAML::NodeType::Null);
+            }
+        }
+
+        //
+        // OpenAPI `in` keyword for a parameter location.
+        //
+        std::string
+        location_to_string(parameter_location loc)
+        {
+            switch (loc)
+            {
+            case parameter_location::path:
+                return "path";
+            case parameter_location::query:
+                return "query";
+            case parameter_location::header:
+                return "header";
+            case parameter_location::cookie:
+                return "cookie";
+            }
+            return "query";
+        }
+
+        //
+        // Render one declared response (status or default) as an OpenAPI 3.0
+        // response object. `description` is always present (OpenAPI requires it),
+        // empty when none was recorded.
+        //
+        nlohmann::json
+        emit_response_node(openapi_response const& r)
+        {
+            nlohmann::json rnode = nlohmann::json::object();
+            rnode["description"] = "";
+            if (!r.content.empty())
+            {
+                nlohmann::json content = nlohmann::json::object();
+                for (auto const& [media, body] : r.content)
+                {
+                    nlohmann::json mt = nlohmann::json::object();
+                    if (!body.schema.is_null())
+                        mt["schema"] = body.schema;
+                    content[media] = std::move(mt);
+                }
+                rnode["content"] = std::move(content);
+            }
+            if (!r.required_headers.empty())
+            {
+                nlohmann::json headers = nlohmann::json::object();
+                for (auto const& h : r.required_headers)
+                    headers[h] = nlohmann::json{{"required", true},
+                                                {"schema", nlohmann::json{{"type", "string"}}}};
+                rnode["headers"] = std::move(headers);
+            }
+            return rnode;
+        }
+    } // namespace
+
+    std::string
+    emit_openapi_yaml(openapi_model const& model)
+    {
+        using nlohmann::json;
+
+        json spec        = json::object();
+        spec["openapi"]  = "3.0.0";
+        spec["info"]     = json{{"title", "Recorded API"}, {"version", "1.0.0"}};
+
+        json paths = json::object();
+
+        for (auto const& op : model.operations)
+        {
+            // Reconstruct the path key, folding query discriminators back into it
+            // (e.g. "/machine?comp=package") rather than duplicating them as query
+            // parameters.
+            std::string path_key = op.path_template;
+            if (!op.query_discriminators.empty())
+            {
+                path_key += '?';
+                bool first = true;
+                for (auto const& [k, v] : op.query_discriminators)
+                {
+                    if (!first)
+                        path_key += '&';
+                    first = false;
+                    path_key += k;
+                    path_key += '=';
+                    path_key += v;
+                }
+            }
+
+            json& path_item = paths[path_key];
+            if (!path_item.is_object())
+                path_item = json::object();
+
+            json op_node = json::object();
+            if (!op.validation_eligible)
+                op_node["x-validated"] = false;
+
+            // Parameters, excluding the query discriminators folded into the key.
+            json params = json::array();
+            for (auto const& p : op.parameters)
+            {
+                bool is_disc = false;
+                for (auto const& [dk, dv] : op.query_discriminators)
+                {
+                    if (p.location == parameter_location::query && p.name == dk)
+                    {
+                        is_disc = true;
+                        break;
+                    }
+                }
+                if (is_disc)
+                    continue;
+
+                json pn      = json::object();
+                pn["name"]   = p.name;
+                pn["in"]     = location_to_string(p.location);
+                pn["required"] = p.required;
+                if (!p.schema.is_null())
+                    pn["schema"] = p.schema;
+                params.push_back(std::move(pn));
+            }
+            if (!params.empty())
+                op_node["parameters"] = std::move(params);
+
+            // Request body.
+            if (op.has_request_body)
+            {
+                json content = json::object();
+                if (!op.request_body_content.empty())
+                {
+                    for (auto const& [media, body] : op.request_body_content)
+                    {
+                        json mt = json::object();
+                        if (!body.schema.is_null())
+                            mt["schema"] = body.schema;
+                        content[media] = std::move(mt);
+                    }
+                }
+                else if (!op.request_body_schema.is_null())
+                {
+                    content["application/json"] = json{{"schema", op.request_body_schema}};
+                }
+                op_node["requestBody"] = json{{"content", std::move(content)}};
+            }
+
+            // Responses (OpenAPI requires at least one).
+            json responses = json::object();
+            for (auto const& [status, resp] : op.responses)
+                responses[std::to_string(status)] = emit_response_node(resp);
+            if (op.default_response)
+                responses["default"] = emit_response_node(*op.default_response);
+            if (responses.empty())
+                responses["default"] = json{{"description", ""}};
+            op_node["responses"] = std::move(responses);
+
+            std::string method_lower = op.method;
+            for (char& c : method_lower)
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+            path_item[method_lower] = std::move(op_node);
+        }
+
+        spec["paths"] = std::move(paths);
+
+        YAML::Node const root = json_to_yaml(spec);
+        return YAML::Dump(root);
+    }
 } // namespace m::pil

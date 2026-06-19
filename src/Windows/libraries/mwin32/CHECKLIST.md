@@ -314,7 +314,7 @@ example driver) is PIL Phase 4.
       CONTRACTCFG-6 below. The bound documents are reachable via the public PIL surface
       (`validate_request` / `validate_response` / `synthesize_requests` / `drive_contract`), which
       is what CONTRACTCFG-5 exercises with a fake engine.
-- [ ] M-HWC-CONTRACTCFG-4 (unit tests): `parse_pilcfg` tests for `webcore.contracts` —
+- [x] M-HWC-CONTRACTCFG-4 (unit tests): `parse_pilcfg` tests for `webcore.contracts` —
       absent (empty), single entry, multiple entries (order preserved), `%VAR%` expansion of
       `spec`, and the negative cases (non-array, element not an object, missing/empty `spec` or
       `endpoint`, unknown `mode`). ≥10 cases, sub-second.

@@ -12,6 +12,7 @@
 
 using namespace std::string_view_literals;
 using m::mwin32_impl::parse_pilcfg;
+using contract_mode = m::mwin32_impl::pilcfg::webcore_config::contract_mode;
 
 namespace
 {
@@ -423,4 +424,128 @@ TEST(PilcfgExpand, WebcoreEndpointsAreNotExpanded)
     ASSERT_EQ(cfg.webcore->endpoints.size(), 1u);
     EXPECT_EQ(cfg.webcore->endpoints[0].first, u"%M_PILCFG_TEST_DIR%\\p");
     EXPECT_EQ(cfg.webcore->endpoints[0].second, u"%M_PILCFG_TEST_DIR%\\q");
+}
+
+//
+// webcore.contracts parsing (M-HWC-CONTRACTCFG-4, D-HWC-8). Each entry binds a
+// contract spec (a host path, %VAR%-expanded) to a logical endpoint key (taken
+// literally) and a mode ("validate" or "drive"). Absent yields an empty vector;
+// malformed shapes throw.
+//
+
+TEST(PilcfgParse, ContractsAbsentIsEmpty)
+{
+    auto const cfg = parse_pilcfg(R"({ "webcore": { "materialization_dir": "C:\\m" } })"sv);
+    ASSERT_TRUE(cfg.webcore.has_value());
+    EXPECT_TRUE(cfg.webcore->contracts.empty());
+}
+
+TEST(PilcfgParse, ContractsEmptyArrayIsEmpty)
+{
+    auto const cfg = parse_pilcfg(R"({ "webcore": { "contracts": [] } })"sv);
+    ASSERT_TRUE(cfg.webcore.has_value());
+    EXPECT_TRUE(cfg.webcore->contracts.empty());
+}
+
+TEST(PilcfgParse, ContractsSingleEntryParsed)
+{
+    auto const cfg = parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "C:\\specs\\api.yaml", "endpoint": "ping", "mode": "validate" } ] } })"sv);
+    ASSERT_TRUE(cfg.webcore.has_value());
+    ASSERT_EQ(cfg.webcore->contracts.size(), 1u);
+    EXPECT_EQ(cfg.webcore->contracts[0].spec, u"C:\\specs\\api.yaml");
+    EXPECT_EQ(cfg.webcore->contracts[0].endpoint, u"ping");
+    EXPECT_EQ(cfg.webcore->contracts[0].mode, contract_mode::validate);
+}
+
+TEST(PilcfgParse, ContractsDriveModeParsed)
+{
+    auto const cfg = parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "C:\\specs\\api.yaml", "endpoint": "ping", "mode": "drive" } ] } })"sv);
+    ASSERT_TRUE(cfg.webcore.has_value());
+    ASSERT_EQ(cfg.webcore->contracts.size(), 1u);
+    EXPECT_EQ(cfg.webcore->contracts[0].mode, contract_mode::drive);
+}
+
+TEST(PilcfgParse, ContractsMultipleEntriesPreserveOrder)
+{
+    auto const cfg = parse_pilcfg(
+        R"({ "webcore": { "contracts": [
+            { "spec": "C:\\a.yaml", "endpoint": "first",  "mode": "validate" },
+            { "spec": "C:\\b.yaml", "endpoint": "second", "mode": "drive" },
+            { "spec": "C:\\c.yaml", "endpoint": "third",  "mode": "validate" }
+        ] } })"sv);
+    ASSERT_TRUE(cfg.webcore.has_value());
+    ASSERT_EQ(cfg.webcore->contracts.size(), 3u);
+    EXPECT_EQ(cfg.webcore->contracts[0].endpoint, u"first");
+    EXPECT_EQ(cfg.webcore->contracts[1].endpoint, u"second");
+    EXPECT_EQ(cfg.webcore->contracts[2].endpoint, u"third");
+    EXPECT_EQ(cfg.webcore->contracts[0].mode, contract_mode::validate);
+    EXPECT_EQ(cfg.webcore->contracts[1].mode, contract_mode::drive);
+    EXPECT_EQ(cfg.webcore->contracts[2].mode, contract_mode::validate);
+}
+
+TEST(PilcfgParse, ContractsSpecExpandsEnvironmentVariable)
+{
+    scoped_env_var const env(k_env_name, k_env_value);
+    auto const           cfg = parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "%M_PILCFG_TEST_DIR%\\api.yaml", "endpoint": "ping", "mode": "validate" } ] } })"sv);
+    ASSERT_TRUE(cfg.webcore.has_value());
+    ASSERT_EQ(cfg.webcore->contracts.size(), 1u);
+    EXPECT_EQ(cfg.webcore->contracts[0].spec, u"C:\\expanded\\api.yaml");
+}
+
+TEST(PilcfgParse, ContractsEndpointIsNotExpanded)
+{
+    // The endpoint is a logical key, not a host path; it is taken literally.
+    scoped_env_var const env(k_env_name, k_env_value);
+    auto const           cfg = parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "C:\\api.yaml", "endpoint": "%M_PILCFG_TEST_DIR%", "mode": "validate" } ] } })"sv);
+    ASSERT_TRUE(cfg.webcore.has_value());
+    ASSERT_EQ(cfg.webcore->contracts.size(), 1u);
+    EXPECT_EQ(cfg.webcore->contracts[0].endpoint, u"%M_PILCFG_TEST_DIR%");
+}
+
+TEST(PilcfgParse, ContractsNonArrayThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(R"({ "webcore": { "contracts": "nope" } })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(R"({ "webcore": { "contracts": {} } })"sv));
+}
+
+TEST(PilcfgParse, ContractsElementNotObjectThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(R"({ "webcore": { "contracts": [ "nope" ] } })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(R"({ "webcore": { "contracts": [ 42 ] } })"sv));
+}
+
+TEST(PilcfgParse, ContractsMissingMemberThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "endpoint": "ping", "mode": "validate" } ] } })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "C:\\a.yaml", "mode": "validate" } ] } })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "C:\\a.yaml", "endpoint": "ping" } ] } })"sv));
+}
+
+TEST(PilcfgParse, ContractsEmptySpecOrEndpointThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "", "endpoint": "ping", "mode": "validate" } ] } })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "C:\\a.yaml", "endpoint": "", "mode": "validate" } ] } })"sv));
+}
+
+TEST(PilcfgParse, ContractsUnknownModeThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "C:\\a.yaml", "endpoint": "ping", "mode": "observe" } ] } })"sv));
+}
+
+TEST(PilcfgParse, ContractsNonStringMemberThrows)
+{
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": 7, "endpoint": "ping", "mode": "validate" } ] } })"sv));
+    EXPECT_ANY_THROW(parse_pilcfg(
+        R"({ "webcore": { "contracts": [ { "spec": "C:\\a.yaml", "endpoint": "ping", "mode": true } ] } })"sv));
 }

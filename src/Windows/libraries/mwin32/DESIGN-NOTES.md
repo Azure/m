@@ -1032,3 +1032,45 @@ Decisions:
   `hwebcore.dll` as the config-selected engine. The only element not exercised in CI
   is IIS / `hwebcore.dll` itself — an acknowledged limit (PIL D-HWC-11), not a gap in
   the wiring, which is identical on both paths.
+
+## D19 — Wire-capture is transport-agnostic; topology is a sample/harness axis, never a capture concern
+
+The mwin32 wire-capture feature (`CHECKLIST-wirecapture.md`) tees raw HTTP bytes off
+the Winsock `send`/`recv` shims, reassembles them into messages (HTTP/1.1
+`Content-Length` framing, v1), and feeds a capture sink that either records (→ the PIL
+contract recorder emits an OpenAPI YAML spec) or validates (→ `validate_request` /
+`validate_response` tallies). None of these three stages — tee, reassembler, sink —
+learns the socket address family, the resolved peer, or whether the peer is in another
+process. That independence is a deliberate design property, not an accident, and it is
+the headline result the demo proves.
+
+Decisions:
+
+- **Two orthogonal axes define the demo's transport matrix.** *Address path*:
+  arbitrary DNS name (`getaddrinfo` → connect), IPv4 loopback (`127.0.0.1`), IPv6
+  loopback (`::1`), optionally AF_UNIX (IP-less). *Process model*: in-process two
+  threads over a real loopback socket (the deterministic CI harness — bind port `0`,
+  read back the ephemeral port), the in-process synthetic edge (no Winsock at all,
+  bytes handed straight to the reassembler — unifies with the existing D-HWC-11
+  synthetic-edge contract tests), and optionally two separate processes (the faithful
+  hand-run demo, kept non-gating because child-process orchestration is flaky in CI).
+
+- **`getaddrinfo` is not teed.** Name resolution is not byte I/O on the data socket, so
+  the DNS variant changes only how the client *obtains* an address; the per-socket tee
+  is byte-for-byte identical to the literal-address variants. The DNS topology exists
+  to prove resolution doesn't disturb the tee, not to capture resolver traffic.
+
+- **Address-family blindness.** The IPv4 and IPv6 variants produce identical HTTP byte
+  streams; only the `sockaddr` passed to `connect`/`bind` differs. The reassembler and
+  sink must never branch on family — the matrix test asserts the derived spec and the
+  violation tallies are equal across IPv4, IPv6, DNS, and synthetic transports.
+
+- **Topology never enters the capture `.pilcfg` schema.** The capture config carries
+  only `mode` (record | validate), the spec path, and an optional host/endpoint
+  filter — all transport-agnostic. The *server* sample selects its bind family
+  (`--family ipv4|ipv6|dual`) and the *client* sample selects its connect target
+  (`--target dns:<host>:<port> | ipv4:<port> | ipv6:<port>`) by CLI argument. Pushing
+  topology into the capture layer would couple a pure side-channel (D6) to transport
+  details it has no business knowing and would break the family-blindness property
+  above.
+

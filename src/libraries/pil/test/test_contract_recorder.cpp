@@ -6,6 +6,7 @@
 // inferring a minimal JSON Schema from one or more observed JSON bodies.
 //
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -13,6 +14,7 @@
 #include <nlohmann/json.hpp>
 
 #include "contract/contract_recorder.h"
+#include "contract/openapi_model.h"
 
 using m::pil::infer_json_schema;
 using m::pil::merge_json_schema;
@@ -157,4 +159,158 @@ TEST(ContractRecorderInfer, IdempotentReinference)
     json const sample = {{"name", "Fido"}, {"age", 3}};
     std::vector<json> const samples = {sample, sample, sample};
     EXPECT_EQ(infer_json_schema(samples), infer_json_schema(sample));
+}
+
+//--------------------------------------------------------------------------
+// REC-3: http_contract_recorder accumulation + derived-spec emission
+//--------------------------------------------------------------------------
+
+using m::pil::http_contract_recorder;
+using m::pil::load_openapi_model;
+using m::pil::match_operation;
+using m::pil::recorder_header;
+
+namespace
+{
+    using headers = std::vector<recorder_header>;
+    headers const k_json_ct = {{"Content-Type", "application/json"}};
+} // namespace
+
+TEST(ContractRecorder, RecordsSingleGetOperation)
+{
+    http_contract_recorder rec;
+    rec.observe_request("GET", "/pets", {}, "");
+    rec.observe_response("GET", "/pets", 200, k_json_ct, R"([{"name":"Fido"}])");
+
+    EXPECT_EQ(rec.operation_count(), 1u);
+
+    auto const model = rec.build_model();
+    auto const m     = match_operation(model, "GET", "/pets");
+    ASSERT_TRUE(m.has_value());
+    EXPECT_TRUE(m->operation->responses.contains(200));
+    EXPECT_FALSE(m->operation->has_request_body);
+}
+
+TEST(ContractRecorder, RecordsRequestBodySchema)
+{
+    http_contract_recorder rec;
+    rec.observe_request("POST", "/pets", k_json_ct, R"({"name":"Fido","age":3})");
+    rec.observe_response("POST", "/pets", 201, {{"Location", "/pets/1"}}, "");
+
+    auto const model = rec.build_model();
+    auto const m     = match_operation(model, "POST", "/pets");
+    ASSERT_TRUE(m.has_value());
+    EXPECT_TRUE(m->operation->has_request_body);
+    EXPECT_EQ(m->operation->request_body_schema["type"], "object");
+    EXPECT_TRUE(m->operation->responses.contains(201));
+}
+
+TEST(ContractRecorder, StripsQueryFromPath)
+{
+    http_contract_recorder rec;
+    rec.observe_response("GET", "/pets?limit=10", 200, k_json_ct, "[]");
+
+    auto const model = rec.build_model();
+    ASSERT_EQ(model.operations.size(), 1u);
+    EXPECT_EQ(model.operations.front().path_template, "/pets");
+}
+
+TEST(ContractRecorder, AccumulatesMultipleStatuses)
+{
+    http_contract_recorder rec;
+    rec.observe_response("GET", "/pets/1", 200, k_json_ct, R"({"name":"x"})");
+    rec.observe_response("GET", "/pets/1", 404, k_json_ct, R"({"error":"nope"})");
+
+    auto const model = rec.build_model();
+    auto const m     = match_operation(model, "GET", "/pets/1");
+    ASSERT_TRUE(m.has_value());
+    EXPECT_TRUE(m->operation->responses.contains(200));
+    EXPECT_TRUE(m->operation->responses.contains(404));
+}
+
+TEST(ContractRecorder, RequiredResponseHeadersAreIntersection)
+{
+    http_contract_recorder rec;
+    // Both responses carry Content-Type; only the first carries X-Trace.
+    rec.observe_response("GET", "/pets", 200,
+                         {{"Content-Type", "application/json"}, {"X-Trace", "abc"}}, "[]");
+    rec.observe_response("GET", "/pets", 200,
+                         {{"Content-Type", "application/json"}}, "[]");
+
+    auto const model = rec.build_model();
+    auto const m     = match_operation(model, "GET", "/pets");
+    ASSERT_TRUE(m.has_value());
+    auto const& req = m->operation->responses.at(200).required_headers;
+    // content-type present on every response -> required; x-trace not.
+    EXPECT_NE(std::find(req.begin(), req.end(), "content-type"), req.end());
+    EXPECT_EQ(std::find(req.begin(), req.end(), "x-trace"), req.end());
+}
+
+TEST(ContractRecorder, TransportHeadersAreNotRequired)
+{
+    http_contract_recorder rec;
+    rec.observe_response("GET", "/pets", 200,
+                         {{"Content-Type", "application/json"},
+                          {"Date", "now"},
+                          {"Content-Length", "2"},
+                          {"Connection", "keep-alive"}},
+                         "[]");
+
+    auto const model = rec.build_model();
+    auto const m     = match_operation(model, "GET", "/pets");
+    ASSERT_TRUE(m.has_value());
+    auto const& req = m->operation->responses.at(200).required_headers;
+    EXPECT_EQ(std::find(req.begin(), req.end(), "date"), req.end());
+    EXPECT_EQ(std::find(req.begin(), req.end(), "content-length"), req.end());
+    EXPECT_EQ(std::find(req.begin(), req.end(), "connection"), req.end());
+}
+
+TEST(ContractRecorder, NonJsonBodyRecordsMediaTypeOnly)
+{
+    http_contract_recorder rec;
+    rec.observe_response("GET", "/page", 200, {{"Content-Type", "text/html"}},
+                         "<html></html>");
+
+    auto const model = rec.build_model();
+    auto const m     = match_operation(model, "GET", "/page");
+    ASSERT_TRUE(m.has_value());
+    auto const& content = m->operation->responses.at(200).content;
+    EXPECT_TRUE(content.count("text/html"));
+    EXPECT_FALSE(content.count("application/json"));
+}
+
+TEST(ContractRecorder, ObservationIsIdempotentInShape)
+{
+    http_contract_recorder rec;
+    for (int i = 0; i < 3; ++i)
+    {
+        rec.observe_request("POST", "/pets", k_json_ct, R"({"name":"Fido","age":3})");
+        rec.observe_response("POST", "/pets", 201, {{"Content-Type", "application/json"}},
+                             R"({"id":1})");
+    }
+    EXPECT_EQ(rec.operation_count(), 1u);
+
+    http_contract_recorder once;
+    once.observe_request("POST", "/pets", k_json_ct, R"({"name":"Fido","age":3})");
+    once.observe_response("POST", "/pets", 201, {{"Content-Type", "application/json"}},
+                          R"({"id":1})");
+
+    EXPECT_EQ(rec.emit_spec(), once.emit_spec());
+}
+
+TEST(ContractRecorder, EmittedSpecReloadsWithObservedOperations)
+{
+    http_contract_recorder rec;
+    rec.observe_request("POST", "/pets", k_json_ct, R"({"name":"Fido"})");
+    rec.observe_response("POST", "/pets", 201, {{"Content-Type", "application/json"}},
+                         R"({"id":1})");
+    rec.observe_response("GET", "/pets", 200, k_json_ct, R"([{"name":"Fido"}])");
+
+    auto const reloaded = load_openapi_model(rec.emit_spec());
+    EXPECT_TRUE(match_operation(reloaded, "POST", "/pets").has_value());
+    EXPECT_TRUE(match_operation(reloaded, "GET", "/pets").has_value());
+    auto const post = match_operation(reloaded, "POST", "/pets");
+    ASSERT_TRUE(post.has_value());
+    EXPECT_TRUE(post->operation->has_request_body);
+    EXPECT_TRUE(post->operation->responses.contains(201));
 }

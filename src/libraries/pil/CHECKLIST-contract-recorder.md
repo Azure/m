@@ -26,7 +26,7 @@ capture that feeds this recorder lives in
   inferred from element shape). Non-JSON bodies recorded by media type only.
   Unit tests for object/array/scalar/empty and the required-key intersection rule.
 
-- [ ] **REC-3**: `ihttp_contract_recorder` (internal): `observe_request(method,
+- [x] **REC-3**: `ihttp_contract_recorder` (internal): `observe_request(method,
   path, headers, body)`, `observe_response(method, path, status, headers, body)`;
   correlates by method+path, accumulates into an `openapi_document`, dedupes
   operations, merges inferred body schemas (REC-2) and observed status codes.

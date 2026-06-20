@@ -44,10 +44,12 @@ jobs:
             cmake_platform: x64
             triplet: x64-windows
             can_run_tests: true
+            build_testing: "ON"
           - arch: arm64
             cmake_platform: ARM64
             triplet: arm64-windows
             can_run_tests: false
+            build_testing: "OFF"
     env:
       VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
       VCPKG_TARGET_TRIPLET: ${{ matrix.triplet }}
@@ -83,7 +85,7 @@ jobs:
           -A ${{ matrix.cmake_platform }}
           -D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
           -D VCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
-          -D BUILD_TESTING=ON
+          -D BUILD_TESTING=${{ matrix.build_testing }}
           -B ${{ steps.strings.outputs.build-output-dir }}
           -S ${{ github.workspace }}
 

@@ -310,6 +310,9 @@ The SDK `examples/` folder contains buildable, runnable clients that link
 | `mwin32_sample_client.cpp` | Registry create/set/query/enum/delete under buffered, logging, and persisted-replay `.pilcfg`s. |
 | `mwin32_fs_sample_client.cpp` | Filesystem create/find/copy/move under a redirecting overlay. |
 | `mwin32_notify_sample_client.cpp` | Directory change notifications (`ReadDirectoryChangesW`) through the shim. |
+| `mwin32_http_server_sample.cpp` | Raw-Winsock HTTP/1.1 server whose `socket`/`accept`/`send`/`recv` traffic is teed to the capture seam; `--family ipv4\|ipv6\|dual`, `--port` (0 = ephemeral), and a fault switch for a non-conforming response. |
+| `mwin32_http_client_sample.cpp` | Raw-Winsock HTTP/1.1 client driving the server; `--target dns:\|ipv4:\|ipv6:` selects the connect path and a fault switch sends a non-conforming request. |
+| `reference-openapi.yaml` | Hand-authored reference contract for the two HTTP endpoints, used to cross-check the spec the recorder derives from the captured traffic. |
 
 Each example has a `.pilcfg` and copies `m_mwin32.dll` next to itself, so it can be
 launched directly after building.

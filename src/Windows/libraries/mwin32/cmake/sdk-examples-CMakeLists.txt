@@ -34,3 +34,22 @@ foreach(_ex
             $<TARGET_RUNTIME_DLLS:${_ex}> $<TARGET_FILE_DIR:${_ex}>
         COMMAND_EXPAND_LISTS)
 endforeach()
+
+# The wire-capture HTTP samples (WC-6 server, WC-7 client) are ordinary
+# raw-Winsock apps; they additionally link ws2_32 for the genuine socket calls
+# that the alias redirects into the shim. The hand-authored reference contract
+# (reference-openapi.yaml) ships alongside them to cross-check the spec the
+# recorder derives from their traffic.
+foreach(_ex
+        mwin32_http_server_sample
+        mwin32_http_client_sample)
+    add_executable(${_ex} ${_ex}.cpp)
+    target_compile_features(${_ex} PRIVATE cxx_std_20)
+    target_link_libraries(${_ex} PRIVATE m::mwin32_alias ws2_32)
+
+    # Copy m_mwin32.dll next to the example so it can launch.
+    add_custom_command(TARGET ${_ex} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:${_ex}> $<TARGET_FILE_DIR:${_ex}>
+        COMMAND_EXPAND_LISTS)
+endforeach()

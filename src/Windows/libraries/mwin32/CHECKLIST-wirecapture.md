@@ -87,7 +87,7 @@ Clean debug+release build of m_mwin32 (zero warnings), run test_mwin32, sync.
   → `127.0.0.1`; `ipv6:<port>` → `::1`). Fault switch emits a non-conforming
   request (client→server).
 
-- [ ] **WC-8**: CMake wiring for both samples (alias-linked targets, install under
+- [x] **WC-8**: CMake wiring for both samples (alias-linked targets, install under
   the existing sample layout), and hand-authored reference OpenAPI YAML for the
   two endpoints (used to cross-check the *derived* spec).
 

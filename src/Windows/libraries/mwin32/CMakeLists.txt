@@ -132,13 +132,18 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/mwin32-sdk-config.cmake"
     DESTINATION "lib/cmake/m" RENAME "m-config.cmake" COMPONENT mwin32_sdk
 )
 
-# The bundled examples: the three sample clients as sources, plus the top-level
-# CMakeLists that builds them against the installed package (out-of-tree). They
-# consume the SDK exactly as an external user would.
+# The bundled examples: the sample clients as sources (the three Win32 redirect
+# samples plus the WC-6/WC-7 raw-Winsock HTTP server/client pair), the
+# hand-authored reference OpenAPI contract for the HTTP samples, plus the
+# top-level CMakeLists that builds them against the installed package
+# (out-of-tree). They consume the SDK exactly as an external user would.
 install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/sample/mwin32_sample_client.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/sample/mwin32_fs_sample_client.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/sample/mwin32_notify_sample_client.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/sample/mwin32_http_server_sample.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/sample/mwin32_http_client_sample.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/sample/reference-openapi.yaml"
     DESTINATION "examples" COMPONENT mwin32_sdk
 )
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdk-examples-CMakeLists.txt"

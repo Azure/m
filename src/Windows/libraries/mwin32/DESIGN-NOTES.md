@@ -1356,4 +1356,39 @@ Decisions:
   harness passes `--shutdown` on the last run to ask the server to exit cleanly via
   its control endpoint rather than killing the process.
 
+## D27 — HTTP samples ship in the SDK examples; a reference contract cross-checks the derived spec (WC-8)
+
+The wire-capture sample pair (D25 server, D26 client) is wired into the build and
+the SDK package exactly like the existing redirect samples, and a hand-authored
+reference OpenAPI document
+([`sample/reference-openapi.yaml`](sample/reference-openapi.yaml)) ships alongside
+them.
+
+Decisions:
+
+- **The HTTP samples join the existing example layout, not a new one.** Both
+  in-tree targets are ordinary `add_executable`s linking `mwin32_alias` plus
+  `ws2_32` (the only addition over the registry/filesystem samples — the genuine
+  socket entry points the alias redirects). Their sources are added to the
+  `mwin32_sdk` install component's `examples/` set, and the out-of-tree
+  [`sdk-examples-CMakeLists.txt`](cmake/sdk-examples-CMakeLists.txt) builds them
+  against the installed `m::mwin32_alias` package in a second `foreach` that adds
+  `ws2_32`. An external consumer therefore builds the HTTP demo the same way as
+  every other example.
+
+- **The reference contract is hand-authored to mirror the recorder's inference,
+  not the wire bytes.** The YAML describes the two business endpoints (`GET
+  /health` → 200, `POST /widgets` request + 201) with schemas written to match
+  exactly what `infer_json_schema` produces from the sample bodies:
+  `object`/`properties`/`required`, `string` for JSON strings and `integer` for
+  whole numbers. This makes a *structural* comparison against the spec the recorder
+  derives (WC-9) meaningful — the reference is the expected shape, the derived YAML
+  is the observed shape, and the lifecycle test asserts they agree.
+
+- **The control endpoint is deliberately absent from the contract.** `GET
+  /shutdown` is a harness lifetime control, not part of the API, so it is omitted
+  from the reference document; the client only exercises it on an opt-in
+  `--shutdown` run that the derive phase excludes (D26). The reference therefore
+  describes precisely the traffic the clean derive phase observes.
+
 

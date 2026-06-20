@@ -1,0 +1,71 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Hand-authored reference OpenAPI contract for the mwin32 wire-capture demo
+# (WC-8). It describes the two business endpoints served by
+# mwin32_http_server_sample and driven by mwin32_http_client_sample.
+#
+# Its purpose is to cross-check the spec the PIL recorder *derives* from observed
+# clean traffic (record mode, WC-9): the derived document should describe these
+# same operations, statuses, and body shapes. The schemas here mirror exactly
+# what the recorder infers from the sample bodies — object/properties/required
+# with `string` for JSON strings and `integer` for whole numbers — so a
+# structural comparison against the derived YAML is meaningful.
+#
+# The server's GET /shutdown control endpoint is intentionally omitted: it is a
+# test-harness lifetime control, not part of the API contract, and the client
+# only exercises it on an opt-in `--shutdown` run that is excluded from the
+# derive phase.
+
+openapi: 3.0.0
+info:
+  title: mwin32 wire-capture demo API
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+  /widgets:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - size
+              properties:
+                name:
+                  type: string
+                size:
+                  type: integer
+      responses:
+        "201":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                  - name
+                  - size
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  size:
+                    type: integer

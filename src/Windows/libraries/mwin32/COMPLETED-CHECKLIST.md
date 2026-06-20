@@ -226,3 +226,52 @@ modeled, D16). 15 new exports for the content family; alias count 177 → 192.
       M-FS-CONTENT.)
 - [x] M-FS-LEGACY-4: `.def` additions + a test driving a dusty-deck `OpenFile`→`_lread`→`_lclose`
       sequence through the redirecting filesystem.
+
+## Moved 2026-06-19 — Wire capture (real-socket HTTP contract lifecycle demo) complete (WC-1…WC-11)
+
+Winsock interception in the link-time alias (tee, never alters bytes — D6) +
+HTTP/1.1 `Content-Length` reassembler + `.pilcfg` capture schema (record/validate)
+wired to the PIL contract recorder/validator + raw-Winsock client/server sample
+apps with both-direction fault injection + an end-to-end derive→detect integration
+suite proven transport-independent across IPv4 / IPv6 / DNS / synthetic. v1 scope:
+HTTP/1.1 Content-Length framing only. See DESIGN-NOTES D19–D30.
+
+### Milestone M-WIRECAP-SOCK — Winsock interception
+
+- [x] **WC-1**: Winsock shims (`msocket`, `mconnect`, `maccept`, `msend`, `mrecv`,
+  `mclosesocket`, `mWSASend`/`mWSARecv`) forwarding to genuine `ws2_32` and teeing
+  bytes per socket; `.def` + alias exports; byte-identical passthrough smoke test.
+- [x] **WC-2**: HTTP/1.1 reassembler (request/response streams, `Content-Length`
+  framed, partial reads, keep-alive pipelining); unit tests with canned streams.
+- [x] **WC-3**: Capture sink seam — pure side-channel (D6) receiving reassembled
+  crossings; unit tests assert byte forwarding is unaffected.
+
+### Milestone M-WIRECAP-CFG — pilcfg wiring + capture modes
+
+- [x] **WC-4**: `.pilcfg` `capture` schema (`mode = record | validate`, spec path,
+  optional filter); parser + unit tests.
+- [x] **WC-5**: Wire the sink to PIL — `record` feeds `make_http_contract_recorder`
+  and emits YAML at shutdown; `validate` loads the spec and tallies
+  `validate_request`/`validate_response` violations per direction; unit tests.
+
+### Milestone M-WIRECAP-SAMPLES — real-socket sample apps
+
+- [x] **WC-6**: Raw-Winsock HTTP/1.1 **server** sample linking `mwin32_alias`;
+  `--family ipv4|ipv6|dual`, ephemeral port echo, response-direction fault switch.
+- [x] **WC-7**: Raw-Winsock HTTP/1.1 **client** sample linking `mwin32_alias`;
+  `--target dns/ipv4/ipv6`, request-direction fault switch.
+- [x] **WC-8**: CMake wiring for both samples (alias-linked, installed under the
+  SDK examples) + hand-authored reference OpenAPI YAML cross-checking the derived
+  spec.
+
+### Milestone M-WIRECAP-INTEG — end-to-end lifecycle test (topology matrix)
+
+- [x] **WC-9**: Reusable in-process harness (server + client on two threads over a
+  real loopback socket; ephemeral port read-back; IPv4/IPv6/DNS/synthetic
+  selector) + derive phase asserting clean traffic yields a loadable OpenAPI spec.
+- [x] **WC-10**: Detect phase over IPv4 — load the derived YAML in validate mode,
+  inject faults in both directions, assert a request and response violation while
+  both connections complete.
+- [x] **WC-11**: Transport matrix — re-run derive→detect over IPv6, DNS, and
+  synthetic; assert the derived spec and violation tallies are equivalent across
+  all transports (the transport-independence result).

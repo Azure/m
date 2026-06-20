@@ -103,7 +103,7 @@ Clean debug+release build (zero warnings), run test_mwin32, sync.
   asserts a derived OpenAPI YAML is produced and loads cleanly, describing both
   endpoints/statuses.
 
-- [ ] **WC-10**: Integration test, **phase 2 (detect)** over IPv4 loopback: load
+- [x] **WC-10**: Integration test, **phase 2 (detect)** over IPv4 loopback: load
   the *derived* YAML in `validate` mode, run with fault injection in both
   directions, and assert the violation tally records a request violation AND a
   response violation while both connections complete (traffic not broken).

@@ -1434,4 +1434,35 @@ Decisions:
   emit → load) is what makes the derived contract usable as the validation input
   for the detect phase (WC-10).
 
+## D29 — Detect phase: faults caught in both directions, traffic intact (WC-10)
+
+Phase 2 closes the lifecycle: the contract *derived* in phase 1 (D28) is loaded in
+validate mode and run against a faulted exchange, asserting that a violation is
+seen in each direction while the connection completes.
+
+Decisions:
+
+- **The validation input is the derived contract, not the hand-authored
+  reference.** The detect test derives a clean spec over IPv4, loads it through the
+  live provider, and validates against *that* — so the test proves the full
+  capture→derive→load→validate loop rather than smuggling in an external oracle.
+  The reference document (D27) remains the human-readable cross-check; the machine
+  loop stands on its own derived artifact.
+
+- **Both faults are injected at once and each lands in its own direction.** The
+  faulted run sets `fault_request` and `fault_response` together: `POST /widgets`
+  carries `{"name":123}` (a request-body schema violation, client→server) and `GET
+  /health` answers `{"status":0}` (a response-body schema violation, server→client).
+  Because the other endpoint in each crossing stays conforming, the tally records
+  exactly one violation per direction (`request_violations >= 1`,
+  `response_violations >= 1`) with both directions checked twice — proving the sink
+  keys the response check on the request's method+path and tallies per direction.
+
+- **Traffic completing is asserted, not assumed.** The test checks both byte
+  streams are non-empty after the faulted run: the violations are contract
+  failures surfaced only through the side-channel (D6), never transport breaks, so
+  the two framed messages still flow. A companion clean-traffic test asserts zero
+  violations against the same derived contract, the false-positive guard that makes
+  the fault detection meaningful.
+
 

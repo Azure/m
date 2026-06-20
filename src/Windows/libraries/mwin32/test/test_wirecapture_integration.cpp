@@ -162,3 +162,71 @@ TEST(WireCaptureDerive, SyntheticEdgeMatchesIpv4Spec)
     EXPECT_EQ(over_synthetic.operation_count, over_ipv4.operation_count);
     EXPECT_EQ(over_synthetic.emitted, over_ipv4.emitted);
 }
+
+//
+// ---- WC-10: detect phase ---------------------------------------------------
+//
+
+//
+// Over IPv4 loopback, the *derived* contract loaded in validate mode catches a
+// fault injected in each direction — a non-conforming request body (client ->
+// server) and a non-conforming response body (server -> client) — while both
+// the request and the response still complete (the connection is never broken).
+//
+TEST(WireCaptureDetect, FaultsInBothDirectionsAreCaughtWhileTrafficCompletes)
+{
+    // Phase 1: derive a clean contract to validate against.
+    derived_spec const clean = derive_over(harness_transport::ipv4);
+    ASSERT_FALSE(clean.emitted.empty());
+
+    // Keep the platform alive for the lifetime of the loaded document.
+    auto platform = m::pil::make_platform_interface();
+    auto document = platform->get_http_contract()->load(clean.emitted);
+    ASSERT_NE(document, nullptr);
+
+    // Phase 2: run a faulted exchange in BOTH directions over the same transport.
+    captured_streams const streams =
+        run_exchange(harness_transport::ipv4, /*fault_request=*/true, /*fault_response=*/true);
+
+    // The connection completed: both the request and response streams carry the
+    // two framed messages of the exchange (the faults are contract violations,
+    // not transport faults, so nothing is dropped).
+    ASSERT_FALSE(streams.requests.empty());
+    ASSERT_FALSE(streams.responses.empty());
+
+    validating_capture_sink sink(*document);
+    replay(streams, sink);
+
+    auto const& tally = sink.tally();
+    EXPECT_EQ(tally.requests_checked, 2u);
+    EXPECT_EQ(tally.responses_checked, 2u);
+    EXPECT_GE(tally.request_violations, 1u);
+    EXPECT_GE(tally.response_violations, 1u);
+}
+
+//
+// Validate mode is quiet on conforming traffic: the same derived contract run
+// against a clean exchange records no violations (the false-positive guard that
+// makes the fault detection above meaningful).
+//
+TEST(WireCaptureDetect, CleanTrafficYieldsNoViolations)
+{
+    derived_spec const clean = derive_over(harness_transport::ipv4);
+    ASSERT_FALSE(clean.emitted.empty());
+
+    auto platform = m::pil::make_platform_interface();
+    auto document = platform->get_http_contract()->load(clean.emitted);
+    ASSERT_NE(document, nullptr);
+
+    captured_streams const streams =
+        run_exchange(harness_transport::ipv4, /*fault_request=*/false, /*fault_response=*/false);
+
+    validating_capture_sink sink(*document);
+    replay(streams, sink);
+
+    auto const& tally = sink.tally();
+    EXPECT_EQ(tally.requests_checked, 2u);
+    EXPECT_EQ(tally.responses_checked, 2u);
+    EXPECT_EQ(tally.request_violations, 0u);
+    EXPECT_EQ(tally.response_violations, 0u);
+}

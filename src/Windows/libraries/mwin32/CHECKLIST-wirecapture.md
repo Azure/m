@@ -81,7 +81,7 @@ Clean debug+release build of m_mwin32 (zero warnings), run test_mwin32, sync.
   harness can read it back). Fault switch (env/arg) emits a non-conforming
   response (server→client) without breaking the connection.
 
-- [ ] **WC-7**: Minimal HTTP/1.1 **client** sample on raw Winsock
+- [x] **WC-7**: Minimal HTTP/1.1 **client** sample on raw Winsock
   (`socket`/`connect`/`send`/`recv`), links `mwin32_alias`. Drives the endpoints.
   **Target selector** (`--target dns:<host>:<port>` → `getaddrinfo`; `ipv4:<port>`
   → `127.0.0.1`; `ipv6:<port>` → `::1`). Fault switch emits a non-conforming

@@ -1312,4 +1312,48 @@ Decisions:
   `Content-Length` only (the v1 reassembler scope, D21) and keeps connections alive
   so request/response pairing (D22) is exercised.
 
+## D26 — HTTP client sample: ordinary raw-Winsock app, connect target and fault are runtime switches (WC-7)
+
+The demo's client
+([`sample/mwin32_http_client_sample.cpp`](sample/mwin32_http_client_sample.cpp))
+is the mirror of the server sample (D25): a plain raw-Winsock HTTP/1.1 client that
+includes only the Winsock headers and calls the genuine
+`getaddrinfo`/`socket`/`connect`/`send`/`recv`/`closesocket`. It is made
+observable solely by its CMake target linking `mwin32_alias` (D8). It drives the
+server's endpoints — `GET /health`, `POST /widgets`, and (only with `--shutdown`)
+`GET /shutdown` — and reports each response status as `tag=value` so a harness can
+assert on it.
+
+Decisions:
+
+- **No mwin32 awareness in the sample.** Like the server (D25), the client carries
+  no mwin32 `#include` and no `.pilcfg` knowledge. Whether its traffic is captured
+  (and in which mode) is decided entirely by the sidecar config a harness drops
+  next to the binary; with no sidecar the shim is a transparent passthrough.
+
+- **The connect target is a runtime switch, never baked into capture (D19).**
+  `--target` selects how the peer is reached: `dns:<host>:<port>` runs the host
+  name through `getaddrinfo` (the DNS-resolved path of the WC-11 matrix);
+  `ipv4:<port>` connects to literal `127.0.0.1`; `ipv6:<port>` connects to literal
+  `::1`. The literal targets build the `sockaddr` directly with no name
+  resolution, mirroring the server's bind families. `getaddrinfo` is deliberately
+  *not* one of the teed entry points — name resolution is out of band; only the
+  `send`/`recv` byte stream is captured — so the three targets produce the same
+  observed HTTP traffic, which is the transport-independence result WC-11 asserts.
+
+- **The fault is a contract violation, not a transport fault.** `--fault` (or env
+  `MWIN32_SAMPLE_FAULT=1`) makes `POST /widgets` send `{"name":123}` (name typed as
+  a number, `size` omitted) instead of the conforming `{"name":"widget","size":3}`
+  — a well-framed request with a correct `Content-Length` whose body fails the
+  derived request schema. The server still answers 201 and the connection is never
+  broken; this is exactly what validate mode must catch as a client→server
+  violation while traffic completes (WC-10). The fault switch shares the same
+  env-var contract as the server so a single harness setting can fault either side.
+
+- **`--shutdown` is opt-in so the harness owns server lifetime.** By default the
+  client drives only `/health` and `/widgets`, leaving the server running for
+  further exchanges (e.g. a second client, or a faulted run after a clean one). The
+  harness passes `--shutdown` on the last run to ask the server to exit cleanly via
+  its control endpoint rather than killing the process.
+
 

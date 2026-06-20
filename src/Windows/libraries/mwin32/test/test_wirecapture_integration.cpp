@@ -42,6 +42,7 @@ using namespace std::string_view_literals;
 using m::mwin32_impl::connection_capture;
 using m::mwin32_impl::recording_capture_sink;
 using m::mwin32_impl::validating_capture_sink;
+using m::mwin32_impl::validation_tally;
 using m::mwin32_impl::wirecapture_test::captured_streams;
 using m::mwin32_impl::wirecapture_test::harness_options;
 using m::mwin32_impl::wirecapture_test::harness_transport;
@@ -229,4 +230,90 @@ TEST(WireCaptureDetect, CleanTrafficYieldsNoViolations)
     EXPECT_EQ(tally.responses_checked, 2u);
     EXPECT_EQ(tally.request_violations, 0u);
     EXPECT_EQ(tally.response_violations, 0u);
+}
+
+//
+// ---- WC-11: transport matrix -----------------------------------------------
+//
+
+namespace
+{
+    // The full derive -> detect lifecycle over one transport: derive a clean
+    // contract, load it, then validate a faulted exchange against it. Returns the
+    // derived spec and the resulting violation tally so the matrix test can assert
+    // they are equal across every transport.
+    struct lifecycle_result
+    {
+        std::string      derived;
+        validation_tally tally;
+    };
+
+    lifecycle_result
+    run_lifecycle(harness_transport transport)
+    {
+        // Derive from clean traffic.
+        captured_streams const clean = run_exchange(transport, false, false);
+        auto                   recorder = m::pil::make_http_contract_recorder();
+        recording_capture_sink record_sink(*recorder);
+        replay(clean, record_sink);
+
+        lifecycle_result result;
+        result.derived = recorder->emit_spec();
+
+        // Load the derived contract through the live provider, keeping the
+        // platform alive for the validation below.
+        auto platform = m::pil::make_platform_interface();
+        auto document = platform->get_http_contract()->load(result.derived);
+        EXPECT_NE(document, nullptr);
+        if (document == nullptr)
+            return result;
+
+        // Detect against a faulted exchange over the same transport.
+        captured_streams const faulted = run_exchange(transport, true, true);
+        validating_capture_sink validate_sink(*document);
+        replay(faulted, validate_sink);
+        result.tally = validate_sink.tally();
+        return result;
+    }
+
+    bool
+    tallies_equal(validation_tally const& a, validation_tally const& b)
+    {
+        return a.requests_checked == b.requests_checked &&
+               a.request_violations == b.request_violations &&
+               a.responses_checked == b.responses_checked &&
+               a.response_violations == b.response_violations;
+    }
+} // namespace
+
+//
+// The derive -> detect lifecycle is transport-independent: run over IPv4, IPv6,
+// a DNS-resolved loopback name, and the in-process synthetic edge, the derived
+// spec and the violation tallies are identical. This is the headline result of
+// the demo — capture is a property of the byte stream, not the transport (D19).
+//
+TEST(WireCaptureMatrix, DeriveAndDetectAreEquivalentAcrossTransports)
+{
+    lifecycle_result const ipv4      = run_lifecycle(harness_transport::ipv4);
+    lifecycle_result const ipv6      = run_lifecycle(harness_transport::ipv6);
+    lifecycle_result const dns       = run_lifecycle(harness_transport::dns);
+    lifecycle_result const synthetic = run_lifecycle(harness_transport::synthetic);
+
+    // The derived spec is byte-identical across every transport.
+    EXPECT_FALSE(ipv4.derived.empty());
+    EXPECT_EQ(ipv6.derived, ipv4.derived);
+    EXPECT_EQ(dns.derived, ipv4.derived);
+    EXPECT_EQ(synthetic.derived, ipv4.derived);
+
+    // The violation tallies match across every transport.
+    EXPECT_TRUE(tallies_equal(ipv6.tally, ipv4.tally));
+    EXPECT_TRUE(tallies_equal(dns.tally, ipv4.tally));
+    EXPECT_TRUE(tallies_equal(synthetic.tally, ipv4.tally));
+
+    // And the shared tally is the non-trivial one: a violation in each direction
+    // (so "equivalent" is not merely "all zero").
+    EXPECT_EQ(ipv4.tally.requests_checked, 2u);
+    EXPECT_EQ(ipv4.tally.responses_checked, 2u);
+    EXPECT_GE(ipv4.tally.request_violations, 1u);
+    EXPECT_GE(ipv4.tally.response_violations, 1u);
 }

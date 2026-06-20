@@ -108,7 +108,7 @@ Clean debug+release build (zero warnings), run test_mwin32, sync.
   directions, and assert the violation tally records a request violation AND a
   response violation while both connections complete (traffic not broken).
 
-- [ ] **WC-11**: **Transport matrix** — re-run the derive→detect lifecycle over
+- [x] **WC-11**: **Transport matrix** — re-run the derive→detect lifecycle over
   IPv6 loopback (`::1`), a DNS-resolved target (`getaddrinfo` of a loopback name),
   and the in-process synthetic edge (no Winsock). Assert the derived spec and the
   request/response violation tallies are **equivalent across all transports**

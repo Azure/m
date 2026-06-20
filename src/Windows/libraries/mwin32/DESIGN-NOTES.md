@@ -1465,4 +1465,35 @@ Decisions:
   violations against the same derived contract, the false-positive guard that makes
   the fault detection meaningful.
 
+## D30 — Transport matrix: the lifecycle is transport-independent (WC-11)
+
+The headline result of the demo is that wire capture is a property of the byte
+stream, not the transport (D19). The matrix test proves it by running the whole
+derive→detect lifecycle over every transport the harness supports and asserting
+the outputs are identical.
+
+Decisions:
+
+- **One lifecycle helper, four transports.** `run_lifecycle(transport)` derives a
+  clean contract, loads it, and validates a both-directions-faulted exchange over
+  the *same* transport, returning the derived YAML and the violation tally. The
+  test calls it for `ipv4`, `ipv6`, `dns`, and `synthetic` and asserts every
+  derived spec is byte-identical to the IPv4 one and every tally is equal — the
+  transport-independence result stated as a single equivalence across the matrix.
+
+- **Equivalence is anchored to a non-trivial tally.** Asserting the four tallies
+  are *equal* would be vacuously satisfied if they were all zero, so the test also
+  asserts the shared tally caught a violation in each direction
+  (`request_violations >= 1`, `response_violations >= 1`, both directions checked
+  twice). Equal *and* non-trivial together make the equivalence meaningful.
+
+- **IPv6 and DNS stay on loopback; the optional extras are out of scope.** `ipv6`
+  binds `::1` and `dns` resolves `localhost` (which resolves to a loopback address)
+  with the bound family pinned across both ends, so the matrix never leaves the
+  machine and triggers no firewall prompt. AF_UNIX and a two-separate-process
+  smoke were called out in the checklist as optional, non-gating extras and are
+  deliberately not implemented — the in-process synthetic edge already covers the
+  no-Winsock case, and the three socket transports cover the family/resolution
+  axes that matter for the transport-independence claim.
+
 

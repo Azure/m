@@ -74,7 +74,7 @@ Clean debug+release build of m_mwin32 (zero warnings), run test_mwin32, sync.
 
 ## Milestone M-WIRECAP-SAMPLES — real-socket sample apps
 
-- [ ] **WC-6**: Minimal HTTP/1.1 **server** sample on raw Winsock
+- [x] **WC-6**: Minimal HTTP/1.1 **server** sample on raw Winsock
   (`socket`/`bind`/`listen`/`accept`/`recv`/`send`), links `mwin32_alias`. Serves
   a couple of REST endpoints. **Bind-family parameter** (`--family ipv4|ipv6|dual`)
   and port selection (fixed, or `0` for an ephemeral port echoed to stdout so a

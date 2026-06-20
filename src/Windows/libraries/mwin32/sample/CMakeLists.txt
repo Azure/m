@@ -47,3 +47,22 @@ add_custom_command(TARGET mwin32_notify_sample_client POST_BUILD
         $<TARGET_RUNTIME_DLLS:mwin32_notify_sample_client> $<TARGET_FILE_DIR:mwin32_notify_sample_client>
     COMMAND_EXPAND_LISTS
 )
+
+# An ordinary raw-Winsock HTTP/1.1 server (no mwin32 headers) for the wire-capture
+# demo (WC-6). It calls genuine socket / bind / listen / accept / recv / send /
+# closesocket; linking the mwin32_alias object retargets the data-transfer calls
+# into the shim, which tees the bytes to the capture seam. `--family ipv4|ipv6|dual`
+# and `--port N` (0 = ephemeral, echoed as port=<N>) choose the topology; a fault
+# switch emits a non-conforming response without breaking the connection.
+add_executable(mwin32_http_server_sample mwin32_http_server_sample.cpp)
+
+target_compile_features(mwin32_http_server_sample PUBLIC ${M_CXX_STD})
+
+target_link_libraries(mwin32_http_server_sample PRIVATE mwin32_alias ws2_32)
+
+add_custom_command(TARGET mwin32_http_server_sample POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_RUNTIME_DLLS:mwin32_http_server_sample> $<TARGET_FILE_DIR:mwin32_http_server_sample>
+    COMMAND_EXPAND_LISTS
+)
+

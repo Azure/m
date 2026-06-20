@@ -1272,3 +1272,44 @@ Decisions:
   one leaves the bytes on the genuine socket byte-identical (asserted by
   `ValidatingCaptureSink.DoesNotAlterTheWire`).
 
+## D25 — HTTP server sample: ordinary raw-Winsock app, topology and fault are runtime switches (WC-6)
+
+The demo's server
+([`sample/mwin32_http_server_sample.cpp`](sample/mwin32_http_server_sample.cpp))
+is a plain raw-Winsock HTTP/1.1 server that includes only the Winsock headers and
+calls the genuine `socket`/`bind`/`listen`/`accept`/`recv`/`send`/`closesocket`.
+It is made observable solely by its CMake target linking `mwin32_alias` (D8) — the
+same redirection mechanism the registry/filesystem samples use, now exercising the
+Winsock shims (WC-1).
+
+Decisions:
+
+- **No mwin32 awareness in the sample.** The server carries no `#include` of any
+  mwin32 header and no `.pilcfg` knowledge. Capture is enabled (and its mode
+  chosen) entirely by the sidecar config the harness drops next to the binary; with
+  no sidecar the shim is a transparent passthrough and the server is an ordinary
+  app. This keeps the sample an honest demonstration that *unmodified* Winsock code
+  becomes capturable purely at link time.
+
+- **Topology is a runtime switch, never baked into capture (D19).** `--family
+  ipv4|ipv6|dual` picks the bind family (`AF_INET` loopback, `AF_INET6` loopback,
+  or `AF_INET6` with `IPV6_V6ONLY` cleared) and `--port N` picks the port. `--port
+  0` requests an ephemeral port, which the server reads back with `getsockname` and
+  echoes as `port=<N>` on stdout so a harness can connect without a fixed port.
+  Because the reassembler and sinks are family-blind, the same server drives every
+  transport in the WC-11 matrix.
+
+- **The fault is a contract violation, not a transport fault.** `--fault` (or env
+  `MWIN32_SAMPLE_FAULT=1`) makes `GET /health` answer `{"status":0}` instead of
+  `{"status":"ok"}` — a well-framed 200 response whose body fails the derived JSON
+  schema (status typed as a number). The connection is never broken; the response
+  still carries a correct `Content-Length`. This is exactly what validate mode must
+  catch as a server→client violation while traffic completes (WC-10).
+
+- **A control endpoint gives the harness a clean stop.** `GET /shutdown` answers
+  `{"bye":true}` and then ends the accept loop, so a test can terminate the server
+  deterministically rather than killing the process. The server frames requests by
+  `Content-Length` only (the v1 reassembler scope, D21) and keeps connections alive
+  so request/response pairing (D22) is exercised.
+
+

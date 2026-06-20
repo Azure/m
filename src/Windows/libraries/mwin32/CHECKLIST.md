@@ -1,48 +1,12 @@
 # mwin32 CHECKLIST
 
 Completed milestones (M1–M4, M-FS-SHIM, M-FS-HANDLE-META, M-FS-COPY, M-FS-NOTIFY, M-FS-CONTENT,
-M-FS-LEGACY) have been moved to
+M-FS-LEGACY, M-HWC-SHIM, M-HWC-CONTRACTCFG) have been moved to
 [COMPLETED-CHECKLIST.md](COMPLETED-CHECKLIST.md).
 
-## Milestone M-HWC-SHIM — `mWebCore*` Hostable Web Core shim (active)
-
-Goal: expose the PIL **HWC engine surface** (`iwebcore`, designed in
-[`src/libraries/pil/DESIGN-NOTES.md`](../../../libraries/pil/DESIGN-NOTES.md) decisions
-**D-HWC-1 … D-HWC-7**) through Win32-shaped `mWebCore*` entry points, mirroring the `mReg*`
-shims. Each shim redirects through the process-wide session into the active PIL HWC surface; the
-mode (passthrough / logging / fault / interception) is selected by the `.pilcfg` sidecar.
-
-> **⬅ CROSS-COMPONENT PREREQUISITE:** the PIL `iwebcore` surface and at least the passthrough +
-> direct provider must land first — `src/libraries/pil` → milestones `M-HWC-IFACE`,
-> `M-HWC-DIRECT`, `M-HWC-FACETS`. See
-> [`src/libraries/pil/CHECKLIST.md`](../../../libraries/pil/CHECKLIST.md).
-
-- [x] M-HWC-SHIM-1: Add `mwinhwc.{h,cpp}` exporting `mWebCoreActivate(PCWSTR pszAppHostConfigFile,
-      PCWSTR pszRootWebConfigFile, PCWSTR pszInstanceName)`, `mWebCoreShutdown(DWORD fImmediate)`,
-      and `mWebCoreSetMetadata(PCWSTR pszMetadataType, PCWSTR pszValue)`, all returning `HRESULT`
-      (verified against the SDK `um/hwebcore.h`). Each gets the process-wide `session`'s
-      `iplatform`, calls `get_webcore()`, converts the `PCWSTR` config paths to `file_path`
-      values in the isolated filesystem (UTF-16 already — no CP_ACP dance), and forwards.
-- [x] M-HWC-SHIM-2: Enforce single-activation-per-process on the session (it holds the one
-      `iwebcore_instance`); a second `mWebCoreActivate` returns
-      `HRESULT_FROM_WIN32(ERROR_SERVICE_ALREADY_RUNNING)`, and `mWebCoreShutdown` with no active
-      instance returns `HRESULT_FROM_WIN32(ERROR_SERVICE_NOT_ACTIVE)` — matching the real engine.
-      No `handle_table` involvement (HWC has no handle in its ABI).
-- [x] M-HWC-SHIM-3: Centralized PIL `disposition` / `std::error_code` → `HRESULT` mapping at the
-      C ABI boundary (sibling to the existing exception→`LSTATUS` mapping), so OOM / exceptions
-      never cross the ABI.
-- [x] M-HWC-SHIM-4: Extend `.pilcfg` parsing with an optional `webcore` object
-      (`interception` mode, `endpoints` table, optional `materialization_dir` / `fault_script`);
-      `build_platform_from_config` wraps the webcore surface like the fault layer.
-- [x] M-HWC-SHIM-5: Add the three `mWebCore*` names to [mwin32.def](mwin32.def); the generated
-      `mwin32_alias` IAT-redirect object then redirects a client's genuine `WebCoreActivate` /
-      `WebCoreShutdown` / `WebCoreSetMetadata` with no source change (subject to the documented
-      D8 limits — `GetProcAddress`-resolved calls still need the runtime-interception envelope).
-- [x] M-HWC-SHIM-6 (integration): Sample client (or test) links `mwin32_alias`, supplies a
-      `.pilcfg` selecting a passthrough/logging webcore with a fake engine, and drives
-      activate / already-activated / shutdown / set_metadata through the shim ABI; assert the
-      `HRESULT` shapes match the real engine contract.
-      Note: Implemented as test_mwinhwc.cpp with tests against the null webcore provider.
+Note: the milestones retained below (M-ALIAS, M-SAMPLE, M-ENUMVALUE, M-FAULTCFG,
+M-FS-NOTIFY-REDIR, M-SDK) are all themselves complete (every item is `[x]`); they remain here
+pending a follow-up migration to [COMPLETED-CHECKLIST.md](COMPLETED-CHECKLIST.md).
 
 ## Milestone M-ALIAS — link-time Win32→mwin32 redirection ("alias object")
 
@@ -276,103 +240,3 @@ choice. Existing release pipeline to extend:
       mwin32 tests for the buildable arch, runs the M-SDK-4 merge, names the zip
       `mwin32-sdk-<tag>.zip`, and attaches it to the GitHub Release alongside the
       existing full-`m` zip. Document the cut-a-release steps in the workflow header.
-
-## Milestone M-HWC-CONTRACTCFG — `.pilcfg` OpenAPI/Swagger contract binding (PIL D-HWC-8)
-
-Goal: let a `.pilcfg` reference the team's OpenAPI (Swagger) specs and bind each to a
-webcore endpoint in `validate` and/or `drive` mode, wiring the PIL contract surface onto
-the HWC HTTP edge. The contract surface itself (loader, `ihttp_contract`, validating facet,
-example driver) is PIL Phase 4.
-
-> **⬅ CROSS-COMPONENT PREREQUISITE:** the PIL `ihttp_contract` surface and its validate/drive
-> facets must land first — `src/libraries/pil/CHECKLIST.md` → M-HWC-CONTRACT-MODEL,
-> M-HWC-CONTRACT-IFACE, M-HWC-CONTRACT-VALIDATE, M-HWC-CONTRACT-DRIVE,
-> M-HWC-CONTRACT-EXPOSE (which wires `iplatform::get_http_contract` through the live stack and
-> exposes the public drive surface this milestone consumes), and — for CONTRACTCFG-6 —
-> M-HWC-CONTRACT-EDGE (the public `ihttp_contract_edge` seam this milestone attaches bound
-> documents to), and — for CONTRACTCFG-7 — M-HWC-ENGINE-EDGE (an activatable in-process engine
-> plus the public synthetic-edge submit/observe seam this milestone wires bound documents onto).
-
-- [x] M-HWC-CONTRACTCFG-1: Extend `pilcfg::webcore_config`
-      ([`src/pilcfg.h`](src/pilcfg.h)) with a `contracts` vector: each entry carries a `spec`
-      host path (`%VAR%`-expanded, D17), an `endpoint` logical key (taken literally, like
-      `webcore.endpoints`), and a `mode` enum (`validate` / `drive`). Default: empty (no
-      contracts).
-- [x] M-HWC-CONTRACTCFG-2: Parse the optional `webcore.contracts` array in
-      [`src/pilcfg.cpp`](src/pilcfg.cpp) next to `read_endpoints_member` — strict like the rest
-      of `parse_pilcfg` (non-array throws; each element must be an object with string `spec`,
-      string `endpoint`, and `mode` one of `"validate"`/`"drive"`; wrong type/shape throws).
-      Apply `%VAR%` expansion to `spec` only.
-- [x] M-HWC-CONTRACTCFG-3: In `webcore_config_platform` (built by `build_platform_from_config`),
-      load and bind every `webcore.contracts` entry: read the spec bytes from the
-      (`%VAR%`-expanded) host path, call PIL `get_http_contract().load(...)` to produce a
-      validating document, and hold the bound documents keyed by endpoint + mode
-      (`load_webcore_contracts`). A missing/malformed spec is tolerant (best-effort, per D5/D7):
-      it leaves that binding absent rather than breaking the host.
-
-      Note (re-plan, execution finding): the live-edge *attachment* the original wording implied —
-      auto-validating real request/response traffic and executing the example driver against the
-      running engine — is gated on the webcore interception edge, which `webcore_config_platform`
-      still forwards as a placeholder (no public attach hook exists yet). That work is split out as
-      CONTRACTCFG-6 below. The bound documents are reachable via the public PIL surface
-      (`validate_request` / `validate_response` / `synthesize_requests` / `drive_contract`), which
-      is what CONTRACTCFG-5 exercises with a fake engine.
-- [x] M-HWC-CONTRACTCFG-4 (unit tests): `parse_pilcfg` tests for `webcore.contracts` —
-      absent (empty), single entry, multiple entries (order preserved), `%VAR%` expansion of
-      `spec`, and the negative cases (non-array, element not an object, missing/empty `spec` or
-      `endpoint`, unknown `mode`). ≥10 cases, sub-second.
-- [x] M-HWC-CONTRACTCFG-5 (integration): a `.pilcfg` referencing a small YAML spec binds through
-      `load_webcore_contracts`, then drives and validates a fake engine end to end via the public
-      drive surface (`drive_contract(document, submit)`) — assert the configured mode produced the
-      expected request traffic and that a deliberately non-conforming response is reported as a
-      contract violation.
-- [x] M-HWC-CONTRACTCFG-6: attach the bound contracts to a PIL contract edge
-      (`m::pil::ihttp_contract_edge`, M-HWC-CONTRACT-EDGE). Add a helper in `webcore_config_platform`
-      that, given the `std::vector<bound_contract>` produced by `load_webcore_contracts` and an
-      `ihttp_contract_edge&`, attaches every `validate`-mode document via `attach_validation` and
-      submits every `drive`-mode document through the edge via `drive_contract(*document,
-      edge.as_engine_submit())`, returning an aggregate summary (per-binding drive tallies + the
-      edge's validate tally). Integration test: build an edge with `make_contract_edge(fake_engine)`
-      where the fake engine returns a configurable response, load a `.pilcfg` carrying one
-      `validate` and one `drive` contract through `load_webcore_contracts`, run the helper, and
-      assert the drive contract produced the expected request traffic, a deliberately
-      non-conforming response is tallied as a violation, and the attached validate document observed
-      the crossings. Sub-second.
-- [x] M-HWC-CONTRACTCFG-7 (umbrella — production live-edge wiring; now unblocked by PIL
-      M-HWC-ENGINE-EDGE): wire bound contracts onto a *running* engine's synthetic HTTP edge so
-      autonomous request/response traffic crossing the edge is auto-validated and drive contracts
-      execute against the activated engine, instead of `webcore_config_platform::get_webcore`
-      forwarding unchanged. Split into the items below.
-
-      > **⬅ CROSS-COMPONENT PREREQUISITE:** requires PIL `src/libraries/pil/CHECKLIST.md` →
-      > `M-HWC-ENGINE-EDGE` (1–5): the public `isynthetic_http_edge` submit/observe seam,
-      > `iwebcore_instance::synthetic_http_edge()`, `make_engine_submit`, and the activatable
-      > `make_in_process_webcore` test engine. CONTRACTCFG-7.1/7.2 cannot start until those land.
-
-- [x] M-HWC-CONTRACTCFG-7.1: Contract-wiring webcore decorator. Add a webcore decorator (in
-      `webcore_config_platform`, alongside `wire_contracts_to_edge`) whose `activate` forwards to
-      the underlying (configured) webcore, then — on the activated instance's
-      `synthetic_http_edge()` — registers every `validate`-mode bound document as a
-      `crossing_observer` that runs the document's `validate_request` / `validate_response` and
-      tallies (a side diagnostic, D6 — never altering the engine), and drives every `drive`-mode
-      bound document via `drive_contract(*document, m::pil::make_engine_submit(edge, timeout))`. The
-      decorator's returned instance owns the registered observers / wiring for the activation's
-      lifetime. If the activated instance exposes no synthetic edge (`synthetic_http_edge() ==
-      nullptr`, e.g. the null engine), wiring is a tolerant no-op. `get_webcore` returns this
-      decorator wrapping the configured engine (the intercepting webcore with synthetic mode
-      enabled in production; the in-process engine in test). Reuse the bound-contract loading from
-      CONTRACTCFG-3 and the validate/tally shape from CONTRACTCFG-6; no `.pilcfg` schema change.
-
-- [x] M-HWC-CONTRACTCFG-7.2 (integration): build the config platform (`apply_webcore_config`) over
-      an underlying platform whose `get_webcore` returns `m::pil::make_in_process_webcore(handler)`,
-      where the handler returns a configurable (deliberately non-conforming) response; load a
-      `.pilcfg` carrying one `validate` and one `drive` contract; activate through the config
-      platform and assert (a) the drive contract produced the expected request traffic against the
-      engine, (b) the non-conforming response is tallied as a violation, and (c) the `validate`
-      document observed the live crossings via the registered observer (drive the engine with an
-      independent autonomous request and confirm the observer validated it). Sub-second. Record in a
-      note that the real-`hwebcore` path is the *same* decorator with the intercepting webcore over
-      a real `hwebcore.dll` as the config-selected engine — the only element not exercised in CI is
-      IIS itself (D-HWC-11 acknowledged limit).
-
-

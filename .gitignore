@@ -412,3 +412,6 @@ FodyWeavers.xsd
 *.sln.iml
 /build
 /CMakeFiles/3.31.6-msvc6
+
+# Generated PIL platform/registry snapshot artifact (runtime output, not source)
+/log1.xml

@@ -1,0 +1,22 @@
+[package]
+name = "fp-hw-survey"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.86"
+authors = ["Michael Grier <micgrier@microsoft.com>"]
+license = "MIT"
+description = "Cross-hardware IEEE-754 floating-point behavior survey: capture native FP results + exception flags on x86-64 and AArch64, then merge captures from many machines to find where hardware actually disagrees."
+repository = "https://github.com/azure/m"
+homepage = "https://github.com/azure/m"
+readme = "README.md"
+
+# No external dependencies on purpose: this must build on stable Rust with std
+# only, on macOS arm64, Windows arm64, and x86-64 Linux/Windows, with zero
+# friction.
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "fp-hw-survey"
+path = "src/main.rs"

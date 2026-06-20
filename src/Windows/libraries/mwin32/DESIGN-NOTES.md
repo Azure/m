@@ -1391,4 +1391,47 @@ Decisions:
   `--shutdown` run that the derive phase excludes (D26). The reference therefore
   describes precisely the traffic the clean derive phase observes.
 
+## D28 — In-process wire-capture harness and the derive phase (WC-9)
+
+The integration tests
+([`test/test_wirecapture_integration.cpp`](test/test_wirecapture_integration.cpp))
+stand on a reusable harness
+([`test/wirecapture_harness.h`](test/wirecapture_harness.h)) that runs the same
+two-endpoint exchange (`GET /health`, `POST /widgets`) over any of four transports
+and returns the request/response byte streams teed off the connection, ready to be
+replayed through a `connection_capture` into the WC-5 sinks.
+
+Decisions:
+
+- **The harness observes at the client's wire boundary, not through the shim's
+  session.** The mwin32 shims live in `m_mwin32.dll`, which owns its own capture
+  session singleton; the test links `m_mwin32_internal` with a *distinct*
+  singleton, so bytes teed by a DLL shim are not readable in-test (the standing
+  split documented in `test_mwinsock.cpp`). The harness therefore tees the bytes
+  itself — every byte the client sends is appended to the request stream and every
+  byte it receives to the response stream — which is byte-for-byte the same
+  observational copy the production tee makes (D6), just taken in the harness so
+  the integration test is self-contained and deterministic. This exercises the
+  reassembler, sinks, recorder, and validator end to end over genuine loopback
+  framing (partial reads, keep-alive request/response pairing).
+
+- **The transport is a four-way switch; content is invariant across it.** `ipv4`
+  and `ipv6` bind a loopback listener on an OS-assigned ephemeral port (bind `0`,
+  read back with `getsockname`) and run server and client on two threads; `dns`
+  does the same but resolves `localhost` through `getaddrinfo` on both ends with
+  the bound family pinned so the two agree; `synthetic` skips Winsock entirely and
+  builds the two streams in process from the same routing logic. Because the
+  reassembler and recorder key off message content, not transport, every transport
+  produces identical streams — the transport-independence result WC-11 asserts,
+  proven early here for `ipv4` vs `synthetic` so the derive phase is self-contained.
+
+- **Derive asserts the spec, not just its existence.** Phase 1 records a clean
+  exchange through `recording_capture_sink`, then asserts `operation_count == 2`,
+  that the emitted YAML names both endpoints and both statuses, and — crucially —
+  that the derived YAML *loads cleanly* back through the live PIL contract provider
+  (`make_platform_interface()->get_http_contract()->load`) and yields two
+  synthesizable operations for `/health` and `/widgets`. The round-trip (derive →
+  emit → load) is what makes the derived contract usable as the validation input
+  for the detect phase (WC-10).
+
 

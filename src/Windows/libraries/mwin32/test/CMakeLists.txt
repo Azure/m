@@ -17,6 +17,7 @@ if(BUILD_TESTING)
         test_contractcfg.cpp
         test_pilcfg.cpp
         test_session_snapshot.cpp
+        test_wirecapture_integration.cpp
     )
 
     target_compile_features(test_mwin32 PUBLIC ${M_CXX_STD})

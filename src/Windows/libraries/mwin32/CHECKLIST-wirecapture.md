@@ -96,7 +96,7 @@ Clean debug+release build (zero warnings), run test_mwin32, sync.
 
 ## Milestone M-WIRECAP-INTEG — end-to-end lifecycle test (topology matrix)
 
-- [ ] **WC-9**: Reusable **in-process harness** (server + client on two threads in
+- [x] **WC-9**: Reusable **in-process harness** (server + client on two threads in
   the test process over a real loopback socket; bind port `0` and read back the
   ephemeral port; topology selector for IPv4 / IPv6 / DNS / synthetic). On top of
   it, **phase 1 (derive)** over IPv4 loopback: clean traffic + `record` mode

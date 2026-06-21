@@ -34,7 +34,7 @@ is dependency-ordered; the milestone ends in an integration test.
   CoW copy without mutating base, overlay shadows base, merged enumeration is
   ordinal-ordered and deduplicated.
 
-- [ ] **M1-4 — Reified operation model & `Surface` seam (D10).** `Request` /
+- [x] **M1-4 — Reified operation model & `Surface` seam (D10).** `Request` /
   `Response` value types modeling registry operations (open, read, write,
   enumerate, delete). `trait Surface { fn invoke(&mut self, req: &Request) ->
   Result<Response>; }`. A concrete in-memory `Surface` backed by the M1-3 tree.

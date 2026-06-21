@@ -19,10 +19,12 @@
 pub mod error;
 pub mod ffi;
 pub mod path;
+pub mod surface;
 pub mod tree;
 pub mod wstr;
 
 pub use error::{RegistryError, Result};
 pub use path::KeyPath;
+pub use surface::{Request, Response, Surface, TreeSurface};
 pub use tree::{Hive, OverlayTree, ValueData, ValueType};
 pub use wstr::{OrdinalCasing, Utf16};

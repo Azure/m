@@ -19,8 +19,10 @@
 pub mod error;
 pub mod ffi;
 pub mod path;
+pub mod tree;
 pub mod wstr;
 
 pub use error::{RegistryError, Result};
 pub use path::KeyPath;
+pub use tree::{Hive, OverlayTree, ValueData, ValueType};
 pub use wstr::{OrdinalCasing, Utf16};

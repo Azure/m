@@ -27,7 +27,7 @@ is dependency-ordered; the milestone ends in an integration test.
   and MUST NOT ship from here. Unit tests: UTF-8↔UTF-16 round-trip, ill-formed
   UTF-16 rejection, case-insensitive equality and ordering, sort-key stability.
 
-- [ ] **M1-3 — Registry overlay / copy-on-write tree.** In-memory representation
+- [x] **M1-3 — Registry overlay / copy-on-write tree.** In-memory representation
   of keys, values, and value types (D11 `Type` shape), ordered/keyed via the
   M1-2 ordinal-casing seam. Implement overlay + redirect + copy-on-write merge
   semantics over a base layer. Unit tests: read-through to base, write creates

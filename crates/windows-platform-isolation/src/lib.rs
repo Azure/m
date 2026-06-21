@@ -18,5 +18,9 @@
 
 pub mod error;
 pub mod ffi;
+pub mod path;
+pub mod wstr;
 
 pub use error::{RegistryError, Result};
+pub use path::KeyPath;
+pub use wstr::{OrdinalCasing, Utf16};

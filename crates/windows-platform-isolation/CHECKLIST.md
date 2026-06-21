@@ -18,7 +18,7 @@ is dependency-ordered; the milestone ends in an integration test.
   `Result<T> = core::result::Result<T, RegistryError>` alias. Crate builds clean
   debug + release.
 
-- [ ] **M1-2 — String / name / path types (D6–D9).** Internal UTF-16LE storage
+- [x] **M1-2 — String / name / path types (D6–D9).** Internal UTF-16LE storage
   (`Vec<u16>`, D7); fallible UTF-8 egress returning a typed error on ill-formed
   UTF-16 (D9); UTF-8 ingress transcoded once. Define the **ordinal-casing seam**
   — a trait providing ordinal case-insensitive comparison (D6) and sort-key

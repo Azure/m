@@ -604,6 +604,34 @@ ALWAYS prefer the `tpu_*` tools over PowerShell or shell file commands.
 - **Dependency-free templating** — `tpu_render_file` substitutes
   `{{NAME}}`-style tokens. Use `\{{` to emit literal braces.
 
+### Tool output format
+
+Every tool response uses a **mixed format**: a JSON invocation header,
+a content-type-dependent body, and (for most tools) a JSON status trailer.
+Not every line is JSON — read tools and `find` return raw content
+between the header and trailer.
+
+- **Line 1** — invocation header:
+  `{"reason":"x-tpu-mcp-invocation","tool":"tpu_NAME","args":{...}}`
+  Large `content`/`replacement`/`template` fields appear as `"<N bytes>"` placeholders.
+- **Mutating tools** (write, replace, edit, append) — normal write:
+  `{"status":"success","file":"...","mtime_epoch_ms":N,"size":N}`
+  Preview modes do not stamp the file and return a reduced trailer:
+  `diff:true` adds unified diff lines before the status (full stamp still present for write/replace/edit).
+  `dry_run:true` (replace only): optional diff lines, then `{"status":"success","changed":true|false}`.
+  `count:true` (replace only): `{"status":"success","count":N}`.
+  `append diff:true`: diff lines when changed, then `{"status":"success","file":"...","changed":true|false}`.
+- **Structured tools** (count_file, stat_file, copy_file, render_file,
+  setup+target, doctor) — result line
+  `{"reason":"x-tpu-mcp-result",...}` followed by `{"status":"success"}`.
+- **Read tools** (read_file, read_head, read_tail, read_file_escaped) — header then raw content; no JSON trailer on success.
+  **Exception** — `tpu_read_file_binary` with a non-empty `hash` arg acts like a structured tool:
+  `{"reason":"x-tpu-mcp-result","encoding":"bytes-base64","content":"<base64>","hashes":[...]}` followed by `{"status":"success"}`.
+  Without `hash`, `tpu_read_file_binary` returns header + 7-bit-clean escaped bytes (no trailer).
+- **Find tool** (find) — header, then matching lines as plain text, then `{"status":"success","warnings":[...]}` trailer.
+- **Errors** — `{"status":"error","message":"..."}` as the final line;
+  `isError: true` in the MCP wrapper.
+
 ### When a file looks corrupted (mojibake)
 
 Symptoms: `Ã©` where `é` should be, `â€"` where `—` should be, `â"€` instead
@@ -648,3 +676,78 @@ through `Get-Content` / `Set-Content` — read and write via
 `[System.IO.File]::ReadAllBytes` / `WriteAllBytes` and validate with
 `tools/check-encoding.ps1` afterwards.
 <!-- tpu-mcp:setup:end -->
+
+<!-- cargo-mcp:setup:begin -->
+## Cargo commands — use `cargo_*` MCP tools, never the terminal
+
+This repository builds Rust code in addition to the CMake/C++ build. When
+working in the Rust/Cargo portion of the tree, ALWAYS use the `cargo_*` MCP
+tools instead of running `cargo` in a PowerShell or bash terminal. This holds
+even inside a larger workflow — do not switch to the terminal for cargo just
+because a previous step used the terminal.
+
+Always pass `working_dir` set to the absolute path of the workspace root
+(`q:\github\m`); the tool default is the cargo-mcp server's own directory and
+will usually fail manifest/toolchain resolution.
+
+| MCP tool | Replaces |
+|---|---|
+| `cargo_metadata` | `cargo metadata` |
+| `cargo_check` | `cargo check` |
+| `cargo_build` | `cargo build` |
+| `cargo_test` | `cargo test` |
+| `cargo_clippy` | `cargo clippy` |
+| `cargo_fmt_check` | `cargo fmt --check` |
+| `cargo_fmt` | `cargo fmt` |
+| `cargo_tree` | `cargo tree` |
+| `cargo_doc` | `cargo doc` |
+| `cargo_clean` | `cargo clean` |
+| `cargo_update` | `cargo update` |
+| `cargo_fix` | `cargo fix` |
+| `cargo_add` | `cargo add` |
+| `cargo_remove` | `cargo remove` |
+| `cargo_publish` | `cargo publish` |
+| `cargo_diagnostic` | *(no terminal equivalent)* |
+
+### Boolean arguments
+
+Boolean flags (`all_targets`, `release`, `workspace`, `lib`, `bins`, `tests`,
+`benches`, `examples`, `all_features`, `no_default_features`, `frozen`,
+`locked`, `offline`, …) expect a JSON boolean (`true` / `false`). Prefer the
+native boolean. If an expected CLI flag (`--release`, `--all-targets`, …) is
+missing from the echoed `x-cargo-mcp-invocation` argv, you probably sent the
+boolean in an unrecognised shape — check for a `warning` notification.
+
+### cargo_test — timeouts
+
+`cargo_test` has two timeout knobs, both applied only to the test **execution**
+phase (the clock arms when the build finishes, so a slow build never trips
+them):
+
+- **`timeout_secs`** — hard overall wall-clock cap. Defaults to 30 s in
+  unfiltered mode; no default in `test_filter` mode. Pass `0` to disable.
+- **`per_test_timeout_secs`** — per-test budget, only meaningful with
+  `test_filter`. Guards against a single hung test. Pass `0` to disable.
+
+Raise or disable these for slow/integration suites that poll internally;
+lower them when sanity-checking a fix to fail fast on an infinite loop.
+
+### Redirecting full output to a file (`output_path`)
+
+`cargo_check`, `cargo_build`, `cargo_test`, `cargo_clippy`, and `cargo_doc`
+accept an optional `output_path` (relative to `working_dir`, no `..`, parent
+must exist) that receives the complete NDJSON output while the tool result is
+a compact summary keeping errors, the `build-finished` record, stderr, and
+(for `cargo_test`) libtest failure markers. Use it instead of piping to a
+temp file when the full transcript would bloat context; then open the file
+only if the summary shows a non-zero exit code or failure markers.
+
+### Environment variables (`env`)
+
+Each cargo-spawning tool accepts an optional `env` object that sets (string
+value) or unsets (`null` value) environment variables on the cargo subprocess
+for that one call, layered over the defaults. Use it for one-shot debug knobs
+(`RUSTFLAGS`, `RUST_LOG`, `RUST_BACKTRACE`, `RUSTC_BOOTSTRAP`) instead of
+shelling out. Put permanent config in `Cargo.toml`, `.cargo/config.toml`, or
+`rust-toolchain.toml`; never pass secrets via `env`.
+<!-- cargo-mcp:setup:end -->

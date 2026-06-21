@@ -1,8 +1,13 @@
 [workspace]
 resolver = "2"
-members = [
-  "m",
+members = ["crates/windows-platform-isolation",
+  "crates/windows-threadpool",
 ]
+exclude = ["m"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.96"
 
 [workspace.metadata.spellcheck]
 config = "spellcheck.toml"

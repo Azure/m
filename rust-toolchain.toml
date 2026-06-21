@@ -1,0 +1,7 @@
+# Pins the Rust toolchain used to build this repository.
+# rustup reads this file and automatically installs/selects the pinned
+# toolchain, including the clippy and rustfmt components at the same version.
+[toolchain]
+channel = "1.96.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

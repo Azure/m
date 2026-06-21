@@ -19,7 +19,7 @@ design rather than binding to the C++ implementation.
 
 | ID | Title |
 |---|---|
-| D1 | Implementation binds to `windows-sys`, not `windows` |
+| D1 | FFI bindings are confined to leaf `-sys` crates; the effort binds to `windows` |
 | D2 | This crate is a Rust reimplementation of PIL's surfaces (sibling, not FFI) |
 | D3 | Registry is the first surface (mirrors the C++ ordering) |
 | D4 | Adopt the full policy-intent decorator stack |
@@ -31,50 +31,57 @@ design rather than binding to the C++ implementation.
 | D10 | Provider composition: typed `dyn` facade + internal reified `Request`/`Surface` seam |
 | D11 | Object shapes borrow patterns from `windows-registry` / `std::fs` (references, not deps) |
 | D12 | Isolation crate is synchronous; `Send` yes, `Sync` only via `Mutex`; async lives in sibling crates |
-| D13 | Quarantine `unsafe`: a thin unsafe FFI half, a large safe half holding all logic |
+| D13 | Quarantine `unsafe` in leaf `-sys` crates; every other crate forbids `unsafe` |
 | D14 | One hand-rolled error type per surface trait; never shared, never C++ parity |
 | D15 | First cut has no live/"direct" provider; ingress = loading saved C++ provider state |
+| D16 | `windows-text`: standalone reusable Windows string crate (ordinal casing, code pages, transcoding) |
+| D17 | HWC redirection runs out of process: named-pipe service + async (MPMC→threadpool→IOCP) capture/validation/injection pipeline |
 
 ---
 
-## D1 — Implementation binds to `windows-sys`, not `windows`
+## D1 — FFI bindings are confined to leaf `-sys` crates; the effort binds to `windows`
 
-**Decision.** This crate's implementation calls the raw Win32 platform APIs
-and owns its own Rust abstractions over them. The chosen binding crate is
-[`windows-sys`](https://crates.io/crates/windows-sys) — raw `extern "system"`
-declarations, constants, and handle type aliases — in preference to the
-higher-level [`windows`](https://crates.io/crates/windows) crate.
+**Decision.** All `unsafe` FFI lives in dedicated **leaf `-sys` crates** (D13,
+Option B); every other crate is unconditionally `#![forbid(unsafe_code)]`.
+Because the binding can no longer leak past a single-purpose leaf, the choice of
+binding crate is a **local, low-stakes** decision. The effort **standardizes on
+[`windows`](https://crates.io/crates/windows)** as that binding, with
+[`windows-sys`](https://crates.io/crates/windows-sys) permitted for a leaf that
+genuinely needs nothing `windows` offers and wants minimal weight.
 
-**Rationale.**
+**Why this reverses the earlier lean toward `windows-sys`.** The original
+argument for `windows-sys` was that the `windows` crate's RAII/`Result`/`Param`
+conveniences would "fight" our wrapper layer and leak ergonomic friction across
+the codebase. Option B removes that concern at the root: the binding is visible
+only inside a tiny leaf crate, so it cannot fight or leak anywhere else. With
+friction off the table, the remaining factors favor `windows`:
 
-- The job here is a thin isolation seam over a handful of Win32 data-store
-  APIs. We supply our own wrapper types, error mapping, and lifetimes; the
-  `windows` crate's RAII wrappers, `Result`, and `Param` conversions would
-  duplicate or fight that layer rather than help it.
-- `windows-sys` is `#![no_std]`-friendly, has a minimal dependency footprint,
-  and compiles dramatically faster than `windows`, keeping build cost low.
-- We do not need COM or WinRT here (the differentiating capability of the
-  `windows` crate). The data-store surfaces PIL isolates are plain Win32.
-- Empirically, reaching for the higher-level crate on a low-level seam tends
-  to produce repeated friction (wrapper/ownership mismatches, conversion
-  churn). Pinning to `windows-sys` up front avoids that.
+- **It shrinks the hand-written `unsafe`.** For handle-owning leaves (registry
+  `HKEY`, file `HANDLE`, thread pool), `windows`'s owned handle types and
+  `Result`-returning entry points replace hand-rolled `Drop` impls and
+  `GetLastError` mapping — the most error-prone glue, in the one place `unsafe`
+  is allowed.
+- **It future-proofs COM/WinRT.** The HWC surface is likely to need COM;
+  `windows` covers that, `windows-sys` does not.
+- **Consistency.** One binding across all leaves is simpler than a per-leaf mix.
 
-**This behavior is owned by us, not inherited from the dependency.** Our
-specification is "call the raw Win32 entry points and wrap them ourselves";
-`windows-sys` was selected because its behavior matches that specification. If
-a future need genuinely requires COM/WinRT, that is a new decision to revisit
-here — not a silent switch to `windows`.
+**Honest caveat.** The `windows-text-sys` leaf is **handle-free** — its calls
+(`CompareStringOrdinal`, `LCMapStringEx`, `MultiByteToWideChar` /
+`WideCharToMultiByte`) operate on caller-provided buffers and return values or
+owned bytes, with no OS handles to own — so it gains little from `windows`'s
+RAII handle types beyond uniformity, and pays a little compile weight. That cost
+is localized to the leaf and judged worth the consistency; a maintainer may pin
+that single leaf to `windows-sys` if the weight ever matters.
 
-**This is a low-stakes, easily reversible choice.** The `windows-sys`-vs-
-`windows` decision is not functionally design-significant: both are generated
-from the same Windows metadata and the entry-point names line up closely, so
-switching later is mechanical. We pin `windows-sys` to avoid predictable
-friction, not because anything in the design hinges on it.
+**Behavior is owned by us (Design-Autonomy).** Our specification is "call the
+raw Win32 entry points and wrap them ourselves in a leaf crate"; `windows` is
+selected because it satisfies that specification with the least hand-written
+`unsafe`. Both bindings are generated from the same Windows metadata, so the
+choice stays low-stakes and mechanically reversible.
 
-**No work scheduled by this decision yet.** D1 is forward guidance for the
-implementation that does not exist yet; it is a reservation, not a queued task.
-The `windows-sys` dependency will be added to `Cargo.toml` by the first
-checklist item that needs it, at which point a CHECKLIST.md will reference D1.
+**Work scheduled.** The first leaf crate (`windows-text-sys`,
+CHECKLIST M2) adds the `windows` dependency; later leaves (registry M5, thread
+pool, HWC) follow the same rule.
 
 ## D2 — This crate is a Rust reimplementation of PIL's surfaces
 
@@ -156,8 +163,9 @@ core must build and test without FFI. The ordinal comparison is therefore
 abstracted behind a trait (the "ordinal casing" seam); the **only production
 implementation is the mandated Win32 one**. A pure-Rust comparator may exist for
 unit tests, but it is **test-only and must never be shipped as the production
-comparator** — doing so would violate this decision. The production Win32-backed
-implementation lands with the FFI leaf milestone, not in the safe-core milestone.
+comparator** — doing so would violate this decision. The trait and its Win32
+production implementation live in the standalone `windows-text` crate
+(D16), not in this crate's safe-core milestone.
 
 ## D7 — Internal storage is UTF-16LE; public APIs are UTF-8
 
@@ -196,7 +204,8 @@ case.)
 
 Sort-key generation (`LCMapStringEx`) is FFI and shares D6's seam: it is
 abstracted behind the same "ordinal casing" trait, production is the Win32 impl,
-any pure-Rust sort key is test-only and lands behind the FFI leaf milestone.
+any pure-Rust sort key is test-only. Both live in the `windows-text`
+crate (D16).
 
 ## D9 — OS strings may be ill-formed: never panic, never lose data
 
@@ -290,20 +299,22 @@ thread-affine** (an `HKEY`/`HANDLE` is usable from any thread), so async is moot
 **`Sync`** = a `&T` can be *shared* across threads (`T: Sync` ⇔ `&T: Send`).
 Both are auto-derived; we only intervene when wrapping a raw handle.
 
-## D13 — Quarantine `unsafe`: a thin unsafe FFI half, a large safe half
+## D13 — Quarantine `unsafe` in leaf `-sys` crates; every other crate forbids `unsafe`
 
 The whole effort is structured as **two halves**:
 
-- a **thin unsafe half** — as few modules as possible (ideally one `ffi`/`sys`
-  module per crate) that is the *only* place `unsafe`, `windows-sys` calls, and
-  raw handles/pointers appear. Its sole job is to convert raw OS primitives into
-  safe RAII wrapper types and to map error codes; it contains **no stateful
-  logic**.
+- a **thin unsafe half** — a dedicated **leaf `-sys` crate** (Option B; e.g.
+  `windows-text-sys`) that is the *only* place `unsafe`, the `windows`
+  binding calls (D1), and raw handles/pointers appear. Its sole job is to convert
+  raw OS primitives into safe wrapper types / functions and to map error codes;
+  it contains **no stateful logic** (the buffer-sizing intrinsic to a two-call
+  FFI like `LCMapStringEx` does not count — it is inseparable from the call).
 - a **large safe half** — everything else: the decorator stack (D4), the
   `Request`/`Response` seam (D10), path/string types and their invariants
-  (D6–D9), journaling, fault injection, the typed facades (D11). This half is
-  `#![forbid(unsafe_code)]` (or `deny`) wherever the toolchain allows it, with
-  `#[allow(unsafe_code)]` granted only to the designated FFI module.
+  (D6–D9), journaling, fault injection, the typed facades (D11). Every crate
+  outside the leaf `-sys` crates is **unconditionally `#![forbid(unsafe_code)]`**
+  — no per-module `#[allow(unsafe_code)]` anywhere — so the safe guarantee is
+  tooling-provable (`cargo-geiger` reports zero).
 
 Rationale (the reason the port exists): we are not rewriting C++ in Rust for its
 own sake. The HWC engine in particular has many stateful moving parts, and the
@@ -325,7 +336,10 @@ the stateful machinery we are porting for memory safety genuinely lives in the
 safe half.
 
 This is an architectural invariant for **every** crate in this effort, not just
-this one (see TP-D4 for the thread pool crate).
+this one (see TP-D4 for the thread pool crate, and D16 for the `windows-text` crate).
+Each `unsafe` leaf is its **own** `-sys` crate (Option B), so no crate ever mixes
+`unsafe` with logic: the live-registry leaf (M5), the `windows-text-sys` leaf, the thread
+pool leaf, and any HWC/COM leaf are all separate `-sys` crates.
 
 ## D14 — One hand-rolled error type per surface trait
 
@@ -357,13 +371,125 @@ live registry and no `unsafe`. Consequences: the live/direct provider and the
 write/capture side are later milestones; and the read path makes the D5
 shared-format spec a prerequisite for the milestone that adds the loader.
 
+## D16 — `windows-text`: a standalone reusable Windows string crate
+
+The ordinal-casing seam (D6/D8) and the UTF-16 storage / UTF-8 boundary
+transcoding (D7/D9) are factored out of this crate into a new standalone sibling
+crate, **`windows-text`**. Per Option B (D13) it is split into **two** crates:
+
+- **`windows-text`** — the safe layer, **unconditionally
+  `#![forbid(unsafe_code)]`**. Owns the `Utf16` string type (a safe owned
+  UTF-16 string shaped after `std::basic_string<char16_t>` — see below), the
+  UTF-8↔UTF-16 mapping, the `OrdinalCasing` trait, the `Win32OrdinalCasing`
+  production impl (which merely calls the `-sys` crate), and a feature-gated
+  pure-Rust ASCII reference impl for downstream off-Windows unit tests.
+- **`windows-text-sys`** — the only crate with `unsafe`: the
+  **buffer-management-critical** Win32 string primitives, each wrapped as a safe
+  slice-in / owned-out fn — `compare_ordinal_ignore_case` / `sort_key`
+  (`CompareStringOrdinal` / `LCMapStringEx`) and the code-page transcoders
+  (`MultiByteToWideChar` / `WideCharToMultiByte`) — over the `windows` binding
+  (D1). Each owns its two-call buffer logic; no pointers escape.
+
+**The `Utf16` type is the safe string layer (shape borrowed from `m::strings` /
+`m::utf`).** Mirroring the C++ `m` libraries — which wrap `CompareStringOrdinal`
+/ `LCMapStringEx` behind safe `std::basic_string` / `string_view` operations
+(`m::strings::ordinal_*`, `m::to_u16string`) so callers never see `Windows.h` —
+`Utf16` carries the ordinal operations as **inherent safe methods**
+(`compare_ignore_case`, `sort_key`) that delegate to the `-sys` crate. Those
+libraries are a **shape reference, not a dependency** (as D11 cites
+`windows-registry` / `std::fs`). The `OrdinalCasing` **trait is retained for a
+different job**: it is the dependency-injection seam that lets
+`windows-platform-isolation` unit-test its tree / decorator logic **off Windows**
+by swapping the Win32 impl for the ASCII reference — a seam `m` does not need
+because its tests run on Windows.
+
+**Rationale.** Windows ordinal case-insensitive comparison and binary sort-key
+generation are broadly useful — any code that must agree with the OS on registry
+keys, value names, or case-insensitive NTFS names needs exactly this, with no
+dependency on PIL. Isolating it makes it independently reusable, and — with the
+Option B split (D13) — concentrates the casing `unsafe` in the tiny
+`windows-text-sys` leaf, leaving the safe `windows-text`
+crate (and everyone downstream) unconditionally `#![forbid(unsafe_code)]`.
+
+**Charter & scope.** `windows-text` is intended to grow into the Rust home for
+much of what the C++ `m` string libraries provide (`m::strings`, `m::utf`,
+`m::windows_strings`). Committed scope: the `Utf16` type + UTF-8↔UTF-16 mapping,
+ordinal casing (compare + sort key), and **code-page support**
+(`MultiByteToWideChar` / `WideCharToMultiByte` over arbitrary code pages —
+porting `m::windows_strings::convert`). It **grows incrementally** — split,
+view/punning conversions, compare helpers, static strings — as a consumer
+actually needs each piece (per "design notes are not a work queue", only the
+code-page work is queued now; the rest is charter, not backlog). Explicitly
+**out of scope for now**: UTF-32 and other exotic transcoding.
+
+**Naming.** `windows-text`, not `windows-string` / `windows-strings`: the latter
+**collides with the published windows-rs `windows-strings` crate** (`HSTRING` /
+`BSTR` / `PCWSTR`). `windows-text` signals the higher-level semantics and avoids
+the clash.
+
+**Consequence for this crate.** After adopting the dependency (CHECKLIST M3),
+this crate re-exports `windows-text`'s `Utf16` / `OrdinalCasing` /
+`Win32OrdinalCasing` for API continuity and deletes its own `wstr.rs`
+definitions. Because the live-registry leaf is *also* its own `-sys` crate
+(Option B, CHECKLIST M5), `windows-platform-isolation` itself contains **no
+`unsafe` at all** and is unconditionally `#![forbid(unsafe_code)]`.
+
+**Behavior is owned by us (Design-Autonomy).** Our specification — ordinal
+(not linguistic) case-insensitivity per D6, binary sort keys per D8, lossless
+UTF-16 with fallible UTF-8 egress per D7/D9 — does not change; only its home
+does. `windows` is the chosen binding (D1), confined to the `-sys` leaf.
+
+This decision schedules work: see `CHECKLIST.md` milestones **M2** (build the
+`-sys` leaf + safe crate) and **M3** (adopt it here).
+
+## D17 — HWC redirection runs out of process (named-pipe service + async capture pipeline)
+
+**Intent (long-horizon; detailed design deferred).** For the HWC (Hostable Web
+Core) surface, the **majority of the redirection work moves out of the hosted
+process** into a separate **service-like executable**. The hosted process keeps
+only a thin in-process shim and talks to the service over **named pipes** using
+a defined protocol. The protocol and journal format are deliberately **left to
+be designed later**.
+
+**Capture hot path (thread-frugal by construction).** When capturing traffic to
+construct an API design, the in-process shim — *on the intercepted caller
+thread* — captures **only the minimum information needed**, then immediately
+hands it **off the thread** onto a thread-pool worker via an **MPMC queue**,
+releasing the caller thread as fast as possible. The thread-pool worker (M7
+substrate) then ships the captured records to the service over **async I/O
+(IOCP)**, so threads are tied up in blocking I/O to the least degree possible.
+This respects D12: the isolation core stays synchronous; all async lives in the
+HWC layer / sibling crates.
+
+**Service responsibilities (choice deferred).** The service either (a) forms the
+API model from the journal **dynamically** as records arrive, or (b) simply
+**journals** the raw messages and **post-processes** the journal into the API
+offline. We choose between these when we get there.
+
+**Out-of-process extension points.** Beyond capture, **API validation** and
+**work injection** are also intended to be **injectable from out of process**
+across the same service boundary / protocol — not just observation. Recorded now
+so the boundary is designed with this in mind; not scheduled in detail.
+
+**FFI / layering.** Named-pipe + IOCP async I/O is FFI; per Option B (D13) it
+lives in its own leaf `-sys` crate(s) over the `windows` binding (D1), atop the
+M7 threadpool/executor substrate. No `unsafe` leaks into the HWC logic above it.
+
+**Status.** Only a **high-level outline** is queued — see `CHECKLIST.md` **M8**.
+Protocol, journal format, API-formation strategy, and the validation/injection
+control plane are explicitly **TBD** and will be designed when M8 is scheduled.
+
 ## Status
 
 The kickoff questions (relationship, surfaces, layering, interop) are resolved
 as D2–D5. D6–D9 are **binding string-handling invariants**. D10–D12 settle
 provider composition, object shapes, and the threading stance (registry roots
-are session-vended). Implementation does not exist yet; when design transitions
-to build, milestones are queued in a CHECKLIST.md at this crate root and
-cross-referenced to D1–D12. The Windows thread pool / async work lives in the
-sibling `windows-threadpool` crate (and a future executor crate), not here. No
-work is scheduled by these decisions alone.
+are session-vended). D13 is the unsafe-quarantine invariant; D14 the per-surface
+error rule; D15 the no-live-provider first cut; D16 factors the casing seam into
+the standalone `windows-text` (+ `-sys` leaf) crates; D17 records the
+out-of-process HWC redirection architecture (named-pipe service + async capture
+pipeline), deferred in detail; D1/D13 confine
+all `unsafe` to leaf `-sys` crates bound to `windows`. Milestone M1 (pure safe core) is
+complete; M2+ are queued in `CHECKLIST.md` and cross-referenced to these
+D-numbers. The Windows thread pool / async work lives in the sibling
+`windows-threadpool` crate (and a future executor crate), not here.

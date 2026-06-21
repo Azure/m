@@ -4,4 +4,4 @@ Tracks CHECKLIST.md files in this source-component and their status.
 
 | Path to CHECKLIST.md | Status | Brief description | Design Notes |
 |---|---|---|---|
-| [CHECKLIST.md](CHECKLIST.md) | in progress | M1 pure safe core **complete** (overlay tree, Request/Response seam, string types, decorators, typed facade — see COMPLETED-CHECKLIST.md); M2 C++ artifact loader and M3 FFI leaf deferred | [DESIGN-NOTES.md](DESIGN-NOTES.md) |
+| [CHECKLIST.md](CHECKLIST.md) | in progress | M1 pure safe core **complete** (see COMPLETED-CHECKLIST.md). M2+ roadmap drafted for tuning: M2 new `windows-text` safe crate + `windows-text-sys` unsafe leaf (D16 / Option B; binds `windows` per revised D1), M3 adopt it here, M4 C++ artifact loader, M5 live registry provider (own `-sys` leaf), M6 filesystem surface, M7 async/threadpool, M8 HWC (M7/M8 outline) | [DESIGN-NOTES.md](DESIGN-NOTES.md) |

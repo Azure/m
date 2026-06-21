@@ -1,0 +1,13 @@
+# Copyright (c) Microsoft Corporation.
+[package]
+name = "windows-text-sys"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Unsafe FFI leaf for windows-text: safe wrappers over the buffer-management-critical Win32 string primitives."
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_Globalization", "Win32_Foundation", "Win32_System_SystemServices"] }
+
+[lints]
+workspace = true

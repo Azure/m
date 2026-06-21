@@ -10,10 +10,12 @@
 //! Per D6/D8, ordinal case-insensitive comparison and binary sort-key generation
 //! are abstracted behind the [`OrdinalCasing`] trait. The **only production**
 //! implementation is the mandated Win32 one (`CompareStringOrdinal` /
-//! `LCMapStringEx`), which lands with the FFI leaf in M2. The safe core stays
-//! FFI-free by programming against the trait; the test-only ASCII implementation
-//! (`AsciiOrdinalCasing`, compiled under `#[cfg(test)]`) must never ship as the
-//! production comparator.
+//! `LCMapStringEx`). Per D16, the trait, the `Utf16` type, and that production
+//! implementation are being relocated into the standalone `windows-text`
+//! crate (CHECKLIST M2/M3); after M3 this module is retired and these types are
+//! re-exported from that crate. The safe core stays FFI-free by programming
+//! against the trait; the test-only ASCII implementation (`AsciiOrdinalCasing`,
+//! compiled under `#[cfg(test)]`) must never ship as the production comparator.
 
 use core::cmp::Ordering;
 use core::fmt;

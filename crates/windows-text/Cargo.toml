@@ -1,0 +1,18 @@
+# Copyright (c) Microsoft Corporation.
+[package]
+name = "windows-text"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Safe, reusable Windows string layer: UTF-16 storage, ordinal casing, and code-page transcoding."
+
+[features]
+# Exposes the pure-Rust ASCII `OrdinalCasing` reference implementation so that
+# downstream crates can unit-test their case-insensitive logic off Windows.
+testing = []
+
+[target.'cfg(windows)'.dependencies]
+windows-text-sys = { path = "../windows-text-sys" }
+
+[lints]
+workspace = true

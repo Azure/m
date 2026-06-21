@@ -16,6 +16,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod decorator;
 pub mod error;
 pub mod ffi;
 pub mod path;
@@ -23,6 +24,7 @@ pub mod surface;
 pub mod tree;
 pub mod wstr;
 
+pub use decorator::{Buffered, PassThrough};
 pub use error::{RegistryError, Result};
 pub use path::KeyPath;
 pub use surface::{Request, Response, Surface, TreeSurface};

@@ -40,7 +40,7 @@ is dependency-ordered; the milestone ends in an integration test.
   Result<Response>; }`. A concrete in-memory `Surface` backed by the M1-3 tree.
   Unit tests: each `Request` variant round-trips against the tree-backed surface.
 
-- [ ] **M1-5 — Cross-cutting decorators over the seam (D4).** Pass-through and
+- [x] **M1-5 — Cross-cutting decorators over the seam (D4).** Pass-through and
   buffered decorators implemented once, surface-agnostically, over `Surface`.
   Buffered captures writes in an overlay and applies them on commit; base stays
   untouched until commit. Unit tests: buffered writes invisible to base

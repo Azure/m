@@ -46,7 +46,7 @@ is dependency-ordered; the milestone ends in an integration test.
   untouched until commit. Unit tests: buffered writes invisible to base
   pre-commit, visible post-commit; pass-through is transparent.
 
-- [ ] **M1-6 — Typed registry facade (D11).** A `Registry` surface trait with
+- [x] **M1-6 — Typed registry facade (D11).** A `Registry` surface trait with
   **session-vended roots** (no global `CURRENT_USER` / `LOCAL_MACHINE`
   constants), typed `get_*` / `set_*` accessors, and key/value iterators, all
   lowering into M1-4 `Request`s. Unit tests: facade calls produce the expected

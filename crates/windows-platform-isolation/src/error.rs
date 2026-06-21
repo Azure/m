@@ -7,6 +7,8 @@
 
 use core::fmt;
 
+use crate::tree::ValueType;
+
 /// Errors produced by the registry isolation surface.
 ///
 /// `#[non_exhaustive]` because later milestones add failure modes (e.g. value
@@ -22,6 +24,14 @@ pub enum RegistryError {
     KeyNotFound,
     /// The named value does not exist.
     ValueNotFound,
+    /// A typed accessor requested one value type but the stored value has a
+    /// different type.
+    TypeMismatch {
+        /// The type the caller asked for.
+        expected: ValueType,
+        /// The type the value actually has.
+        found: ValueType,
+    },
 }
 
 impl fmt::Display for RegistryError {
@@ -30,6 +40,9 @@ impl fmt::Display for RegistryError {
             Self::IllFormedUtf16 => f.write_str("stored string is not well-formed UTF-16"),
             Self::KeyNotFound => f.write_str("registry key not found"),
             Self::ValueNotFound => f.write_str("registry value not found"),
+            Self::TypeMismatch { expected, found } => {
+                write!(f, "value type mismatch: expected {expected:?}, found {found:?}")
+            }
         }
     }
 }

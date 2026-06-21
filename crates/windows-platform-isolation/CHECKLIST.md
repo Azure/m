@@ -52,7 +52,7 @@ is dependency-ordered; the milestone ends in an integration test.
   lowering into M1-4 `Request`s. Unit tests: facade calls produce the expected
   `Request` sequence and results.
 
-- [ ] **M1-7 — Integration test (tree logic).** Compose a full stack (facade →
+- [x] **M1-7 — Integration test (tree logic).** Compose a full stack (facade →
   buffered decorator → in-memory tree surface) over a few hundred synthetic
   keys/values. Assert isolation semantics end-to-end: buffered writes leave the
   base tree unmodified, committed writes merge correctly, reads reflect the

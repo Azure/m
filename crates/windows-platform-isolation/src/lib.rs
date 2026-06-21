@@ -32,3 +32,6 @@ pub use registry::{Registry, Session, WellKnownRoot};
 pub use surface::{Request, Response, Surface, TreeSurface};
 pub use tree::{Hive, OverlayTree, ValueData, ValueType};
 pub use wstr::{OrdinalCasing, Utf16};
+
+#[cfg(test)]
+mod integration_tests;

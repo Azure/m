@@ -148,3 +148,55 @@ Two deliberate degradations keep the codec total against the substrate's
 and decoding an unrecognized `REG_*` type yields `ValueData::Binary(bytes)`
 rather than an error. Both are recorded as owned choices so a future variant or
 type tag fails soft (as opaque binary) instead of panicking.
+
+## SHIM-D12 — Filesystem handle model, attribute↔metadata translation, and accept-and-ignore mutation
+
+The MW3 filesystem C ABI (`m*W` entry points in `mwinfile`) delegates to a safe,
+surface-generic core (`fs_ops`) over the session's live `Filesystem` facade,
+exactly as the registry surface delegates to `reg_ops` (SHIM-D2 / SHIM-D10). Four
+owned decisions shape it:
+
+- **Handle model.** A minted file `HANDLE` (`HandlePayload::File`) stores the
+  public `FilePath` the caller opened plus a sequential byte `position`; a minted
+  find `HANDLE` (`HandlePayload::Find`) stores a captured `DirEntry` listing plus
+  a cursor. The facade is path-addressed and has no persistent file-handle
+  object, so — as with SHIM-D10 — a handle does not pin a node open: a node
+  deleted out from under an open handle yields `ERROR_FILE_NOT_FOUND` on next
+  use. `mCloseHandle` is the one entry point that sees *all* `CloseHandle`
+  traffic (unlike `mRegCloseKey`): a non-minted value is forwarded to the real OS
+  `CloseHandle`, a minted value is released from the table.
+
+- **Attribute ↔ `FileMetadata` translation.** `to_win32_attributes` projects the
+  surface's `FileMetadata.attributes` (already Win32 `FILE_ATTRIBUTE_*` verbatim)
+  plus its `NodeKind` onto the Win32 attribute DWORD: the directory bit is forced
+  to match the kind, and an otherwise-empty mask collapses to
+  `FILE_ATTRIBUTE_NORMAL` (Win32 never reports `0`). The facade's `metadata`
+  reads **files only**, so a directory's metadata is recovered from its parent
+  listing (`stat_path` → `directory_metadata`); a parentless root (e.g. `C:\`) or
+  a leaf the listing does not surface by exact name synthesizes an empty
+  directory carrying just `FILE_ATTRIBUTE_DIRECTORY`. `FILETIME`s and the
+  high/low size split are filled by the ABI layer from the `i64` tick / `u64`
+  size fields.
+
+- **Attribute mutation is accept-and-ignore.** `mSetFileAttributesW` validates
+  the node exists and then reports success **without persisting** any change.
+  This matches the C++ shim (its metadata is read-only) and is *required* for
+  safety here: the live provider has no attribute-only write, and routing through
+  `write_file` would truncate real file content (the live `FileHandle::create`
+  recreates the file). The specified behavior is therefore "validate + succeed",
+  and the dependency is used only to validate existence.
+
+- **Content and move/copy deferral.** Per SHIM-D6, byte content is out of MW3
+  scope: `mReadFile`, `mWriteFile`, `mReadFileScatter` / `mWriteFileGather`,
+  `mMoveFileExW`, and `mCopyFileExW` exist for ABI completeness but report the
+  Win32 not-supported shape (`SetLastError(ERROR_NOT_SUPPORTED)` + `FALSE`);
+  `mMoveFileExW` additionally awaits a future isolation rename verb. Consequently
+  a file size is always its metadata size and `TRUNCATE_EXISTING` opens without
+  truncating.
+
+One further owned simplification for this milestone: `mFindFirstFileW` does
+**not** apply the pattern's leaf (wildcard or literal). It captures *every* child
+of the pattern's parent directory in ordinal order; a rootless single component
+(no parent) is `ERROR_INVALID_PARAMETER`, and an empty directory is
+`ERROR_FILE_NOT_FOUND`. Leaf/wildcard filtering is deferred to a later milestone.
+

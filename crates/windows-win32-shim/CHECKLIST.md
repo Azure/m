@@ -65,23 +65,23 @@ test. Sub-steps use decimal notation.
 > [`../windows-platform-isolation/CHECKLIST.md`](../windows-platform-isolation/CHECKLIST.md).
 > Until M9 lands, MW3 is exercised against in-memory / artifact stacks only.
 
-- [ ] **MW3-1** `mCreateFileW` (creation disposition → create/open metadata node;
+- [x] **MW3-1** `mCreateFileW` (creation disposition → create/open metadata node;
       mint a file `HANDLE` carrying handle state) + `mCloseHandle` (exported
       `noalias` / opt-in per SHIM-D4; predefined / unknown handles handled per the
       Win32 contract).
-- [ ] **MW3-2** Path metadata: `mGetFileAttributesW` / `mGetFileAttributesExW` /
+- [x] **MW3-2** Path metadata: `mGetFileAttributesW` / `mGetFileAttributesExW` /
       `mSetFileAttributesW` / `mDeleteFileW`, translating `FileMetadata` ↔ the
       Win32 attribute/`WIN32_FILE_ATTRIBUTE_DATA` shapes.
-- [ ] **MW3-3** Directory + handle-state ops: `mCreateDirectoryW` /
+- [x] **MW3-3** Directory + handle-state ops: `mCreateDirectoryW` /
       `mRemoveDirectoryW`, and `mGetFileSizeEx` / `mSetFilePointerEx` over the
       file handle state.
-- [ ] **MW3-4** Directory enumeration: `mFindFirstFileW` / `mFindNextFileW` /
+- [x] **MW3-4** Directory enumeration: `mFindFirstFileW` / `mFindNextFileW` /
       `mFindClose` (find-enumeration state from `read_dir`, ordinal-ordered).
       Content + move/copy exports (`mReadFile`, `mWriteFile`,
       `mReadFileScatter`/`mWriteFileGather`, `mMoveFileExW`, `mCopyFileExW`)
       return the Win32 not-supported failure shape (SHIM-D6; `mMoveFileExW`
       additionally awaits a future isolation rename op).
-- [ ] **MW3-5** *(integration)* Filesystem tests mirroring the C++
+- [x] **MW3-5** *(integration)* Filesystem tests mirroring the C++
       `test_mwinfile_handle_meta` / `test_mwinfile_legacy` against the live FS
       provider over a scratch temp dir (RAII cleanup) and an in-memory artifact
       stack; assert attribute/size results and ordinal `FindFirst`/`FindNext`

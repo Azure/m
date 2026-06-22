@@ -4,10 +4,10 @@
 //!
 //! A single [`ShimSession`] holds the isolation stack the C ABI routes through.
 //! It is created lazily on first use and lives for the rest of the process. The
-//! registry surface defaults to **live passthrough** over the real OS registry
-//! ([`LiveRegistry`]); `.pilcfg`-driven layering (buffered / persisted-state /
-//! redirecting) arrives in MW4. Configuration at this stage is programmatic only
-//! ([`ShimSession::new`]).
+//! registry and filesystem surfaces both default to **live passthrough** over
+//! the real OS ([`LiveRegistry`] / [`LiveFilesystem`]); `.pilcfg`-driven
+//! layering (buffered / persisted-state / redirecting) arrives in MW4.
+//! Configuration at this stage is programmatic only ([`ShimSession::new`]).
 //!
 //! Hive roots are vended through the held isolation [`Session`], so a path built
 //! from this session resolves against the configured registry stack. Predefined
@@ -18,20 +18,27 @@
 use std::sync::{Mutex, OnceLock};
 
 use windows_platform_isolation::{
-    KeyPath, LiveRegistry, Registry, Session, WellKnownRoot,
+    Filesystem, KeyPath, LiveFilesystem, LiveRegistry, Registry, Session, WellKnownRoot,
+    Win32OrdinalCasing,
 };
 
 use crate::handle_table::HandleTable;
 
+/// The live filesystem provider the default session routes through: live
+/// passthrough over the real OS filesystem, keyed with the mandated production
+/// ordinal casing (`Win32OrdinalCasing`).
+type LiveFs = Filesystem<LiveFilesystem<Win32OrdinalCasing>>;
+
 /// The process-wide isolation session and its handle table.
 ///
-/// The registry facade is held behind a [`Mutex`] because
-/// [`Surface::invoke`](windows_platform_isolation::Surface) takes `&mut self`;
-/// the C ABI is free-threaded, so every registry operation borrows it under the
-/// lock via [`ShimSession::with_registry`].
+/// The registry and filesystem facades are each held behind a [`Mutex`] because
+/// the surface `invoke` takes `&mut self`; the C ABI is free-threaded, so every
+/// operation borrows the relevant facade under its lock via
+/// [`ShimSession::with_registry`] / [`ShimSession::with_filesystem`].
 pub struct ShimSession {
     isolation: Session,
     registry: Mutex<Registry<LiveRegistry>>,
+    filesystem: Mutex<LiveFs>,
     handles: HandleTable,
 }
 
@@ -43,6 +50,7 @@ impl ShimSession {
         Self {
             isolation: Session::new(),
             registry: Mutex::new(Registry::new(LiveRegistry::new())),
+            filesystem: Mutex::new(Filesystem::new(LiveFilesystem::new(Win32OrdinalCasing))),
             handles: HandleTable::new(),
         }
     }
@@ -50,6 +58,12 @@ impl ShimSession {
     /// Borrow the registry facade under the session lock.
     pub fn with_registry<R>(&self, f: impl FnOnce(&mut Registry<LiveRegistry>) -> R) -> R {
         let mut guard = self.registry.lock().expect("session registry poisoned");
+        f(&mut guard)
+    }
+
+    /// Borrow the filesystem facade under the session lock.
+    pub fn with_filesystem<R>(&self, f: impl FnOnce(&mut LiveFs) -> R) -> R {
+        let mut guard = self.filesystem.lock().expect("session filesystem poisoned");
         f(&mut guard)
     }
 

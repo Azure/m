@@ -15,12 +15,16 @@
 //!
 //! This crate is Windows-only; on other platforms it compiles to nothing.
 //!
-//! The current milestone (MW2) adds the registry C ABI (W forms): the byte ↔
+//! The MW2 milestone added the registry C ABI (W forms): the byte ↔
 //! [`ValueData`](windows_platform_isolation::ValueData) codec ([`value_codec`]),
 //! the safe surface-generic registry core ([`reg_ops`]), and the exported
-//! `mReg*W` entry points ([`mwinreg`]). It builds on the MW1 foundation: Win32
-//! error mapping ([`error_map`]), the minted-handle table ([`handle_table`]),
-//! and the process-wide [`session`]. The filesystem C ABI arrives in MW3.
+//! `mReg*W` entry points ([`mwinreg`]). The current milestone (MW3) adds the
+//! filesystem C ABI (W forms): the safe surface-generic filesystem core
+//! ([`fs_ops`]) and the exported `m*W` entry points ([`mwinfile`]) for metadata,
+//! directory, and enumeration verbs (byte content + move/copy are deferred,
+//! SHIM-D12). Both build on the MW1 foundation: Win32 error mapping
+//! ([`error_map`]), the minted-handle table ([`handle_table`]), and the
+//! process-wide [`session`].
 
 #![deny(unsafe_code)]
 
@@ -28,7 +32,13 @@
 pub mod error_map;
 
 #[cfg(windows)]
+pub mod fs_ops;
+
+#[cfg(windows)]
 pub mod handle_table;
+
+#[cfg(windows)]
+pub mod mwinfile;
 
 #[cfg(windows)]
 pub mod mwinreg;

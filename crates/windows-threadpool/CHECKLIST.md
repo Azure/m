@@ -23,7 +23,7 @@ enqueue / start / end timing, state, cancel, and wait.
       `ffi` module — TP-D4). Add a `ThreadPoolError` mapping Win32 `GetLastError`
       into a safe error type, and an `ffi` module skeleton that owns the only
       `unsafe` in the crate.
-- [ ] **M7-1.2** RAII `Work` wrapper over `CreateThreadpoolWork` /
+- [x] **M7-1.2** RAII `Work` wrapper over `CreateThreadpoolWork` /
       `SubmitThreadpoolWork` / `WaitForThreadpoolWorkCallbacks` /
       `CloseThreadpoolWork`, plus the `extern "system"` trampoline that
       reconstructs and runs a boxed `FnOnce + Send + 'static` (TP-D2). Expose a

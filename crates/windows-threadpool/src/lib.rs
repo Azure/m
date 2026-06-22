@@ -23,4 +23,10 @@ mod error;
 mod ffi;
 
 #[cfg(windows)]
+mod work;
+
+#[cfg(windows)]
 pub use error::{ThreadPoolError, ThreadPoolResult};
+
+#[cfg(windows)]
+pub use work::{Work, submit_once};

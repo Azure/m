@@ -278,7 +278,7 @@ ABI.
       apply `FileMetadata` attributes/timestamps via the M9-1 leaf
       primitives)/`remove_file`, plus the full object-safe `impl FsSurface`, so
       `LiveFilesystem` is a drop-in provider for the `Filesystem` facade.
-- [ ] **M9-4** `LiveFilesystem::capture`: snapshot a real directory subtree into
+- [x] **M9-4** `LiveFilesystem::capture`: snapshot a real directory subtree into
       a base `FileTree` (mirror `LiveRegistry::capture`), metadata-only.
 - [ ] **M9-5** *(integration)* Windows-only: create a deterministic scratch temp
       subtree, drive create/metadata/enumerate/remove through `LiveFilesystem`,

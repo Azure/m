@@ -25,7 +25,7 @@ use windows_platform_isolation_sys::{
 use crate::file_path::{FILE_POSIX_SEPARATOR, FILE_PREFERRED_SEPARATOR, FilePath};
 use crate::fs_error::{FilesystemError, FilesystemResult};
 use crate::fs_surface::{FsRequest, FsResponse, FsSurface};
-use crate::fs_tree::{DirEntry, FileMetadata, NodeKind};
+use crate::fs_tree::{DirEntry, FileMetadata, FileTree, NodeKind};
 use crate::{OrdinalCasing, Utf16};
 
 /// The `FILE_ATTRIBUTE_DIRECTORY` flag: a node is a directory iff this bit is
@@ -255,6 +255,47 @@ impl<C: OrdinalCasing> LiveFilesystem<C> {
     /// [`FilesystemError::NotFound`].
     fn node_info(&self, path: &FilePath) -> FilesystemResult<FileInfo> {
         file_attributes(&wide_path(path)).map_err(map_fs_err)
+    }
+
+    /// Snapshot the real directory subtree rooted at `path` into an immutable
+    /// base [`FileTree`] (D20/D21), the filesystem analogue of
+    /// [`LiveRegistry::capture`](crate::LiveRegistry::capture).
+    ///
+    /// Metadata-only: directory and file *attributes/timestamps* (and file
+    /// size) are captured, not file *content*. Entries are keyed through this
+    /// provider's casing seam, so the captured tree enumerates in the same
+    /// ordinal order as the live filesystem. The root directory is recorded even
+    /// when it is empty.
+    ///
+    /// # Errors
+    ///
+    /// [`FilesystemError::NotFound`] when `path` is absent or names a file (not
+    /// a directory); [`FilesystemError::Os`] on any other Win32 failure.
+    pub fn capture(&self, path: &FilePath) -> FilesystemResult<FileTree> {
+        let root = self.node_info(path)?;
+        if !is_directory(&root) {
+            return Err(FilesystemError::NotFound);
+        }
+        let mut tree = FileTree::new();
+        tree.insert_dir(&self.casing, path, to_metadata(&root));
+        self.capture_into(&mut tree, path)?;
+        Ok(tree)
+    }
+
+    /// Recurse `path`'s entries into `tree` (depth-first), mirroring
+    /// `LiveRegistry::capture_into`.
+    fn capture_into(&self, tree: &mut FileTree, path: &FilePath) -> FilesystemResult<()> {
+        for entry in self.read_dir(path)? {
+            let child = child_path(path, entry.name.as_units());
+            match entry.kind {
+                NodeKind::File => tree.insert_file(&self.casing, &child, entry.metadata),
+                NodeKind::Directory => {
+                    tree.insert_dir(&self.casing, &child, entry.metadata);
+                    self.capture_into(tree, &child)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -619,6 +660,58 @@ mod tests {
         assert_eq!(
             fs.invoke(&FsRequest::DirExists { path: dir }).unwrap(),
             FsResponse::Exists(false)
+        );
+    }
+
+    #[test]
+    fn capture_snapshots_subtree_metadata_only() {
+        use crate::fs_tree::OverlayFileTree;
+
+        let t = TempTree::new("capture");
+        t.make_file("readme.txt", b"hello");
+        t.make_dir("bin");
+        t.make_file("bin/tool.exe", b"MZ");
+        t.make_dir("bin/empty");
+        let fs = live();
+
+        let tree = fs.capture(&t.root_path()).unwrap();
+        // Drive the captured base through an overlay to inspect structure.
+        let overlay = OverlayFileTree::new(AsciiOrdinalCasing, tree);
+        assert!(overlay.file_exists(&t.path("readme.txt")));
+        assert!(overlay.dir_exists(&t.path("bin")));
+        assert!(overlay.file_exists(&t.path("bin/tool.exe")));
+        // An empty captured directory is still recorded.
+        assert!(overlay.dir_exists(&t.path("bin/empty")));
+        // File size is captured (content is not, but size is metadata).
+        assert_eq!(overlay.file_metadata(&t.path("readme.txt")).unwrap().size, 5);
+        // Enumeration is ordinal-ordered: bin < readme.txt.
+        let names: Vec<String> = overlay
+            .read_dir(&t.root_path())
+            .unwrap()
+            .iter()
+            .map(|e| e.name.to_utf8().unwrap())
+            .collect();
+        assert_eq!(names, vec!["bin".to_string(), "readme.txt".to_string()]);
+    }
+
+    #[test]
+    fn capture_on_missing_is_not_found() {
+        let t = TempTree::new("capturemiss");
+        let fs = live();
+        assert_eq!(
+            fs.capture(&t.path("ghost")).map(|_| ()),
+            Err(FilesystemError::NotFound)
+        );
+    }
+
+    #[test]
+    fn capture_on_file_is_not_found() {
+        let t = TempTree::new("capturefile");
+        t.make_file("plain.txt", b"x");
+        let fs = live();
+        assert_eq!(
+            fs.capture(&t.path("plain.txt")).map(|_| ()),
+            Err(FilesystemError::NotFound)
         );
     }
 }

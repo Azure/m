@@ -132,8 +132,11 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       mirrored→empty key, ignores `last_write_time`, and decodes `type`/`data`
       per `reg_value_type` (with a lossless `Binary` fallback); roxmltree keeps
       it `#![forbid(unsafe_code)]`.
-- [ ] **M4-3** Safe deserializer: bytes → M1 overlay tree, keyed with M2
-      production sort keys for C++ parity (D8/D12). No `unsafe`.
+- [x] **M4-3** Safe deserializer: bytes → M1 overlay tree, keyed with M2
+      production sort keys for C++ parity (D8/D12). No `unsafe`. Added
+      `src/serial.rs` — `load_registry_hive(casing, xml) -> Result<Hive>` over
+      roxmltree (D19): normalizes hive names, folds tombstones/mirrored, decodes
+      `type`/`data`. 18 unit tests; `#![forbid(unsafe_code)]` holds.
 - [x] **M4-4** Extend `RegistryError` for parse/format failures as needed (D14).
       Added `RegistryError::MalformedArtifact(String)` (with `Display`) for
       malformed XML / unknown hive name / undecodable value — the loader's

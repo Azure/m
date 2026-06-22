@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+roxmltree = "0.21.1"
 windows-text = { path = "../windows-text" }
 
 [dev-dependencies]

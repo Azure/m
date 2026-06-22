@@ -22,6 +22,7 @@ pub mod decorator;
 pub mod error;
 pub mod path;
 pub mod registry;
+pub mod serial;
 pub mod surface;
 pub mod tree;
 
@@ -29,6 +30,7 @@ pub use decorator::{Buffered, PassThrough};
 pub use error::{RegistryError, Result};
 pub use path::KeyPath;
 pub use registry::{Registry, Session, WellKnownRoot};
+pub use serial::load_registry_hive;
 pub use surface::{Request, Response, Surface, TreeSurface};
 pub use tree::{Hive, OverlayTree, ValueData, ValueType};
 

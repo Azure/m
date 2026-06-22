@@ -134,7 +134,10 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       it `#![forbid(unsafe_code)]`.
 - [ ] **M4-3** Safe deserializer: bytes → M1 overlay tree, keyed with M2
       production sort keys for C++ parity (D8/D12). No `unsafe`.
-- [ ] **M4-4** Extend `RegistryError` for parse/format failures as needed (D14).
+- [x] **M4-4** Extend `RegistryError` for parse/format failures as needed (D14).
+      Added `RegistryError::MalformedArtifact(String)` (with `Display`) for
+      malformed XML / unknown hive name / undecodable value — the loader's
+      parse-failure channel. Sequenced before M4-3 (the deserializer needs it).
 - [ ] **M4-5** *(integration)* Load a real C++-produced artifact; assert tree
       contents and ordinal enumeration order.
 - [ ] **M4-6** *(integration, from M2-7)* Have the C++ PIL test suite load the

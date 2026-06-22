@@ -32,6 +32,12 @@ pub enum RegistryError {
         /// The type the value actually has.
         found: ValueType,
     },
+    /// A persisted C++ PIL artifact could not be parsed into a registry tree:
+    /// malformed XML, an unknown predefined-hive name, or an undecodable value
+    /// (`type`/`data`) — any violation of the shared format (D18/D19). The
+    /// string describes what went wrong; it is diagnostic, not a stable
+    /// contract.
+    MalformedArtifact(String),
 }
 
 impl fmt::Display for RegistryError {
@@ -42,6 +48,9 @@ impl fmt::Display for RegistryError {
             Self::ValueNotFound => f.write_str("registry value not found"),
             Self::TypeMismatch { expected, found } => {
                 write!(f, "value type mismatch: expected {expected:?}, found {found:?}")
+            }
+            Self::MalformedArtifact(detail) => {
+                write!(f, "malformed registry artifact: {detail}")
             }
         }
     }

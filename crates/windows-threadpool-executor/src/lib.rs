@@ -25,4 +25,10 @@ extern crate windows_threadpool as _;
 mod block_on;
 
 #[cfg(windows)]
+mod executor;
+
+#[cfg(windows)]
 pub use block_on::block_on;
+
+#[cfg(windows)]
+pub use executor::{Executor, JoinHandle};

@@ -55,7 +55,7 @@ enqueue / start / end timing, state, cancel, and wait.
 - [x] **M7-2.2** `block_on(future) -> T` driving a future to completion on the
       calling thread (park/unpark waker), independent of the pool. Ordered
       before the executor so the executor's tests can `block_on` a `JoinHandle`.
-- [ ] **M7-2.3** `Executor` whose `async-task` schedule closure submits a
+- [x] **M7-2.3** `Executor` whose `async-task` schedule closure submits a
       thread-pool work item (TP-D3): `spawn(future) -> JoinHandle<T>` running
       idle tasks on no dedicated thread.
 - [ ] **M7-2.4** *(integration)* Executor smoke tests: spawn + await a chain of

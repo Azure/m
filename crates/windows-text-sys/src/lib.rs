@@ -24,5 +24,5 @@ mod win32;
 
 #[cfg(windows)]
 pub use win32::{
-    Win32Error, compare_ordinal_ignore_case, mb_to_wide, sort_key, wide_to_mb,
+    Win32Error, compare_ordinal_ignore_case, mb_to_wide, ordinal_upcase, wide_to_mb,
 };

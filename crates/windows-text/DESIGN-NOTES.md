@@ -11,7 +11,7 @@ this file records the decisions local to these two crates.
 | ID | Title |
 |---|---|
 | WT-1 | Two crates: safe `windows-text` + unsafe leaf `windows-text-sys` (Option B) |
-| WT-2 | The sort key is an invariant `LCMAP_SORTKEY` byte key; comparator is `CompareStringOrdinal` |
+| WT-2 | The sort key is a `memcmp`-able byte key from ordinal upper-casing; comparator is `CompareStringOrdinal` |
 | WT-3 | The leaf exposes the four buffer-critical FFI primitives as safe fns |
 | WT-4 | Off-Windows the safe crate compiles to the trait + ASCII reference only |
 | WT-5 | Sort-key parity is pinned by shared golden vectors generated from OS APIs |
@@ -26,57 +26,52 @@ is unconditionally `#![forbid(unsafe_code)]` and depends on `windows-text-sys`
 `windows` crate (D1). Consumers see zero `unsafe`; `cargo-geiger` over the safe
 crate is zero.
 
-## WT-2 — The sort key is an invariant LCMAP_SORTKEY byte key
+## WT-2 — The sort key is a memcmp-able byte key from ordinal upper-casing
 
-**Decision.** Two distinct primitives back the casing seam:
+**Decision.** Two primitives back the casing seam, and they share *both*
+equality and ordering:
 
 - `compare_ignore_case(a, b)` calls `CompareStringOrdinal(a, b, bIgnoreCase = TRUE)`
   (D6) — an ordinal, case-insensitive comparison over code units.
-- `sort_key(s)` calls `LCMapStringEx(LOCALE_NAME_INVARIANT,
-  LCMAP_SORTKEY | NORM_IGNORECASE, s)` and returns the raw **byte** key the OS
-  produces.
+- `sort_key(s)` ordinally upper-cases the code units via
+  `LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s)` and serializes the
+  result **big-endian** into a `memcmp`-comparable **byte** key. A plain byte
+  comparison of two keys reproduces the equality *and* the ordering of
+  `compare_ignore_case`.
 
-**Key contract (equality, not ordering).** The two primitives share *equality*
-but not *ordering*: two `sort_key` results are byte-equal exactly when
-`compare_ignore_case` reports `Equal`, so the key is a faithful
-case-insensitive identity for hashed/equality use and for compound keys. Their
-*orderings* differ — `CompareStringOrdinal` orders by code unit, while an
-`LCMAP_SORTKEY` key orders by invariant linguistic collation, which weights
-punctuation differently. Concretely, ordinally `"a_b" < "ab"` (`_` = U+005F <
-`b`), but the linguistic key orders `"ab" < "a_b"`. A consumer that needs a
-single self-consistent *ordering* must pick one primitive as authoritative for
-that purpose; the two are interchangeable only for equality.
+**Materialize a key, but keep it ordinal.** Materializing a byte key (rather
+than only comparing pairwise) is the approach to gravitate toward: the keys
+concatenate (with a separator) into one `memcmp`-comparable key for a compound
+(multi-field) ordered map, which a pairwise comparator cannot provide. The byte
+key must be built from **ordinal** upper-casing, not a linguistic collation key.
+`LCMAP_SORTKEY | NORM_IGNORECASE` was considered and rejected: it produces an
+invariant *linguistic* key whose ordering diverges from the ordinal comparator
+on punctuation (e.g. ordinally `"a_b" < "ab"` since `_` = U+005F < `b`, but the
+linguistic key orders `"ab" < "a_b"`). That divergence would break the
+`OrdinalCasing` contract (sort-key order must equal comparator order), D6, the
+`AsciiOrdinalCasing` reference, and the ordinal iteration of the consuming tree.
+Ordinal upper-cased bytes are equally `memcmp`-able and composable while staying
+consistent with `CompareStringOrdinal` by construction.
 
-**Why the byte key.** `LCMAP_SORTKEY` keys *compose*: concatenating the keys of
-several fields (with a separator) yields one `memcmp`-comparable key for a
-compound (multi-field) ordered map, which a per-code-unit upper-case fold cannot
-do. That composability is the reason to materialize a key at all — for a single
-field the pairwise comparator alone would suffice.
-
-**FFI note.** `LCMAP_SORTKEY` writes a byte array and counts `cchDest` in
-**bytes**, but the `windows` binding types the destination as `&mut [u16]` and
-passes its element count. A `[u16; needed]` buffer therefore advertises `needed`
-bytes of capacity (it physically holds twice that), which is always sufficient;
-the bytes are read back in native memory order. This subtlety is confined to the
-`windows-text-sys` leaf (WT-3).
-
-**Owned behavior (Design-Autonomy).** Our specification is "an invariant,
-case-insensitive, byte-comparable, composable sort key, paired with an ordinal
-case-insensitive comparator." `LCMapStringEx`/`CompareStringOrdinal` are the
-chosen mechanisms; the committed golden vectors (WT-5) are the written contract
-that pins the exact bytes and comparator signs for both the Rust and the C++
+**Owned behavior (Design-Autonomy).** Our specification is "a `memcmp`-comparable,
+composable, ordinal case-insensitive byte key, paired with the ordinal
+`CompareStringOrdinal` comparator, the two consistent in equality and ordering."
+`LCMapStringEx`/`LCMAP_UPPERCASE` is the chosen fold mechanism because its
+per-code-unit upper-casing matches `CompareStringOrdinal`'s fold for ASCII and
+the common BMP range; the two folds could in principle differ for exotic code
+units, and the committed golden vectors (WT-5) are the written contract that
+pins the exact bytes and comparator signs for both the Rust and the C++
 bindings.
 
 ## WT-3 — The leaf exposes the four buffer-critical FFI primitives as safe fns
 
 `windows-text-sys` wraps exactly the buffer-management-critical Win32 string
-primitives — `CompareStringOrdinal`, `LCMapStringEx` (used for
-`LCMAP_SORTKEY | NORM_IGNORECASE`, per WT-2), `MultiByteToWideChar`, and
-`WideCharToMultiByte` — each as a safe slice-in / owned-out function that owns
-its two-call length probe and `GetLastError` mapping. No raw pointers cross the
-boundary.
+primitives — `CompareStringOrdinal`, `LCMapStringEx` (used for `LCMAP_UPPERCASE`,
+per WT-2), `MultiByteToWideChar`, and `WideCharToMultiByte` — each as a safe
+slice-in / owned-out function that owns its two-call length probe and
+`GetLastError` mapping. No raw pointers cross the boundary.
 
-`compare_ordinal_ignore_case` and `sort_key` are infallible in their public
+`compare_ordinal_ignore_case` and `ordinal_upcase` are infallible in their public
 signatures: empty inputs are handled without calling Win32, and for valid
 non-empty inputs the calls cannot fail, so a failure is treated as an
 unreachable invariant violation (panic). The code-page transcoders genuinely
@@ -127,6 +122,7 @@ happens to compute."
    assert the same. Divergence on either side is a failing test pinned to a
    specific row.
 
-The corpus must include the punctuation cases (`_`, `a_b` vs `ab`) that expose
-the ordinal-vs-invariant divergence noted in WT-2, because resolving WT-2's open
-ordering question (M2-8) is precisely what these vectors adjudicate.
+The corpus must include the punctuation cases (`_`, `a_b` vs `ab`) that
+distinguish an ordinal key from a linguistic one, so the fixture positively
+documents that the shipped key is ordinal (WT-2) and would catch any regression
+back to a linguistic collation key.

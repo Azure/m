@@ -9,15 +9,12 @@ use crate::utf16::Utf16;
 
 /// The ordinal-casing seam (D6/D8).
 ///
-/// Provides Windows case-insensitive comparison and a binary sort key over
-/// UTF-16 code units. [`compare_ignore_case`](OrdinalCasing::compare_ignore_case)
-/// is **ordinal** (never linguistic). [`sort_key`](OrdinalCasing::sort_key) is an
-/// `LCMAP_SORTKEY` byte key over the invariant locale: two keys are byte-equal
-/// exactly when the comparator reports case-insensitive equality, but the key's
-/// byte *ordering* follows invariant linguistic collation and may diverge from
-/// the ordinal comparator's ordering on punctuation. The byte form is
-/// concatenable into a single `memcmp`-comparable key for compound (multi-field)
-/// ordered maps.
+/// Provides Windows **ordinal** (never linguistic) case-insensitive comparison
+/// and a binary sort key over UTF-16 code units. The sort key is a
+/// `memcmp`-comparable byte serialization of the ordinal upper-cased units, so a
+/// plain byte comparison of two keys reproduces the equality and ordering of
+/// [`compare_ignore_case`](OrdinalCasing::compare_ignore_case), and the keys
+/// concatenate into a single comparable key for compound (multi-field) maps.
 ///
 /// This trait is the dependency-injection seam that lets downstream crates
 /// unit-test case-insensitive logic **off Windows** by substituting the
@@ -26,15 +23,13 @@ pub trait OrdinalCasing {
     /// Ordinal case-insensitive comparison of two code-unit sequences (D6).
     fn compare_ignore_case(&self, a: &[u16], b: &[u16]) -> Ordering;
 
-    /// Binary case-insensitive sort key: byte-equal keys correspond to
-    /// case-insensitive equality, and the key induces a stable total order for
-    /// ordered storage (D8).
+    /// `memcmp`-comparable binary sort key reproducing ordinal case-insensitive
+    /// ordering and equality via byte comparison (D8).
     fn sort_key(&self, s: &[u16]) -> Vec<u8>;
 }
 
 /// Serialize folded UTF-16 code units big-endian so that a plain byte
-/// comparison reproduces code-unit ordering. Used only by the ASCII reference.
-#[cfg(any(test, feature = "testing"))]
+/// comparison reproduces code-unit ordering.
 fn units_to_be_bytes(units: &[u16]) -> Vec<u8> {
     let mut out = Vec::with_capacity(units.len() * 2);
     for &u in units {
@@ -46,9 +41,9 @@ fn units_to_be_bytes(units: &[u16]) -> Vec<u8> {
 /// The mandated Windows production casing (D6/D8).
 ///
 /// `compare_ignore_case` calls `CompareStringOrdinal(bIgnoreCase = TRUE)`;
-/// `sort_key` returns the raw byte key from
-/// `LCMapStringEx(LCMAP_SORTKEY | NORM_IGNORECASE)` over the invariant locale.
-/// Both delegate to the [`windows-text-sys`](windows_text_sys) leaf, where all
+/// `sort_key` ordinally upper-cases via `LCMapStringEx`/`LCMAP_UPPERCASE` and
+/// serializes the result big-endian into a `memcmp`-comparable byte key. Both
+/// delegate to the [`windows-text-sys`](windows_text_sys) leaf, where all
 /// `unsafe` is confined.
 #[cfg(windows)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -61,7 +56,7 @@ impl OrdinalCasing for Win32OrdinalCasing {
     }
 
     fn sort_key(&self, s: &[u16]) -> Vec<u8> {
-        windows_text_sys::sort_key(s)
+        units_to_be_bytes(&windows_text_sys::ordinal_upcase(s))
     }
 }
 
@@ -73,12 +68,11 @@ impl Utf16 {
         windows_text_sys::compare_ordinal_ignore_case(self.as_units(), other.as_units())
     }
 
-    /// Case-insensitive binary sort key (D8): byte-equal keys correspond to
-    /// [`compare_ignore_case`](Utf16::compare_ignore_case) equality; the key's
-    /// byte order is the invariant `LCMAP_SORTKEY` collation.
+    /// Ordinal binary sort key (D8): byte comparison of two keys reproduces
+    /// [`compare_ignore_case`](Utf16::compare_ignore_case).
     #[must_use]
     pub fn sort_key(&self) -> Vec<u8> {
-        windows_text_sys::sort_key(self.as_units())
+        units_to_be_bytes(&windows_text_sys::ordinal_upcase(self.as_units()))
     }
 }
 

@@ -78,17 +78,18 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       fixture, and have **both** the Rust and the C++ PIL test suites load and
       assert against the same file. Removes the old "extract reference vectors
       from C++" prerequisite. Must include the `_` / `a_b` vs `ab` cases that
-      drive the M2-8 ordering decision.
-- [x] **M2-8** Sort-key primitive = `LCMapStringEx(LOCALE_NAME_INVARIANT,
-      LCMAP_SORTKEY | NORM_IGNORECASE)` returning the raw **byte** key; the
-      comparator stays `CompareStringOrdinal(bIgnoreCase = TRUE)`. The two share
-      case-insensitive **equality** but not ordering (the key orders by invariant
-      linguistic collation, the comparator by code unit; they diverge on
-      punctuation such as `"a_b"` vs `"ab"`). Tests assert the equality contract
-      and ordinal comparator parity (`win32_sort_key_equality_agrees_with_compare`,
-      `win32_compare_matches_ascii_reference_on_ascii`). See WT-2. NOTE for M3:
-      when `tree.rs` adopts this, decide which primitive is authoritative for its
-      iteration *order*, since key order ≠ comparator order on punctuation.
+      distinguish an ordinal key from a linguistic one (WT-2).
+- [x] **M2-8** Sort key = a `memcmp`-comparable **byte** key built from ordinal
+      upper-casing (`LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE)`
+      serialized big-endian); comparator = `CompareStringOrdinal(bIgnoreCase =
+      TRUE)`. The key and comparator are consistent in **both** equality and
+      ordering. `LCMAP_SORTKEY | NORM_IGNORECASE` was considered and rejected
+      because its linguistic ordering diverges from the ordinal comparator on
+      punctuation (`"a_b"` vs `"ab"`), which would break the `OrdinalCasing`
+      contract, D6, the ASCII reference, and ordinal tree iteration. Ordinal
+      upper-cased bytes are equally composable while staying ordinal-consistent.
+      Tests assert ordering parity (`win32_sort_key_agrees_with_compare`,
+      `win32_matches_ascii_reference_on_ascii`). See WT-2; pinned by WT-5.
 
 ### M3 — Adopt `windows-text` here (integration / refactor)
 

@@ -7,9 +7,9 @@ use core::cmp::Ordering;
 
 use windows::Win32::Foundation::{GetLastError, LPARAM};
 use windows::Win32::Globalization::{
-    CSTR_EQUAL, CSTR_GREATER_THAN, CSTR_LESS_THAN, CompareStringOrdinal, LCMAP_SORTKEY,
+    CSTR_EQUAL, CSTR_GREATER_THAN, CSTR_LESS_THAN, CompareStringOrdinal, LCMAP_UPPERCASE,
     LCMapStringEx, LOCALE_NAME_INVARIANT, MB_ERR_INVALID_CHARS, MULTI_BYTE_TO_WIDE_CHAR_FLAGS,
-    MultiByteToWideChar, NORM_IGNORECASE, WideCharToMultiByte,
+    MultiByteToWideChar, WideCharToMultiByte,
 };
 use windows::core::PCSTR;
 
@@ -69,44 +69,36 @@ pub fn compare_ordinal_ignore_case(a: &[u16], b: &[u16]) -> Ordering {
     }
 }
 
-/// Case-insensitive ordinal sort key for a UTF-16 code-unit sequence via
-/// `LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_SORTKEY | NORM_IGNORECASE)`.
+/// Ordinal upper-casing of UTF-16 code units via
+/// `LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE)`.
 ///
-/// The result is the raw **byte** key the OS produces (D8): two keys compare
-/// with `[u8]::cmp` in the same order the case-insensitive comparator orders
-/// their source strings, and keys are byte-concatenable into a single
-/// `memcmp`-comparable key for compound (multi-field) ordered maps. Empty input
-/// maps to an empty key without calling Win32.
-///
-/// `LCMAP_SORTKEY` writes a byte array and counts `cchDest` in **bytes**, but
-/// the `windows` binding types the destination as `&mut [u16]` and passes its
-/// element count as `cchDest`. A `[u16; needed]` buffer therefore advertises
-/// `needed` bytes of capacity (it physically holds `2 * needed`), which is
-/// always sufficient; the bytes are then read back in native memory order.
+/// This is the case-fold primitive the safe crate serializes (big-endian) into
+/// a `memcmp`-comparable ordinal sort key (D8) consistent with
+/// `CompareStringOrdinal(bIgnoreCase)`. Empty input maps to empty output without
+/// calling Win32.
 ///
 /// # Panics
 ///
 /// Panics only if `LCMapStringEx` reports failure, which cannot happen for the
 /// valid (non-empty) slice passed here.
 #[must_use]
-pub fn sort_key(s: &[u16]) -> Vec<u8> {
+pub fn ordinal_upcase(s: &[u16]) -> Vec<u16> {
     if s.is_empty() {
         return Vec::new();
     }
 
-    let map_flags = LCMAP_SORTKEY | NORM_IGNORECASE.0;
-    let needed =
-        unsafe { LCMapStringEx(LOCALE_NAME_INVARIANT, map_flags, s, None, None, None, LPARAM(0)) };
+    let needed = unsafe {
+        LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, s, None, None, None, LPARAM(0))
+    };
     if needed <= 0 {
         panic!("LCMapStringEx sizing failed: {}", last_error());
     }
 
-    let needed = needed as usize;
-    let mut buf = vec![0u16; needed];
+    let mut buf = vec![0u16; needed as usize];
     let written = unsafe {
         LCMapStringEx(
             LOCALE_NAME_INVARIANT,
-            map_flags,
+            LCMAP_UPPERCASE,
             s,
             Some(&mut buf),
             None,
@@ -117,14 +109,8 @@ pub fn sort_key(s: &[u16]) -> Vec<u8> {
     if written <= 0 {
         panic!("LCMapStringEx mapping failed: {}", last_error());
     }
-
-    let written = written as usize;
-    let mut bytes = Vec::with_capacity(written);
-    for unit in &buf {
-        bytes.extend_from_slice(&unit.to_ne_bytes());
-    }
-    bytes.truncate(written);
-    bytes
+    buf.truncate(written as usize);
+    buf
 }
 
 /// Decode bytes in `code_page` to UTF-16 via `MultiByteToWideChar`.

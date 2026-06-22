@@ -131,10 +131,10 @@ fn win32_ordinal_is_not_linguistic() {
 
 #[cfg(windows)]
 #[test]
-fn win32_compare_matches_ascii_reference_on_ascii() {
-    // Differential parity: on ASCII inputs the Win32 ordinal comparator must
-    // agree with the pure-Rust ASCII reference. (The sort key follows invariant
-    // linguistic collation and is covered separately by its equality contract.)
+fn win32_matches_ascii_reference_on_ascii() {
+    // Differential parity: on ASCII inputs the Win32 implementation must agree
+    // with the pure-Rust ASCII reference, for both comparison and sort-key
+    // ordering.
     let reference = AsciiOrdinalCasing;
     for &x in ASCII_SAMPLES {
         for &y in ASCII_SAMPLES {
@@ -146,25 +146,33 @@ fn win32_compare_matches_ascii_reference_on_ascii() {
                 reference.compare_ignore_case(a.as_units(), b.as_units()),
                 "compare mismatch for {x:?} vs {y:?}",
             );
+
+            let ka = a.sort_key();
+            let kb = b.sort_key();
+            assert_eq!(
+                ka.cmp(&kb),
+                reference
+                    .sort_key(a.as_units())
+                    .cmp(&reference.sort_key(b.as_units())),
+                "sort-key ordering mismatch for {x:?} vs {y:?}",
+            );
         }
     }
 }
 
 #[cfg(windows)]
 #[test]
-fn win32_sort_key_equality_agrees_with_compare() {
-    // The sort key is an LCMAP_SORTKEY (invariant, NORM_IGNORECASE) byte key: its
-    // byte ordering follows linguistic collation and may diverge from the ordinal
-    // comparator on punctuation, but two keys are byte-equal exactly when the
-    // comparator reports case-insensitive equality (the key-identity contract).
+fn win32_sort_key_agrees_with_compare() {
+    // The sort key must reproduce compare_ignore_case under a byte comparison
+    // (the OrdinalCasing contract, D8).
     for &x in ASCII_SAMPLES {
         for &y in ASCII_SAMPLES {
             let a = Utf16::from_utf8(x);
             let b = Utf16::from_utf8(y);
             assert_eq!(
-                a.sort_key() == b.sort_key(),
-                a.compare_ignore_case(&b) == Ordering::Equal,
-                "sort-key equality vs compare mismatch for {x:?} vs {y:?}",
+                a.sort_key().cmp(&b.sort_key()),
+                a.compare_ignore_case(&b),
+                "sort-key vs compare mismatch for {x:?} vs {y:?}",
             );
         }
     }

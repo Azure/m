@@ -289,3 +289,172 @@ fn large_scale_enumeration_is_complete_and_ordered() {
     assert_eq!(names.first().unwrap(), "f0000.dat");
     assert_eq!(names.last().unwrap(), "f0499.dat");
 }
+
+// --- MW8: FindFirstFileEx-family enumeration (wildcards, search ops, casing,
+// short-name propagation) -----------------------------------------------------
+//
+// These exercise the shared find engine (`fs_ops::find_first` / `find_next`) the
+// `mFindFirstFileExW` / `mFindFirstFileTransactedW` / `mFindFirstFileW` entry
+// points delegate to, over an in-memory `TreeFsSurface` — so no live-OS path is
+// ever touched (the isolation guarantee is structural in the fixture). The
+// extended-parameter validation (`map_find_ex_params`) and the
+// `WIN32_FIND_DATAW` short-name marshaling (`fill_find_data`) are unit-tested in
+// `mwinfile.rs`, since they are private to the entry-point layer.
+
+/// A wildcard fixture: `C:\find` holding three files of two extensions, a
+/// `nested` subdirectory, and a long-named file carrying an 8.3 short name.
+fn find_fixture() -> (Filesystem<TreeFsSurface<Win32OrdinalCasing>>, HandleTable) {
+    let mut tree = FileTree::new();
+    tree.insert_dir(&Win32OrdinalCasing, &p("C:\\find"), dir_md());
+    tree.insert_dir(&Win32OrdinalCasing, &p("C:\\find\\nested"), dir_md());
+    tree.insert_file(&Win32OrdinalCasing, &p("C:\\find\\alpha.txt"), file_md(1));
+    tree.insert_file(&Win32OrdinalCasing, &p("C:\\find\\beta.txt"), file_md(2));
+    tree.insert_file(&Win32OrdinalCasing, &p("C:\\find\\gamma.log"), file_md(3));
+    tree.insert_file_with_short_name(
+        &Win32OrdinalCasing,
+        &p("C:\\find\\longfilename.dat"),
+        file_md(4),
+        Some(windows_platform_isolation::Utf16::from_utf8("LONGFI~1.DAT")),
+    );
+    (Filesystem::in_memory(tree), HandleTable::new())
+}
+
+/// Enumerate every entry matched by `pattern` under `op` / `case_sensitive`.
+fn collect(
+    fs: &mut Filesystem<TreeFsSurface<Win32OrdinalCasing>>,
+    handles: &HandleTable,
+    pattern: &str,
+    op: SearchOp,
+    case_sensitive: bool,
+) -> Vec<String> {
+    let mut names = Vec::new();
+    let Some((h, first)) =
+        fs_ops::find_first(fs, handles, &p(pattern), op, case_sensitive, true).unwrap()
+    else {
+        return names;
+    };
+    names.push(name_of(&first));
+    while let Some((entry, _)) = fs_ops::find_next(handles, h).unwrap() {
+        names.push(name_of(&entry));
+    }
+    names
+}
+
+#[test]
+fn find_ex_star_wildcard_selects_extension_subset() {
+    let (mut fs, handles) = find_fixture();
+    let names = collect(&mut fs, &handles, "C:\\find\\*.txt", SearchOp::NameMatch, false);
+    assert_eq!(names, vec!["alpha.txt", "beta.txt"]);
+}
+
+#[test]
+fn find_ex_question_mark_matches_single_char() {
+    let (mut fs, handles) = find_fixture();
+    // '?eta.txt' matches the single-char-prefixed 'beta.txt' only.
+    let names = collect(&mut fs, &handles, "C:\\find\\?eta.txt", SearchOp::NameMatch, false);
+    assert_eq!(names, vec!["beta.txt"]);
+}
+
+#[test]
+fn find_ex_literal_matches_exact() {
+    let (mut fs, handles) = find_fixture();
+    let names = collect(&mut fs, &handles, "C:\\find\\gamma.log", SearchOp::NameMatch, false);
+    assert_eq!(names, vec!["gamma.log"]);
+}
+
+#[test]
+fn find_ex_limit_to_directories_excludes_files() {
+    let (mut fs, handles) = find_fixture();
+    // With LimitToDirectories, the all-matching '*' keeps only the subdirectory.
+    let names = collect(
+        &mut fs,
+        &handles,
+        "C:\\find\\*",
+        SearchOp::LimitToDirectories,
+        false,
+    );
+    assert_eq!(names, vec!["nested"]);
+}
+
+#[test]
+fn find_ex_case_sensitivity_governs_matching() {
+    let (mut fs, handles) = find_fixture();
+    // Default (case-insensitive): '*.TXT' matches the lowercase '.txt' files.
+    let insensitive = collect(&mut fs, &handles, "C:\\find\\*.TXT", SearchOp::NameMatch, false);
+    assert_eq!(insensitive, vec!["alpha.txt", "beta.txt"]);
+    // Case-sensitive: the upper-case extension matches nothing.
+    let sensitive = collect(&mut fs, &handles, "C:\\find\\*.TXT", SearchOp::NameMatch, true);
+    assert!(sensitive.is_empty());
+}
+
+#[test]
+fn find_ex_no_match_reports_none() {
+    let (mut fs, handles) = find_fixture();
+    // A pattern with no match yields Ok(None) (caller maps to ERROR_FILE_NOT_FOUND).
+    assert_eq!(
+        fs_ops::find_first(
+            &mut fs,
+            &handles,
+            &p("C:\\find\\*.bin"),
+            SearchOp::NameMatch,
+            false,
+            true,
+        ),
+        Ok(None)
+    );
+}
+
+#[test]
+fn find_ex_propagates_short_name_and_emit_flag() {
+    let (mut fs, handles) = find_fixture();
+    // The 8.3 short name surfaced by the isolation layer rides on the DirEntry.
+    let (_h, entry) = fs_ops::find_first(
+        &mut fs,
+        &handles,
+        &p("C:\\find\\longfilename.dat"),
+        SearchOp::NameMatch,
+        false,
+        true,
+    )
+    .unwrap()
+    .expect("literal match");
+    assert_eq!(
+        entry
+            .short_name
+            .as_ref()
+            .map(|s| String::from_utf16_lossy(s.as_units())),
+        Some("LONGFI~1.DAT".to_string()),
+    );
+
+    // The emit_short_name choice (FindExInfoStandard vs Basic) is captured once
+    // and surfaced from find_next for the whole walk.
+    let (h_basic, _) = fs_ops::find_first(
+        &mut fs,
+        &handles,
+        &p("C:\\find\\*"),
+        SearchOp::NameMatch,
+        false,
+        false,
+    )
+    .unwrap()
+    .expect("non-empty");
+    let (_, emit) = fs_ops::find_next(&handles, h_basic)
+        .unwrap()
+        .expect("second entry");
+    assert!(!emit, "FindExInfoBasic suppresses the short name across the walk");
+
+    let (h_std, _) = fs_ops::find_first(
+        &mut fs,
+        &handles,
+        &p("C:\\find\\*"),
+        SearchOp::NameMatch,
+        false,
+        true,
+    )
+    .unwrap()
+    .expect("non-empty");
+    let (_, emit) = fs_ops::find_next(&handles, h_std)
+        .unwrap()
+        .expect("second entry");
+    assert!(emit, "FindExInfoStandard emits the short name across the walk");
+}

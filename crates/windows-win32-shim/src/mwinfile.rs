@@ -684,3 +684,143 @@ not_supported_bool_stub! {
     /// `CopyFileExW`.
     mCopyFileExW(*const u16, *const u16, *mut c_void, *mut c_void, *mut i32, u32);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows_platform_isolation::{FileMetadata, Utf16};
+    use windows_sys::Win32::Storage::FileSystem::{
+        FindExInfoMaxInfoLevel, FindExSearchLimitToDevices, FindExSearchMaxSearchOp,
+    };
+
+    fn entry(name: &str, short: Option<&str>, kind: NodeKind) -> DirEntry {
+        DirEntry {
+            name: Utf16::from_utf8(name),
+            kind,
+            metadata: FileMetadata::default(),
+            short_name: short.map(Utf16::from_utf8),
+        }
+    }
+
+    /// Decode a fixed `WIN32_FIND_DATAW` name buffer up to its first NUL.
+    fn read_wide(buf: &[u16]) -> String {
+        let n = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        String::from_utf16_lossy(&buf[..n])
+    }
+
+    fn zeroed_find_data() -> WIN32_FIND_DATAW {
+        // SAFETY: WIN32_FIND_DATAW is plain integer/array data; the all-zero bit
+        // pattern is a valid (empty) value.
+        unsafe { core::mem::zeroed() }
+    }
+
+    // --- map_find_ex_params: accepted parameter combinations -----------------
+
+    #[test]
+    fn map_find_ex_params_accepts_standard_name_match() {
+        let r = map_find_ex_params(FindExInfoStandard, FindExSearchNameMatch, core::ptr::null(), 0);
+        assert_eq!(r, Ok((SearchOp::NameMatch, false, true)));
+    }
+
+    #[test]
+    fn map_find_ex_params_basic_suppresses_short_name() {
+        let r = map_find_ex_params(FindExInfoBasic, FindExSearchNameMatch, core::ptr::null(), 0);
+        assert_eq!(r, Ok((SearchOp::NameMatch, false, false)));
+    }
+
+    #[test]
+    fn map_find_ex_params_maps_limit_to_directories() {
+        let r = map_find_ex_params(
+            FindExInfoStandard,
+            FindExSearchLimitToDirectories,
+            core::ptr::null(),
+            0,
+        );
+        assert_eq!(r, Ok((SearchOp::LimitToDirectories, false, true)));
+    }
+
+    #[test]
+    fn map_find_ex_params_honors_case_sensitive_flag() {
+        let r = map_find_ex_params(
+            FindExInfoStandard,
+            FindExSearchNameMatch,
+            core::ptr::null(),
+            FIND_FIRST_EX_CASE_SENSITIVE,
+        );
+        assert_eq!(r, Ok((SearchOp::NameMatch, true, true)));
+    }
+
+    #[test]
+    fn map_find_ex_params_accepts_and_ignores_perf_flags() {
+        let flags = FIND_FIRST_EX_LARGE_FETCH | FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY;
+        let r = map_find_ex_params(FindExInfoStandard, FindExSearchNameMatch, core::ptr::null(), flags);
+        assert_eq!(r, Ok((SearchOp::NameMatch, false, true)));
+    }
+
+    // --- map_find_ex_params: rejected parameters -----------------------------
+
+    #[test]
+    fn map_find_ex_params_rejects_non_null_filter() {
+        let filter = core::ptr::dangling::<c_void>();
+        let r = map_find_ex_params(FindExInfoStandard, FindExSearchNameMatch, filter, 0);
+        assert_eq!(r, Err(ERROR_INVALID_PARAMETER));
+    }
+
+    #[test]
+    fn map_find_ex_params_rejects_unsupported_info_level() {
+        let r = map_find_ex_params(
+            FindExInfoMaxInfoLevel,
+            FindExSearchNameMatch,
+            core::ptr::null(),
+            0,
+        );
+        assert_eq!(r, Err(ERROR_INVALID_PARAMETER));
+    }
+
+    #[test]
+    fn map_find_ex_params_rejects_unsupported_search_ops() {
+        for op in [FindExSearchLimitToDevices, FindExSearchMaxSearchOp] {
+            let r = map_find_ex_params(FindExInfoStandard, op, core::ptr::null(), 0);
+            assert_eq!(r, Err(ERROR_INVALID_PARAMETER), "search op {op} must be rejected");
+        }
+    }
+
+    #[test]
+    fn map_find_ex_params_rejects_unknown_flag_bit() {
+        let unknown = 0x8000_0000u32;
+        let r = map_find_ex_params(FindExInfoStandard, FindExSearchNameMatch, core::ptr::null(), unknown);
+        assert_eq!(r, Err(ERROR_INVALID_PARAMETER));
+    }
+
+    // --- fill_find_data: 8.3 short-name emission / suppression ----------------
+
+    #[test]
+    fn fill_find_data_emits_short_name_for_standard() {
+        let e = entry("longfilename.dat", Some("LONGFI~1.DAT"), NodeKind::File);
+        let mut data = zeroed_find_data();
+        // SAFETY: data is a writable WIN32_FIND_DATAW.
+        unsafe { fill_find_data(&e, true, &mut data) };
+        assert_eq!(read_wide(&data.cFileName), "longfilename.dat");
+        assert_eq!(read_wide(&data.cAlternateFileName), "LONGFI~1.DAT");
+    }
+
+    #[test]
+    fn fill_find_data_suppresses_short_name_for_basic() {
+        let e = entry("longfilename.dat", Some("LONGFI~1.DAT"), NodeKind::File);
+        let mut data = zeroed_find_data();
+        // SAFETY: data is a writable WIN32_FIND_DATAW.
+        unsafe { fill_find_data(&e, false, &mut data) };
+        assert_eq!(read_wide(&data.cFileName), "longfilename.dat");
+        assert_eq!(read_wide(&data.cAlternateFileName), "");
+    }
+
+    #[test]
+    fn fill_find_data_leaves_alternate_empty_without_short_name() {
+        let e = entry("plain.txt", None, NodeKind::File);
+        let mut data = zeroed_find_data();
+        // SAFETY: data is a writable WIN32_FIND_DATAW.
+        unsafe { fill_find_data(&e, true, &mut data) };
+        assert_eq!(read_wide(&data.cFileName), "plain.txt");
+        assert_eq!(read_wide(&data.cAlternateFileName), "");
+    }
+}

@@ -288,6 +288,41 @@ ABI.
       > [`crates/windows-win32-shim/CHECKLIST.md`](../windows-win32-shim/CHECKLIST.md).
 
 
+### M10 — Short-name (8.3 / `cAlternateFileName`) fidelity for live enumeration (D23)
+
+The live `read_dir` reads a real `WIN32_FIND_DATAW` whose `cAlternateFileName`
+the OS populates, but the sys leaf discards it — so a `windows-win32-shim` client
+sees 8.3 short names **dropped** where a direct `FindFirstFile*` would pass them
+through (a fidelity regression on any `8dot3name`-enabled volume, including the
+system volume by default). Restore fidelity by carrying the short name through
+the sys leaf and `DirEntry`; synthetic and C++-artifact surfaces default to none.
+
+- [ ] **M10-1** sys leaf (`file.rs`): capture `data.cAlternateFileName` into a
+      new `FindEntry.alternate_name: Vec<u16>` (empty when the OS supplies no
+      short name) via the existing `find_name` helper, in both the
+      `FindFirstFileW` and `FindNextFileW` arms of `read_directory`. Unit test:
+      enumerate a deterministic scratch dir and assert each `alternate_name`
+      equals what a direct `FindFirstFileW` returns for the same child (both
+      empty, or both equal — reproducible regardless of the volume's
+      `8dot3name` policy).
+- [ ] **M10-2** safe crate: add `short_name: Option<Utf16>` to `DirEntry`
+      (`None` when absent). `live_fs::read_dir` maps `alternate_name`
+      (empty ⇒ `None`). Synthetic base nodes (`FileTree` / `OverlayFileTree`)
+      gain an optional per-node short name (default `None`) so the field
+      round-trips deterministically off-Windows; the C++ artifact load path
+      leaves it `None` (out of scope for the artifact schema). Record **D23** in
+      `DESIGN-NOTES.md` + decision index; update the M6-3 / `read_dir` doc
+      references to the new `DirEntry` shape.
+- [ ] **M10-3** *(integration)* Deterministic: a synthetic tree surface whose
+      entry carries a short name surfaces it via `read_dir`; a no-short-name
+      entry yields `None`. Windows-only live check: enumerate a scratch subtree
+      through `LiveFilesystem` and assert each `short_name` matches a direct
+      `FindFirstFileW` `cAlternateFileName` for the same child.
+      > **➡ CROSS-COMPONENT HANDOFF:** consumed by `windows-win32-shim` → MW8
+      > (`fill_find_data` emits `cAlternateFileName` for `FindExInfoStandard`).
+      > See [`crates/windows-win32-shim/CHECKLIST.md`](../windows-win32-shim/CHECKLIST.md).
+
+
 ### M7 — Async / threadpool foundation (sibling crates; isolation stays sync, D12) — DETAILED
 
 The detailed, authoritative execution plan now lives in the sibling crate:

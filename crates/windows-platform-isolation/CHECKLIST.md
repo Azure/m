@@ -297,7 +297,7 @@ through (a fidelity regression on any `8dot3name`-enabled volume, including the
 system volume by default). Restore fidelity by carrying the short name through
 the sys leaf and `DirEntry`; synthetic and C++-artifact surfaces default to none.
 
-- [ ] **M10-1** sys leaf (`file.rs`): capture `data.cAlternateFileName` into a
+- [x] **M10-1** sys leaf (`file.rs`): capture `data.cAlternateFileName` into a
       new `FindEntry.alternate_name: Vec<u16>` (empty when the OS supplies no
       short name) via the existing `find_name` helper, in both the
       `FindFirstFileW` and `FindNextFileW` arms of `read_directory`. Unit test:
@@ -305,7 +305,7 @@ the sys leaf and `DirEntry`; synthetic and C++-artifact surfaces default to none
       equals what a direct `FindFirstFileW` returns for the same child (both
       empty, or both equal — reproducible regardless of the volume's
       `8dot3name` policy).
-- [ ] **M10-2** safe crate: add `short_name: Option<Utf16>` to `DirEntry`
+- [x] **M10-2** safe crate: add `short_name: Option<Utf16>` to `DirEntry`
       (`None` when absent). `live_fs::read_dir` maps `alternate_name`
       (empty ⇒ `None`). Synthetic base nodes (`FileTree` / `OverlayFileTree`)
       gain an optional per-node short name (default `None`) so the field
@@ -313,7 +313,7 @@ the sys leaf and `DirEntry`; synthetic and C++-artifact surfaces default to none
       leaves it `None` (out of scope for the artifact schema). Record **D23** in
       `DESIGN-NOTES.md` + decision index; update the M6-3 / `read_dir` doc
       references to the new `DirEntry` shape.
-- [ ] **M10-3** *(integration)* Deterministic: a synthetic tree surface whose
+- [x] **M10-3** *(integration)* Deterministic: a synthetic tree surface whose
       entry carries a short name surfaces it via `read_dir`; a no-short-name
       entry yields `None`. Windows-only live check: enumerate a scratch subtree
       through `LiveFilesystem` and assert each `short_name` matches a direct

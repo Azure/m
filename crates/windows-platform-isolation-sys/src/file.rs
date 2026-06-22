@@ -106,6 +106,10 @@ pub struct FileInfo {
 pub struct FindEntry {
     /// The entry's leaf name (no NUL terminator).
     pub name: Vec<u16>,
+    /// The entry's 8.3 short name (`cAlternateFileName`, no NUL terminator), as
+    /// populated by the OS. Empty when the volume has no short name for this
+    /// entry (e.g. an `8dot3name`-disabled volume, or a name already 8.3-legal).
+    pub alternate_name: Vec<u16>,
     /// The entry's metadata.
     pub info: FileInfo,
 }
@@ -393,6 +397,7 @@ pub fn read_directory(dir_path: &[u16]) -> Result<Vec<FindEntry>, FsError> {
         if !is_dot_entry(&name) {
             entries.push(FindEntry {
                 name,
+                alternate_name: find_name(&data.cAlternateFileName),
                 info: FileInfo {
                     attributes: data.dwFileAttributes,
                     size: size_of(data.nFileSizeHigh, data.nFileSizeLow),
@@ -604,5 +609,37 @@ mod tests {
         let file = scratch.child("r.txt");
         let h = FileHandle::create(&wz(&file)).expect("create");
         assert!(!h.as_raw_handle().is_null(), "raw handle must be usable for async");
+    }
+
+    /// Read the 8.3 short name a direct `FindFirstFileW` reports for a single
+    /// full child path (no wildcard), for cross-checking enumeration capture.
+    fn direct_alternate_name(path_wz: &[u16]) -> Vec<u16> {
+        let mut data = WIN32_FIND_DATAW::default();
+        let find = unsafe { FindFirstFileW(PCWSTR(path_wz.as_ptr()), &mut data) }
+            .expect("direct find on existing child");
+        let alt = find_name(&data.cAlternateFileName);
+        let _ = unsafe { FindClose(find) };
+        alt
+    }
+
+    #[test]
+    fn read_directory_captures_alternate_short_name() {
+        let scratch = ScratchDir::new("shortname");
+        // A non-8.3-legal name (an 8dot3-enabled volume mints a short name for
+        // it) and an already-8.3-legal name (typically none). The assertion
+        // compares against the OS's own answer, so it holds either way.
+        FileHandle::create(&wz(&scratch.child("longfilename.txt"))).expect("create long");
+        FileHandle::create(&wz(&scratch.child("ab.txt"))).expect("create short");
+
+        let entries = read_directory(&wz(&scratch.path)).expect("enumerate");
+        assert!(!entries.is_empty(), "scratch dir has children");
+        for e in &entries {
+            let name = String::from_utf16_lossy(&e.name);
+            let direct = direct_alternate_name(&wz(&scratch.child(&name)));
+            assert_eq!(
+                e.alternate_name, direct,
+                "alternate name for {name:?} must match a direct FindFirstFileW"
+            );
+        }
     }
 }

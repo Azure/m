@@ -125,12 +125,18 @@ impl<C: OrdinalCasing> LiveFilesystem<C> {
                 } else {
                     NodeKind::File
                 };
+                let short_name = if e.alternate_name.is_empty() {
+                    None
+                } else {
+                    Some(Utf16::from_units(e.alternate_name))
+                };
                 (
                     key,
                     DirEntry {
                         name,
                         kind,
                         metadata: to_metadata(&e.info),
+                        short_name,
                     },
                 )
             })
@@ -528,6 +534,35 @@ mod tests {
         t.make_dir("hollow");
         let fs = live();
         assert!(fs.read_dir(&t.path("hollow")).unwrap().is_empty());
+    }
+
+    #[test]
+    fn read_dir_short_names_match_direct_enumeration() {
+        let t = TempTree::new("shortname");
+        t.make_file("longfilename.txt", b"x");
+        t.make_file("ab.txt", b"y");
+        t.make_dir("LongDirectoryName");
+        let fs = live();
+        let entries = fs.read_dir(&t.root_path()).unwrap();
+        assert!(!entries.is_empty());
+        // Oracle: the `-sys` leaf's direct FindFirstFileW enumeration of the same
+        // directory. Comparing against it makes the test reproducible regardless
+        // of the volume's 8dot3-name policy (D23): we assert the live provider's
+        // empty->None / non-empty->Some mapping, not a specific short name.
+        let oracle: std::collections::BTreeMap<Vec<u16>, Vec<u16>> =
+            read_directory(&wide_path(&t.root_path()))
+                .unwrap()
+                .into_iter()
+                .map(|e| (e.name, e.alternate_name))
+                .collect();
+        for e in &entries {
+            let alt = oracle
+                .get(e.name.as_units())
+                .expect("entry present in direct enumeration");
+            let expected = if alt.is_empty() { None } else { Some(alt.clone()) };
+            let got = e.short_name.as_ref().map(|s| s.as_units().to_vec());
+            assert_eq!(got, expected, "short name mismatch for {:?}", e.name.to_utf8());
+        }
     }
 
     /// A FILETIME (100ns ticks since 1601) circa 2019, for deterministic

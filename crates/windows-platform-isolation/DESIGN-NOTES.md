@@ -41,6 +41,7 @@ design rather than binding to the C++ implementation.
 | D20 | Live/"direct" registry provider over a dedicated `windows-platform-isolation-sys` `unsafe` leaf (RAII `RegKey`); supersedes D15's "no live provider" |
 | D21 | Write/capture side of the artifact (`save_registry_hive`): a deterministic, platform-independent serializer that is the exact inverse of the D19 loader, so `load`→`save`→`load` is a fixed point |
 | D22 | Filesystem path model (`FilePath`/`FileRoot`/`PathSurface`) is a faithful port of the C++ `m::pil::file_path`; its C++ unit tests are the conformance spec |
+| D23 | `DirEntry` carries an optional 8.3 short name (`short_name`); the live provider sources it from `cAlternateFileName`, synthetic trees stamp it explicitly (default `None`), the C++ artifact leaves it `None` |
 
 ---
 
@@ -491,6 +492,39 @@ Stored case is never altered — only comparison folds. This is the same ordinal
 seam (`OrdinalCasing`) the registry stack already uses, satisfying NTFS
 case-insensitivity without a second casing mechanism. The filesystem error type
 remains its own hand-rolled type (D14), separate from `RegistryError`.
+
+## D23 — `DirEntry` carries an optional 8.3 short name
+
+**Specified behavior (owned).** A directory enumeration entry (`DirEntry`)
+exposes an optional `short_name: Option<Utf16>` alongside its `name`, `kind`,
+and `metadata`. `None` means "the source supplies no short name"; `Some(s)`
+carries the 8.3 alternate name verbatim in its original casing. Changing the
+`DirEntry` shape is a breaking change.
+
+**Why.** Windows volumes with 8dot3-name generation enabled (the default on
+`C:`) attach an 8.3 *alternate* name to long-named entries, which the Win32
+`FindFirstFileW`/`FindNextFileW` enumeration returns in
+`WIN32_FIND_DATAW::cAlternateFileName`. The shim's `FindFirstFileEx` family
+(shim MW8) must be able to surface that name, so the isolation surface must not
+drop it. This is the second of two MW8 prerequisites (the first is the
+`windows-text` wildcard matcher, WT-6).
+
+**Sourcing, per provider.**
+- **Live provider (`live_fs`).** The `-sys` leaf's `read_directory` now copies
+  `cAlternateFileName` into `FindEntry.alternate_name` (empty when the OS
+  supplies none); `live_fs::read_dir` maps an empty vector to `None` and a
+  non-empty one to `Some(Utf16::from_units(..))`. The short name is whatever the
+  OS reports for the volume's 8dot3 policy — we do not synthesize one.
+- **Synthetic trees (`FileTree`/`OverlayFileTree`).** The immutable base stores
+  an optional per-node short name (default `None`), stamped via
+  `insert_dir_with_short_name` / `insert_file_with_short_name`. `read_dir`
+  surfaces a base entry's stored short name. An overlay that merely re-asserts an
+  existing base directory preserves that base short name; a purely
+  overlay-created directory or a written file surfaces `None` (overlay writes
+  carry no synthetic short name). This lets short-name fidelity be exercised
+  deterministically off-Windows.
+- **C++ artifact (`fs_serial`).** The shared artifact format (D5/D14) carries no
+  short name, so the loader leaves `short_name` as `None`.
 
 ## D16 — `windows-text`: a standalone reusable Windows string crate
 

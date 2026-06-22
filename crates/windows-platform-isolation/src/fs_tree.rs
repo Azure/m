@@ -61,7 +61,8 @@ pub struct FileMetadata {
 }
 
 /// One entry yielded by [`OverlayFileTree::read_dir`]: a leaf name, its kind,
-/// and its metadata. The list a directory yields is ordinal-ordered (D8).
+/// its metadata, and its optional 8.3 short name. The list a directory yields
+/// is ordinal-ordered (D8).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DirEntry {
     /// The entry's leaf name, in its original casing.
@@ -70,6 +71,11 @@ pub struct DirEntry {
     pub kind: NodeKind,
     /// The entry's captured metadata.
     pub metadata: FileMetadata,
+    /// The entry's 8.3 short name (alternate name), or `None` when the source
+    /// supplies none. On the live filesystem this is sourced from the OS's
+    /// `cAlternateFileName`; on synthetic trees it is whatever short name the
+    /// base node was stamped with (default `None`). See D23.
+    pub short_name: Option<Utf16>,
 }
 
 // --- Base tree: immutable captured content ----------------------------------
@@ -86,10 +92,23 @@ pub struct FileTree {
 #[derive(Clone, Debug, Default)]
 struct BaseNode {
     metadata: FileMetadata,
+    /// This directory's 8.3 short name as seen from its parent, or `None`
+    /// (default). The root's value is unused. See D23.
+    short_name: Option<Utf16>,
     /// sort_key(name) -> (original name, child directory)
     dirs: BTreeMap<Vec<u8>, (Utf16, BaseNode)>,
-    /// sort_key(name) -> (original name, file metadata)
-    files: BTreeMap<Vec<u8>, (Utf16, FileMetadata)>,
+    /// sort_key(name) -> file entry (original name, metadata, optional short name)
+    files: BTreeMap<Vec<u8>, BaseFileEntry>,
+}
+
+/// A file stored in the immutable [`FileTree`] base: its original-cased leaf
+/// name, its metadata, and its optional 8.3 short name (default `None`,
+/// see D23).
+#[derive(Clone, Debug)]
+struct BaseFileEntry {
+    name: Utf16,
+    metadata: FileMetadata,
+    short_name: Option<Utf16>,
 }
 
 impl FileTree {
@@ -107,17 +126,53 @@ impl FileTree {
         node.metadata = metadata;
     }
 
+    /// Like [`insert_dir`](Self::insert_dir), but also stamps the leaf
+    /// directory with an 8.3 `short_name` surfaced by [`OverlayFileTree::read_dir`]
+    /// (D23). Used to build synthetic trees that exercise short-name fidelity
+    /// deterministically off-Windows.
+    pub fn insert_dir_with_short_name<C: OrdinalCasing>(
+        &mut self,
+        casing: &C,
+        path: &FilePath,
+        metadata: FileMetadata,
+        short_name: Option<Utf16>,
+    ) {
+        let comps = path.components();
+        let node = self.root.ensure_path(casing, &comps);
+        node.metadata = metadata;
+        node.short_name = short_name;
+    }
+
     /// Insert (or replace) a file at `path` with `metadata`, creating any
     /// intermediate directories. A `path` with no components is ignored (a file
     /// must have a leaf name).
     pub fn insert_file<C: OrdinalCasing>(&mut self, casing: &C, path: &FilePath, metadata: FileMetadata) {
+        self.insert_file_with_short_name(casing, path, metadata, None);
+    }
+
+    /// Like [`insert_file`](Self::insert_file), but also stamps the file with an
+    /// 8.3 `short_name` surfaced by [`OverlayFileTree::read_dir`] (D23).
+    pub fn insert_file_with_short_name<C: OrdinalCasing>(
+        &mut self,
+        casing: &C,
+        path: &FilePath,
+        metadata: FileMetadata,
+        short_name: Option<Utf16>,
+    ) {
         let comps = path.components();
         let Some((parent, name)) = split_leaf(&comps) else {
             return;
         };
         let node = self.root.ensure_path(casing, parent);
         let key = casing.sort_key(name.as_units());
-        node.files.insert(key, (name.clone(), metadata));
+        node.files.insert(
+            key,
+            BaseFileEntry {
+                name: name.clone(),
+                metadata,
+                short_name,
+            },
+        );
     }
 
     fn node_at<C: OrdinalCasing>(&self, casing: &C, comps: &[Utf16]) -> Option<&BaseNode> {
@@ -317,7 +372,7 @@ impl<C: OrdinalCasing> OverlayFileTree<C> {
 
     fn base_file(&self, parent: &[Utf16], fkey: &[u8]) -> Option<FileMetadata> {
         let node = self.base.node_at(&self.casing, parent)?;
-        node.files.get(fkey).map(|(_, md)| *md)
+        node.files.get(fkey).map(|f| f.metadata)
     }
 
     /// Read the metadata of the file at `path`.
@@ -367,16 +422,18 @@ impl<C: OrdinalCasing> OverlayFileTree<C> {
                         name: name.clone(),
                         kind: NodeKind::Directory,
                         metadata: child.metadata,
+                        short_name: child.short_name.clone(),
                     },
                 );
             }
-            for (fkey, (name, md)) in &node.files {
+            for (fkey, f) in &node.files {
                 merged.insert(
                     fkey.clone(),
                     DirEntry {
-                        name: name.clone(),
+                        name: f.name.clone(),
                         kind: NodeKind::File,
-                        metadata: *md,
+                        metadata: f.metadata,
+                        short_name: f.short_name.clone(),
                     },
                 );
             }
@@ -386,12 +443,17 @@ impl<C: OrdinalCasing> OverlayFileTree<C> {
                 if child.deleted {
                     merged.remove(skey);
                 } else {
+                    // Preserve a base entry's short name when the overlay merely
+                    // re-asserts an existing directory; purely overlay-created
+                    // directories have no synthetic short name (D23).
+                    let short_name = merged.get(skey).and_then(|e| e.short_name.clone());
                     merged.insert(
                         skey.clone(),
                         DirEntry {
                             name: name.clone(),
                             kind: NodeKind::Directory,
                             metadata: child.metadata.unwrap_or_default(),
+                            short_name,
                         },
                     );
                 }
@@ -405,6 +467,9 @@ impl<C: OrdinalCasing> OverlayFileTree<C> {
                                 name: name.clone(),
                                 kind: NodeKind::File,
                                 metadata: *md,
+                                // Overlay-written files carry no synthetic short
+                                // name (D23).
+                                short_name: None,
                             },
                         );
                     }
@@ -601,6 +666,76 @@ mod tests {
         let entries = t.read_dir(&p("C:\\Windows")).unwrap();
         // Ordinal: 'A'(0x41) < 'S'(0x53) < 'z'(0x7a); notepad.exe removed.
         assert_eq!(names(&entries), vec!["Aaa.txt", "System32", "zzz"]);
+    }
+
+    #[test]
+    fn read_dir_surfaces_synthetic_short_names() {
+        let c = AsciiOrdinalCasing;
+        let mut base = FileTree::new();
+        base.insert_file_with_short_name(
+            &c,
+            &p("C:\\Windows\\longfilename.txt"),
+            md(10),
+            Some(Utf16::from_utf8("LONGFI~1.TXT")),
+        );
+        base.insert_dir_with_short_name(
+            &c,
+            &p("C:\\Windows\\LongDirName"),
+            md(0),
+            Some(Utf16::from_utf8("LONGDI~1")),
+        );
+        // A file with no short name surfaces `None`.
+        base.insert_file(&c, &p("C:\\Windows\\ab.txt"), md(5));
+        let t = OverlayFileTree::new(c, base);
+
+        let entries = t.read_dir(&p("C:\\Windows")).unwrap();
+        let by = |n: &str| entries.iter().find(|e| e.name.to_utf8().unwrap() == n).unwrap();
+        assert_eq!(
+            by("longfilename.txt").short_name.as_ref().map(|s| s.to_utf8().unwrap()),
+            Some("LONGFI~1.TXT".to_string())
+        );
+        assert_eq!(
+            by("LongDirName").short_name.as_ref().map(|s| s.to_utf8().unwrap()),
+            Some("LONGDI~1".to_string())
+        );
+        assert_eq!(by("ab.txt").short_name, None);
+    }
+
+    #[test]
+    fn read_dir_overlay_created_entries_have_no_short_name() {
+        let mut t = tree();
+        t.set_file(&p("C:\\Windows\\new.txt"), md(1));
+        t.create_dir(&p("C:\\Windows\\newdir"));
+        let entries = t.read_dir(&p("C:\\Windows")).unwrap();
+        let by = |n: &str| entries.iter().find(|e| e.name.to_utf8().unwrap() == n).unwrap();
+        assert_eq!(by("new.txt").short_name, None);
+        assert_eq!(by("newdir").short_name, None);
+    }
+
+    #[test]
+    fn read_dir_overlay_preserves_base_dir_short_name() {
+        let c = AsciiOrdinalCasing;
+        let mut base = FileTree::new();
+        base.insert_dir_with_short_name(
+            &c,
+            &p("C:\\Windows\\LongDirName"),
+            md(0),
+            Some(Utf16::from_utf8("LONGDI~1")),
+        );
+        let mut t = OverlayFileTree::new(c, base);
+        // Navigating into the base directory through the overlay makes the
+        // overlay branch re-assert it at the parent's read_dir; the base short
+        // name must survive (D23).
+        t.create_dir(&p("C:\\Windows\\LongDirName\\child"));
+        let entries = t.read_dir(&p("C:\\Windows")).unwrap();
+        let dir = entries
+            .iter()
+            .find(|e| e.name.to_utf8().unwrap() == "LongDirName")
+            .unwrap();
+        assert_eq!(
+            dir.short_name.as_ref().map(|s| s.to_utf8().unwrap()),
+            Some("LONGDI~1".to_string())
+        );
     }
 
     #[test]

@@ -38,6 +38,7 @@ design rather than binding to the C++ implementation.
 | D17 | HWC redirection runs out of process: named-pipe service + async (MPMC→threadpool→IOCP) capture/validation/injection pipeline |
 | D18 | The shared C++ PIL registry artifact is pugixml `<Platform><Registry>` XML (documented schema; D5 read side) |
 | D19 | Rust loader mapping: normalize hives to canonical names, fold a sealed snapshot into a base `Hive`, decode `type`/`data` per `reg_value_type` |
+| D20 | Live/"direct" registry provider over a dedicated `windows-platform-isolation-sys` `unsafe` leaf (RAII `RegKey`); supersedes D15's "no live provider" |
 
 ---
 
@@ -372,6 +373,30 @@ needs no FFI, letting the whole first milestone be built and unit-tested with no
 live registry and no `unsafe`. Consequences: the live/direct provider and the
 write/capture side are later milestones; and the read path makes the D5
 shared-format spec a prerequisite for the milestone that adds the loader.
+
+**Superseded by D20** for the live-provider portion: M5 adds the live/"direct"
+registry provider. The first-cut framing above still describes the ingress that
+shipped first (load saved C++ state); D20 records the live provider added on top.
+
+## D20 — Live/"direct" registry provider over a dedicated `-sys` `unsafe` leaf
+
+M5 adds the live ("direct") registry provider that reads and writes the real OS
+registry, lifting the D15 restriction. Following Option B (D13), all of its
+`unsafe` lives in a new sibling leaf crate, **`windows-platform-isolation-sys`**,
+kept separate from `windows-platform-isolation` (which remains unconditionally
+`#![forbid(unsafe_code)]`).
+
+The leaf exposes a RAII `RegKey` over the `windows` registry binding (D1):
+predefined roots are non-owning views of the process pseudo-handles (never
+closed); keys returned by open/create own their `HKEY` and close it on drop.
+Subkey and value names crossing the boundary are caller-supplied
+**NUL-terminated** UTF-16 slices; no raw pointer or `HKEY` lifetime escapes the
+crate. Errors surface as a thin `RegError(WIN32_ERROR)` with an `is_not_found`
+predicate, so the safe layer can map "missing key/value" to its own error
+variants while treating other statuses as hard failures. `RegKey` is `Send` but
+not `Sync` (D12). The mirror of `windows-text-sys`, this is the registry
+counterpart leaf; the read primitives, the `Surface` impl, and the write/capture
+side land in the subsequent M5 items.
 
 ## D16 — `windows-text`: a standalone reusable Windows string crate
 

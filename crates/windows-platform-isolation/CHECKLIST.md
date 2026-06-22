@@ -170,10 +170,12 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
 
 ### M5 — Live/"direct" registry provider + capture (write side)
 
-- [ ] **M5-1** Scaffold a registry `-sys` leaf crate (Option B): RAII `HKEY`
+- [x] **M5-1** Scaffold a registry `-sys` leaf crate (Option B): RAII `HKEY`
       wrappers + error mapping over the `windows` binding (D1) — the registry
       `unsafe` leaf, separate from `windows-platform-isolation`, which stays
-      unconditionally `#![forbid(unsafe_code)]`.
+      unconditionally `#![forbid(unsafe_code)]`. (New crate
+      `windows-platform-isolation-sys`: `RegKey` RAII + roots + open/create,
+      `RegError`/`is_not_found`; D20.)
 - [ ] **M5-2** Live registry `Surface` over the real OS registry (read path).
 - [ ] **M5-3** Live write path.
 - [ ] **M5-4** Write/capture side of the artifact format (round-trips with M4).

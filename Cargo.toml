@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/windows-platform-isolation",
+  "crates/windows-platform-isolation-sys",
   "crates/windows-threadpool",
   "crates/windows-text",
   "crates/windows-text-sys",

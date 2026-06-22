@@ -58,7 +58,7 @@ enqueue / start / end timing, state, cancel, and wait.
 - [x] **M7-2.3** `Executor` whose `async-task` schedule closure submits a
       thread-pool work item (TP-D3): `spawn(future) -> JoinHandle<T>` running
       idle tasks on no dedicated thread.
-- [ ] **M7-2.4** *(integration)* Executor smoke tests: spawn + await a chain of
+- [x] **M7-2.4** *(integration)* Executor smoke tests: spawn + await a chain of
       tasks, `block_on` a future that awaits a spawned task, many concurrent
       spawns complete.
 

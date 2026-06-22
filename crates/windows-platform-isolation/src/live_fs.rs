@@ -18,17 +18,23 @@
 //! [`TreeFsSurface`]: crate::TreeFsSurface
 
 use windows_platform_isolation_sys::{
-    FileInfo, FsError, file_attributes, read_directory,
+    FileHandle, FileInfo, FsError, create_directory, delete_file, file_attributes, read_directory,
+    remove_directory, set_file_attributes,
 };
 
-use crate::file_path::FilePath;
+use crate::file_path::{FILE_POSIX_SEPARATOR, FILE_PREFERRED_SEPARATOR, FilePath};
 use crate::fs_error::{FilesystemError, FilesystemResult};
+use crate::fs_surface::{FsRequest, FsResponse, FsSurface};
 use crate::fs_tree::{DirEntry, FileMetadata, NodeKind};
 use crate::{OrdinalCasing, Utf16};
 
 /// The `FILE_ATTRIBUTE_DIRECTORY` flag: a node is a directory iff this bit is
 /// set in its attribute bitset.
 const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
+
+/// `ERROR_ALREADY_EXISTS`: a directory create that repeats an existing
+/// ancestor is benign (idempotent create-on-write, matching the tree surface).
+const ERROR_ALREADY_EXISTS: u32 = 183;
 
 /// A provider that operates directly on the live OS filesystem (D20).
 ///
@@ -133,6 +139,118 @@ impl<C: OrdinalCasing> LiveFilesystem<C> {
         Ok(keyed.into_iter().map(|(_, entry)| entry).collect())
     }
 
+    /// Create the directory at `path`, creating any missing ancestors (D20),
+    /// mirroring the in-memory surface's create-on-write. Idempotent: an
+    /// already-existing directory is not an error.
+    ///
+    /// # Errors
+    ///
+    /// [`FilesystemError::Os`] on any Win32 failure other than a benign
+    /// "already exists".
+    pub fn create_dir(&self, path: &FilePath) -> FilesystemResult<()> {
+        let units = path.native().as_units();
+        let root_len = path.root().text().len();
+        let mut i = root_len;
+        let n = units.len();
+        while i < n {
+            while i < n && is_separator(units[i]) {
+                i += 1;
+            }
+            if i >= n {
+                break;
+            }
+            let mut j = i;
+            while j < n && !is_separator(units[j]) {
+                j += 1;
+            }
+            let mut wide = units[..j].to_vec();
+            wide.push(0);
+            match create_directory(&wide) {
+                Ok(()) => {}
+                Err(e) if e.code() == ERROR_ALREADY_EXISTS => {}
+                Err(e) => return Err(map_fs_err(e)),
+            }
+            i = j;
+        }
+        Ok(())
+    }
+
+    /// Remove the directory at `path` and its entire subtree (D20), mirroring
+    /// the in-memory surface. Idempotent: a missing directory is not an error.
+    ///
+    /// # Errors
+    ///
+    /// [`FilesystemError::Os`] on any Win32 failure other than a missing node.
+    pub fn remove_dir(&self, path: &FilePath) -> FilesystemResult<()> {
+        let entries = match read_directory(&wide_path(path)) {
+            Ok(entries) => entries,
+            Err(e) if e.is_not_found() => return Ok(()),
+            Err(e) => return Err(map_fs_err(e)),
+        };
+        for entry in entries {
+            let child = child_path(path, &entry.name);
+            if is_directory(&entry.info) {
+                self.remove_dir(&child)?;
+            } else {
+                self.remove_file(&child)?;
+            }
+        }
+        remove_directory(&wide_path(path)).map_err(map_fs_err)
+    }
+
+    /// Write an (empty) file at `path`, applying the attributes and timestamps
+    /// from `metadata` (D20). Any missing parent directories are created first,
+    /// mirroring the in-memory surface's create-on-write.
+    ///
+    /// The file's *size* is **not** applied: size is a consequence of content,
+    /// which this metadata-only provider does not write (see the module docs).
+    /// A subsequent [`metadata`](Self::metadata) therefore reports size 0.
+    ///
+    /// # Errors
+    ///
+    /// [`FilesystemError::Os`] on any Win32 failure.
+    pub fn write_file(&self, path: &FilePath, metadata: FileMetadata) -> FilesystemResult<()> {
+        if let Some(parent) = parent_path(path) {
+            self.create_dir(&parent)?;
+        }
+        {
+            let handle = FileHandle::create(&wide_path(path)).map_err(map_fs_err)?;
+            if metadata.creation_time != 0
+                || metadata.last_access_time != 0
+                || metadata.last_write_time != 0
+            {
+                handle
+                    .set_times(
+                        metadata.creation_time,
+                        metadata.last_access_time,
+                        metadata.last_write_time,
+                    )
+                    .map_err(map_fs_err)?;
+            }
+        }
+        // A file can never carry the directory bit; apply the rest only if the
+        // caller asked for any attributes (SetFileAttributes rejects 0).
+        let attrs = metadata.attributes & !FILE_ATTRIBUTE_DIRECTORY;
+        if attrs != 0 {
+            set_file_attributes(&wide_path(path), attrs).map_err(map_fs_err)?;
+        }
+        Ok(())
+    }
+
+    /// Remove the file at `path` (D20). Idempotent: a missing file is not an
+    /// error, mirroring the in-memory surface.
+    ///
+    /// # Errors
+    ///
+    /// [`FilesystemError::Os`] on any Win32 failure other than a missing node.
+    pub fn remove_file(&self, path: &FilePath) -> FilesystemResult<()> {
+        match delete_file(&wide_path(path)) {
+            Ok(()) => Ok(()),
+            Err(e) if e.is_not_found() => Ok(()),
+            Err(e) => Err(map_fs_err(e)),
+        }
+    }
+
     /// Read a node's metadata regardless of kind, mapping a missing node to
     /// [`FilesystemError::NotFound`].
     fn node_info(&self, path: &FilePath) -> FilesystemResult<FileInfo> {
@@ -171,6 +289,52 @@ fn map_fs_err(e: FsError) -> FilesystemError {
         FilesystemError::NotFound
     } else {
         FilesystemError::Os(e.code())
+    }
+}
+
+/// Whether `unit` is a path separator (`\` or `/`).
+fn is_separator(unit: u16) -> bool {
+    unit == FILE_PREFERRED_SEPARATOR || unit == FILE_POSIX_SEPARATOR
+}
+
+/// The parent directory of `path`, or `None` when `path` sits directly under
+/// its root (whose existence the OS already guarantees). Used to create missing
+/// ancestors before a write.
+fn parent_path(path: &FilePath) -> Option<FilePath> {
+    let units = path.native().as_units();
+    let root_len = path.root().text().len();
+    let last = units.iter().rposition(|&u| is_separator(u))?;
+    if last < root_len {
+        return None;
+    }
+    Some(FilePath::from_units(units[..last].to_vec()))
+}
+
+/// `parent` with `name` appended as a child component (separator inserted as
+/// needed). Used to descend during recursive removal.
+fn child_path(parent: &FilePath, name: &[u16]) -> FilePath {
+    let mut units = parent.native().as_units().to_vec();
+    if !units.last().is_some_and(|&u| is_separator(u)) {
+        units.push(FILE_PREFERRED_SEPARATOR);
+    }
+    units.extend_from_slice(name);
+    FilePath::from_units(units)
+}
+
+impl<C: OrdinalCasing> FsSurface for LiveFilesystem<C> {
+    fn invoke(&mut self, req: &FsRequest) -> FilesystemResult<FsResponse> {
+        match req {
+            FsRequest::DirExists { path } => self.dir_exists(path).map(FsResponse::Exists),
+            FsRequest::FileExists { path } => self.file_exists(path).map(FsResponse::Exists),
+            FsRequest::CreateDir { path } => self.create_dir(path).map(|()| FsResponse::Unit),
+            FsRequest::RemoveDir { path } => self.remove_dir(path).map(|()| FsResponse::Unit),
+            FsRequest::ReadMetadata { path } => self.metadata(path).map(FsResponse::Metadata),
+            FsRequest::WriteFile { path, metadata } => {
+                self.write_file(path, *metadata).map(|()| FsResponse::Unit)
+            }
+            FsRequest::RemoveFile { path } => self.remove_file(path).map(|()| FsResponse::Unit),
+            FsRequest::ReadDir { path } => self.read_dir(path).map(FsResponse::Entries),
+        }
     }
 }
 
@@ -323,5 +487,138 @@ mod tests {
         t.make_dir("hollow");
         let fs = live();
         assert!(fs.read_dir(&t.path("hollow")).unwrap().is_empty());
+    }
+
+    /// A FILETIME (100ns ticks since 1601) circa 2019, for deterministic
+    /// timestamp round-tripping.
+    const SAMPLE_TIME: i64 = 132_000_000_000_000_000;
+    /// `FILE_ATTRIBUTE_HIDDEN`: a benign attribute that, unlike read-only, does
+    /// not block the subsequent deletion in `TempTree::drop`.
+    const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
+
+    #[test]
+    fn create_dir_creates_nested_and_is_idempotent() {
+        let t = TempTree::new("mkdir");
+        let fs = live();
+        let nested = t.path("a/b/c");
+        fs.create_dir(&nested).unwrap();
+        assert!(fs.dir_exists(&nested).unwrap());
+        assert!(fs.dir_exists(&t.path("a")).unwrap());
+        assert!(fs.dir_exists(&t.path("a/b")).unwrap());
+        // Repeating an existing tree is benign.
+        fs.create_dir(&nested).unwrap();
+    }
+
+    #[test]
+    fn write_file_applies_attributes_and_timestamps() {
+        let t = TempTree::new("write");
+        let fs = live();
+        let path = t.path("note.txt");
+        let md = FileMetadata {
+            size: 999, // not applied: size is a consequence of content
+            creation_time: SAMPLE_TIME,
+            last_write_time: SAMPLE_TIME + 111,
+            last_access_time: SAMPLE_TIME + 222,
+            attributes: FILE_ATTRIBUTE_HIDDEN,
+        };
+        fs.write_file(&path, md).unwrap();
+        assert!(fs.file_exists(&path).unwrap());
+        let got = fs.metadata(&path).unwrap();
+        assert_eq!(got.size, 0);
+        assert_eq!(got.creation_time, md.creation_time);
+        assert_eq!(got.last_write_time, md.last_write_time);
+        assert!(got.attributes & FILE_ATTRIBUTE_HIDDEN != 0);
+    }
+
+    #[test]
+    fn write_file_creates_missing_parents() {
+        let t = TempTree::new("writeparents");
+        let fs = live();
+        let path = t.path("deep/nested/leaf.txt");
+        fs.write_file(&path, FileMetadata::default()).unwrap();
+        assert!(fs.file_exists(&path).unwrap());
+        assert!(fs.dir_exists(&t.path("deep/nested")).unwrap());
+    }
+
+    #[test]
+    fn remove_file_is_idempotent() {
+        let t = TempTree::new("rmfile");
+        t.make_file("gone.txt", b"x");
+        let fs = live();
+        let p = t.path("gone.txt");
+        fs.remove_file(&p).unwrap();
+        assert!(!fs.file_exists(&p).unwrap());
+        // Removing an absent file is not an error.
+        fs.remove_file(&p).unwrap();
+    }
+
+    #[test]
+    fn remove_dir_removes_populated_subtree() {
+        let t = TempTree::new("rmdir");
+        t.make_file("top.txt", b"x");
+        t.make_dir("sub");
+        t.make_file("sub/inner.txt", b"y");
+        t.make_dir("sub/deeper");
+        t.make_file("sub/deeper/leaf.txt", b"z");
+        let fs = live();
+        let sub = t.path("sub");
+        fs.remove_dir(&sub).unwrap();
+        assert!(!fs.dir_exists(&sub).unwrap());
+        // A sibling outside the removed subtree is untouched.
+        assert!(fs.file_exists(&t.path("top.txt")).unwrap());
+        // Removing an absent directory is not an error.
+        fs.remove_dir(&sub).unwrap();
+    }
+
+    #[test]
+    fn fs_surface_invoke_round_trips_mutations_and_reads() {
+        let t = TempTree::new("surface");
+        let mut fs = live();
+        let dir = t.path("apps");
+        let file = t.path("apps/app.cfg");
+
+        assert_eq!(
+            fs.invoke(&FsRequest::CreateDir { path: dir.clone() }).unwrap(),
+            FsResponse::Unit
+        );
+        assert_eq!(
+            fs.invoke(&FsRequest::DirExists { path: dir.clone() }).unwrap(),
+            FsResponse::Exists(true)
+        );
+        assert_eq!(
+            fs.invoke(&FsRequest::WriteFile {
+                path: file.clone(),
+                metadata: FileMetadata::default(),
+            })
+            .unwrap(),
+            FsResponse::Unit
+        );
+        assert_eq!(
+            fs.invoke(&FsRequest::FileExists { path: file.clone() }).unwrap(),
+            FsResponse::Exists(true)
+        );
+        match fs.invoke(&FsRequest::ReadMetadata { path: file.clone() }).unwrap() {
+            FsResponse::Metadata(_) => {}
+            other => panic!("expected metadata, got {other:?}"),
+        }
+        match fs.invoke(&FsRequest::ReadDir { path: dir.clone() }).unwrap() {
+            FsResponse::Entries(entries) => {
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].name.to_utf8().unwrap(), "app.cfg");
+            }
+            other => panic!("expected entries, got {other:?}"),
+        }
+        assert_eq!(
+            fs.invoke(&FsRequest::RemoveFile { path: file }).unwrap(),
+            FsResponse::Unit
+        );
+        assert_eq!(
+            fs.invoke(&FsRequest::RemoveDir { path: dir.clone() }).unwrap(),
+            FsResponse::Unit
+        );
+        assert_eq!(
+            fs.invoke(&FsRequest::DirExists { path: dir }).unwrap(),
+            FsResponse::Exists(false)
+        );
     }
 }

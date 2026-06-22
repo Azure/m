@@ -274,7 +274,7 @@ ABI.
       `dir_exists`/`file_exists`/`metadata`/`read_dir` over the **M9-1 file leaf**
       (attributes/timestamps/size), decoding into `FileMetadata` and
       ordinal-ordered `DirEntry`s.
-- [ ] **M9-3** Live write path: `create_dir`/`remove_dir`/`write_file` (create +
+- [x] **M9-3** Live write path: `create_dir`/`remove_dir`/`write_file` (create +
       apply `FileMetadata` attributes/timestamps via the M9-1 leaf
       primitives)/`remove_file`, plus the full object-safe `impl FsSurface`, so
       `LiveFilesystem` is a drop-in provider for the `Filesystem` facade.

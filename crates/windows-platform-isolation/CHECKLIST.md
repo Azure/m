@@ -216,7 +216,7 @@ Path model is a faithful port of the C++ `m::pil::file_path` (D22); the C++
       (`root`/`root_kind`/`relative_path`/`is_absolute`/`has_root`); `FileRoot`
       exposes `kind`/`text`/`is_none`/`suppresses_normalization`/
       `is_fully_qualified`. Plus the hand-rolled `FilesystemError` (D14). (D22)
-- [ ] **M6-2** Path algebra over a `PathSurface { Windows, Posix }` seam:
+- [x] **M6-2** Path algebra over a `PathSurface { Windows, Posix }` seam:
       `lexically_normal` (separator normalization, `.`/`..` resolution, `..`
       underflow rejected, extended-length verbatim), `split_parent_path_and_leaf_name`
       / `parent_path` / `has_parent_path`, the join `operator/`, and ordinal

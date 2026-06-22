@@ -242,7 +242,11 @@ Path model is a faithful port of the C++ `m::pil::file_path` (D22); the C++
       and ordinal directory ordering.
 
 
-### M7 — Async / threadpool foundation (sibling crates; isolation stays sync, D12) — OUTLINE
+### M7 — Async / threadpool foundation (sibling crates; isolation stays sync, D12) — DETAILED
+
+The detailed, authoritative execution plan now lives in the sibling crate:
+`crates/windows-threadpool/CHECKLIST.md` (TP-D1..TP-D4). The items below are the
+roadmap outline; track and check off the real work there.
 
 - [ ] **M7-1** `windows-threadpool` safe API over `CreateThreadpoolWork`/timers
       (TP-D2), quarantined `unsafe` (TP-D4).

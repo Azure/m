@@ -2,4 +2,5 @@
 
 | Path to CHECKLIST.md | Status | Brief description | Design Notes |
 |---|---|---|---|
-| [CHECKLIST.md](CHECKLIST.md) | in progress | M7 detailed plan: safe threadpool core (work/timers/work-queue), futures executor, IOCP reactor, integration | [DESIGN-NOTES.md](DESIGN-NOTES.md) |
+
+No active plans — completed plans are recorded in `COMPLETED-PLANS.md`.

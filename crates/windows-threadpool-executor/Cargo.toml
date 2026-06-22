@@ -9,5 +9,13 @@ description = "A futures executor layered on the Windows thread pool (TP-D3): id
 windows-threadpool = { path = "../windows-threadpool" }
 async-task = "4"
 
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+] }
+
 [lints]
 workspace = true

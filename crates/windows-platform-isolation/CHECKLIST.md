@@ -253,7 +253,7 @@ roadmap outline; track and check off the real work there.
 - [x] **M7-2** `windows-threadpool-executor` crate: futures executor submitting
       threadpool work.
 - [x] **M7-3** IOCP reactor via `CreateThreadpoolIo` for async I/O completion.
-- [ ] **M7-4** *(integration)* spawn+await, timer fire, IOCP completion smoke
+- [x] **M7-4** *(integration)* spawn+await, timer fire, IOCP completion smoke
       tests.
 
 ### M8 — HWC (Hostable Web Core) isolation layer — OUTLINE (to be detailed when scheduled)

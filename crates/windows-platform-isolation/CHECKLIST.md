@@ -222,7 +222,13 @@ Path model is a faithful port of the C++ `m::pil::file_path` (D22); the C++
       / `parent_path` / `has_parent_path`, the join `operator/`, and ordinal
       `equivalent` / `precedes` routed through the M2 `OrdinalCasing` seam
       (Windows ordinal-insensitive, POSIX ordinal-sensitive). (D22/D6)
-- [ ] **M6-3** Overlay / copy-on-write filesystem tree (mirror M1's tree).
+- [x] **M6-3** Overlay / copy-on-write filesystem tree (mirror M1's tree).
+      `FileTree` (immutable base) + `OverlayFileTree<C>` (tombstoned COW
+      overlay) over a **unified** dir/file namespace (D13) keyed by the ordinal
+      sort key (D6/D8); files are **metadata-only** (`FileMetadata`, D14). Paths
+      decompose via `FilePath::components()`. `dir_exists` / `file_exists`,
+      `create_dir` / `remove_dir`, `set_file` / `remove_file` / `file_metadata`,
+      and ordinal-ordered `read_dir` (`DirEntry { name, kind, metadata }`).
 - [ ] **M6-4** Reified filesystem `Request`/`Response` + `Surface`; reuse the
       surface-agnostic decorators (D4/D10).
 - [ ] **M6-5** Typed filesystem facade (`std::fs`-shaped, D11) + session vending.

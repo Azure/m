@@ -24,6 +24,9 @@ pub enum FilesystemError {
     /// (D22). The string describes what went wrong; it is diagnostic, not a
     /// stable contract.
     InvalidPath(String),
+    /// No filesystem node exists at the requested path (the directory or file
+    /// is absent, or a tombstone shadows it).
+    NotFound,
 }
 
 impl fmt::Display for FilesystemError {
@@ -31,6 +34,7 @@ impl fmt::Display for FilesystemError {
         match self {
             Self::IllFormedUtf16 => f.write_str("stored path is not well-formed UTF-16"),
             Self::InvalidPath(detail) => write!(f, "invalid path: {detail}"),
+            Self::NotFound => f.write_str("no filesystem node exists at the path"),
         }
     }
 }

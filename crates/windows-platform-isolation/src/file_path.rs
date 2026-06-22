@@ -475,6 +475,27 @@ impl FilePath {
         Utf16::from_units(self.value.as_units()[self.root_length..].to_vec())
     }
 
+    /// The path's name components, root-first, for hierarchical (tree)
+    /// navigation. The whole `native()` text is split on either separator
+    /// (`\` or `/`) with empty components dropped, so a drive/UNC/POSIX root
+    /// contributes its own leading component(s) (e.g. `C:\Windows\System32`
+    /// yields `["C:", "Windows", "System32"]`).
+    ///
+    /// This is a surface-agnostic decomposition — the same rule the registry's
+    /// `KeyPath` uses — chosen so the in-memory filesystem tree is a plain
+    /// ordinal-keyed namespace. A POSIX filename that legitimately contains a
+    /// backslash would be over-split; that limitation is acceptable for the
+    /// isolated model and matches the registry path convention.
+    #[must_use]
+    pub fn components(&self) -> Vec<Utf16> {
+        self.value
+            .as_units()
+            .split(|&u| u == FILE_PREFERRED_SEPARATOR || u == FILE_POSIX_SEPARATOR)
+            .filter(|seg| !seg.is_empty())
+            .map(|seg| Utf16::from_units(seg.to_vec()))
+            .collect()
+    }
+
     /// True when the path carries any root (including a drive-relative root).
     #[must_use]
     pub fn has_root(&self) -> bool {

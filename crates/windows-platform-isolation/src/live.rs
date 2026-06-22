@@ -20,8 +20,8 @@ use crate::error::{RegistryError, Result};
 use crate::path::KeyPath;
 use crate::serial::{decode_value, encode_value};
 use crate::surface::{Request, Response, Surface};
-use crate::tree::ValueData;
-use crate::Utf16;
+use crate::tree::{Hive, ValueData};
+use crate::{OrdinalCasing, Utf16};
 
 /// A provider that operates directly on the live OS registry (D20).
 #[derive(Debug, Default)]
@@ -174,6 +174,44 @@ impl LiveRegistry {
         let key = self.open(path, true)?;
         key.delete_value(&nul_terminated(name))
             .map_err(map_value_err)
+    }
+
+    /// Capture the live subtree rooted at `path` into an in-memory base
+    /// [`Hive`] (D20/D21).
+    ///
+    /// The captured keys and values are placed under `path` itself (its first
+    /// component is a canonical hive name), so the result serializes with
+    /// [`save_registry_hive`](crate::save_registry_hive) and reloads with
+    /// [`load_registry_hive`](crate::load_registry_hive) without remapping. The
+    /// root key is recorded even when it is empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegistryError::KeyNotFound`] when `path` is absent, or
+    /// [`RegistryError::Os`] on any other Win32 failure.
+    pub fn capture<C: OrdinalCasing>(&self, casing: &C, path: &KeyPath) -> Result<Hive> {
+        let mut hive = Hive::new();
+        hive.insert_key(casing, path);
+        self.capture_into(casing, &mut hive, path)?;
+        Ok(hive)
+    }
+
+    /// Recurse `path`'s values and subkeys into `hive` (depth-first).
+    fn capture_into<C: OrdinalCasing>(
+        &self,
+        casing: &C,
+        hive: &mut Hive,
+        path: &KeyPath,
+    ) -> Result<()> {
+        for (name, data) in self.enum_values(path)? {
+            hive.insert_value(casing, path, name, data);
+        }
+        for sub in self.enum_keys(path)? {
+            let child = path.child(sub);
+            hive.insert_key(casing, &child);
+            self.capture_into(casing, hive, &child)?;
+        }
+        Ok(())
     }
 }
 

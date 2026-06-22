@@ -196,7 +196,12 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       the D19 loader: deterministic ordinal-sorted XML using the shared
       `encode_value`/lowercase-hex codec, so `load`→`save`→`load` is a fixed
       point — proven against both the SAMPLE and the M4 fixture artifact. D21.)
-- [ ] **M5-5** *(integration)* capture → save → load → assert round-trip parity
+- [x] **M5-5** *(integration)* capture → save → load → assert round-trip parity
+      (`LiveRegistry::capture` snapshots a live HKCU scratch subtree into a base
+      hive; the Windows-only integration test writes a known subtree, captures →
+      `save_registry_hive` → `load_registry_hive`, asserts every value type reads
+      back identically and that re-serialization is a fixed point, with RAII
+      scratch cleanup. D20/D21.)
       with the C++ format.
 
 ### M6 — Filesystem isolation surface (mirror the registry stack)

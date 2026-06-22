@@ -283,3 +283,84 @@ fn load_artifact_decodes_tree_and_enumerates_in_ordinal_order() {
     );
 }
 
+// --- M5-5: live capture -> save -> load round-trip parity -------------------
+
+/// End-to-end on the real OS registry (Windows only): write a known subtree to
+/// a scratch HKCU key with [`LiveRegistry`], [`capture`] it into a base hive,
+/// serialize it with [`save_registry_hive`], reload it with
+/// [`load_registry_hive`], and assert the reloaded tree matches what was
+/// written — plus that re-serialization is a fixed point. The scratch subtree
+/// is removed before and after the test (RAII), so the test is self-cleaning
+/// and needs no administrator rights.
+///
+/// [`LiveRegistry`]: crate::LiveRegistry
+/// [`capture`]: crate::LiveRegistry::capture
+/// [`save_registry_hive`]: crate::save_registry_hive
+/// [`load_registry_hive`]: crate::load_registry_hive
+#[cfg(windows)]
+#[test]
+fn live_capture_round_trips_through_artifact_format() {
+    use crate::{LiveRegistry, Win32OrdinalCasing};
+
+    let casing = Win32OrdinalCasing;
+    let reg = LiveRegistry::new();
+    let root = KeyPath::parse(
+        "HKEY_CURRENT_USER\\Software\\windows-platform-isolation-tests\\m5_5_capture",
+    );
+
+    /// Removes the scratch subtree on drop so the registry is left clean.
+    struct Cleanup<'a>(&'a LiveRegistry, KeyPath);
+    impl Drop for Cleanup<'_> {
+        fn drop(&mut self) {
+            let _ = self.0.delete_key(&self.1);
+        }
+    }
+
+    // Start from a clean slate, and guarantee teardown.
+    let _ = reg.delete_key(&root);
+    let _guard = Cleanup(&reg, root.clone());
+
+    // Populate a known subtree: a spread of value types at the root plus a
+    // nested subkey with its own value.
+    reg.create_key(&root).unwrap();
+    reg.write_value(&root, &w("Name"), &ValueData::String(w("Srv"))).unwrap();
+    reg.write_value(&root, &w("Path"), &ValueData::ExpandString(w("%TMP%"))).unwrap();
+    reg.write_value(&root, &w("Langs"), &ValueData::MultiString(vec![w("en"), w("fr")])).unwrap();
+    reg.write_value(&root, &w("Count"), &ValueData::Dword(0x1234)).unwrap();
+    reg.write_value(&root, &w("Big"), &ValueData::Qword(1)).unwrap();
+    reg.write_value(&root, &w("Blob"), &ValueData::Binary(vec![0xca, 0xfe])).unwrap();
+    let child = root.child(w("Child"));
+    reg.create_key(&child).unwrap();
+    reg.write_value(&child, &w("Leaf"), &ValueData::Dword(7)).unwrap();
+
+    // Capture -> save -> load.
+    let captured = reg.capture(&casing, &root).expect("capture subtree");
+    let xml = crate::save_registry_hive(casing, &captured);
+    let reloaded = crate::load_registry_hive(&casing, &xml).expect("reload captured artifact");
+    let tree = OverlayTree::new(casing, reloaded);
+
+    // Parity: every written value reads back identically through the reloaded
+    // artifact.
+    assert_eq!(tree.get_value(&root, &w("Name")).unwrap(), ValueData::String(w("Srv")));
+    assert_eq!(
+        tree.get_value(&root, &w("Path")).unwrap(),
+        ValueData::ExpandString(w("%TMP%"))
+    );
+    assert_eq!(
+        tree.get_value(&root, &w("Langs")).unwrap(),
+        ValueData::MultiString(vec![w("en"), w("fr")])
+    );
+    assert_eq!(tree.get_value(&root, &w("Count")).unwrap(), ValueData::Dword(0x1234));
+    assert_eq!(tree.get_value(&root, &w("Big")).unwrap(), ValueData::Qword(1));
+    assert_eq!(
+        tree.get_value(&root, &w("Blob")).unwrap(),
+        ValueData::Binary(vec![0xca, 0xfe])
+    );
+    assert!(tree.key_exists(&child));
+    assert_eq!(tree.get_value(&child, &w("Leaf")).unwrap(), ValueData::Dword(7));
+
+    // Re-serializing the reloaded hive is a fixed point.
+    let xml2 = crate::save_registry_hive(casing, tree.base());
+    assert_eq!(xml, xml2, "captured artifact must be stable under re-serialization");
+}
+

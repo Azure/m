@@ -5,6 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+windows-text = { path = "../windows-text" }
+
+[dev-dependencies]
+# Enable the pure-Rust ASCII ordinal reference so unit tests can exercise the
+# casing seam off Windows (M3-2: production builds vend `Win32OrdinalCasing`).
+windows-text = { path = "../windows-text", features = ["testing"] }
 
 [lints]
 workspace = true

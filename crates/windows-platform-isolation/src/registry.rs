@@ -16,7 +16,7 @@ use crate::error::{RegistryError, Result};
 use crate::path::KeyPath;
 use crate::surface::{Request, Response, Surface};
 use crate::tree::{ValueData, ValueType};
-use crate::wstr::Utf16;
+use crate::Utf16;
 
 /// Well-known registry hive identities. Obtained from a [`Session`]; never
 /// exposed as global constants (D11).
@@ -260,6 +260,21 @@ impl<S: Surface> Registry<S> {
     }
 }
 
+/// Production stacks vend the mandated Win32 ordinal casing (D6/D8). This is the
+/// default casing for non-test builds; unit tests inject the `testing`
+/// `AsciiOrdinalCasing` reference instead (M3-2).
+#[cfg(windows)]
+impl Registry<crate::surface::TreeSurface<crate::Win32OrdinalCasing>> {
+    /// Build an in-memory registry facade over `base`, keyed with the mandated
+    /// production ordinal casing (`Win32OrdinalCasing`). The base hive must have
+    /// been populated with the same casing.
+    #[must_use]
+    pub fn in_memory(base: crate::tree::Hive) -> Self {
+        let tree = crate::tree::OverlayTree::new(crate::Win32OrdinalCasing, base);
+        Registry::new(crate::surface::TreeSurface::new(tree))
+    }
+}
+
 fn type_mismatch(expected: ValueType, found: &ValueData) -> RegistryError {
     RegistryError::TypeMismatch {
         expected,
@@ -280,7 +295,7 @@ mod tests {
     use super::*;
     use crate::surface::TreeSurface;
     use crate::tree::{Hive, OverlayTree};
-    use crate::wstr::AsciiOrdinalCasing;
+    use windows_text::AsciiOrdinalCasing;
 
     fn w(s: &str) -> Utf16 {
         Utf16::from_utf8(s)

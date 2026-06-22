@@ -15,7 +15,7 @@
 use crate::error::Result;
 use crate::path::KeyPath;
 use crate::tree::{OverlayTree, ValueData};
-use crate::wstr::{OrdinalCasing, Utf16};
+use crate::{OrdinalCasing, Utf16};
 
 /// A registry operation, modeled as data (D10). This is also the journaling
 /// verb stream (D4).
@@ -118,7 +118,7 @@ mod tests {
     use super::*;
     use crate::error::RegistryError;
     use crate::tree::Hive;
-    use crate::wstr::AsciiOrdinalCasing;
+    use windows_text::AsciiOrdinalCasing;
 
     fn w(s: &str) -> Utf16 {
         Utf16::from_utf8(s)

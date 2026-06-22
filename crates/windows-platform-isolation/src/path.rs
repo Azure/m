@@ -8,7 +8,7 @@
 //! components for lookup is the tree's job, via the ordinal-casing seam (D6);
 //! `KeyPath`'s own `Eq`/`Hash` are exact (case-sensitive) over components.
 
-use crate::wstr::Utf16;
+use crate::Utf16;
 
 /// A registry key path: an ordered list of name components rooted at a
 /// session-vended root (D11), e.g. `Software\App\Settings`.

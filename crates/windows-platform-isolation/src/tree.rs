@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 
 use crate::error::{RegistryError, Result};
 use crate::path::KeyPath;
-use crate::wstr::{OrdinalCasing, Utf16};
+use crate::{OrdinalCasing, Utf16};
 
 /// The type tag of a registry value (D11 `Type`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -360,7 +360,7 @@ impl<C: OrdinalCasing> OverlayTree<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::wstr::AsciiOrdinalCasing;
+    use windows_text::AsciiOrdinalCasing;
 
     fn w(s: &str) -> Utf16 {
         Utf16::from_utf8(s)

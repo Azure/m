@@ -93,14 +93,17 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
 
 ### M3 — Adopt `windows-text` here (integration / refactor)
 
-- [ ] **M3-1** Add the dependency; remove `Utf16` / `OrdinalCasing` / the
+- [x] **M3-1** Add the dependency; remove `Utf16` / `OrdinalCasing` / the
       test-only `AsciiOrdinalCasing` from `wstr.rs`; re-export the crate's
       `Utf16`, `OrdinalCasing`, `Win32OrdinalCasing` for API continuity. Retire
-      `wstr.rs` once empty.
-- [ ] **M3-2** Make `Win32OrdinalCasing` the default casing for non-test builds
-      (sessions/facade vend it); unit tests use the crate's `testing` reference
-      impl.
-- [ ] **M3-3** *(integration)* Clean rebuild + full test suite in **debug and
+      `wstr.rs` once empty. Also removed the now-obsolete empty `ffi` module: per
+      Option B (D13) every FFI leaf is its own `-sys` crate, so this crate keeps
+      no local unsafe home (tests import `AsciiOrdinalCasing` from `windows-text`
+      via its `testing` dev-dependency feature).
+- [x] **M3-2** Make `Win32OrdinalCasing` the default casing for non-test builds
+      (Windows-only `Registry::in_memory` facade vends it); unit tests use the
+      crate's `testing` reference impl.
+- [x] **M3-3** *(integration)* Clean rebuild + full test suite in **debug and
       release** + clippy; confirm zero behavior change across
       tree/surface/decorator/registry/integration layers; this crate stays
       genuinely `#![forbid(unsafe_code)]` (casing `unsafe` now lives in the

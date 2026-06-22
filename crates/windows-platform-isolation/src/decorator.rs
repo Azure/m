@@ -17,7 +17,7 @@ use crate::error::{RegistryError, Result};
 use crate::path::KeyPath;
 use crate::surface::{Request, Response, Surface};
 use crate::tree::ValueData;
-use crate::wstr::{OrdinalCasing, Utf16};
+use crate::{OrdinalCasing, Utf16};
 
 /// A transparent decorator: forwards every request to the inner surface
 /// unchanged. Useful as a seam for inserting behavior without altering call
@@ -310,7 +310,7 @@ mod tests {
     use super::*;
     use crate::surface::TreeSurface;
     use crate::tree::Hive;
-    use crate::wstr::AsciiOrdinalCasing;
+    use windows_text::AsciiOrdinalCasing;
 
     fn w(s: &str) -> Utf16 {
         Utf16::from_utf8(s)

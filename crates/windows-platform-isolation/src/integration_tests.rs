@@ -23,7 +23,8 @@ use crate::path::KeyPath;
 use crate::registry::Registry;
 use crate::surface::{Surface, TreeSurface};
 use crate::tree::{Hive, OverlayTree, ValueData};
-use crate::wstr::{AsciiOrdinalCasing, OrdinalCasing, Utf16};
+use crate::{OrdinalCasing, Utf16};
+use windows_text::AsciiOrdinalCasing;
 
 const BASE_VALUE_COUNT: usize = 200;
 const BASE_SUBKEY_COUNT: usize = 50;

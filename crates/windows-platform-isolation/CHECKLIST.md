@@ -210,7 +210,7 @@ Path model is a faithful port of the C++ `m::pil::file_path` (D22); the C++
 `test_file_path.cpp` is the conformance spec. The C++ split into root parsing
 (`M-FS-PATH-1`) and path algebra (`M-FS-PATH-2`) is mirrored here as M6-1/M6-2.
 
-- [ ] **M6-1** `FilePath` + `FileRoot` types with `parse_root` (the seven-way
+- [x] **M6-1** `FilePath` + `FileRoot` types with `parse_root` (the seven-way
       `FileRootKind`: none/posix/drive/unc/device/extended/extended_unc), lossless
       UTF-16 storage that round-trips through `native()`, and root accessors
       (`root`/`root_kind`/`relative_path`/`is_absolute`/`has_root`); `FileRoot`

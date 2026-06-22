@@ -21,6 +21,8 @@
 
 pub mod decorator;
 pub mod error;
+pub mod file_path;
+pub mod fs_error;
 #[cfg(windows)]
 pub mod live;
 pub mod path;
@@ -31,6 +33,8 @@ pub mod tree;
 
 pub use decorator::{Buffered, PassThrough};
 pub use error::{RegistryError, Result};
+pub use file_path::{FilePath, FileRoot, FileRootKind};
+pub use fs_error::{FilesystemError, FilesystemResult};
 #[cfg(windows)]
 pub use live::LiveRegistry;
 pub use path::KeyPath;

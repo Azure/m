@@ -29,6 +29,9 @@ mod work;
 mod timer;
 
 #[cfg(windows)]
+mod work_queue;
+
+#[cfg(windows)]
 pub use error::{ThreadPoolError, ThreadPoolResult};
 
 #[cfg(windows)]
@@ -36,3 +39,8 @@ pub use work::{Work, submit_once};
 
 #[cfg(windows)]
 pub use timer::{PeriodicTimer, Timer};
+
+#[cfg(windows)]
+pub use work_queue::{
+    ExecutionPolicy, WorkItem, WorkItemState, WorkItemTimes, WorkQueue,
+};

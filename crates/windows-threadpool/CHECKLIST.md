@@ -35,7 +35,7 @@ enqueue / start / end timing, state, cancel, and wait.
       `WaitForThreadpoolTimerCallbacks` / `CloseThreadpoolTimer`, mirroring the
       C++ relative-FILETIME due-time computation and the periodic period; `set`,
       `is_set`, `cancel`, `wait`.
-- [ ] **M7-1.4** `WorkQueue` with `ExecutionPolicy { Sequenced, Parallel }`
+- [x] **M7-1.4** `WorkQueue` with `ExecutionPolicy { Sequenced, Parallel }`
       vending `WorkItem` handles that expose `state()`
       (`Queued/Running/Done/Canceled`), enqueue / start / end `times()`,
       `try_cancel()`, `id()`, and `wait()` / `wait_for()` — parity with the C++

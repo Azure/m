@@ -15,7 +15,8 @@ use windows::Win32::Foundation::{
 use windows::Win32::System::Registry::{
     HKEY, HKEY_CLASSES_ROOT, HKEY_CURRENT_CONFIG, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE,
     HKEY_USERS, KEY_READ, KEY_WRITE, REG_OPTION_NON_VOLATILE, REG_VALUE_TYPE, RegCloseKey,
-    RegCreateKeyExW, RegEnumKeyExW, RegEnumValueW, RegOpenKeyExW, RegQueryValueExW,
+    RegCreateKeyExW, RegDeleteTreeW, RegDeleteValueW, RegEnumKeyExW, RegEnumValueW, RegOpenKeyExW,
+    RegQueryValueExW, RegSetValueExW,
 };
 use windows::core::{PCWSTR, PWSTR};
 
@@ -330,6 +331,54 @@ impl RegKey {
             owned: true,
         })
     }
+
+    /// Set a value by name on this key.
+    ///
+    /// `name` is a NUL-terminated UTF-16 value name (a lone NUL selects the
+    /// default value). `type_code` is the raw `REG_*` type; `data` is the value
+    /// bytes exactly as they should be stored (string types must already carry
+    /// their UTF-16 NUL terminator).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegError`] on any Win32 failure.
+    pub fn set_value(&self, name: &[u16], type_code: u32, data: &[u8]) -> Result<(), RegError> {
+        let rc = unsafe {
+            RegSetValueExW(
+                self.handle,
+                PCWSTR(name.as_ptr()),
+                None,
+                REG_VALUE_TYPE(type_code),
+                Some(data),
+            )
+        };
+        check(rc)
+    }
+
+    /// Delete the value `name` from this key.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegError`] (with [`RegError::is_not_found`] true when the value
+    /// is absent) on any Win32 failure.
+    pub fn delete_value(&self, name: &[u16]) -> Result<(), RegError> {
+        let rc = unsafe { RegDeleteValueW(self.handle, PCWSTR(name.as_ptr())) };
+        check(rc)
+    }
+
+    /// Delete a subkey of this key together with all of its descendants.
+    ///
+    /// `subkey` must be a NUL-terminated UTF-16 path naming the subkey to
+    /// remove; the named subkey and everything beneath it are deleted.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegError`] (with [`RegError::is_not_found`] true when the
+    /// subkey is absent) on any Win32 failure.
+    pub fn delete_subkey_tree(&self, subkey: &[u16]) -> Result<(), RegError> {
+        let rc = unsafe { RegDeleteTreeW(self.handle, PCWSTR(subkey.as_ptr())) };
+        check(rc)
+    }
 }
 
 impl Drop for RegKey {
@@ -365,5 +414,38 @@ mod tests {
             .open_subkey(&wz("Software\\windows-platform-isolation-sys\\does-not-exist"), false)
             .expect_err("missing key should error");
         assert!(err.is_not_found(), "expected not-found, got {err}");
+    }
+
+    #[test]
+    fn create_set_read_delete_round_trip() {
+        // Use a per-test scratch subtree under HKCU (no admin required).
+        let hkcu = RegKey::current_user();
+        let subtree = wz("Software\\windows-platform-isolation-sys-tests\\round_trip");
+        // Best-effort cleanup of any leftovers from a prior aborted run.
+        let _ = hkcu.delete_subkey_tree(&subtree);
+
+        let key = hkcu.create_subkey(&subtree).expect("create scratch key");
+        // REG_SZ "hi" stored as UTF-16LE with a NUL terminator.
+        let name = wz("greeting");
+        let data: Vec<u8> = "hi"
+            .encode_utf16()
+            .chain(core::iter::once(0))
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        const REG_SZ: u32 = 1;
+        key.set_value(&name, REG_SZ, &data).expect("set value");
+
+        let (ty, bytes) = key.query_value(&name).expect("read back value");
+        assert_eq!(ty, REG_SZ);
+        assert_eq!(bytes, data);
+
+        key.delete_value(&name).expect("delete value");
+        assert!(
+            key.query_value(&name).expect_err("value should be gone").is_not_found(),
+            "deleted value should report not-found"
+        );
+
+        // Remove the scratch subtree entirely.
+        hkcu.delete_subkey_tree(&subtree).expect("delete scratch subtree");
     }
 }

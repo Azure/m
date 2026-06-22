@@ -184,7 +184,13 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       The full object-safe `impl Surface` lands in M5-3 with the write verbs,
       since the trait needs all eight verbs to compile — the read/write split is
       coupled at the trait boundary, so M5-2 ships inherent readers only.)
-- [ ] **M5-3** Live write path.
+- [x] **M5-3** Live write path.
+      (`windows-platform-isolation-sys` gains `set_value`/`delete_value`/
+      `delete_subkey_tree` write FFI; `serial::encode_value` is the exact inverse
+      of `decode_value`; `LiveRegistry` gains `create_key`/`delete_key`/
+      `write_value`/`delete_value` and now implements the full eight-verb
+      `Surface`, so it is a drop-in provider for the `Registry` facade. Tested
+      against a deterministic HKCU scratch subtree with RAII cleanup.)
 - [ ] **M5-4** Write/capture side of the artifact format (round-trips with M4).
 - [ ] **M5-5** *(integration)* capture → save → load → assert round-trip parity
       with the C++ format.

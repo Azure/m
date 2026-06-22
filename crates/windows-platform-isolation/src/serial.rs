@@ -194,6 +194,56 @@ pub(crate) fn decode_value(type_code: u32, bytes: Vec<u8>) -> Result<ValueData> 
     Ok(data)
 }
 
+/// Encode [`ValueData`] into its raw `(REG_* type code, value bytes)` form — the
+/// exact inverse of [`decode_value`] (D20/D21). Shared by the live write path
+/// and the XML save side so a captured value round-trips back to the same bytes.
+///
+/// String types carry their UTF-16 NUL terminator; multi-strings are
+/// NUL-separated and double-NUL-terminated, matching what the live registry and
+/// the C++ artifact format expect.
+pub(crate) fn encode_value(data: &ValueData) -> (u32, Vec<u8>) {
+    match data {
+        ValueData::String(s) => (reg_value_type::STRING, encode_string(s)),
+        ValueData::ExpandString(s) => (reg_value_type::EXPAND_STRING, encode_string(s)),
+        ValueData::MultiString(list) => (reg_value_type::MULTI_STRING, encode_multi_string(list)),
+        ValueData::Dword(n) => (reg_value_type::UINT32, n.to_le_bytes().to_vec()),
+        ValueData::Qword(n) => (reg_value_type::UINT64, n.to_le_bytes().to_vec()),
+        ValueData::Binary(bytes) => (reg_value_type::BINARY, bytes.clone()),
+    }
+}
+
+/// Encode UTF-16 code units as little-endian bytes with a single trailing NUL
+/// terminator (the inverse of [`decode_string`]).
+fn encode_string(s: &Utf16) -> Vec<u8> {
+    let mut units = s.as_units().to_vec();
+    units.push(0);
+    le_bytes(&units)
+}
+
+/// Encode a string list as NUL-separated, double-NUL-terminated UTF-16LE bytes
+/// (the inverse of [`decode_multi_string`]). An empty list encodes to a lone
+/// NUL terminator.
+fn encode_multi_string(list: &[Utf16]) -> Vec<u8> {
+    let mut units: Vec<u16> = Vec::new();
+    for s in list {
+        units.extend_from_slice(s.as_units());
+        units.push(0);
+    }
+    // Terminating empty string (also the whole encoding when the list is empty).
+    units.push(0);
+    le_bytes(&units)
+}
+
+/// Serialize UTF-16 code units to little-endian bytes (the inverse of
+/// [`le_units`]).
+fn le_bytes(units: &[u16]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(units.len() * 2);
+    for &u in units {
+        out.extend_from_slice(&u.to_le_bytes());
+    }
+    out
+}
+
 /// Decode UTF-16LE bytes into code units, dropping a single trailing NUL
 /// terminator if present (D19). Ill-formed UTF-16 is preserved losslessly (D9).
 fn decode_string(bytes: &[u8]) -> Result<Utf16> {

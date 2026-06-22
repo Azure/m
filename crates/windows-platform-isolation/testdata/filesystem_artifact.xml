@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hand-authored, spec-conformant C++ PIL filesystem artifact used by the
+  windows-platform-isolation loader integration test. It mirrors the format
+  emitted by the C++ PIL `filesystem::save_xml` and exercises:
+    * a drive Root (kind="2" = file_root_kind::Drive) carrying its own metadata;
+    * nested directories and files with full metadata
+      (size / creation_time / last_write_time / last_access_time / attributes);
+    * directory and file entries authored out of order to prove ordinal sort on
+      enumeration;
+    * a deleted (tombstone) directory and a deleted file that fold away;
+    * a mirrored (name-only) placeholder directory that becomes empty.
+  The node kind is implied by the element name (<Directory> / <File>); file byte
+  content is never stored (metadata only). Swap in a real C++-produced artifact
+  when one is available.
+
+  Win32 FILE_ATTRIBUTE_* bits: DIRECTORY=16 (0x10), ARCHIVE=32 (0x20),
+  READONLY=1 (0x1), HIDDEN=2 (0x2). Times are opaque i64 clock-tick counts.
+-->
+<Platform>
+  <Filesystem>
+    <Root kind="2" text="C:" size="0" creation_time="131000000000000000" last_write_time="131000000000000000" last_access_time="131000000000000000" attributes="16">
+      <Directory name="Windows" size="0" creation_time="131000000000000010" last_write_time="131000000000000011" last_access_time="131000000000000012" attributes="16">
+        <File name="notepad.exe" size="4096" creation_time="131000000000000020" last_write_time="131000000000000021" last_access_time="131000000000000022" attributes="32"/>
+        <Directory name="System32" size="0" attributes="16">
+          <File name="kernel32.dll" size="65536" attributes="32"/>
+          <File name="ntdll.dll" size="131072" attributes="33"/>
+        </Directory>
+        <Directory name="Temp" mirrored="true" size="0" attributes="16">
+          <File name="should-not-load.tmp" size="999"/>
+        </Directory>
+        <Directory name="OldStuff" deleted="true"/>
+        <File name="stale.log" deleted="true"/>
+      </Directory>
+      <Directory name="Users" size="0" attributes="16">
+        <File name="autoexec.bat" size="128" attributes="1"/>
+      </Directory>
+      <Directory name="ProgramData" size="0" attributes="18"/>
+    </Root>
+  </Filesystem>
+</Platform>

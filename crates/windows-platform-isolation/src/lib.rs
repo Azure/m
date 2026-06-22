@@ -24,6 +24,7 @@ pub mod error;
 pub mod file_path;
 pub mod fs;
 pub mod fs_error;
+pub mod fs_serial;
 pub mod fs_surface;
 pub mod fs_tree;
 #[cfg(windows)]
@@ -39,6 +40,7 @@ pub use error::{RegistryError, Result};
 pub use file_path::{FilePath, FileRoot, FileRootKind, PathSurface};
 pub use fs::{Filesystem, FsSession};
 pub use fs_error::{FilesystemError, FilesystemResult};
+pub use fs_serial::load_filesystem;
 pub use fs_surface::{FsPassThrough, FsRequest, FsResponse, FsSurface, TreeFsSurface};
 pub use fs_tree::{DirEntry, FileMetadata, FileTree, NodeKind, OverlayFileTree};
 #[cfg(windows)]

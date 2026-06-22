@@ -27,6 +27,10 @@ pub enum FilesystemError {
     /// No filesystem node exists at the requested path (the directory or file
     /// is absent, or a tombstone shadows it).
     NotFound,
+    /// A serialized C++ PIL filesystem artifact could not be decoded — the XML
+    /// was not well-formed or a required attribute was missing or unparseable.
+    /// The string is diagnostic, not a stable contract.
+    MalformedArtifact(String),
 }
 
 impl fmt::Display for FilesystemError {
@@ -35,6 +39,7 @@ impl fmt::Display for FilesystemError {
             Self::IllFormedUtf16 => f.write_str("stored path is not well-formed UTF-16"),
             Self::InvalidPath(detail) => write!(f, "invalid path: {detail}"),
             Self::NotFound => f.write_str("no filesystem node exists at the path"),
+            Self::MalformedArtifact(detail) => write!(f, "malformed filesystem artifact: {detail}"),
         }
     }
 }

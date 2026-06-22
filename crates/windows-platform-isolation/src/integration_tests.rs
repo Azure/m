@@ -364,3 +364,110 @@ fn live_capture_round_trips_through_artifact_format() {
     assert_eq!(xml, xml2, "captured artifact must be stable under re-serialization");
 }
 
+// --- M6-6: load a serialized C++ PIL filesystem artifact end to end ----------
+
+/// The hand-authored, spec-conformant filesystem artifact. Embedded so the test
+/// is hermetic; swap in a real C++-produced artifact when one is available.
+const FILESYSTEM_ARTIFACT_XML: &str = include_str!("../testdata/filesystem_artifact.xml");
+
+#[test]
+fn load_filesystem_artifact_decodes_tree_and_enumerates_in_ordinal_order() {
+    use crate::fs_tree::{NodeKind, OverlayFileTree};
+    use crate::FilePath;
+
+    fn p(s: &str) -> FilePath {
+        FilePath::from_utf8(s)
+    }
+
+    let casing = AsciiOrdinalCasing;
+    let tree = crate::load_filesystem(&casing, FILESYSTEM_ARTIFACT_XML)
+        .expect("filesystem artifact should parse");
+    let overlay = OverlayFileTree::new(casing, tree);
+
+    // The drive root and its nested directories/files resolve as ordinary path
+    // components rooted at the Root's `text` (C:).
+    assert!(overlay.dir_exists(&p("C:\\Windows")));
+    assert!(overlay.dir_exists(&p("C:\\Windows\\System32")));
+    assert!(overlay.file_exists(&p("C:\\Windows\\notepad.exe")));
+    assert!(overlay.file_exists(&p("C:\\Windows\\System32\\kernel32.dll")));
+
+    // File metadata decodes whole (size, attributes, and the opaque i64 times).
+    let notepad = overlay
+        .file_metadata(&p("C:\\Windows\\notepad.exe"))
+        .expect("file present");
+    assert_eq!(notepad.size, 4096);
+    assert_eq!(notepad.attributes, 32);
+    assert_eq!(notepad.creation_time, 131000000000000020);
+    assert_eq!(notepad.last_write_time, 131000000000000021);
+    assert_eq!(notepad.last_access_time, 131000000000000022);
+
+    // Directory metadata is not exposed through file_metadata (that accessor is
+    // for files); a directory path is reported NotFound there.
+    assert_eq!(
+        overlay.file_metadata(&p("C:\\Windows")),
+        Err(crate::FilesystemError::NotFound)
+    );
+
+    // Entries authored out of order enumerate in ordinal order. Under C:\ the
+    // directories Windows, Users, ProgramData were authored out of order; the
+    // ASCII ordinal fold orders them ProgramData(P) < Users(U) < Windows(W).
+    let root_entries = overlay.read_dir(&p("C:")).expect("enumerable");
+    let root_names: Vec<String> = root_entries
+        .iter()
+        .map(|e| e.name.to_utf8().unwrap())
+        .collect();
+    assert_eq!(
+        root_names,
+        vec![
+            "ProgramData".to_string(),
+            "Users".to_string(),
+            "Windows".to_string()
+        ]
+    );
+    assert!(root_entries.iter().all(|e| e.kind == NodeKind::Directory));
+
+    // System32 mixes files: kernel32.dll and ntdll.dll, ordinal-ordered.
+    let sys32 = overlay
+        .read_dir(&p("C:\\Windows\\System32"))
+        .expect("enumerable");
+    let sys32_names: Vec<String> = sys32.iter().map(|e| e.name.to_utf8().unwrap()).collect();
+    assert_eq!(
+        sys32_names,
+        vec!["kernel32.dll".to_string(), "ntdll.dll".to_string()]
+    );
+    assert!(sys32.iter().all(|e| e.kind == NodeKind::File));
+
+    // A deleted directory and a deleted file fold away (absent in the base).
+    assert!(!overlay.dir_exists(&p("C:\\Windows\\OldStuff")));
+    assert!(!overlay.file_exists(&p("C:\\Windows\\stale.log")));
+
+    // A mirrored placeholder is present but empty: its name enumerates, but its
+    // would-be children are not loaded.
+    assert!(overlay.dir_exists(&p("C:\\Windows\\Temp")));
+    assert!(
+        overlay
+            .read_dir(&p("C:\\Windows\\Temp"))
+            .expect("enumerable")
+            .is_empty()
+    );
+    assert!(!overlay.file_exists(&p("C:\\Windows\\Temp\\should-not-load.tmp")));
+
+    // The mirrored placeholder folds into Windows's enumeration alongside the
+    // real entries, ordinal-ordered. The ASCII fold orders them
+    // notepad.exe(N) < System32(S) < Temp(T).
+    let win_entries = overlay.read_dir(&p("C:\\Windows")).expect("enumerable");
+    let win_names: Vec<String> = win_entries
+        .iter()
+        .map(|e| e.name.to_utf8().unwrap())
+        .collect();
+    assert_eq!(
+        win_names,
+        vec![
+            "notepad.exe".to_string(),
+            "System32".to_string(),
+            "Temp".to_string()
+        ]
+    );
+}
+
+

@@ -126,3 +126,21 @@ The corpus must include the punctuation cases (`_`, `a_b` vs `ab`) that
 distinguish an ordinal key from a linguistic one, so the fixture positively
 documents that the shipped key is ordinal (WT-2) and would catch any regression
 back to a linguistic collation key.
+
+**As built (M2-7).** The generator is the `windows-text` example
+`gen_ordinal_golden` (`cargo run -p windows-text --example gen_ordinal_golden`);
+the fixture is `crates/windows-text/testdata/ordinal_golden_vectors.txt` (line-
+oriented text — `V`/`I`/`C` records, hex fields — chosen so the C++ side parses
+it without a JSON dependency). Curation is mechanized: as it emits each `C` row
+the generator asserts the comparator sign equals the byte ordering of the two
+keys (D8), so an OS divergence fails generation instead of being committed.
+Observed-and-accepted invariant-upcase facts the corpus pins: ordinal
+`LCMAP_UPPERCASE` leaves U+0130/U+0131 and U+00DF (ß) unchanged and passes lone
+surrogates through untouched; case-folded `a_b` sorts **after** `ab` (because
+`_`=0x5F > `B`=0x42), which is the ordinal — not linguistic — placement. The Rust
+consumer is `win32_matches_golden_vectors`. The **C++** consumer is deferred to
+`windows-platform-isolation` M4-6: it needs the C++ materialized sort-key byte
+representation pinned by M4-2/M4-3 first, so the C++ `I`-row key assertion is
+well-defined; M2-7 therefore landed the generator, the curated fixture, and the
+Rust consumer, and handed the C++ assertion to M4.
+

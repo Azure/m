@@ -68,17 +68,27 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       monotonicity; code-page round-trips (UTF-8 and a legacy CP); ill-formed
       UTF-16 round-trips never panic/lose data (D9). Safe crate stays
       `cargo-geiger`-clean (zero `unsafe`).
-- [ ] **M2-7** *(integration)* Shared golden sort-key/comparator vectors (WT-5).
-      A Windows-only generator calls the OS primitives (`CompareString*` /
-      `LCMapStringEx` under `LOCALE_NAME_INVARIANT`) over a fixed corpus (ASCII
-      letters/digits/`_`/punctuation, mixed-case words, BMP non-ASCII incl.
+- [x] **M2-7** *(integration)* Shared golden sort-key/comparator vectors (WT-5).
+      A Windows-only generator (`windows-text` example `gen_ordinal_golden`)
+      calls the OS primitives (`LCMapStringEx` under `LOCALE_NAME_INVARIANT` /
+      `CompareStringOrdinal`) over a fixed corpus (ASCII
+      letters/digits/`_`/punctuation, mixed-case words incl. the `_` / `a_b` vs
+      `ab` ordinal-vs-linguistic cases (WT-2), BMP non-ASCII incl.
       U+0130/U+0131, ill-formed UTF-16), emitting per-input key bytes (hex) and
-      per-pair comparator signs. Curate the capture against the written spec
-      (annotate any OS quirk we decline to adopt), commit it as a small shared
-      fixture, and have **both** the Rust and the C++ PIL test suites load and
-      assert against the same file. Removes the old "extract reference vectors
-      from C++" prerequisite. Must include the `_` / `a_b` vs `ab` cases that
-      distinguish an ordinal key from a linguistic one (WT-2).
+      per-pair comparator signs into a committed fixture
+      (`crates/windows-text/testdata/ordinal_golden_vectors.txt`). The capture
+      is curated against the written spec: the generator asserts the comparator
+      sign agrees with the byte ordering of the two keys for every pair (D8), so
+      any OS quirk that diverged would fail generation rather than be committed
+      silently. The Rust PIL/`windows-text` suite loads and asserts against the
+      file (`win32_matches_golden_vectors`). Removes the old "extract reference
+      vectors from C++" prerequisite. The **C++** consumer half is split out to
+      M4-6 below, because asserting the C++ side requires the C++ materialized
+      sort-key representation to be pinned first — that work lives in M4 (C++
+      artifact format), not M2.
+      > **➡ CROSS-COMPONENT HANDOFF:** the C++ side of the shared fixture is
+      > `windows-platform-isolation` → M4 → **M4-6** (C++ PIL suite loads
+      > `crates/windows-text/testdata/ordinal_golden_vectors.txt`).
 - [x] **M2-8** Sort key = a `memcmp`-comparable **byte** key built from ordinal
       upper-casing (`LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE)`
       serialized big-endian); comparator = `CompareStringOrdinal(bIgnoreCase =
@@ -120,6 +130,15 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
 - [ ] **M4-4** Extend `RegistryError` for parse/format failures as needed (D14).
 - [ ] **M4-5** *(integration)* Load a real C++-produced artifact; assert tree
       contents and ordinal enumeration order.
+- [ ] **M4-6** *(integration, from M2-7)* Have the C++ PIL test suite load the
+      shared golden fixture `crates/windows-text/testdata/ordinal_golden_vectors.txt`
+      and assert the C++ ordinal sort key (per-`I`-row key bytes) and
+      `m::case_insensitive_less` comparator (per-`C`-row sign) reproduce it
+      exactly, pinning Rust↔C++ parity of the ordinal key/comparator (D8/D12).
+      > **⬅ CROSS-COMPONENT PREREQUISITE:** the fixture and its Rust consumer
+      > landed in M2-7. This item additionally requires the C++ materialized
+      > sort-key byte representation pinned by M4-2/M4-3 (so the C++ `I`-row key
+      > assertion is well-defined). Sequence after M4-3.
 
 ### M5 — Live/"direct" registry provider + capture (write side)
 

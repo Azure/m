@@ -189,6 +189,108 @@ fn win32_ill_formed_utf16_does_not_panic() {
     let _ = a.sort_key();
 }
 
+// ----- Windows: shared golden vectors (WT-5 / M2-7) -------------------------
+
+/// Load the committed golden-vector fixture and assert the Win32 leaf
+/// reproduces every recorded sort key and comparator sign. The same fixture is
+/// consumed by the C++ PIL suite, pinning cross-language parity of the ordinal
+/// key/comparator. Regenerate with
+/// `cargo run -p windows-text --example gen_ordinal_golden`.
+#[cfg(windows)]
+#[test]
+fn win32_matches_golden_vectors() {
+    use std::fs;
+
+    fn parse_units(field: &str) -> Vec<u16> {
+        if field == "-" {
+            return Vec::new();
+        }
+        field
+            .as_bytes()
+            .chunks(4)
+            .map(|c| u16::from_str_radix(std::str::from_utf8(c).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    fn parse_bytes(field: &str) -> Vec<u8> {
+        if field == "-" {
+            return Vec::new();
+        }
+        field
+            .as_bytes()
+            .chunks(2)
+            .map(|c| u8::from_str_radix(std::str::from_utf8(c).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/testdata/ordinal_golden_vectors.txt"
+    );
+    let text = fs::read_to_string(path).expect("golden fixture present");
+
+    let casing = Win32OrdinalCasing;
+    let mut inputs: Vec<Vec<u16>> = Vec::new();
+    let mut saw_version = false;
+    let mut pair_rows = 0usize;
+
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut f = line.split_whitespace();
+        match f.next().unwrap() {
+            "V" => {
+                assert_eq!(f.next().unwrap(), "1", "unexpected fixture version");
+                saw_version = true;
+            }
+            "I" => {
+                let idx: usize = f.next().unwrap().parse().unwrap();
+                assert_eq!(idx, inputs.len(), "I rows must be dense and in order");
+                let units = parse_units(f.next().unwrap());
+                let expected_key = parse_bytes(f.next().unwrap());
+                assert_eq!(
+                    casing.sort_key(&units),
+                    expected_key,
+                    "sort-key mismatch for corpus[{idx}]"
+                );
+                inputs.push(units);
+            }
+            "C" => {
+                let i: usize = f.next().unwrap().parse().unwrap();
+                let j: usize = f.next().unwrap().parse().unwrap();
+                let want = match f.next().unwrap() {
+                    "lt" => Ordering::Less,
+                    "eq" => Ordering::Equal,
+                    "gt" => Ordering::Greater,
+                    other => panic!("bad sign {other:?}"),
+                };
+                assert_eq!(
+                    casing.compare_ignore_case(&inputs[i], &inputs[j]),
+                    want,
+                    "comparator mismatch for ({i}, {j})"
+                );
+                assert_eq!(
+                    casing.compare_ignore_case(&inputs[j], &inputs[i]),
+                    want.reverse(),
+                    "comparator not antisymmetric for ({i}, {j})"
+                );
+                pair_rows += 1;
+            }
+            other => panic!("unknown record kind {other:?}"),
+        }
+    }
+
+    assert!(saw_version, "fixture missing version record");
+    assert!(inputs.len() >= 20, "fixture unexpectedly small");
+    assert_eq!(
+        pair_rows,
+        inputs.len() * (inputs.len() - 1) / 2,
+        "fixture must contain every i<j comparator pair"
+    );
+}
+
 // ----- Windows: code-page conversions (M2-5) --------------------------------
 
 #[cfg(windows)]

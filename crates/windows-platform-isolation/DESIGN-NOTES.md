@@ -40,6 +40,7 @@ design rather than binding to the C++ implementation.
 | D19 | Rust loader mapping: normalize hives to canonical names, fold a sealed snapshot into a base `Hive`, decode `type`/`data` per `reg_value_type` |
 | D20 | Live/"direct" registry provider over a dedicated `windows-platform-isolation-sys` `unsafe` leaf (RAII `RegKey`); supersedes D15's "no live provider" |
 | D21 | Write/capture side of the artifact (`save_registry_hive`): a deterministic, platform-independent serializer that is the exact inverse of the D19 loader, so `load`→`save`→`load` is a fixed point |
+| D22 | Filesystem path model (`FilePath`/`FileRoot`/`PathSurface`) is a faithful port of the C++ `m::pil::file_path`; its C++ unit tests are the conformance spec |
 
 ---
 
@@ -424,6 +425,72 @@ character (consistent with the format's text-only name model). `last_write_time`
 is not emitted — the loader ignores it (D19), so it is not part of the canonical
 form. Because folding (tombstones, mirrored placeholders) already happened on
 load, a saved document contains no tombstones; it is the sealed base, not a diff.
+
+## D22 — Filesystem path model mirrors the C++ `m::pil::file_path`
+
+M6's `FilePath` is a **faithful Rust port of the C++ `m::pil::file_path`**
+(`src/libraries/pil/include/m/pil/file_path.h`,
+`src/libraries/pil/src/file_path.cpp`), **not** a wrapper over `std::path::Path`.
+We adopt the C++ model wholesale for **alignment** with the shared providers and
+artifact (D2/D5); finer divergences (e.g. whether the Rust crate ever needs the
+POSIX surface at all, or only Windows) are **deferred** — alignment first,
+details later.
+
+**No experimental STL needed.** The C++ `file_path` is a *self-contained model*:
+it reimplements `std::filesystem::path` semantics for two explicit surfaces
+rather than delegating to the host STL at runtime. Its unit tests
+(`src/libraries/pil/test/test_file_path.cpp`) are therefore the **executable
+conformance spec** — the Rust port mirrors those cases.
+
+**Storage (mirrors C++ `m_value`/`m_root_kind`/`m_root_length`).** `FilePath`
+stores the raw UTF-16 text plus a parsed root descriptor (a `FileRootKind`
+discriminant and the root length). Storage is lossless: `native()` round-trips
+the exact input, preserving both case **and** separators. Separator/dot
+normalization happens only in `lexically_normal`, never on construction —
+exactly like `key_path`/`KeyPath` store exact text and defer folding to a
+comparator (D6).
+
+**`FileRootKind` is an open discriminant (C++ D10):** `None` (rootless ⇒
+relative), `Posix` (`/`), `Drive` (`C:` drive-relative, `C:\` absolute), `Unc`
+(`\\server\share`), `Device` (`\\.\…`), `Extended` (`\\?\…`, remainder
+verbatim), `ExtendedUnc` (`\\?\UNC\…`, remainder verbatim). The seven-way
+`parse_root` is the heart of the type.
+
+**Separators are surface-parameterized, not baked into the type (C++ D11).** A
+`PathSurface { Windows, Posix }` argument governs the operations that care
+(split / normalize / join / compare):
+- **Windows:** both `\` and `/` separate; `lexically_normal` rewrites every `/`
+  to `\`. The `\\?\` (extended) and `\\.\` (device) prefixes are recognized
+  **only with literal backslashes**, and everything past an extended-length
+  prefix is **verbatim** (no normalization), because Win32 treats such a path as
+  a literally distinct object.
+- **POSIX:** only `/` separates; `\` is an ordinary filename character; the only
+  root is a single leading `/` (a run of leading slashes collapses to one).
+
+**Required API surface (what the PIL filesystem code actually depends on).**
+Derived from the production consumers, not guesswork:
+- **Root decomposition** — the universal `fs.open_root(fp.root())` then
+  `root.open_directory(fp.relative_path())` pattern: `root() -> FileRoot`,
+  `relative_path()`, `root_kind()`, `is_absolute()`
+  (`materializing_webcore.cpp`, `direct/.../win32_filesystem.cpp`).
+- **Path breaking** — the buffered overlay tree walks parent→leaf:
+  `has_parent_path()`, `split_parent_path_and_leaf_name() -> (Option<parent>,
+  leaf)`, `parent_path()`, and `native()` as the overlay map key
+  (`buffered/directory_*_operations.cpp`).
+- **`FileRoot` companion** exposes `kind()`, `text()`, `is_none()`,
+  `suppresses_normalization()`, `is_fully_qualified()`.
+- **Provider-facing algebra** — `lexically_normal(surface)`,
+  `equivalent(other, surface)`, `precedes(other, surface)`, and the join
+  `operator/`/`operator/=` (absolute rhs replaces lhs; join separator follows
+  the root convention).
+
+**Case comparison routes through the M2 casing seam (D6).** The Windows surface
+compares **ordinal case-insensitively** (the C++ `case_insensitive_less` =
+`CompareStringOrdinal`); the POSIX surface compares ordinal case-**sensitively**.
+Stored case is never altered — only comparison folds. This is the same ordinal
+seam (`OrdinalCasing`) the registry stack already uses, satisfying NTFS
+case-insensitivity without a second casing mechanism. The filesystem error type
+remains its own hand-rolled type (D14), separate from `RegistryError`.
 
 ## D16 — `windows-text`: a standalone reusable Windows string crate
 

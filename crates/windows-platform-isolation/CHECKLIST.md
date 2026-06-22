@@ -206,14 +206,29 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
 
 ### M6 — Filesystem isolation surface (mirror the registry stack)
 
-- [ ] **M6-1** `FilePath` type (UTF-16/ordinal; NTFS case-insensitivity via M2
-      casing) + hand-rolled `FilesystemError` (D14).
-- [ ] **M6-2** Overlay / copy-on-write filesystem tree (mirror M1's tree).
-- [ ] **M6-3** Reified filesystem `Request`/`Response` + `Surface`; reuse the
+Path model is a faithful port of the C++ `m::pil::file_path` (D22); the C++
+`test_file_path.cpp` is the conformance spec. The C++ split into root parsing
+(`M-FS-PATH-1`) and path algebra (`M-FS-PATH-2`) is mirrored here as M6-1/M6-2.
+
+- [ ] **M6-1** `FilePath` + `FileRoot` types with `parse_root` (the seven-way
+      `FileRootKind`: none/posix/drive/unc/device/extended/extended_unc), lossless
+      UTF-16 storage that round-trips through `native()`, and root accessors
+      (`root`/`root_kind`/`relative_path`/`is_absolute`/`has_root`); `FileRoot`
+      exposes `kind`/`text`/`is_none`/`suppresses_normalization`/
+      `is_fully_qualified`. Plus the hand-rolled `FilesystemError` (D14). (D22)
+- [ ] **M6-2** Path algebra over a `PathSurface { Windows, Posix }` seam:
+      `lexically_normal` (separator normalization, `.`/`..` resolution, `..`
+      underflow rejected, extended-length verbatim), `split_parent_path_and_leaf_name`
+      / `parent_path` / `has_parent_path`, the join `operator/`, and ordinal
+      `equivalent` / `precedes` routed through the M2 `OrdinalCasing` seam
+      (Windows ordinal-insensitive, POSIX ordinal-sensitive). (D22/D6)
+- [ ] **M6-3** Overlay / copy-on-write filesystem tree (mirror M1's tree).
+- [ ] **M6-4** Reified filesystem `Request`/`Response` + `Surface`; reuse the
       surface-agnostic decorators (D4/D10).
-- [ ] **M6-4** Typed filesystem facade (`std::fs`-shaped, D11) + session vending.
-- [ ] **M6-5** *(integration)* Load a C++ filesystem artifact; assert contents
+- [ ] **M6-5** Typed filesystem facade (`std::fs`-shaped, D11) + session vending.
+- [ ] **M6-6** *(integration)* Load a C++ filesystem artifact; assert contents
       and ordinal directory ordering.
+
 
 ### M7 — Async / threadpool foundation (sibling crates; isolation stays sync, D12) — OUTLINE
 

@@ -126,8 +126,12 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       `DESIGN-NOTES.md`: pugixml `<Platform><Registry>` XML — `<Key>`/`<Value>`
       schema, `deleted`/`mirrored` markers, `reg_value_type` `type` numbering,
       lowercase-hex `data`, and predefined-hive name spellings.
-- [ ] **M4-2** Record the shared-format spec in `DESIGN-NOTES.md` (D5 is a
-      prerequisite for the loader).
+- [x] **M4-2** Record the shared-format spec in `DESIGN-NOTES.md` (D5 is a
+      prerequisite for the loader). Recorded as **D19**: loader produces a base
+      `Hive`, normalizes hive names to canonical forms, folds tombstones away /
+      mirrored→empty key, ignores `last_write_time`, and decodes `type`/`data`
+      per `reg_value_type` (with a lossless `Binary` fallback); roxmltree keeps
+      it `#![forbid(unsafe_code)]`.
 - [ ] **M4-3** Safe deserializer: bytes → M1 overlay tree, keyed with M2
       production sort keys for C++ parity (D8/D12). No `unsafe`.
 - [ ] **M4-4** Extend `RegistryError` for parse/format failures as needed (D14).

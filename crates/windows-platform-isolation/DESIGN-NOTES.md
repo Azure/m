@@ -566,6 +566,68 @@ hive name is a hard error (`invalid_parameter`).
 D5 this schema is a **shared** contract: it may be changed only by jointly
 migrating both code bases with confirmation, never unilaterally.
 
+## D19 — Rust loader mapping from the C++ registry artifact
+
+How the Rust read side (M4-3) turns a D18 document into in-memory state. The C++
+artifact is a *sealed buffered snapshot*; the loader folds it into an immutable
+base [`Hive`] that callers wrap in `OverlayTree::new(casing, hive)`. "M1 overlay
+tree" in the checklist therefore means **the base of the overlay tree** — the
+loader produces the captured base, not a pre-populated overlay.
+
+**Single hive, hive-name first component.** The Rust tree is one `Hive` rooted at
+a session-vended root whose first path component is the canonical hive name
+(`Session::root` → `WellKnownRoot::canonical_name`, e.g.
+`HKEY_LOCAL_MACHINE`). Each C++ `<Key>` under `<Registry>` becomes a **first-level
+subkey** of that single `Hive`, named with the **canonical full name**, so paths
+vended by a session resolve. Every accepted C++ spelling (abbreviation or long
+form, ordinal case-insensitive) normalizes to one canonical name: `HKCR`/
+`HKEY_CLASSES_ROOT` → `HKEY_CLASSES_ROOT`; `HKCU` → `HKEY_CURRENT_USER`; `HKLM`
+→ `HKEY_LOCAL_MACHINE`; `HKCC`/`HKEY_CURRENT_CONFIG` → `HKEY_CURRENT_CONFIG`;
+`HKEY_USERS`, `HKEY_CURRENT_USER_LOCAL_SETTINGS`, `HKEY_PERFORMANCE_DATA`,
+`HKEY_PERFORMANCE_TEXT`, `HKEY_PERFORMANCE_NLSTEXT` → themselves. An unrecognized
+hive name is a parse error.
+
+**Folding a sealed snapshot into an immutable base.**
+
+- A non-deleted, non-mirrored `<Key>` → a `Hive` subkey; recurse into it.
+- A non-deleted `<Value>` → decoded and inserted (below).
+- **Tombstones** (`deleted="true"`, key or value) are **skipped**. A sealed
+  snapshot is "the world as captured"; a deleted entry is simply absent, and the
+  immutable base `Hive` has no tombstone concept (tombstones are overlay/journal
+  state). When the Rust write/round-trip side arrives (M5) tombstones become
+  overlay deletions; for the M4 read side they fold away.
+- A **mirrored placeholder** (`mirrored="true"`) → an **empty** `Hive` subkey, so
+  the observed name still enumerates in ordinal order. This is a deliberate
+  simplification: the C++ sealed-world "enumerable-but-not-openable, then
+  lazy-repaired" nuance is overlay behavior the immutable base does not model in
+  M4. The read side asserts enumeration, which an empty key reproduces.
+- `last_write_time` is **parsed and ignored** — the M4 base `Hive` models no
+  per-key timestamp. (Revisit if key metadata is ever modeled.)
+- Absent `<Registry>` → an empty `Hive` (not an error), mirroring the C++
+  `if (!registry_node) return reg;`. The loader accepts being handed either the
+  `<Platform>` root or a `<Registry>` element directly.
+
+**Value decode (`type` + `data`).** `data` hex → raw bytes (odd-length or non-hex
+→ parse error), then by `reg_value_type`:
+
+| `type` | → `ValueData` | decode |
+|---|---|---|
+| 1 string | `String(Utf16)` | bytes as UTF-16LE units; drop one trailing NUL unit if present |
+| 2 expand_string | `ExpandString(Utf16)` | as string |
+| 7 multi_string | `MultiString(Vec<Utf16>)` | UTF-16LE units split on NUL; drop trailing empties (double-NUL terminator) |
+| 4 uint32 | `Dword(u32)` | exactly 4 little-endian bytes (else parse error) |
+| 11 uint64 | `Qword(u64)` | exactly 8 little-endian bytes (else parse error) |
+| 3 binary | `Binary(Vec<u8>)` | raw bytes |
+| 0 none, 5 dword_be, 6 link, other | `Binary(Vec<u8>)` | raw bytes — lossless fallback; `ValueType` has no variant for these |
+
+A string/multi-string `data` that is not a whole number of `u16` (odd byte count)
+is a parse error. Per **D9** the loader never rejects ill-formed UTF-16 string
+*content*: decoded units are stored losslessly; only UTF-8 egress is fallible.
+
+**Parser.** roxmltree (pure-safe, read-only DOM) keeps the loader inside
+`#![forbid(unsafe_code)]` (D13). Behavior is owned by us (Design-Autonomy):
+roxmltree is the chosen mechanism for the XML grammar D18 already specifies.
+
 ## Status
 
 The kickoff questions (relationship, surfaces, layering, interop) are resolved

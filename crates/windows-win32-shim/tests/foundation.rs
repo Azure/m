@@ -37,6 +37,7 @@ fn handle_round_trip_and_reserved_bit_invariants() {
                 op: SearchOp::NameMatch,
                 case_sensitive: false,
             },
+            emit_short_name: true,
         }));
 
         for h in [key, file, find] {

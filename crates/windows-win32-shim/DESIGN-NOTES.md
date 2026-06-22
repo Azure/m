@@ -266,3 +266,46 @@ not an oversight — each is queued as a later MW item where applicable):
   `static`s do not run `Drop`, so the at-exit (`DllMain` `DLL_PROCESS_DETACH`)
   wiring the C++ destructor relies on is deferred.
 
+
+## SHIM-D14 — `FindFirstFileEx` family: search-op / info-level / flag mapping and 8.3 short-name passthrough
+
+MW8 completes the `FindFirstFile*` family on top of the SHIM-D12 enumeration
+model. `mFindFirstFileExW`, `mFindFirstFileTransactedW`, and the plain
+`mFindFirstFileW` share one engine (`fs_ops::find_first` + `find_next`); only the
+extended call validates and maps the additional parameters. The mapping is owned
+behavior (Design Autonomy): the shim **specifies** which info levels, search
+operations, and flag bits it accepts, and `windows-sys`'s named `FINDEX_*` /
+`FIND_FIRST_EX_*` constants are compared by value to satisfy that specification
+(never matched as patterns — they are camelCase values, not Rust enum variants).
+
+- **Info level → short-name emission.** `FindExInfoStandard` emits the 8.3 short
+  name; `FindExInfoBasic` suppresses it (the documented Basic optimization). Any
+  other level (e.g. `FindExInfoMaxInfoLevel`) is `ERROR_INVALID_PARAMETER`. The
+  decision is captured once per enumeration as
+  `FindEnumerationState.emit_short_name` and returned from `find_next`, so the
+  whole `FindNextFileW` walk honors the level chosen at `FindFirstFileEx` time.
+
+- **Search operation → predicate.** `FindExSearchNameMatch` →
+  `SearchOp::NameMatch`; `FindExSearchLimitToDirectories` →
+  `SearchOp::LimitToDirectories` (the leaf filter additionally requires a
+  directory entry). `FindExSearchLimitToDevices`, `FindExSearchMaxSearchOp`, and
+  any other value are `ERROR_INVALID_PARAMETER`.
+
+- **Additional flags.** `FIND_FIRST_EX_CASE_SENSITIVE` makes the leaf match
+  case-sensitive (otherwise the Win32-default case-insensitive match of
+  SHIM-D12). `FIND_FIRST_EX_LARGE_FETCH` and `FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY`
+  are accepted and ignored (performance/locality hints with no observable effect
+  on the in-memory enumeration). Any unrecognized bit is
+  `ERROR_INVALID_PARAMETER`.
+
+- **`lpSearchFilter`.** Reserved by Win32; must be null, else
+  `ERROR_INVALID_PARAMETER`.
+
+- **Short-name source.** The 8.3 alternate name copied into `cAlternateFileName`
+  is `DirEntry.short_name` supplied by the isolation surface (isolation M10); the
+  shim does not synthesize short names. When the surface has no short name for an
+  entry, `cAlternateFileName` is left empty.
+
+- **Transacted stub.** `mFindFirstFileTransactedW` ignores its trailing
+  transaction handle and forwards to `mFindFirstFileExW` — the shim has no
+  transaction surface, matching the C++ forwarding stub.

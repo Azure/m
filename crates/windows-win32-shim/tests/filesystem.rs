@@ -223,11 +223,11 @@ fn delete_and_set_attributes_behave() {
 #[test]
 fn find_first_then_next_enumerates_in_ordinal_order() {
     let (mut fs, handles) = fresh();
-    let (h, first) = fs_ops::find_first(&mut fs, &handles, &p("C:\\data\\*"), SearchOp::NameMatch, false)
+    let (h, first) = fs_ops::find_first(&mut fs, &handles, &p("C:\\data\\*"), SearchOp::NameMatch, false, true)
         .unwrap()
         .expect("non-empty listing");
     let mut names = vec![name_of(&first)];
-    while let Some(entry) = fs_ops::find_next(&handles, h).unwrap() {
+    while let Some((entry, _)) = fs_ops::find_next(&handles, h).unwrap() {
         names.push(name_of(&entry));
     }
     // Ordinal order: 'one.txt', 'sub', 'three.txt', 'two.txt' sort by UTF-16 unit.
@@ -242,12 +242,12 @@ fn find_first_rejects_parentless_and_reports_empty() {
     let (mut fs, handles) = fresh();
     // A rootless single component has no parent directory.
     assert_eq!(
-        fs_ops::find_first(&mut fs, &handles, &p("loose"), SearchOp::NameMatch, false),
+        fs_ops::find_first(&mut fs, &handles, &p("loose"), SearchOp::NameMatch, false, true),
         Err(ERROR_INVALID_PARAMETER)
     );
     // An empty directory yields Ok(None).
     assert_eq!(
-        fs_ops::find_first(&mut fs, &handles, &p("C:\\data\\sub\\*"), SearchOp::NameMatch, false),
+        fs_ops::find_first(&mut fs, &handles, &p("C:\\data\\sub\\*"), SearchOp::NameMatch, false, true),
         Ok(None)
     );
 }
@@ -274,11 +274,11 @@ fn large_scale_enumeration_is_complete_and_ordered() {
     let mut fs = Filesystem::in_memory(tree);
     let handles = HandleTable::new();
 
-    let (h, first) = fs_ops::find_first(&mut fs, &handles, &p("C:\\bulk\\*"), SearchOp::NameMatch, false)
+    let (h, first) = fs_ops::find_first(&mut fs, &handles, &p("C:\\bulk\\*"), SearchOp::NameMatch, false, true)
         .unwrap()
         .expect("non-empty listing");
     let mut names = vec![name_of(&first)];
-    while let Some(entry) = fs_ops::find_next(&handles, h).unwrap() {
+    while let Some((entry, _)) = fs_ops::find_next(&handles, h).unwrap() {
         names.push(name_of(&entry));
     }
     assert_eq!(names.len(), COUNT);

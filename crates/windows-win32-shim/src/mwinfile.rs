@@ -35,11 +35,15 @@ use windows_platform_isolation::{DirEntry, FilePath, NodeKind};
 use windows_sys::Win32::Foundation::{
     CloseHandle, ERROR_FILE_NOT_FOUND, ERROR_INVALID_HANDLE, ERROR_INVALID_PARAMETER,
     ERROR_NO_MORE_FILES, ERROR_NOT_SUPPORTED, FALSE, FILETIME, HANDLE, INVALID_HANDLE_VALUE, TRUE,
+    WIN32_ERROR,
 };
 use windows_sys::Win32::Foundation::BOOL;
 use windows_sys::Win32::Storage::FileSystem::{
-    GET_FILEEX_INFO_LEVELS, GetFileExInfoStandard, INVALID_FILE_ATTRIBUTES, WIN32_FILE_ATTRIBUTE_DATA,
-    WIN32_FIND_DATAW,
+    FINDEX_INFO_LEVELS, FINDEX_SEARCH_OPS, FIND_FIRST_EX_CASE_SENSITIVE, FIND_FIRST_EX_FLAGS,
+    FIND_FIRST_EX_LARGE_FETCH, FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY, FindExInfoBasic,
+    FindExInfoStandard, FindExSearchLimitToDirectories, FindExSearchNameMatch,
+    GET_FILEEX_INFO_LEVELS, GetFileExInfoStandard, INVALID_FILE_ATTRIBUTES,
+    WIN32_FILE_ATTRIBUTE_DATA, WIN32_FIND_DATAW,
 };
 
 use crate::error_map::set_last_error;
@@ -105,12 +109,17 @@ fn to_filetime(ticks: i64) -> FILETIME {
 
 /// Fill a [`WIN32_FIND_DATAW`] from a directory entry. The UTF-16 name is copied
 /// into the fixed `cFileName` buffer and truncated (with a guaranteed NUL) if it
-/// does not fit; the short-name and reserved fields are cleared.
+/// does not fit. When `emit_short_name` is set (the `FindExInfoStandard` /
+/// plain-`mFindFirstFileW` behavior), the entry's 8.3 short name (sourced from
+/// the isolation surface, M10) is copied into `cAlternateFileName` (also
+/// truncated with a NUL); when clear (`FindExInfoBasic`) the short name is
+/// suppressed and `cAlternateFileName` is left empty. The reserved fields are
+/// cleared.
 ///
 /// # Safety
 ///
 /// `out` must point to a writable [`WIN32_FIND_DATAW`].
-unsafe fn fill_find_data(entry: &DirEntry, out: *mut WIN32_FIND_DATAW) {
+unsafe fn fill_find_data(entry: &DirEntry, emit_short_name: bool, out: *mut WIN32_FIND_DATAW) {
     let size = entry.metadata.size;
     // SAFETY: `out` is a writable WIN32_FIND_DATAW; every field is plain integer
     // data, so any prior bit pattern is a valid value to overwrite.
@@ -123,7 +132,16 @@ unsafe fn fill_find_data(entry: &DirEntry, out: *mut WIN32_FIND_DATAW) {
     out.nFileSizeLow = (size & SIZE_LOW_MASK) as u32;
     out.dwReserved0 = 0;
     out.dwReserved1 = 0;
+
     out.cAlternateFileName = [0u16; 14];
+    if emit_short_name
+        && let Some(short) = entry.short_name.as_ref()
+    {
+        let units = short.as_units();
+        let capacity = out.cAlternateFileName.len();
+        let n = core::cmp::min(units.len(), capacity - 1);
+        out.cAlternateFileName[..n].copy_from_slice(&units[..n]);
+    }
 
     out.cFileName = [0u16; 260];
     let units = entry.name.as_units();
@@ -429,13 +447,15 @@ pub extern "system" fn mFindFirstFileW(
     // SAFETY: lp_file_name is a NUL-terminated wide string (checked non-null).
     let pattern = unsafe { to_file_path(lp_file_name) };
     let s = session();
+    // The plain (non-Ex) form enumerates with a case-insensitive name match and
+    // emits the 8.3 short name (the `FindExInfoStandard` behavior).
     match s.with_filesystem(|fs| {
-        fs_ops::find_first(fs, s.handles(), &pattern, SearchOp::NameMatch, false)
+        fs_ops::find_first(fs, s.handles(), &pattern, SearchOp::NameMatch, false, true)
     }) {
         Ok(Some((handle, entry))) => {
             // SAFETY: lp_find_file_data is non-null (checked) and writable.
             unsafe {
-                fill_find_data(&entry, lp_find_file_data);
+                fill_find_data(&entry, true, lp_find_file_data);
             }
             handle as HANDLE
         }
@@ -450,6 +470,144 @@ pub extern "system" fn mFindFirstFileW(
     }
 }
 
+/// Validate the extended `FindFirstFileEx` parameters and map them to the search
+/// inputs (`fs_ops::find_first`) plus the 8.3 short-name emission decision.
+///
+/// Behavior is owned (Design Autonomy): we **specify** which info levels, search
+/// operations, and flag bits the shim accepts; `windows-sys`'s named constants
+/// are matched (never bare integers).
+///
+/// - `fInfoLevelId`: `FindExInfoStandard` emits the short name,
+///   `FindExInfoBasic` suppresses it; anything else (e.g.
+///   `FindExInfoMaxInfoLevel`) is `ERROR_INVALID_PARAMETER`.
+/// - `fSearchOp`: `FindExSearchNameMatch` → [`SearchOp::NameMatch`],
+///   `FindExSearchLimitToDirectories` → [`SearchOp::LimitToDirectories`];
+///   `FindExSearchLimitToDevices` / `FindExSearchMaxSearchOp` are
+///   `ERROR_INVALID_PARAMETER`.
+/// - `dwAdditionalFlags`: `FIND_FIRST_EX_CASE_SENSITIVE` is honored;
+///   `FIND_FIRST_EX_LARGE_FETCH` and `FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY` are
+///   accepted and ignored; any other bit is `ERROR_INVALID_PARAMETER`.
+/// - `lpSearchFilter` is reserved by Win32 and must be null.
+///
+/// Returns `(op, case_sensitive, emit_short_name)` on success.
+fn map_find_ex_params(
+    f_info_level_id: FINDEX_INFO_LEVELS,
+    f_search_op: FINDEX_SEARCH_OPS,
+    lp_search_filter: *const c_void,
+    dw_additional_flags: FIND_FIRST_EX_FLAGS,
+) -> Result<(SearchOp, bool, bool), WIN32_ERROR> {
+    /// The `dwAdditionalFlags` bits the shim recognizes (accepted; the unlisted
+    /// two are merely ignored). Adding or removing a bit changes the accepted
+    /// surface, a breaking change.
+    const KNOWN_FLAGS: FIND_FIRST_EX_FLAGS = FIND_FIRST_EX_CASE_SENSITIVE
+        | FIND_FIRST_EX_LARGE_FETCH
+        | FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY;
+
+    if !lp_search_filter.is_null() {
+        return Err(ERROR_INVALID_PARAMETER);
+    }
+    // The windows-sys FINDEX_* constants are camelCase values (not Rust enum
+    // variants), so they are compared with `==` rather than matched as patterns
+    // (pattern position would trip `non_upper_case_globals`).
+    let emit_short_name = if f_info_level_id == FindExInfoStandard {
+        true
+    } else if f_info_level_id == FindExInfoBasic {
+        false
+    } else {
+        return Err(ERROR_INVALID_PARAMETER);
+    };
+    let op = if f_search_op == FindExSearchNameMatch {
+        SearchOp::NameMatch
+    } else if f_search_op == FindExSearchLimitToDirectories {
+        SearchOp::LimitToDirectories
+    } else {
+        return Err(ERROR_INVALID_PARAMETER);
+    };
+    if dw_additional_flags & !KNOWN_FLAGS != 0 {
+        return Err(ERROR_INVALID_PARAMETER);
+    }
+    let case_sensitive = dw_additional_flags & FIND_FIRST_EX_CASE_SENSITIVE != 0;
+    Ok((op, case_sensitive, emit_short_name))
+}
+
+/// `FindFirstFileExW`: begin a directory enumeration honoring the extended
+/// info-level, search-operation, and flag parameters (SHIM-D14). Returns a find
+/// `HANDLE` (or `INVALID_HANDLE_VALUE` on failure).
+#[unsafe(no_mangle)]
+pub extern "system" fn mFindFirstFileExW(
+    lp_file_name: *const u16,
+    f_info_level_id: FINDEX_INFO_LEVELS,
+    lp_find_file_data: *mut c_void,
+    f_search_op: FINDEX_SEARCH_OPS,
+    lp_search_filter: *const c_void,
+    dw_additional_flags: FIND_FIRST_EX_FLAGS,
+) -> HANDLE {
+    if lp_file_name.is_null() || lp_find_file_data.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return INVALID_HANDLE_VALUE;
+    }
+    let (op, case_sensitive, emit_short_name) = match map_find_ex_params(
+        f_info_level_id,
+        f_search_op,
+        lp_search_filter,
+        dw_additional_flags,
+    ) {
+        Ok(parts) => parts,
+        Err(code) => {
+            set_last_error(code);
+            return INVALID_HANDLE_VALUE;
+        }
+    };
+    let out = lp_find_file_data.cast::<WIN32_FIND_DATAW>();
+    // SAFETY: lp_file_name is a NUL-terminated wide string (checked non-null).
+    let pattern = unsafe { to_file_path(lp_file_name) };
+    let s = session();
+    match s.with_filesystem(|fs| {
+        fs_ops::find_first(fs, s.handles(), &pattern, op, case_sensitive, emit_short_name)
+    }) {
+        Ok(Some((handle, entry))) => {
+            // SAFETY: out is non-null (checked) and points to a writable
+            // WIN32_FIND_DATAW (the documented lpFindFileData contract).
+            unsafe {
+                fill_find_data(&entry, emit_short_name, out);
+            }
+            handle as HANDLE
+        }
+        Ok(None) => {
+            set_last_error(ERROR_FILE_NOT_FOUND);
+            INVALID_HANDLE_VALUE
+        }
+        Err(code) => {
+            set_last_error(code);
+            INVALID_HANDLE_VALUE
+        }
+    }
+}
+
+/// `FindFirstFileTransactedW`: identical to [`mFindFirstFileExW`] but takes a
+/// trailing transaction handle. The shim has no transaction surface, so the
+/// handle is ignored and the call forwards to the non-transacted path — matching
+/// the C++ forwarding stub.
+#[unsafe(no_mangle)]
+pub extern "system" fn mFindFirstFileTransactedW(
+    lp_file_name: *const u16,
+    f_info_level_id: FINDEX_INFO_LEVELS,
+    lp_find_file_data: *mut c_void,
+    f_search_op: FINDEX_SEARCH_OPS,
+    lp_search_filter: *const c_void,
+    dw_additional_flags: FIND_FIRST_EX_FLAGS,
+    _h_transaction: HANDLE,
+) -> HANDLE {
+    mFindFirstFileExW(
+        lp_file_name,
+        f_info_level_id,
+        lp_find_file_data,
+        f_search_op,
+        lp_search_filter,
+        dw_additional_flags,
+    )
+}
+
 /// `FindNextFileW`: fill the next entry of the enumeration behind `h_find_file`,
 /// reporting `ERROR_NO_MORE_FILES` (`FALSE`) once exhausted.
 #[unsafe(no_mangle)]
@@ -462,10 +620,10 @@ pub extern "system" fn mFindNextFileW(
         return FALSE;
     }
     match fs_ops::find_next(session().handles(), h_find_file as usize) {
-        Ok(Some(entry)) => {
+        Ok(Some((entry, emit_short_name))) => {
             // SAFETY: lp_find_file_data is non-null (checked) and writable.
             unsafe {
-                fill_find_data(&entry, lp_find_file_data);
+                fill_find_data(&entry, emit_short_name, lp_find_file_data);
             }
             TRUE
         }

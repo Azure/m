@@ -181,7 +181,7 @@ MW6-3 and the alias/`.def` exports in MW5-1.
       `{ op: NameMatch, case_sensitive: false }` (fixes its over-match). Empty
       result ⇒ `Ok(None)` ⇒ `ERROR_FILE_NOT_FOUND`. Update SHIM-D12 to record
       that wildcard filtering now applies, delegating the matcher spec to `WT-6`.
-- [ ] **MW8-2** Add the `mFindFirstFileExW` entry point in `mwinfile.rs`:
+- [x] **MW8-2** Add the `mFindFirstFileExW` entry point in `mwinfile.rs`:
       validate `fInfoLevelId` (`FindExInfoStandard` / `FindExInfoBasic` ok;
       `FindExInfoMaxInfoLevel` ⇒ `ERROR_INVALID_PARAMETER`), `fSearchOp`
       (`FindExSearchNameMatch` ⇒ `NameMatch`; `FindExSearchLimitToDirectories`

@@ -166,6 +166,11 @@ pub struct FindEnumerationState {
     pub cursor: usize,
     /// The filter applied to each entry as the enumeration advances.
     pub predicate: SearchPredicate,
+    /// Whether the 8.3 short name is emitted into `cAlternateFileName` for every
+    /// entry of this enumeration (`FindExInfoStandard`); suppressed for
+    /// `FindExInfoBasic`. Fixed when the enumeration opens so `mFindNextFileW`
+    /// keeps the same emission rule for the whole listing.
+    pub emit_short_name: bool,
 }
 
 /// The payload interned behind a minted handle value.
@@ -336,6 +341,7 @@ mod tests {
                 op: SearchOp::NameMatch,
                 case_sensitive: false,
             },
+            emit_short_name: true,
         }));
 
         // Distinct values.

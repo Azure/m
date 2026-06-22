@@ -363,9 +363,12 @@ fn file_handle_position(handles: &HandleTable, handle: RawHandle) -> Result<u64,
 /// against it. Name matching uses Win32 DOS-wildcard semantics (delegated to the
 /// windows-text matcher, WT-6) under the mandated Win32 ordinal casing (D6/D8);
 /// `SearchOp::LimitToDirectories` additionally requires the entry to be a
-/// directory. A rootless single component (no parent) is rejected as an invalid
-/// parameter, matching the C++ shim. A listing with no matching entry yields
-/// `Ok(None)` (the caller reports `ERROR_FILE_NOT_FOUND`).
+/// directory. `emit_short_name` is captured into the enumeration so the same 8.3
+/// short-name emission rule (Standard emits, Basic suppresses) applies to every
+/// entry, including those yielded later by [`find_next`]. A rootless single
+/// component (no parent) is rejected as an invalid parameter, matching the C++
+/// shim. A listing with no matching entry yields `Ok(None)` (the caller reports
+/// `ERROR_FILE_NOT_FOUND`).
 ///
 /// # Errors
 ///
@@ -377,6 +380,7 @@ pub fn find_first<S: FsSurface>(
     pattern: &FilePath,
     op: SearchOp,
     case_sensitive: bool,
+    emit_short_name: bool,
 ) -> Result<Option<(RawHandle, DirEntry)>, WIN32_ERROR> {
     let (parent, leaf) = pattern.split_parent_path_and_leaf_name();
     let Some(parent) = parent else {
@@ -400,6 +404,7 @@ pub fn find_first<S: FsSurface>(
         entries,
         cursor: cursor + 1,
         predicate,
+        emit_short_name,
     }));
     Ok(Some((handle, first)))
 }
@@ -422,8 +427,9 @@ fn predicate_matches(predicate: &SearchPredicate, entry: &DirEntry) -> bool {
 }
 
 /// Advance a find enumeration, returning the next entry that satisfies the
-/// enumeration's captured [`SearchPredicate`], or `Ok(None)` once the listing is
-/// exhausted (the caller reports `ERROR_NO_MORE_FILES`).
+/// enumeration's captured [`SearchPredicate`] paired with the enumeration's
+/// short-name emission rule, or `Ok(None)` once the listing is exhausted (the
+/// caller reports `ERROR_NO_MORE_FILES`).
 ///
 /// # Errors
 ///
@@ -431,7 +437,7 @@ fn predicate_matches(predicate: &SearchPredicate, entry: &DirEntry) -> bool {
 pub fn find_next(
     handles: &HandleTable,
     handle: RawHandle,
-) -> Result<Option<DirEntry>, WIN32_ERROR> {
+) -> Result<Option<(DirEntry, bool)>, WIN32_ERROR> {
     handles
         .with_mut(handle, |payload| match payload {
             HandlePayload::Find(state) => {
@@ -439,7 +445,7 @@ pub fn find_next(
                     let entry = state.entries[state.cursor].clone();
                     state.cursor += 1;
                     if predicate_matches(&state.predicate, &entry) {
-                        return Ok(Some(entry));
+                        return Ok(Some((entry, state.emit_short_name)));
                     }
                 }
                 Ok(None)
@@ -632,11 +638,12 @@ mod tests {
     #[test]
     fn find_enumeration_is_ordinal_ordered() {
         let (mut fs, handles) = fresh();
-        let (h, first) = find_first(&mut fs, &handles, &p("C:\\dir\\*"), SearchOp::NameMatch, false)
-            .unwrap()
-            .expect("non-empty listing");
+        let (h, first) =
+            find_first(&mut fs, &handles, &p("C:\\dir\\*"), SearchOp::NameMatch, false, true)
+                .unwrap()
+                .expect("non-empty listing");
         let mut names = vec![String::from_utf16_lossy(first.name.as_units())];
-        while let Some(entry) = find_next(&handles, h).unwrap() {
+        while let Some((entry, _)) = find_next(&handles, h).unwrap() {
             names.push(String::from_utf16_lossy(entry.name.as_units()));
         }
         assert_eq!(names, vec!["alpha.txt", "bravo.txt", "charlie.txt"]);
@@ -651,13 +658,13 @@ mod tests {
         let (mut fs, handles) = fresh();
         // A rootless single component has no parent.
         assert_eq!(
-            find_first(&mut fs, &handles, &p("solo"), SearchOp::NameMatch, false),
+            find_first(&mut fs, &handles, &p("solo"), SearchOp::NameMatch, false, true),
             Err(ERROR_INVALID_PARAMETER)
         );
         // An empty directory yields Ok(None).
         create_directory(&mut fs, &p("C:\\dir\\empty")).unwrap();
         assert_eq!(
-            find_first(&mut fs, &handles, &p("C:\\dir\\empty\\*"), SearchOp::NameMatch, false),
+            find_first(&mut fs, &handles, &p("C:\\dir\\empty\\*"), SearchOp::NameMatch, false, true),
             Ok(None)
         );
     }
@@ -678,12 +685,13 @@ mod tests {
         case_sensitive: bool,
     ) -> Vec<String> {
         let mut names = Vec::new();
-        let Some((h, first)) = find_first(fs, handles, &p(pattern), op, case_sensitive).unwrap()
+        let Some((h, first)) =
+            find_first(fs, handles, &p(pattern), op, case_sensitive, true).unwrap()
         else {
             return names;
         };
         names.push(String::from_utf16_lossy(first.name.as_units()));
-        while let Some(entry) = find_next(handles, h).unwrap() {
+        while let Some((entry, _)) = find_next(handles, h).unwrap() {
             names.push(String::from_utf16_lossy(entry.name.as_units()));
         }
         assert!(handles.close(h));
@@ -741,7 +749,8 @@ mod tests {
                 &handles,
                 &p("C:\\dir\\missing.txt"),
                 SearchOp::NameMatch,
-                false
+                false,
+                true
             ),
             Ok(None)
         );
@@ -790,6 +799,7 @@ mod tests {
                 &handles,
                 &p("C:\\dir\\ALPHA.TXT"),
                 SearchOp::NameMatch,
+                true,
                 true
             ),
             Ok(None)

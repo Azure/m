@@ -242,6 +242,52 @@ Path model is a faithful port of the C++ `m::pil::file_path` (D22); the C++
       and ordinal directory ordering.
 
 
+### M9 — Live/"direct" filesystem provider (write side; mirrors M5)
+
+Adds a live OS filesystem provider so the `FsSurface` stack can run against the
+real filesystem (parallel to M5's `LiveRegistry`). Per the layering discussion,
+the provider is built on a **safe Win32 file-handle leaf** in
+`windows-platform-isolation-sys` over the `windows` binding (mirroring `RegKey`),
+**not** `std::fs`: namespace/metadata ops use path-based Win32, and the leaf owns
+a RAII file `HANDLE` that — unlike `RegKey` — it **exposes** (`AsRawHandle` /
+`AsHandle`) so a future stream/content layer can drive true overlapped I/O
+through the M7 `CreateThreadpoolIo` reactor ("threadless" async) or another
+engine. The leaf takes **no** dependency on the threadpool; async is composed one
+layer up. File **content** stays out of scope for M9 (metadata-only model); the
+handle foundation just makes the later stream work a pure addition. The safe
+`windows-platform-isolation` crate stays `#![forbid(unsafe_code)]` — all `unsafe`
+is confined to the leaf. Dependency-independent of M7/M8; it extends M5/M6 and is
+the cross-component prerequisite for the `windows-win32-shim` crate's filesystem
+ABI.
+
+- [x] **M9-1** Add a safe Win32 **file leaf** to `windows-platform-isolation-sys`
+      over the `windows` binding (D1/D13/D20): a RAII `FileHandle` over
+      `CreateFileW` (closes on drop, exposes the raw handle via
+      `AsRawHandle`/`AsHandle` for async), `GetFileInformationByHandle` /
+      `GetFileAttributesExW` metadata reads, `SetFileAttributesW` + `SetFileTime`
+      metadata writes, path-based `CreateDirectoryW` / `RemoveDirectoryW` /
+      `DeleteFileW`, and a RAII find-enumeration handle
+      (`FindFirstFileW`/`FindNextFileW`/`FindClose`); plus a `FsError(u32)`
+      mirroring `RegError`. All `unsafe` confined to the leaf.
+- [ ] **M9-2** `FilesystemError::Os(u32)` (mirror `RegistryError::Os`) + a live
+      read path: `#[cfg(windows)] live_fs::LiveFilesystem` exposing
+      `dir_exists`/`file_exists`/`metadata`/`read_dir` over the **M9-1 file leaf**
+      (attributes/timestamps/size), decoding into `FileMetadata` and
+      ordinal-ordered `DirEntry`s.
+- [ ] **M9-3** Live write path: `create_dir`/`remove_dir`/`write_file` (create +
+      apply `FileMetadata` attributes/timestamps via the M9-1 leaf
+      primitives)/`remove_file`, plus the full object-safe `impl FsSurface`, so
+      `LiveFilesystem` is a drop-in provider for the `Filesystem` facade.
+- [ ] **M9-4** `LiveFilesystem::capture`: snapshot a real directory subtree into
+      a base `FileTree` (mirror `LiveRegistry::capture`), metadata-only.
+- [ ] **M9-5** *(integration)* Windows-only: create a deterministic scratch temp
+      subtree, drive create/metadata/enumerate/remove through `LiveFilesystem`,
+      assert metadata + ordinal `read_dir` parity, with RAII cleanup.
+      > **➡ CROSS-COMPONENT HANDOFF:** unblocks `windows-win32-shim` → MW3
+      > (filesystem C ABI passthrough). See
+      > [`crates/windows-win32-shim/CHECKLIST.md`](../windows-win32-shim/CHECKLIST.md).
+
+
 ### M7 — Async / threadpool foundation (sibling crates; isolation stays sync, D12) — DETAILED
 
 The detailed, authoritative execution plan now lives in the sibling crate:

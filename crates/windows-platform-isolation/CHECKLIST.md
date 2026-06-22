@@ -248,7 +248,7 @@ The detailed, authoritative execution plan now lives in the sibling crate:
 `crates/windows-threadpool/CHECKLIST.md` (TP-D1..TP-D4). The items below are the
 roadmap outline; track and check off the real work there.
 
-- [ ] **M7-1** `windows-threadpool` safe API over `CreateThreadpoolWork`/timers
+- [x] **M7-1** `windows-threadpool` safe API over `CreateThreadpoolWork`/timers
       (TP-D2), quarantined `unsafe` (TP-D4).
 - [ ] **M7-2** `windows-threadpool-executor` crate: futures executor submitting
       threadpool work.

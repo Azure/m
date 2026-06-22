@@ -42,7 +42,7 @@ enqueue / start / end timing, state, cancel, and wait.
       `work_queue` / `work_item`. Sequenced policy serializes; parallel policy
       runs concurrently. `close()` drains in-flight work and cancels
       not-yet-started items.
-- [ ] **M7-1.5** *(integration)* Threadpool smoke tests: submit-and-join,
+- [x] **M7-1.5** *(integration)* Threadpool smoke tests: submit-and-join,
       one-shot timer fire, periodic timer N-fires-then-cancel, sequenced vs
       parallel ordering, work-item cancel-before-start, and `close()` drain.
 

@@ -24,7 +24,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use windows_platform_isolation::{DirEntry, FilePath, KeyPath, WellKnownRoot};
+use windows_platform_isolation::{DirEntry, FilePath, KeyPath, Utf16, WellKnownRoot};
 
 /// The integer width a Win32 handle is interned and compared as. Win32 handles
 /// are pointer-sized but de-facto constrained to 32 bits (they round-trip
@@ -128,15 +128,44 @@ pub struct FileHandleState {
     pub position: u64,
 }
 
+/// The directory-enumeration search operation requested by the caller. Modeled
+/// as a named enumeration (not a raw integer) so the filter intent is explicit
+/// at every site; the matching itself lives in [`crate::fs_ops`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SearchOp {
+    /// Keep entries whose name matches the pattern leaf.
+    NameMatch,
+    /// Keep matching entries that are also directories (Win32
+    /// `FindExSearchLimitToDirectories`).
+    LimitToDirectories,
+}
+
+/// The filter applied to a directory enumeration: the pattern leaf (the wildcard
+/// or literal final component of the find pattern), the search operation, and
+/// whether matching is case-sensitive. Captured when the enumeration opens and
+/// applied to every entry yielded by `mFindFirstFileW` / `mFindNextFileW`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SearchPredicate {
+    /// The wildcard or literal leaf matched against each entry name.
+    pub pattern_leaf: Utf16,
+    /// The search operation that decides what a match keeps.
+    pub op: SearchOp,
+    /// Whether the leaf is matched case-sensitively.
+    pub case_sensitive: bool,
+}
+
 /// The state behind a minted find-enumeration (`mFindFirstFileW`) handle. A find
 /// handle names a position in a directory listing: the entries are captured when
-/// the enumeration opens and the cursor advances on each `mFindNextFileW`.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// the enumeration opens and the cursor advances on each `mFindNextFileW`, with
+/// the captured [`SearchPredicate`] filtering every yielded entry.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FindEnumerationState {
     /// The buffered directory entries, in enumeration (ordinal) order.
     pub entries: Vec<DirEntry>,
-    /// The index of the next entry to yield.
+    /// The index of the next entry to consider.
     pub cursor: usize,
+    /// The filter applied to each entry as the enumeration advances.
+    pub predicate: SearchPredicate,
 }
 
 /// The payload interned behind a minted handle value.
@@ -302,6 +331,11 @@ mod tests {
         let find = table.intern(HandlePayload::Find(FindEnumerationState {
             entries: Vec::new(),
             cursor: 7,
+            predicate: SearchPredicate {
+                pattern_leaf: Utf16::from_units(Vec::new()),
+                op: SearchOp::NameMatch,
+                case_sensitive: false,
+            },
         }));
 
         // Distinct values.

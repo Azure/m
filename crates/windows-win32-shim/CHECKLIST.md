@@ -169,7 +169,7 @@ MW6-3 and the alias/`.def` exports in MW5-1.
 > `windows-platform-isolation` → `M10`. See
 > [`../windows-platform-isolation/CHECKLIST.md`](../windows-platform-isolation/CHECKLIST.md).
 
-- [ ] **MW8-1** Extend `fs_ops::find_first` to apply a search predicate after
+- [x] **MW8-1** Extend `fs_ops::find_first` to apply a search predicate after
       `read_dir`: a `SearchPredicate { pattern_leaf: Utf16, op: SearchOp,
       case_sensitive: bool }` where `SearchOp` is a named enum
       (`NameMatch` / `LimitToDirectories`) — no manifest numeric constants.

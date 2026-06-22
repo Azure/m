@@ -49,8 +49,10 @@ use windows_sys::Win32::Storage::FileSystem::{
 
 use crate::error_map::filesystem_error_to_win32;
 use crate::handle_table::{
-    FileHandleState, FindEnumerationState, HandlePayload, HandleTable, RawHandle,
+    FileHandleState, FindEnumerationState, HandlePayload, HandleTable, RawHandle, SearchOp,
+    SearchPredicate,
 };
+use windows_text::{Win32OrdinalCasing, name_matches_expression};
 
 /// Map a surface error to the `WIN32_ERROR` an entry point reports.
 fn fs_err(err: &FilesystemError) -> WIN32_ERROR {
@@ -353,13 +355,17 @@ fn file_handle_position(handles: &HandleTable, handle: RawHandle) -> Result<u64,
 }
 
 /// Begin a directory enumeration for `pattern`, minting a find `HANDLE` and
-/// returning it alongside the first entry.
+/// returning it alongside the first entry that satisfies the search filter.
 ///
-/// The pattern's leaf (wildcard or literal) is **not** applied this milestone
-/// (SHIM-D12): every child of the pattern's parent directory is captured, in
-/// ordinal order. A rootless single component (no parent) is rejected as an
-/// invalid parameter, matching the C++ shim. An empty listing yields `Ok(None)`
-/// (the caller reports `ERROR_FILE_NOT_FOUND`).
+/// The pattern's leaf (wildcard or literal) **is** applied: it is captured into a
+/// [`SearchPredicate`] along with `op` and `case_sensitive`, and every entry
+/// yielded by this enumeration (here and through [`find_next`]) is matched
+/// against it. Name matching uses Win32 DOS-wildcard semantics (delegated to the
+/// windows-text matcher, WT-6) under the mandated Win32 ordinal casing (D6/D8);
+/// `SearchOp::LimitToDirectories` additionally requires the entry to be a
+/// directory. A rootless single component (no parent) is rejected as an invalid
+/// parameter, matching the C++ shim. A listing with no matching entry yields
+/// `Ok(None)` (the caller reports `ERROR_FILE_NOT_FOUND`).
 ///
 /// # Errors
 ///
@@ -369,24 +375,55 @@ pub fn find_first<S: FsSurface>(
     fs: &mut Filesystem<S>,
     handles: &HandleTable,
     pattern: &FilePath,
+    op: SearchOp,
+    case_sensitive: bool,
 ) -> Result<Option<(RawHandle, DirEntry)>, WIN32_ERROR> {
-    let (parent, _leaf) = pattern.split_parent_path_and_leaf_name();
+    let (parent, leaf) = pattern.split_parent_path_and_leaf_name();
     let Some(parent) = parent else {
         return Err(ERROR_INVALID_PARAMETER);
     };
-    let entries = fs.read_dir(&parent).map_err(|e| fs_err(&e))?;
-    let Some(first) = entries.first().cloned() else {
-        return Ok(None);
+    let predicate = SearchPredicate {
+        pattern_leaf: leaf.native().clone(),
+        op,
+        case_sensitive,
     };
+    let entries = fs.read_dir(&parent).map_err(|e| fs_err(&e))?;
+    let mut cursor = 0;
+    while cursor < entries.len() && !predicate_matches(&predicate, &entries[cursor]) {
+        cursor += 1;
+    }
+    if cursor >= entries.len() {
+        return Ok(None);
+    }
+    let first = entries[cursor].clone();
     let handle = handles.intern(HandlePayload::Find(FindEnumerationState {
         entries,
-        cursor: 1,
+        cursor: cursor + 1,
+        predicate,
     }));
     Ok(Some((handle, first)))
 }
 
-/// Advance a find enumeration, returning the next entry or `Ok(None)` once the
-/// listing is exhausted (the caller reports `ERROR_NO_MORE_FILES`).
+/// Whether `entry` satisfies the search `predicate`. The leaf is matched against
+/// the entry name with Win32 DOS-wildcard semantics (windows-text WT-6) under the
+/// mandated Win32 ordinal casing (D6/D8); `LimitToDirectories` additionally
+/// requires the entry to be a directory.
+fn predicate_matches(predicate: &SearchPredicate, entry: &DirEntry) -> bool {
+    let name_ok = name_matches_expression(
+        entry.name.as_units(),
+        predicate.pattern_leaf.as_units(),
+        &Win32OrdinalCasing,
+        predicate.case_sensitive,
+    );
+    match predicate.op {
+        SearchOp::NameMatch => name_ok,
+        SearchOp::LimitToDirectories => name_ok && entry.kind == NodeKind::Directory,
+    }
+}
+
+/// Advance a find enumeration, returning the next entry that satisfies the
+/// enumeration's captured [`SearchPredicate`], or `Ok(None)` once the listing is
+/// exhausted (the caller reports `ERROR_NO_MORE_FILES`).
 ///
 /// # Errors
 ///
@@ -398,11 +435,14 @@ pub fn find_next(
     handles
         .with_mut(handle, |payload| match payload {
             HandlePayload::Find(state) => {
-                let entry = state.entries.get(state.cursor).cloned();
-                if entry.is_some() {
+                while state.cursor < state.entries.len() {
+                    let entry = state.entries[state.cursor].clone();
                     state.cursor += 1;
+                    if predicate_matches(&state.predicate, &entry) {
+                        return Ok(Some(entry));
+                    }
                 }
-                Ok(entry)
+                Ok(None)
             }
             _ => Err(ERROR_INVALID_HANDLE),
         })
@@ -592,7 +632,7 @@ mod tests {
     #[test]
     fn find_enumeration_is_ordinal_ordered() {
         let (mut fs, handles) = fresh();
-        let (h, first) = find_first(&mut fs, &handles, &p("C:\\dir\\*"))
+        let (h, first) = find_first(&mut fs, &handles, &p("C:\\dir\\*"), SearchOp::NameMatch, false)
             .unwrap()
             .expect("non-empty listing");
         let mut names = vec![String::from_utf16_lossy(first.name.as_units())];
@@ -611,13 +651,13 @@ mod tests {
         let (mut fs, handles) = fresh();
         // A rootless single component has no parent.
         assert_eq!(
-            find_first(&mut fs, &handles, &p("solo")),
+            find_first(&mut fs, &handles, &p("solo"), SearchOp::NameMatch, false),
             Err(ERROR_INVALID_PARAMETER)
         );
         // An empty directory yields Ok(None).
         create_directory(&mut fs, &p("C:\\dir\\empty")).unwrap();
         assert_eq!(
-            find_first(&mut fs, &handles, &p("C:\\dir\\empty\\*")),
+            find_first(&mut fs, &handles, &p("C:\\dir\\empty\\*"), SearchOp::NameMatch, false),
             Ok(None)
         );
     }
@@ -627,5 +667,132 @@ mod tests {
         let (mut fs, handles) = fresh();
         let file = create_file(&mut fs, &handles, &p("C:\\dir\\alpha.txt"), OPEN_EXISTING, 0).unwrap();
         assert_eq!(find_next(&handles, file), Err(ERROR_INVALID_HANDLE));
+    }
+
+    /// Drive a full enumeration and collect the matching entry names, in order.
+    fn collect(
+        fs: &mut Filesystem<windows_platform_isolation::TreeFsSurface<Win32OrdinalCasing>>,
+        handles: &HandleTable,
+        pattern: &str,
+        op: SearchOp,
+        case_sensitive: bool,
+    ) -> Vec<String> {
+        let mut names = Vec::new();
+        let Some((h, first)) = find_first(fs, handles, &p(pattern), op, case_sensitive).unwrap()
+        else {
+            return names;
+        };
+        names.push(String::from_utf16_lossy(first.name.as_units()));
+        while let Some(entry) = find_next(handles, h).unwrap() {
+            names.push(String::from_utf16_lossy(entry.name.as_units()));
+        }
+        assert!(handles.close(h));
+        names
+    }
+
+    #[test]
+    fn find_first_applies_wildcard_leaf() {
+        let (mut fs, handles) = fresh();
+        // `*.txt` keeps every entry (all three are .txt).
+        assert_eq!(
+            collect(&mut fs, &handles, "C:\\dir\\*.txt", SearchOp::NameMatch, false),
+            vec!["alpha.txt", "bravo.txt", "charlie.txt"]
+        );
+        // `a*` keeps only the entry beginning with `a`.
+        assert_eq!(
+            collect(&mut fs, &handles, "C:\\dir\\a*", SearchOp::NameMatch, false),
+            vec!["alpha.txt"]
+        );
+    }
+
+    #[test]
+    fn find_first_question_mark_matches_single_char() {
+        let (mut fs, handles) = fresh();
+        // `?????.txt` (five wildcards) matches only `alpha`/`bravo`, not `charlie`.
+        assert_eq!(
+            collect(
+                &mut fs,
+                &handles,
+                "C:\\dir\\?????.txt",
+                SearchOp::NameMatch,
+                false
+            ),
+            vec!["alpha.txt", "bravo.txt"]
+        );
+    }
+
+    #[test]
+    fn find_first_literal_leaf_matches_exact() {
+        let (mut fs, handles) = fresh();
+        assert_eq!(
+            collect(
+                &mut fs,
+                &handles,
+                "C:\\dir\\alpha.txt",
+                SearchOp::NameMatch,
+                false
+            ),
+            vec!["alpha.txt"]
+        );
+        // A literal that names no entry yields no match (caller: ERROR_FILE_NOT_FOUND).
+        assert_eq!(
+            find_first(
+                &mut fs,
+                &handles,
+                &p("C:\\dir\\missing.txt"),
+                SearchOp::NameMatch,
+                false
+            ),
+            Ok(None)
+        );
+    }
+
+    #[test]
+    fn limit_to_directories_excludes_files() {
+        let (mut fs, handles) = fresh();
+        create_directory(&mut fs, &p("C:\\dir\\sub")).unwrap();
+        // NameMatch over `*` keeps everything (files + the subdirectory).
+        assert_eq!(
+            collect(&mut fs, &handles, "C:\\dir\\*", SearchOp::NameMatch, false),
+            vec!["alpha.txt", "bravo.txt", "charlie.txt", "sub"]
+        );
+        // LimitToDirectories drops the files.
+        assert_eq!(
+            collect(
+                &mut fs,
+                &handles,
+                "C:\\dir\\*",
+                SearchOp::LimitToDirectories,
+                false
+            ),
+            vec!["sub"]
+        );
+    }
+
+    #[test]
+    fn case_sensitivity_governs_leaf_matching() {
+        let (mut fs, handles) = fresh();
+        // Default (case-insensitive) matches regardless of leaf case.
+        assert_eq!(
+            collect(
+                &mut fs,
+                &handles,
+                "C:\\dir\\ALPHA.TXT",
+                SearchOp::NameMatch,
+                false
+            ),
+            vec!["alpha.txt"]
+        );
+        // Case-sensitive matching rejects the mismatched case.
+        assert_eq!(
+            find_first(
+                &mut fs,
+                &handles,
+                &p("C:\\dir\\ALPHA.TXT"),
+                SearchOp::NameMatch,
+                true
+            ),
+            Ok(None)
+        );
     }
 }

@@ -194,11 +194,18 @@ owned decisions shape it:
   a file size is always its metadata size and `TRUNCATE_EXISTING` opens without
   truncating.
 
-One further owned simplification for this milestone: `mFindFirstFileW` does
-**not** apply the pattern's leaf (wildcard or literal). It captures *every* child
-of the pattern's parent directory in ordinal order; a rootless single component
-(no parent) is `ERROR_INVALID_PARAMETER`, and an empty directory is
-`ERROR_FILE_NOT_FOUND`. Leaf/wildcard filtering is deferred to a later milestone.
+One further owned simplification: a find enumeration captures every child of the
+pattern's parent directory in ordinal order, then **applies the pattern's leaf as
+a search filter** (MW8 / SHIM-D14). `mFindFirstFileW` filters with a
+case-insensitive name match over the leaf using Win32 DOS-wildcard semantics; the
+matcher itself is `windows-text::name_matches_expression` (WT-6), chosen because
+its behavior matches the Win32 `FsRtlIsNameInExpression` semantics this shim
+specifies (Design Autonomy). A rootless single component (no parent) is
+`ERROR_INVALID_PARAMETER`; a listing with no matching entry is
+`ERROR_FILE_NOT_FOUND`. The captured `FindEnumerationState` carries the
+`SearchPredicate`, so `mFindNextFileW` keeps the same filter across the whole
+enumeration. The extended search operations and info levels layer on top of this
+in SHIM-D14.
 
 ## SHIM-D13 — `.pilcfg`-driven session composition (registry backing, capture)
 

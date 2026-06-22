@@ -13,9 +13,9 @@ use windows_sys::Win32::Foundation::{
     ERROR_ACCESS_DENIED, ERROR_FILE_NOT_FOUND, ERROR_INVALID_DATA, ERROR_INVALID_NAME,
 };
 use windows_win32_shim::{
-    FileHandleState, FindEnumerationState, HandlePayload, HandleTable, Lstatus, ShimSession,
-    filesystem_error_to_win32, handle_table::is_minted_value, handle_table::predefined_root,
-    registry_error_to_lstatus,
+    FileHandleState, FindEnumerationState, HandlePayload, HandleTable, Lstatus, SearchOp,
+    SearchPredicate, ShimSession, filesystem_error_to_win32, handle_table::is_minted_value,
+    handle_table::predefined_root, registry_error_to_lstatus,
 };
 
 #[test]
@@ -32,6 +32,11 @@ fn handle_round_trip_and_reserved_bit_invariants() {
         let find = table.intern(HandlePayload::Find(FindEnumerationState {
             entries: Vec::new(),
             cursor: i as usize,
+            predicate: SearchPredicate {
+                pattern_leaf: windows_platform_isolation::Utf16::from_units(Vec::new()),
+                op: SearchOp::NameMatch,
+                case_sensitive: false,
+            },
         }));
 
         for h in [key, file, find] {

@@ -62,7 +62,8 @@ pub use error_map::{filesystem_error_to_win32, registry_error_to_lstatus, set_la
 
 #[cfg(windows)]
 pub use handle_table::{
-    FileHandleState, FindEnumerationState, HandlePayload, HandleTable, RawHandle, predefined_root,
+    FileHandleState, FindEnumerationState, HandlePayload, HandleTable, RawHandle, SearchOp,
+    SearchPredicate, predefined_root,
 };
 
 #[cfg(windows)]

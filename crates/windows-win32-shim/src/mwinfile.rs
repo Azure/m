@@ -45,6 +45,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 use crate::error_map::set_last_error;
 use crate::fs_ops;
 use crate::handle_table::is_minted_value;
+use crate::handle_table::SearchOp;
 use crate::session::session;
 
 /// The shift isolating the high 32 bits of a 64-bit byte size (no manifest
@@ -428,7 +429,9 @@ pub extern "system" fn mFindFirstFileW(
     // SAFETY: lp_file_name is a NUL-terminated wide string (checked non-null).
     let pattern = unsafe { to_file_path(lp_file_name) };
     let s = session();
-    match s.with_filesystem(|fs| fs_ops::find_first(fs, s.handles(), &pattern)) {
+    match s.with_filesystem(|fs| {
+        fs_ops::find_first(fs, s.handles(), &pattern, SearchOp::NameMatch, false)
+    }) {
         Ok(Some((handle, entry))) => {
             // SAFETY: lp_find_file_data is non-null (checked) and writable.
             unsafe {

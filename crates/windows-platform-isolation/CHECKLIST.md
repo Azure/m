@@ -147,11 +147,22 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       C++ artifact in later) and an integration test that loads it via
       `load_registry_hive` and asserts hive-name normalization, all value-type
       decoding, tombstone/mirrored folding, and ordinal subkey enumeration.
-- [ ] **M4-6** *(integration, from M2-7)* Have the C++ PIL test suite load the
+- [x] **M4-6** *(integration, from M2-7)* Have the C++ PIL test suite load the
       shared golden fixture `crates/windows-text/testdata/ordinal_golden_vectors.txt`
       and assert the C++ ordinal sort key (per-`I`-row key bytes) and
       `m::case_insensitive_less` comparator (per-`C`-row sign) reproduce it
       exactly, pinning Rust↔C++ parity of the ordinal key/comparator (D8/D12).
+      Added `src/libraries/pil/test/Platforms/Windows/test_ordinal_golden_vectors.cpp`
+      (Windows-only) to the `test_win32_registry` suite, with the fixture path
+      passed via the `M_ORDINAL_GOLDEN_VECTORS` compile definition. `SortKeyFormatParity`
+      reconstructs each `I`-row key from the documented algorithm
+      (`LCMapStringEx`/`LCMAP_UPPERCASE` serialized big-endian) and asserts byte
+      equality; `ComparatorParity` asserts every `C`-row sign via the production
+      `m::case_insensitive_less<std::wstring>` (CompareStringOrdinal). NOTE: the
+      C++ PIL stack does not materialize a byte sort key in production (its
+      case-insensitive maps key on the comparator directly), so the `I`-row check
+      pins the documented sort-key *format* cross-language rather than a
+      production C++ materializer.
       > **⬅ CROSS-COMPONENT PREREQUISITE:** the fixture and its Rust consumer
       > landed in M2-7. This item additionally requires the C++ materialized
       > sort-key byte representation pinned by M4-2/M4-3 (so the C++ `I`-row key

@@ -3,6 +3,8 @@
 //! Read side of the shared C++ PIL registry artifact (D5/D15): a safe
 //! deserializer that turns the pugixml `<Platform><Registry>` XML documented in
 //! D18 into an immutable base [`Hive`], following the mapping decisions in D19.
+//! The matching write side ([`save_registry_hive`], D21) re-serializes a hive
+//! back to the same format, so `load`→`save`→`load` is a fixed point.
 //!
 //! Pure safe-half code (D13): parsing goes through `roxmltree` (a read-only,
 //! `#![forbid(unsafe_code)]`-compatible DOM), so the whole loader contains no
@@ -16,7 +18,7 @@
 
 use crate::error::{RegistryError, Result};
 use crate::path::KeyPath;
-use crate::tree::{Hive, ValueData};
+use crate::tree::{Hive, OverlayTree, ValueData};
 use crate::{OrdinalCasing, Utf16};
 
 /// `reg_value_type` numbering shared with the C++ PIL (`registry_base_types.h`,
@@ -72,6 +74,100 @@ pub fn load_registry_hive<C: OrdinalCasing>(casing: &C, xml: &str) -> Result<Hiv
     }
 
     Ok(hive)
+}
+
+/// Serialize a base [`Hive`] back to a C++ PIL registry artifact (D21) — the
+/// inverse of [`load_registry_hive`].
+///
+/// Each first-level subkey is a canonical predefined-hive name (D19) emitted as
+/// a `<Key>` under `<Registry>`; nested keys recurse, and values are written as
+/// `<Value name type data/>` with lowercase-hex, little-endian `data` produced
+/// by [`encode_value`]. Output ordering is the registry's ordinal sort (D8), so
+/// it is deterministic and `load`→`save`→`load` is a fixed point.
+///
+/// Key and value names are assumed to be well-formed text, as the shared
+/// artifact format requires; any ill-formed UTF-16 is rendered with the Unicode
+/// replacement character to match the format's text-only name model.
+#[must_use]
+pub fn save_registry_hive<C: OrdinalCasing>(casing: C, hive: &Hive) -> String {
+    let tree = OverlayTree::new(casing, hive.clone());
+    let root = KeyPath::root();
+
+    let mut out = String::new();
+    out.push_str("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+    out.push_str("<Platform>\n");
+    out.push_str("  <Registry>\n");
+    for name in tree.enum_subkeys(&root).unwrap_or_default() {
+        write_key(&tree, &mut out, &root.child(name.clone()), &name, 2);
+    }
+    out.push_str("  </Registry>\n");
+    out.push_str("</Platform>\n");
+    out
+}
+
+/// Emit the `<Key>` at `path` (named `name`) with its values and subkeys,
+/// indented `depth` levels of two spaces, recursing into subkeys.
+fn write_key<C: OrdinalCasing>(
+    tree: &OverlayTree<C>,
+    out: &mut String,
+    path: &KeyPath,
+    name: &Utf16,
+    depth: usize,
+) {
+    use core::fmt::Write as _;
+
+    let pad = "  ".repeat(depth);
+    let values = tree.enum_values(path).unwrap_or_default();
+    let subkeys = tree.enum_subkeys(path).unwrap_or_default();
+
+    if values.is_empty() && subkeys.is_empty() {
+        let _ = writeln!(out, "{pad}<Key name=\"{}\"/>", xml_escape(name));
+        return;
+    }
+
+    let _ = writeln!(out, "{pad}<Key name=\"{}\">", xml_escape(name));
+    let child_pad = "  ".repeat(depth + 1);
+    for (vname, data) in &values {
+        let (type_code, bytes) = encode_value(data);
+        let _ = writeln!(
+            out,
+            "{child_pad}<Value name=\"{}\" type=\"{type_code}\" data=\"{}\"/>",
+            xml_escape(vname),
+            bytes_to_hex(&bytes),
+        );
+    }
+    for sub in &subkeys {
+        write_key(tree, out, &path.child(sub.clone()), sub, depth + 1);
+    }
+    let _ = writeln!(out, "{pad}</Key>");
+}
+
+/// Lowercase-hex encode bytes (the inverse of [`hex_to_bytes`]).
+fn bytes_to_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        s.push(char::from(HEX[usize::from(b >> 4)]));
+        s.push(char::from(HEX[usize::from(b & 0x0f)]));
+    }
+    s
+}
+
+/// Escape a name for use as an XML attribute value (the five predefined
+/// entities relevant to a double-quoted attribute).
+fn xml_escape(name: &Utf16) -> String {
+    let text = String::from_utf16_lossy(name.as_units());
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 /// Insert `key_elem` at `path` and recurse into its children. The caller has
@@ -530,5 +626,130 @@ mod tests {
         let xml = r#"<Registry><Key name="HKLM"><Value name="X" type="4" data="0102"/></Key></Registry>"#;
         let err = load_registry_hive(&casing(), xml).unwrap_err();
         assert!(matches!(err, RegistryError::MalformedArtifact(_)));
+    }
+
+    // --- Write side (M5-4) -------------------------------------------------
+
+    fn save(hive: &Hive) -> String {
+        save_registry_hive(casing(), hive)
+    }
+
+    /// Build a hive with one key under HKCU carrying the given named values.
+    fn hive_with(values: &[(&str, ValueData)]) -> Hive {
+        let mut hive = Hive::new();
+        let path = KeyPath::parse("HKEY_CURRENT_USER\\T");
+        hive.insert_key(&casing(), &path);
+        for (name, data) in values {
+            hive.insert_value(&casing(), &path, u(name), data.clone());
+        }
+        hive
+    }
+
+    #[test]
+    fn save_then_load_is_a_fixed_point() {
+        let hive1 = load(SAMPLE);
+        let xml1 = save(&hive1);
+        let hive2 = load(&xml1);
+        let xml2 = save(&hive2);
+        assert_eq!(xml1, xml2, "load∘save must be idempotent");
+    }
+
+    #[test]
+    fn fixture_artifact_round_trips_idempotently() {
+        let fixture = include_str!("../testdata/registry_artifact.xml");
+        let xml1 = save(&load(fixture));
+        let xml2 = save(&load(&xml1));
+        assert_eq!(xml1, xml2, "fixture load∘save must be idempotent");
+    }
+
+    #[test]
+    fn saved_document_preserves_values_and_folds_tombstones() {
+        let reloaded = load(&save(&load(SAMPLE)));
+        let t = tree(reloaded);
+        let software = KeyPath::parse("HKEY_LOCAL_MACHINE\\Software");
+        assert_eq!(
+            t.get_value(&software, &u("Name")).unwrap(),
+            ValueData::String(u("base"))
+        );
+        assert_eq!(
+            t.get_value(&software, &u("Count")).unwrap(),
+            ValueData::Dword(0x18)
+        );
+        // The tombstoned value/key from the source did not reappear.
+        assert_eq!(
+            t.get_value(&software, &u("old")),
+            Err(RegistryError::ValueNotFound)
+        );
+        assert!(!t.key_exists(&software.child(u("Gone"))));
+        // Default (empty-name) value survives the round trip.
+        assert_eq!(
+            t.get_value(&software.child(u("App")), &u("")).unwrap(),
+            ValueData::String(u("hi"))
+        );
+    }
+
+    #[test]
+    fn every_value_type_round_trips_through_save() {
+        let original = hive_with(&[
+            ("s", ValueData::String(u("hello"))),
+            ("e", ValueData::ExpandString(u("%PATH%"))),
+            ("m", ValueData::MultiString(vec![u("one"), u("two")])),
+            ("empty", ValueData::MultiString(Vec::new())),
+            ("d", ValueData::Dword(0xDEAD_BEEF)),
+            ("q", ValueData::Qword(0x0123_4567_89AB_CDEF)),
+            ("b", ValueData::Binary(vec![0, 1, 2, 254, 255])),
+        ]);
+        let t = tree(load(&save(&original)));
+        let path = KeyPath::parse("HKEY_CURRENT_USER\\T");
+        assert_eq!(t.get_value(&path, &u("s")).unwrap(), ValueData::String(u("hello")));
+        assert_eq!(
+            t.get_value(&path, &u("e")).unwrap(),
+            ValueData::ExpandString(u("%PATH%"))
+        );
+        assert_eq!(
+            t.get_value(&path, &u("m")).unwrap(),
+            ValueData::MultiString(vec![u("one"), u("two")])
+        );
+        assert_eq!(
+            t.get_value(&path, &u("empty")).unwrap(),
+            ValueData::MultiString(Vec::new())
+        );
+        assert_eq!(t.get_value(&path, &u("d")).unwrap(), ValueData::Dword(0xDEAD_BEEF));
+        assert_eq!(
+            t.get_value(&path, &u("q")).unwrap(),
+            ValueData::Qword(0x0123_4567_89AB_CDEF)
+        );
+        assert_eq!(
+            t.get_value(&path, &u("b")).unwrap(),
+            ValueData::Binary(vec![0, 1, 2, 254, 255])
+        );
+    }
+
+    #[test]
+    fn empty_key_serializes_self_closing() {
+        let mut hive = Hive::new();
+        hive.insert_key(&casing(), &KeyPath::parse("HKEY_CURRENT_USER\\Empty"));
+        let xml = save(&hive);
+        assert!(xml.contains("<Key name=\"Empty\"/>"), "got:\n{xml}");
+    }
+
+    #[test]
+    fn special_characters_in_names_are_escaped_and_round_trip() {
+        let original = hive_with(&[("a&b<c>\"d", ValueData::Dword(7))]);
+        let xml = save(&original);
+        assert!(xml.contains("a&amp;b&lt;c&gt;&quot;d"), "got:\n{xml}");
+        let t = tree(load(&xml));
+        assert_eq!(
+            t.get_value(&KeyPath::parse("HKEY_CURRENT_USER\\T"), &u("a&b<c>\"d"))
+                .unwrap(),
+            ValueData::Dword(7)
+        );
+    }
+
+    #[test]
+    fn document_has_xml_declaration_and_root() {
+        let xml = save(&load(SAMPLE));
+        assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Platform>"));
+        assert!(xml.trim_end().ends_with("</Platform>"));
     }
 }

@@ -191,7 +191,11 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       `write_value`/`delete_value` and now implements the full eight-verb
       `Surface`, so it is a drop-in provider for the `Registry` facade. Tested
       against a deterministic HKCU scratch subtree with RAII cleanup.)
-- [ ] **M5-4** Write/capture side of the artifact format (round-trips with M4).
+- [x] **M5-4** Write/capture side of the artifact format (round-trips with M4).
+      (`serial::save_registry_hive` is the pure, platform-independent inverse of
+      the D19 loader: deterministic ordinal-sorted XML using the shared
+      `encode_value`/lowercase-hex codec, so `load`→`save`→`load` is a fixed
+      point — proven against both the SAMPLE and the M4 fixture artifact. D21.)
 - [ ] **M5-5** *(integration)* capture → save → load → assert round-trip parity
       with the C++ format.
 

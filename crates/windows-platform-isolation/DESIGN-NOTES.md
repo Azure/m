@@ -39,6 +39,7 @@ design rather than binding to the C++ implementation.
 | D18 | The shared C++ PIL registry artifact is pugixml `<Platform><Registry>` XML (documented schema; D5 read side) |
 | D19 | Rust loader mapping: normalize hives to canonical names, fold a sealed snapshot into a base `Hive`, decode `type`/`data` per `reg_value_type` |
 | D20 | Live/"direct" registry provider over a dedicated `windows-platform-isolation-sys` `unsafe` leaf (RAII `RegKey`); supersedes D15's "no live provider" |
+| D21 | Write/capture side of the artifact (`save_registry_hive`): a deterministic, platform-independent serializer that is the exact inverse of the D19 loader, so `load`→`save`→`load` is a fixed point |
 
 ---
 
@@ -397,6 +398,32 @@ variants while treating other statuses as hard failures. `RegKey` is `Send` but
 not `Sync` (D12). The mirror of `windows-text-sys`, this is the registry
 counterpart leaf; the read primitives, the `Surface` impl, and the write/capture
 side land in the subsequent M5 items.
+
+## D21 — Write/capture side of the artifact format (`save_registry_hive`)
+
+M5-4 adds the inverse of the D19 loader: `save_registry_hive(casing, &Hive) ->
+String` re-serializes a base hive back to the D18 `<Platform><Registry>` XML.
+Like the loader it is **pure safe code** (no `unsafe`, no OS calls) and lives in
+the same `serial` module, so it is platform-independent and runs in unit tests
+everywhere via the ASCII reference casing.
+
+The serializer walks the hive through an `OverlayTree` (no overlay), emitting
+first-level subkeys as canonical-hive-name `<Key>` elements and recursing.
+Values are written `<Value name type data/>` with the `type`/`data` produced by
+the shared `encode_value`, the **exact byte inverse** of the loader's
+`decode_value` (NUL-terminated strings, double-NUL-terminated multi-strings,
+little-endian integers, raw binary), and `data` rendered as lowercase hex (the
+inverse of `hex_to_bytes`). Output ordering is the registry's ordinal sort (D8),
+so the document is deterministic and `load`→`save`→`load` is a **fixed point**:
+the canonical form is stable under re-serialization, which is how the round-trip
+is asserted without requiring structural equality on `Hive`.
+
+Names are XML-attribute-escaped (`& < > "`); the format models names as
+well-formed text, so any ill-formed UTF-16 is rendered with the replacement
+character (consistent with the format's text-only name model). `last_write_time`
+is not emitted — the loader ignores it (D19), so it is not part of the canonical
+form. Because folding (tombstones, mirrored placeholders) already happened on
+load, a saved document contains no tombstones; it is the sealed base, not a diff.
 
 ## D16 — `windows-text`: a standalone reusable Windows string crate
 

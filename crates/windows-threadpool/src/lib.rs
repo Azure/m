@@ -32,6 +32,9 @@ mod timer;
 mod work_queue;
 
 #[cfg(windows)]
+mod io;
+
+#[cfg(windows)]
 pub use error::{ThreadPoolError, ThreadPoolResult};
 
 #[cfg(windows)]
@@ -44,3 +47,6 @@ pub use timer::{PeriodicTimer, Timer};
 pub use work_queue::{
     ExecutionPolicy, WorkItem, WorkItemState, WorkItemTimes, WorkQueue,
 };
+
+#[cfg(windows)]
+pub use io::{Completion, Io};

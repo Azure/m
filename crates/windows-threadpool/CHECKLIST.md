@@ -64,10 +64,12 @@ enqueue / start / end timing, state, cancel, and wait.
 
 ## M7-3 — IOCP reactor (CreateThreadpoolIo, TP-D3)
 
-- [ ] **M7-3.1** RAII `Io` wrapper over `CreateThreadpoolIo` /
+- [x] **M7-3.1** RAII `Io` wrapper over `CreateThreadpoolIo` /
       `StartThreadpoolIo` / `CancelThreadpoolIo` / `CloseThreadpoolIo` with the
       `extern "system"` IO-completion trampoline, in the `ffi` quarantine.
-- [ ] **M7-3.2** Reactor binding a `HANDLE` to the pool and completing an
+      (Coupled with M7-3.2: the `ffi` layer is dead code without its safe
+      consumer, so the two land together.)
+- [x] **M7-3.2** Reactor binding a `HANDLE` to the pool and completing an
       overlapped operation by waking the awaiting task (no dedicated reactor
       thread).
 - [ ] **M7-3.3** *(integration)* IOCP completion smoke test over a real

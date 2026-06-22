@@ -14,11 +14,13 @@
 use core::ffi::c_void;
 use core::ptr;
 
-use windows_sys::Win32::Foundation::{FILETIME, GetLastError};
+use windows_sys::Win32::Foundation::{FILETIME, GetLastError, HANDLE};
 use windows_sys::Win32::System::Threading::{
-    CloseThreadpoolTimer, CloseThreadpoolWork, CreateThreadpoolTimer, CreateThreadpoolWork,
-    IsThreadpoolTimerSet, PTP_CALLBACK_INSTANCE, PTP_TIMER, PTP_WORK, SetThreadpoolTimer,
-    SubmitThreadpoolWork, WaitForThreadpoolTimerCallbacks, WaitForThreadpoolWorkCallbacks,
+    CancelThreadpoolIo, CloseThreadpoolIo, CloseThreadpoolTimer, CloseThreadpoolWork,
+    CreateThreadpoolIo, CreateThreadpoolTimer, CreateThreadpoolWork, IsThreadpoolTimerSet, PTP_IO,
+    PTP_CALLBACK_INSTANCE, PTP_TIMER, PTP_WORK, SetThreadpoolTimer, StartThreadpoolIo,
+    SubmitThreadpoolWork, WaitForThreadpoolIoCallbacks, WaitForThreadpoolTimerCallbacks,
+    WaitForThreadpoolWorkCallbacks,
 };
 
 use crate::error::{ThreadPoolError, ThreadPoolResult};
@@ -227,6 +229,104 @@ impl Drop for Timer {
         // SAFETY: cancelled and drained above, so close and free race with
         // nothing.
         unsafe { CloseThreadpoolTimer(self.handle) };
+        drop(unsafe { Box::from_raw(self.callback) });
+    }
+}
+
+/// The callback a [`Io`] runs on each overlapped-I/O completion.
+///
+/// Receives the completion's `io_result` (a Win32 error code; `0` is success)
+/// and the number of bytes transferred. `Fn` because one bound handle may
+/// complete many operations; `Send + Sync` because completions run on arbitrary
+/// pool threads (TP-D2).
+type IoCallback = Box<dyn Fn(u32, usize) + Send + Sync + 'static>;
+
+/// RAII wrapper over a `PTP_IO` thread-pool I/O completion object.
+///
+/// Binds a `HANDLE` to the pool's completion port. Each overlapped operation is
+/// announced with [`Io::start`] before it is issued; when the OS completes it,
+/// the pool invokes the bound callback. On drop it waits for in-flight
+/// completions, closes the handle, then frees the callback box — in that order,
+/// so a completion never observes a freed context.
+pub(crate) struct Io {
+    handle: PTP_IO,
+    callback: *mut IoCallback,
+}
+
+// SAFETY: `PTP_IO` start/cancel/wait/close are documented thread-safe, and the
+// boxed callback is `Send + Sync` by construction.
+unsafe impl Send for Io {}
+unsafe impl Sync for Io {}
+
+/// The `extern "system"` trampoline the OS invokes on a pool thread when an
+/// overlapped operation on the bound handle completes.
+unsafe extern "system" fn io_trampoline(
+    _instance: PTP_CALLBACK_INSTANCE,
+    context: *mut c_void,
+    _overlapped: *mut c_void,
+    io_result: u32,
+    bytes_transferred: usize,
+    _io: PTP_IO,
+) {
+    // SAFETY: `context` points at a live `IoCallback` owned by the `Io` that
+    // bound this handle; the `Io` keeps it alive until after it has waited for
+    // callbacks on drop.
+    let callback = unsafe { &*(context as *const IoCallback) };
+    callback(io_result, bytes_transferred);
+}
+
+impl Io {
+    /// Bind `handle` to the pool, dispatching completions to `callback`.
+    pub(crate) fn new(handle: HANDLE, callback: IoCallback) -> ThreadPoolResult<Self> {
+        let context = Box::into_raw(Box::new(callback));
+
+        // SAFETY: `io_trampoline` matches `PTP_WIN32_IO_CALLBACK`; `context` is
+        // a live `IoCallback`; a null environment selects the default pool.
+        let io =
+            unsafe { CreateThreadpoolIo(handle, Some(io_trampoline), context.cast(), ptr::null()) };
+
+        if io == 0 {
+            let err = ThreadPoolError::last_os_error();
+            // SAFETY: `context` came from `Box::into_raw` and was not taken by a
+            // live OS object (creation failed).
+            drop(unsafe { Box::from_raw(context) });
+            return Err(err);
+        }
+
+        Ok(Self {
+            handle: io,
+            callback: context,
+        })
+    }
+
+    /// Announce that an overlapped operation is about to be issued on the bound
+    /// handle. Must be called before each operation; pair with [`Io::cancel`]
+    /// if issuing the operation fails synchronously.
+    pub(crate) fn start(&self) {
+        // SAFETY: `self.handle` is a live I/O object created by `new`.
+        unsafe { StartThreadpoolIo(self.handle) };
+    }
+
+    /// Cancel a [`Io::start`] announcement when the operation was not actually
+    /// issued (e.g. the overlapped call failed without pending).
+    pub(crate) fn cancel(&self) {
+        // SAFETY: `self.handle` is a live I/O object created by `new`.
+        unsafe { CancelThreadpoolIo(self.handle) };
+    }
+
+    /// Wait for outstanding completion callbacks to finish.
+    pub(crate) fn wait_for_callbacks(&self, cancel_pending: bool) {
+        // SAFETY: `self.handle` is a live I/O object created by `new`.
+        unsafe { WaitForThreadpoolIoCallbacks(self.handle, i32::from(cancel_pending)) };
+    }
+}
+
+impl Drop for Io {
+    fn drop(&mut self) {
+        self.wait_for_callbacks(false);
+
+        // SAFETY: drained above, so close and free race with nothing.
+        unsafe { CloseThreadpoolIo(self.handle) };
         drop(unsafe { Box::from_raw(self.callback) });
     }
 }

@@ -280,7 +280,7 @@ ABI.
       `LiveFilesystem` is a drop-in provider for the `Filesystem` facade.
 - [x] **M9-4** `LiveFilesystem::capture`: snapshot a real directory subtree into
       a base `FileTree` (mirror `LiveRegistry::capture`), metadata-only.
-- [ ] **M9-5** *(integration)* Windows-only: create a deterministic scratch temp
+- [x] **M9-5** *(integration)* Windows-only: create a deterministic scratch temp
       subtree, drive create/metadata/enumerate/remove through `LiveFilesystem`,
       assert metadata + ordinal `read_dir` parity, with RAII cleanup.
       > **➡ CROSS-COMPONENT HANDOFF:** unblocks `windows-win32-shim` → MW3

@@ -470,4 +470,139 @@ fn load_filesystem_artifact_decodes_tree_and_enumerates_in_ordinal_order() {
     );
 }
 
+// --- M9-5: live filesystem end-to-end lifecycle -----------------------------
+
+/// End-to-end on the real OS filesystem (Windows only): build a deterministic
+/// scratch subtree under the OS temp dir entirely through [`LiveFilesystem`]
+/// (create directories, write files with known metadata), then drive
+/// metadata/enumeration/capture/removal back through the same provider and
+/// assert:
+///
+/// * written attributes and timestamps read back identically (metadata parity),
+/// * `read_dir` is ordinal-ordered and typed,
+/// * a [`capture`](crate::LiveFilesystem::capture) of the subtree enumerates in
+///   the same ordinal order as the live `read_dir` (snapshot parity), and
+/// * `remove_dir` deletes the whole subtree.
+///
+/// The scratch subtree lives under a unique per-process temp path and is removed
+/// before and after the test (RAII), so the test is self-cleaning and needs no
+/// special rights.
+#[cfg(windows)]
+#[test]
+fn live_filesystem_lifecycle_round_trips_metadata_and_ordering() {
+    use crate::fs_tree::{FileMetadata, NodeKind, OverlayFileTree};
+    use crate::{FilePath, LiveFilesystem, Win32OrdinalCasing};
+
+    /// A FILETIME (100ns ticks since 1601) circa 2019, for deterministic
+    /// timestamp round-tripping.
+    const SAMPLE_TIME: i64 = 132_000_000_000_000_000;
+    /// `FILE_ATTRIBUTE_HIDDEN`: benign (does not block later deletion).
+    const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
+
+    let fs = LiveFilesystem::new(Win32OrdinalCasing);
+
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root_buf = std::env::temp_dir().join(format!("wpi-m9-5-{}-{nanos}", std::process::id()));
+    let root = FilePath::from_utf8(&root_buf.to_string_lossy());
+
+    /// Removes the scratch subtree on drop so the filesystem is left clean.
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let _ = std::fs::remove_dir_all(&root_buf);
+    let _guard = Cleanup(root_buf.clone());
+
+    let child = |rel: &str| FilePath::from_utf8(&root_buf.join(rel).to_string_lossy());
+
+    // --- Build the subtree entirely through the live provider ---------------
+    fs.create_dir(&root).unwrap();
+    fs.create_dir(&child("Apps")).unwrap();
+    fs.create_dir(&child("Data")).unwrap();
+    // Nested directory created implicitly by a deep create.
+    fs.create_dir(&child("Apps\\zzz")).unwrap();
+
+    let readme_md = FileMetadata {
+        size: 999, // not applied: content is out of scope
+        creation_time: SAMPLE_TIME,
+        last_write_time: SAMPLE_TIME + 7,
+        last_access_time: SAMPLE_TIME + 9,
+        attributes: FILE_ATTRIBUTE_HIDDEN,
+    };
+    fs.write_file(&child("readme.md"), readme_md).unwrap();
+    fs.write_file(&child("Setup.exe"), FileMetadata::default()).unwrap();
+    // A file under a not-yet-created parent: write_file creates ancestors.
+    fs.write_file(&child("Apps\\tool.exe"), FileMetadata::default()).unwrap();
+
+    // --- Metadata parity ----------------------------------------------------
+    let got = fs.metadata(&child("readme.md")).unwrap();
+    assert_eq!(got.creation_time, readme_md.creation_time);
+    assert_eq!(got.last_write_time, readme_md.last_write_time);
+    assert!(got.attributes & FILE_ATTRIBUTE_HIDDEN != 0);
+    // Size is a consequence of content, which the metadata-only provider does
+    // not write.
+    assert_eq!(got.size, 0);
+
+    assert!(fs.file_exists(&child("readme.md")).unwrap());
+    assert!(fs.dir_exists(&child("Apps\\zzz")).unwrap());
+    assert!(fs.file_exists(&child("Apps\\tool.exe")).unwrap());
+
+    // --- Ordinal read_dir parity --------------------------------------------
+    // Win32 ordinal fold (case-insensitive) orders the root entries
+    // Apps(A) < Data(D) < readme.md(R) < Setup.exe(S).
+    let entries = fs.read_dir(&root).unwrap();
+    let names: Vec<String> = entries.iter().map(|e| e.name.to_utf8().unwrap()).collect();
+    assert_eq!(
+        names,
+        vec![
+            "Apps".to_string(),
+            "Data".to_string(),
+            "readme.md".to_string(),
+            "Setup.exe".to_string()
+        ]
+    );
+    let kind = |n: &str| {
+        entries
+            .iter()
+            .find(|e| e.name.to_utf8().unwrap() == n)
+            .unwrap()
+            .kind
+    };
+    assert_eq!(kind("Apps"), NodeKind::Directory);
+    assert_eq!(kind("readme.md"), NodeKind::File);
+
+    // Apps holds tool.exe(T) < zzz(Z).
+    let apps = fs.read_dir(&child("Apps")).unwrap();
+    let apps_names: Vec<String> = apps.iter().map(|e| e.name.to_utf8().unwrap()).collect();
+    assert_eq!(apps_names, vec!["tool.exe".to_string(), "zzz".to_string()]);
+
+    // --- Capture / snapshot parity ------------------------------------------
+    // A capture enumerates in the same ordinal order as the live read_dir.
+    let captured = fs.capture(&root).expect("capture subtree");
+    let overlay = OverlayFileTree::new(Win32OrdinalCasing, captured);
+    let cap_names: Vec<String> = overlay
+        .read_dir(&root)
+        .unwrap()
+        .iter()
+        .map(|e| e.name.to_utf8().unwrap())
+        .collect();
+    assert_eq!(cap_names, names, "capture must match live ordinal ordering");
+    assert!(overlay.file_exists(&child("Apps\\tool.exe")));
+    assert!(overlay.dir_exists(&child("Apps\\zzz")));
+    assert_eq!(
+        overlay.file_metadata(&child("readme.md")).unwrap().attributes & FILE_ATTRIBUTE_HIDDEN,
+        FILE_ATTRIBUTE_HIDDEN
+    );
+
+    // --- Removal ------------------------------------------------------------
+    fs.remove_dir(&root).unwrap();
+    assert!(!fs.dir_exists(&root).unwrap());
+    // Idempotent: removing the already-gone subtree is not an error.
+    fs.remove_dir(&root).unwrap();
+}
 

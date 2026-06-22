@@ -72,7 +72,7 @@ enqueue / start / end timing, state, cancel, and wait.
 - [x] **M7-3.2** Reactor binding a `HANDLE` to the pool and completing an
       overlapped operation by waking the awaiting task (no dedicated reactor
       thread).
-- [ ] **M7-3.3** *(integration)* IOCP completion smoke test over a real
+- [x] **M7-3.3** *(integration)* IOCP completion smoke test over a real
       overlapped handle (e.g. a named pipe or file), asserting the awaited
       future resolves on completion.
 

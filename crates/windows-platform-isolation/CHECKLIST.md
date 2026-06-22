@@ -252,7 +252,7 @@ roadmap outline; track and check off the real work there.
       (TP-D2), quarantined `unsafe` (TP-D4).
 - [x] **M7-2** `windows-threadpool-executor` crate: futures executor submitting
       threadpool work.
-- [ ] **M7-3** IOCP reactor via `CreateThreadpoolIo` for async I/O completion.
+- [x] **M7-3** IOCP reactor via `CreateThreadpoolIo` for async I/O completion.
 - [ ] **M7-4** *(integration)* spawn+await, timer fire, IOCP completion smoke
       tests.
 

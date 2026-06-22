@@ -17,7 +17,7 @@ enqueue / start / end timing, state, cancel, and wait.
 
 ## M7-1 — `windows-threadpool` safe core (CreateThreadpoolWork / timers, TP-D2/TP-D4)
 
-- [ ] **M7-1.1** Wire `Cargo.toml`: depend on `windows-sys` (TP-D1) with the
+- [x] **M7-1.1** Wire `Cargo.toml`: depend on `windows-sys` (TP-D1) with the
       thread-pool / foundation features; add the crate-level lint posture
       (`#![deny(unsafe_code)]` at the root, `#[allow(unsafe_code)]` only on the
       `ffi` module — TP-D4). Add a `ThreadPoolError` mapping Win32 `GetLastError`

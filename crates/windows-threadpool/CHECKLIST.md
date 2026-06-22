@@ -30,7 +30,7 @@ enqueue / start / end timing, state, cancel, and wait.
       safe `submit(FnOnce + Send + 'static)` entry that submits one-shot work and
       guarantees no use-after-free on teardown (wait-for-callbacks before the
       boxed context is freed).
-- [ ] **M7-1.3** One-shot `Timer` and `PeriodicTimer` over
+- [x] **M7-1.3** One-shot `Timer` and `PeriodicTimer` over
       `CreateThreadpoolTimer` / `SetThreadpoolTimer` / `IsThreadpoolTimerSet` /
       `WaitForThreadpoolTimerCallbacks` / `CloseThreadpoolTimer`, mirroring the
       C++ relative-FILETIME due-time computation and the periodic period; `set`,

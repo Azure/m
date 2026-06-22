@@ -26,7 +26,13 @@ mod ffi;
 mod work;
 
 #[cfg(windows)]
+mod timer;
+
+#[cfg(windows)]
 pub use error::{ThreadPoolError, ThreadPoolResult};
 
 #[cfg(windows)]
 pub use work::{Work, submit_once};
+
+#[cfg(windows)]
+pub use timer::{PeriodicTimer, Timer};

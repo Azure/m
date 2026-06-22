@@ -14,10 +14,11 @@
 use core::ffi::c_void;
 use core::ptr;
 
-use windows_sys::Win32::Foundation::GetLastError;
+use windows_sys::Win32::Foundation::{FILETIME, GetLastError};
 use windows_sys::Win32::System::Threading::{
-    CloseThreadpoolWork, CreateThreadpoolWork, PTP_CALLBACK_INSTANCE, PTP_WORK,
-    SubmitThreadpoolWork, WaitForThreadpoolWorkCallbacks,
+    CloseThreadpoolTimer, CloseThreadpoolWork, CreateThreadpoolTimer, CreateThreadpoolWork,
+    IsThreadpoolTimerSet, PTP_CALLBACK_INSTANCE, PTP_TIMER, PTP_WORK, SetThreadpoolTimer,
+    SubmitThreadpoolWork, WaitForThreadpoolTimerCallbacks, WaitForThreadpoolWorkCallbacks,
 };
 
 use crate::error::{ThreadPoolError, ThreadPoolResult};
@@ -126,6 +127,106 @@ impl Drop for Work {
         // SAFETY: no callback is running or pending after the wait above, so
         // closing the handle and reclaiming the context race with nothing.
         unsafe { CloseThreadpoolWork(self.handle) };
+        drop(unsafe { Box::from_raw(self.callback) });
+    }
+}
+
+/// The persistent callback a [`Timer`] runs on each expiration.
+///
+/// `Fn` because a periodic timer fires repeatedly; `Send + Sync` for the same
+/// reasons as [`WorkCallback`].
+type TimerCallback = Box<dyn Fn() + Send + Sync + 'static>;
+
+/// RAII wrapper over a `PTP_TIMER` thread-pool timer object.
+///
+/// Owns the OS timer handle and the boxed callback it fires. On drop it cancels
+/// the timer, waits for any in-flight callback, closes the handle, then frees
+/// the callback box — in that order, so a firing callback never observes a
+/// freed context.
+pub(crate) struct Timer {
+    handle: PTP_TIMER,
+    callback: *mut TimerCallback,
+}
+
+// SAFETY: `PTP_TIMER` set/wait/close are documented thread-safe, and the boxed
+// callback is `Send + Sync` by construction.
+unsafe impl Send for Timer {}
+unsafe impl Sync for Timer {}
+
+/// The `extern "system"` trampoline the OS invokes when the timer expires.
+unsafe extern "system" fn timer_trampoline(
+    _instance: PTP_CALLBACK_INSTANCE,
+    context: *mut c_void,
+    _timer: PTP_TIMER,
+) {
+    // SAFETY: `context` points at a live `TimerCallback` owned by the `Timer`
+    // that armed this expiration; the `Timer` keeps it alive until after it has
+    // cancelled and waited for callbacks on drop.
+    let callback = unsafe { &*(context as *const TimerCallback) };
+    callback();
+}
+
+impl Timer {
+    /// Create a timer that runs `callback` on each expiration. The timer is
+    /// created unset; call [`Timer::set`] to arm it.
+    pub(crate) fn new(callback: TimerCallback) -> ThreadPoolResult<Self> {
+        let context = Box::into_raw(Box::new(callback));
+
+        // SAFETY: `timer_trampoline` matches `PTP_TIMER_CALLBACK`; `context` is
+        // a live `TimerCallback`; a null environment selects the default pool.
+        let handle =
+            unsafe { CreateThreadpoolTimer(Some(timer_trampoline), context.cast(), ptr::null()) };
+
+        if handle == 0 {
+            let err = ThreadPoolError::last_os_error();
+            // SAFETY: `context` came from `Box::into_raw` and was not taken by a
+            // live OS object (creation failed).
+            drop(unsafe { Box::from_raw(context) });
+            return Err(err);
+        }
+
+        Ok(Self {
+            handle,
+            callback: context,
+        })
+    }
+
+    /// Arm the timer. `due_time` is a relative FILETIME (negative 100-ns units)
+    /// for the first expiration; `period_ms` is the repeat period (0 = one-shot)
+    /// and `window_ms` is the coalescing window.
+    pub(crate) fn set(&self, due_time: FILETIME, period_ms: u32, window_ms: u32) {
+        // SAFETY: `self.handle` is a live timer; `&due_time` is a valid pointer
+        // for the duration of the call.
+        unsafe { SetThreadpoolTimer(self.handle, &due_time, period_ms, window_ms) };
+    }
+
+    /// Cancel a pending expiration (the timer object stays reusable).
+    pub(crate) fn cancel(&self) {
+        // SAFETY: `self.handle` is a live timer; a null due-time cancels.
+        unsafe { SetThreadpoolTimer(self.handle, ptr::null(), 0, 0) };
+    }
+
+    /// Whether the timer currently has a pending expiration.
+    pub(crate) fn is_set(&self) -> bool {
+        // SAFETY: `self.handle` is a live timer.
+        unsafe { IsThreadpoolTimerSet(self.handle) != 0 }
+    }
+
+    /// Wait for outstanding expiration callbacks to finish.
+    pub(crate) fn wait_for_callbacks(&self, cancel_pending: bool) {
+        // SAFETY: `self.handle` is a live timer.
+        unsafe { WaitForThreadpoolTimerCallbacks(self.handle, i32::from(cancel_pending)) };
+    }
+}
+
+impl Drop for Timer {
+    fn drop(&mut self) {
+        self.cancel();
+        self.wait_for_callbacks(true);
+
+        // SAFETY: cancelled and drained above, so close and free race with
+        // nothing.
+        unsafe { CloseThreadpoolTimer(self.handle) };
         drop(unsafe { Box::from_raw(self.callback) });
     }
 }

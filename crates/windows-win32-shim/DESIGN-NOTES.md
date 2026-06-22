@@ -200,3 +200,62 @@ of the pattern's parent directory in ordinal order; a rootless single component
 (no parent) is `ERROR_INVALID_PARAMETER`, and an empty directory is
 `ERROR_FILE_NOT_FOUND`. Leaf/wildcard filtering is deferred to a later milestone.
 
+## SHIM-D13 — `.pilcfg`-driven session composition (registry backing, capture)
+
+The MW4 `.pilcfg` sidecar (SHIM-D5) selects how the process-wide `session`
+composes its isolation stack. The schema parse and the stack composition are two
+separately owned concerns:
+
+- **Parse contract (`pilcfg`).** `parse_pilcfg` is **strict** — a non-object
+  root, a recognized member of the wrong JSON type, or a malformed `redirections`
+  entry is a `PilcfgError`. `load_pilcfg` (the sidecar entry point) is
+  **tolerant** — an absent / unreadable / malformed `<current_exe>.pilcfg`
+  collapses to `Pilcfg::default()` (all-passthrough), never failing the host
+  (mwin32 D5). The recognized members are exactly the SHIM-D5 set; `webcore` and
+  any unknown member are ignored. `%VAR%` expansion (`expand_environment_path`)
+  is applied **only** to path-valued members (`persisted_state`,
+  `capture_snapshot`, `diagnostic_log`, `fault_script`), matching the C++ shim —
+  never to redirection keys. An undefined `%TOKEN%` is left verbatim (delimiters
+  included), as is a trailing unmatched `%`. The JSON parser is the pure-Rust,
+  zero-dependency, `forbid(unsafe_code)`-friendly `tinyjson`; per Design Autonomy
+  the schema↔value mapping is owned here, and tinyjson is merely the byte→AST
+  reader.
+
+- **Registry backing composition (`session`).** `ShimSession::from_config`
+  selects one concrete `RegistryBacking` (a local enum that is itself a
+  `Surface`, so `reg_ops` and the handle table stay surface-generic with no
+  dynamic dispatch): a non-empty `persisted_state` that **loads** runs entirely
+  against the in-memory snapshot (`RegistryBacking::Persisted`, and the layer
+  flags are ignored, as in the C++ `build_platform_from_config` mode (c)); else
+  `buffer_updates` interposes a write-buffering layer over the live registry
+  (`RegistryBacking::Buffered`); else live passthrough (`RegistryBacking::Live`,
+  SHIM-D8). A present-but-unreadable / malformed `persisted_state` falls back to
+  live passthrough rather than failing the host — an owned tolerance choice
+  consistent with SHIM-D5 (the C++ ctor would throw; we do not).
+
+- **`capture_snapshot` on teardown.** `ShimSession::capture_snapshot` is
+  best-effort and explicit: with no configured path it is a no-op; with a
+  persisted backing it folds the live `OverlayTree` (base snapshot plus the
+  session's overlay writes) into a flat `Hive` and serializes it via
+  `save_registry_hive` to the configured artifact, round-tripping with
+  `load_registry_hive`. Because `save_registry_hive` takes a `Hive` (not an
+  `OverlayTree`), the fold (`fold_tree_to_hive`) re-materializes the tree's
+  enumerated keys and values; this is the shim's owned bridge, not a facade API.
+
+**Documented gaps for this milestone** (recorded so the absence is intentional,
+not an oversight — each is queued as a later MW item where applicable):
+
+- `record_modifications`, `redirections`, `diagnostic_log`, and `fault_script`
+  are parsed and preserved but **not yet honored**: `windows-platform-isolation`
+  exposes no journaling-to-file, key-redirection, or fault-injection decorator to
+  route them through. They are gaps, not errors.
+- The **filesystem** surface is always live passthrough; there is no buffered or
+  persisted filesystem decorator, so `persisted_state` / `buffer_updates` affect
+  the **registry only**.
+- A live or buffered registry backing **cannot** be serialized, so
+  `capture_snapshot` returns `false` for those backings (only a persisted backing
+  is captured).
+- Capture is invoked **explicitly**, not automatically at process exit: Rust
+  `static`s do not run `Drop`, so the at-exit (`DllMain` `DLL_PROCESS_DETACH`)
+  wiring the C++ destructor relies on is deferred.
+

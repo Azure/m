@@ -89,19 +89,19 @@ test. Sub-steps use decimal notation.
 
 ## MW4 — `.pilcfg` config (JSON sidecar; artifact parity, SHIM-D5)
 
-- [ ] **MW4-1** Choose the JSON parser dependency; model the `.pilcfg` schema
+- [x] **MW4-1** Choose the JSON parser dependency; model the `.pilcfg` schema
       (`buffer_updates`, `record_modifications`, `redirections`,
       `persisted_state`, `capture_snapshot`, `diagnostic_log`, `fault_script`;
       `webcore` ignored), with `%TEMP%`-style expansion as the C++ does.
-- [ ] **MW4-2** Tolerant sidecar load: resolve `<current_exe>.pilcfg`
+- [x] **MW4-2** Tolerant sidecar load: resolve `<current_exe>.pilcfg`
       (`std::env::current_exe`, safe); absent / unreadable / malformed →
       passthrough, never failing the host (mwin32 D5).
-- [ ] **MW4-3** Wire config → isolation stack composition: `buffer_updates` →
+- [x] **MW4-3** Wire config → isolation stack composition: `buffer_updates` →
       `Buffered` layer; `persisted_state` → load the `<Platform>` artifact via the
       isolation loaders; `redirections` / `record_modifications` / `fault_script`
       honored where the isolation crate supports them, documented as gaps
       otherwise.
-- [ ] **MW4-4** *(integration)* `.pilcfg` parity tests (mirror C++ `test_pilcfg`
+- [x] **MW4-4** *(integration)* `.pilcfg` parity tests (mirror C++ `test_pilcfg`
       + buffered `test_mwinreg_value_ops`): a buffered fixture isolates writes
       from the live registry; `capture_snapshot` writes state on teardown.
 

@@ -16,6 +16,10 @@ windows-sys = { version = "0.59", features = [
   "Win32_System_Registry",
   "Win32_Storage_FileSystem",
 ] }
+# Pure-Rust, zero-dependency, `#![forbid(unsafe_code)]` JSON parser used only to
+# read the `.pilcfg` sidecar (SHIM-D5 / MW4). Chosen for its minimal footprint;
+# the schema mapping is owned here (Design Autonomy), not inherited from it.
+tinyjson = "2"
 
 [lints]
 workspace = true

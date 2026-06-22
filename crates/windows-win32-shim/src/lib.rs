@@ -22,9 +22,11 @@
 //! filesystem C ABI (W forms): the safe surface-generic filesystem core
 //! ([`fs_ops`]) and the exported `m*W` entry points ([`mwinfile`]) for metadata,
 //! directory, and enumeration verbs (byte content + move/copy are deferred,
-//! SHIM-D12). Both build on the MW1 foundation: Win32 error mapping
-//! ([`error_map`]), the minted-handle table ([`handle_table`]), and the
-//! process-wide [`session`].
+//! SHIM-D12). The current milestone (MW4) adds the `.pilcfg` JSON sidecar
+//! ([`pilcfg`]) that selects how the [`session`] composes its isolation stack
+//! (buffered / persisted-state / live passthrough; SHIM-D13). All build on the
+//! MW1 foundation: Win32 error mapping ([`error_map`]), the minted-handle table
+//! ([`handle_table`]), and the process-wide [`session`].
 
 #![deny(unsafe_code)]
 
@@ -44,6 +46,9 @@ pub mod mwinfile;
 pub mod mwinreg;
 
 #[cfg(windows)]
+pub mod pilcfg;
+
+#[cfg(windows)]
 pub mod reg_ops;
 
 #[cfg(windows)]
@@ -59,6 +64,9 @@ pub use error_map::{filesystem_error_to_win32, registry_error_to_lstatus, set_la
 pub use handle_table::{
     FileHandleState, FindEnumerationState, HandlePayload, HandleTable, RawHandle, predefined_root,
 };
+
+#[cfg(windows)]
+pub use pilcfg::{Pilcfg, PilcfgError, expand_environment_path, load_pilcfg, parse_pilcfg};
 
 #[cfg(windows)]
 pub use reg_ops::{KeyInfo, QueryBuffer, apply_query_buffer};

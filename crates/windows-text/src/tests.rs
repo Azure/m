@@ -335,3 +335,147 @@ fn code_page_empty_round_trips() {
         empty
     );
 }
+
+// ----- Platform-independent: filename wildcard matching (WT-6) ---------------
+
+/// UTF-16 code units for a `&str` test literal.
+fn units(s: &str) -> Vec<u16> {
+    s.encode_utf16().collect()
+}
+
+/// Case-insensitive match against the ASCII reference casing (the off-Windows
+/// seam, WT-4).
+fn matches(name: &str, expr: &str) -> bool {
+    name_matches_expression(&units(name), &units(expr), &AsciiOrdinalCasing, false)
+}
+
+#[test]
+fn wildcard_literal_exact_match() {
+    assert!(matches("readme.txt", "readme.txt"));
+    assert!(!matches("readme.txt", "readme.md"));
+    assert!(!matches("readme", "readme.txt"));
+}
+
+#[test]
+fn wildcard_star_matches_anything() {
+    assert!(matches("", "*"));
+    assert!(matches("anything.at.all", "*"));
+    assert!(matches("no-dot", "*"));
+}
+
+#[test]
+fn wildcard_star_extension() {
+    assert!(matches("a.txt", "*.txt"));
+    assert!(!matches("a.dat", "*.txt"));
+    // `*.txt` anchors on the FINAL dot, so multi-dot names still match.
+    assert!(matches("a.b.txt", "*.txt"));
+    assert!(!matches("a.txt.bak", "*.txt"));
+}
+
+#[test]
+fn wildcard_question_is_exactly_one() {
+    assert!(matches("abc", "a?c"));
+    assert!(!matches("ac", "a?c"));
+    assert!(!matches("abbc", "a?c"));
+    // A mid-string `?` matches any single character, including a dot.
+    assert!(matches("a.c", "a?c"));
+}
+
+#[test]
+fn wildcard_prefix_and_suffix() {
+    assert!(matches("foobar", "foo*"));
+    assert!(!matches("barfoo", "foo*"));
+    assert!(matches("barfoo", "*foo"));
+    assert!(matches("foobarbaz", "*bar*"));
+    assert!(!matches("fooBARbaz", "*qux*"));
+}
+
+#[test]
+fn wildcard_case_insensitive_by_default() {
+    assert!(matches("FOO.TXT", "*.txt"));
+    assert!(matches("ReadMe.Txt", "readme.txt"));
+}
+
+#[test]
+fn wildcard_case_sensitive_flag() {
+    assert!(!name_matches_expression(
+        &units("FOO.TXT"),
+        &units("*.txt"),
+        &AsciiOrdinalCasing,
+        true,
+    ));
+    assert!(name_matches_expression(
+        &units("foo.txt"),
+        &units("*.txt"),
+        &AsciiOrdinalCasing,
+        true,
+    ));
+}
+
+#[test]
+fn wildcard_empty_expression_matches_only_empty_name() {
+    assert!(name_matches_expression(&[], &[], &AsciiOrdinalCasing, false));
+    assert!(!matches("x", ""));
+}
+
+#[test]
+fn wildcard_star_dot_star_matches_extensionless() {
+    // The classic Win32 quirk: `*.*` matches names with no extension.
+    assert!(matches("foo", "*.*"));
+    assert!(matches("foo.txt", "*.*"));
+    assert!(matches("", "*.*"));
+}
+
+#[test]
+fn wildcard_trailing_dot_matches_no_extension() {
+    assert!(matches("name", "name."));
+    assert!(!matches("name.txt", "name."));
+}
+
+#[test]
+fn wildcard_trailing_question_run_matches_fewer() {
+    // A trailing run of `?` may match fewer characters (DOS_QM).
+    assert!(matches("file", "file???"));
+    assert!(matches("file1", "file???"));
+    assert!(matches("file123", "file???"));
+    assert!(!matches("file1234", "file???"));
+}
+
+#[test]
+fn wildcard_question_run_before_dot() {
+    assert!(matches("a.txt", "a???.txt"));
+    assert!(matches("abcd.txt", "a???.txt"));
+    assert!(!matches("abcde.txt", "a???.txt"));
+}
+
+#[test]
+fn wildcard_dos_metacharacters_literal_in_expression() {
+    // `>` (DOS_QM): one char, or zero before a dot / at end.
+    assert!(matches("ab", "a>"));
+    assert!(matches("a", "a>"));
+    assert!(!matches("abc", "a>"));
+    // `"` (DOS_DOT): a dot, or zero at end / before a dot.
+    assert!(matches("a.b", "a\"b"));
+    assert!(matches("a", "a\""));
+    // `<` (DOS_STAR): zero or more, not consuming the final dot.
+    assert!(matches("abc.txt", "<.txt"));
+    assert!(matches("a.b.txt", "<.txt"));
+}
+
+#[test]
+fn wildcard_matches_non_bmp_literal() {
+    // A non-BMP scalar (🦀, surrogate pair) matches itself literally and via `*`.
+    assert!(matches("🦀.txt", "*.txt"));
+    assert!(matches("🦀", "🦀"));
+    assert!(!matches("🦀", "🦞"));
+}
+
+#[test]
+fn wildcard_empty_name_against_wildcards() {
+    assert!(matches("", "*"));
+    // A trailing `?` is DOS_QM, which matches zero characters at end-of-name.
+    assert!(matches("", "?"));
+    assert!(!matches("ab", "?"));
+    assert!(matches("", "*.*"));
+}
+

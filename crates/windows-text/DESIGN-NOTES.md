@@ -15,6 +15,7 @@ this file records the decisions local to these two crates.
 | WT-3 | The leaf exposes the four buffer-critical FFI primitives as safe fns |
 | WT-4 | Off-Windows the safe crate compiles to the trait + ASCII reference only |
 | WT-5 | Sort-key parity is pinned by shared golden vectors generated from OS APIs |
+| WT-6 | Filename wildcard matching (`FsRtlIsNameInExpression`) lives here, over the casing seam |
 
 ---
 
@@ -144,3 +145,53 @@ representation pinned by M4-2/M4-3 first, so the C++ `I`-row key assertion is
 well-defined; M2-7 therefore landed the generator, the curated fixture, and the
 Rust consumer, and handed the C++ assertion to M4.
 
+## WT-6 — Filename wildcard matching (`FsRtlIsNameInExpression`)
+
+**Decision.** The Win32 filename wildcard matcher lives in `windows-text`, next
+to the ordinal-casing seam it depends on, exposed as
+`name_matches_expression(name, expression, casing, case_sensitive)`. It decides
+whether a directory entry leaf matches a `FindFirstFile`-style search pattern,
+with the case-insensitive comparison routed through the same `OrdinalCasing`
+trait (WT-4) so the matcher is unit-tested off-Windows against
+`AsciiOrdinalCasing`. The consumer is `windows-win32-shim` (`mFindFirstFileEx`),
+which previously had no pattern filter; placing the matcher here (rather than in
+the shim) keeps it reusable and testable without the Win32 leaf.
+
+**Owned specification (Design-Autonomy).** We specify the matching semantics and
+choose `OrdinalCasing` to satisfy the case-insensitive literal comparison; we do
+not delegate the behavior to any dependency. The semantics follow Win32
+`FsRtlIsNameInExpression`. The expression is matched as a stream of tokens:
+
+| Token     | Char | Meaning                                                             |
+|-----------|------|---------------------------------------------------------------------|
+| `Star`    | `*`  | Zero or more of any character.                                      |
+| `Qm`      | `?`  | Exactly one of any character.                                       |
+| `DosStar` | `<`  | Zero or more characters, not consuming the final `.` in the name.   |
+| `DosQm`   | `>`  | One character, or zero at end-of-name / immediately before a `.`.   |
+| `DosDot`  | `"`  | A literal `.`, or zero characters at end-of-name / before a `.`.    |
+
+`FsRtlIsNameInExpression` itself does not translate a DOS-style pattern; its
+caller (`FindFirstFile`) does. We fold that translation in so callers pass an
+ordinary pattern and get the familiar Win32 quirks. The translation rules,
+applied to the raw expression, are:
+
+1. A run of `?` immediately before a `.` or the end of the expression becomes
+   `DosQm` (trailing `?`s may match fewer characters).
+2. A `.` at the end, or immediately followed by `*` or `?`, becomes `DosDot`
+   (so `*.*` and a trailing `.` match names with no extension).
+3. A `*` immediately followed by `.` becomes `DosStar` (so `*.ext` anchors on
+   the *final* `.` of the name).
+
+The `<`, `>`, `"` metacharacters are illegal in real filenames, so honoring them
+literally in the expression is unambiguous and mirrors NT. An empty expression
+matches only the empty name; a lone `*` matches any name. Changing any token
+meaning or translation rule is a breaking change.
+
+**As built (WTM-1).** `crates/windows-text/src/name_match.rs` translates the
+expression into a `Vec<Token>` (collapsing `*` runs to bound backtracking), then
+matches by iterating non-branching tokens and recursing over the name suffix for
+`Star`/`DosStar`. Filenames are short, so the simple backtracking matcher is well
+within the unit-test budget. Tests are platform-independent
+(`AsciiOrdinalCasing`) and cover the literal/`*`/`?` cases, the three DOS
+metacharacters, the `*.*` / trailing-`.` / trailing-`?` quirks, multi-dot
+anchoring, non-BMP literals, and empty name/expression edges.

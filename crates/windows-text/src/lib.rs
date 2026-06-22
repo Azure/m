@@ -19,6 +19,9 @@
 //!   the [`OrdinalCasing`] dependency-injection trait.
 //! * Code pages — [`CodePage`] conversions over `MultiByteToWideChar` /
 //!   `WideCharToMultiByte` (Windows only).
+//! * Filename wildcard matching — [`name_matches_expression`] implements Win32
+//!   `FsRtlIsNameInExpression` semantics (`*`, `?`, and the DOS metacharacters)
+//!   over the ordinal-casing seam (WT-6).
 //!
 //! UTF-32 and other exotic transcoding are deliberately out of scope for now.
 
@@ -26,6 +29,7 @@
 
 mod casing;
 mod error;
+mod name_match;
 mod utf16;
 
 #[cfg(windows)]
@@ -33,6 +37,7 @@ mod codepage;
 
 pub use casing::OrdinalCasing;
 pub use error::{Error, Result};
+pub use name_match::name_matches_expression;
 pub use utf16::Utf16;
 
 #[cfg(windows)]

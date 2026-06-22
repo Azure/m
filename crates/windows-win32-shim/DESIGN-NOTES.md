@@ -99,3 +99,52 @@ The first milestones implement the wide (`*W`) entry points only. The ANSI
 (`*A`) forms are a later milestone, implemented by transcoding through
 `windows-text` code-page conversion (`CP_ACP`) at the boundary and delegating to
 the `W` implementation.
+
+## SHIM-D10 — Handles store an absolute `KeyPath`; ops resolve base + subkey
+
+The C++ `mwin32` registry handle table holds live key *objects*. This crate
+instead stores an absolute `windows-platform-isolation` `KeyPath` (interned in
+the handle table) for each minted `HKEY`, and every operation resolves a *base*
+path from the handle and *joins* it with the operation's subkey argument before
+touching the substrate. Predefined `HKEY`s resolve to the canonical root path
+(`KeyPath::parse(root.canonical_name())`); a minted `HKEY` derefs to its interned
+`KeyPath`; anything else is `ERROR_INVALID_HANDLE`. `mRegOpenKeyExW` /
+`mRegCreateKeyExW` with an empty subkey duplicate the base handle onto the same
+key (a fresh minted `HKEY` over the same path), matching the Win32 contract.
+
+This path-based model is chosen because the substrate is addressed by `KeyPath`
+and has no persistent key-handle object; it keeps the handle table a pure
+`usize`→payload map and makes every op a stateless `(base, subkey)` lookup. The
+trade-off is that a handle does not pin a key open: a key deleted out from under
+an open handle simply yields `ERROR_FILE_NOT_FOUND` on the next use, rather than
+the Win32 "operations on the handle still succeed until close" behavior. That
+divergence is acceptable for the shim's buffered/redirected use cases and is
+recorded here as an owned decision.
+
+## SHIM-D11 — `(REG_* type, raw bytes)` ↔ `ValueData` codec, with faithful round-trip caveats
+
+`value_codec` owns the translation between the Win32 wire shape — a `u32`
+`REG_*` type tag plus a raw little-endian byte buffer — and the substrate's
+typed `ValueData`. The mapping is specified here (Design Autonomy), not inherited
+from `windows-sys`:
+
+- `REG_SZ` / `REG_EXPAND_SZ` ↔ `ValueData::String` / `ExpandString`: the byte
+  buffer is interpreted as UTF-16 code units verbatim. The encoder emits exactly
+  the units the caller stored; **no NUL terminator is added or stripped**, so a
+  trailing-NUL buffer round-trips with its byte count preserved. An **odd-length**
+  string buffer is `ERROR_INVALID_DATA`.
+- `REG_MULTI_SZ` ↔ `ValueData::MultiString`: units are split on NUL; trailing
+  empty segments (the customary double-NUL terminator) are dropped via
+  `take_while` over non-empty runs, and an empty list round-trips to an empty
+  buffer.
+- `REG_DWORD` ↔ `ValueData::Dword` requires **exactly 4** bytes; `REG_QWORD` ↔
+  `ValueData::Qword` requires **exactly 8** bytes (little-endian). Any other
+  length is `ERROR_INVALID_DATA`.
+- `REG_BINARY` ↔ `ValueData::Binary`: bytes pass through verbatim.
+
+Two deliberate degradations keep the codec total against the substrate's
+`#[non_exhaustive] ValueData` and against unknown wire tags: encoding a
+`ValueData` variant this layer does not model falls back to `(REG_BINARY, &[])`,
+and decoding an unrecognized `REG_*` type yields `ValueData::Binary(bytes)`
+rather than an error. Both are recorded as owned choices so a future variant or
+type tag fails soft (as opaque binary) instead of panicking.

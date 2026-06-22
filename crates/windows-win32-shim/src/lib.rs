@@ -15,10 +15,12 @@
 //!
 //! This crate is Windows-only; on other platforms it compiles to nothing.
 //!
-//! The current milestone (MW1) provides the foundation: Win32 error mapping
-//! ([`error_map`]), the minted-handle table ([`handle_table`]), and the
-//! process-wide [`session`]. The C ABI entry points themselves arrive in later
-//! milestones (MW2 registry, MW3 filesystem).
+//! The current milestone (MW2) adds the registry C ABI (W forms): the byte ↔
+//! [`ValueData`](windows_platform_isolation::ValueData) codec ([`value_codec`]),
+//! the safe surface-generic registry core ([`reg_ops`]), and the exported
+//! `mReg*W` entry points ([`mwinreg`]). It builds on the MW1 foundation: Win32
+//! error mapping ([`error_map`]), the minted-handle table ([`handle_table`]),
+//! and the process-wide [`session`]. The filesystem C ABI arrives in MW3.
 
 #![deny(unsafe_code)]
 
@@ -29,7 +31,16 @@ pub mod error_map;
 pub mod handle_table;
 
 #[cfg(windows)]
+pub mod mwinreg;
+
+#[cfg(windows)]
+pub mod reg_ops;
+
+#[cfg(windows)]
 pub mod session;
+
+#[cfg(windows)]
+pub mod value_codec;
 
 #[cfg(windows)]
 pub use error_map::{filesystem_error_to_win32, registry_error_to_lstatus, set_last_error, Lstatus};
@@ -38,6 +49,9 @@ pub use error_map::{filesystem_error_to_win32, registry_error_to_lstatus, set_la
 pub use handle_table::{
     FileHandleState, FindEnumerationState, HandlePayload, HandleTable, RawHandle, predefined_root,
 };
+
+#[cfg(windows)]
+pub use reg_ops::{KeyInfo, QueryBuffer, apply_query_buffer};
 
 #[cfg(windows)]
 pub use session::{ShimSession, session};

@@ -41,19 +41,19 @@ test. Sub-steps use decimal notation.
 
 ## MW2 — Registry C ABI (W forms)
 
-- [ ] **MW2-1** `mRegOpenKeyExW` / `mRegCreateKeyExW` / `mRegCloseKey`
+- [x] **MW2-1** `mRegOpenKeyExW` / `mRegCreateKeyExW` / `mRegCloseKey`
       (predefined handles are close no-ops), routing through the session's
       registry facade and minting result `HKEY`s.
-- [ ] **MW2-2** Value ops: `mRegSetValueExW`, `mRegQueryValueExW` (the Win32
+- [x] **MW2-2** Value ops: `mRegSetValueExW`, `mRegQueryValueExW` (the Win32
       three-case size/type contract: query, `ERROR_MORE_DATA`, success),
       `mRegDeleteValueW`, `mRegGetValueW`. Value-type bytes map to/from
       `ValueData` (all six types).
-- [ ] **MW2-3** Enumeration / info: `mRegEnumKeyExW`, `mRegEnumValueW`,
+- [x] **MW2-3** Enumeration / info: `mRegEnumKeyExW`, `mRegEnumValueW`,
       `mRegQueryInfoKeyW`, in `windows-platform-isolation` ordinal order.
-- [ ] **MW2-4** `mRegDeleteKeyExW` (subtree), plus `ERROR_NOT_SUPPORTED` stubs for
+- [x] **MW2-4** `mRegDeleteKeyExW` (subtree), plus `ERROR_NOT_SUPPORTED` stubs for
       the in-`.def` but unimplemented entries (transacted create, predefined-cache
       control, `mRegOverridePredefKey`, etc.), matching the C++ stub behavior.
-- [ ] **MW2-5** *(integration)* Registry tests mirroring the C++
+- [x] **MW2-5** *(integration)* Registry tests mirroring the C++
       `test_mwinreg_predefined` / `test_mwinreg_open_close` /
       `test_mwinreg_value_ops` against a buffered in-memory stack, asserting the
       `LSTATUS` contracts and the `mRegQueryValueExW` three-case behavior.

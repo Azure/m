@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hand-authored, spec-conformant C++ PIL registry artifact (D18) used by the
+  windows-platform-isolation loader integration test. It exercises:
+    * hive-name normalization across abbreviations (HKLM, HKCC) and long forms
+      (HKEY_CURRENT_USER);
+    * every decodable value type (REG_SZ, REG_EXPAND_SZ, REG_MULTI_SZ, REG_DWORD,
+      REG_QWORD, REG_BINARY) plus a default (empty-name) value;
+    * a value tombstone (deleted="true") and a key tombstone;
+    * a mirrored (name-only) placeholder key;
+    * subkeys authored out of order to prove ordinal sort on enumeration.
+  Swap in a real C++-produced artifact when one is available.
+
+  hex data is UTF-16LE for string types, little-endian for integers:
+    "Srv\0"   -> 5300720076000000
+    "%TMP%\0" -> 250054004d00500025000000
+    "en\0fr\0\0" -> 65006e0000006600720000000000
+    0x00001234 (4660) -> 34120000
+    0x0000000000000001 -> 0100000000000000
+    "def\0"   -> 6400650066000000
+    "vi\0"    -> 760069000000
+-->
+<Platform>
+  <Registry>
+    <Key name="HKLM">
+      <Key name="Software">
+        <Key name="Types" last_write_time="133600000000000000">
+          <Value name="Name" type="1" data="5300720076000000"/>
+          <Value name="Path" type="2" data="250054004d00500025000000"/>
+          <Value name="Langs" type="7" data="65006e0000006600720000000000"/>
+          <Value name="Count" type="4" data="34120000"/>
+          <Value name="Big" type="11" data="0100000000000000"/>
+          <Value name="Blob" type="3" data="cafe"/>
+          <Value name="" type="1" data="6400650066000000"/>
+          <Value name="Stale" deleted="true"/>
+        </Key>
+        <Key name="Order">
+          <Key name="Zeta"/>
+          <Key name="_under"/>
+          <Key name="Alpha"/>
+          <Key name="beta"/>
+          <Key name="Beta2"/>
+          <Key name="Mir" mirrored="true"/>
+          <Key name="Del" deleted="true"/>
+        </Key>
+      </Key>
+    </Key>
+    <Key name="HKEY_CURRENT_USER">
+      <Key name="Environment">
+        <Value name="EDITOR" type="1" data="760069000000"/>
+      </Key>
+    </Key>
+    <Key name="HKCC">
+      <Key name="Display"/>
+    </Key>
+  </Registry>
+</Platform>

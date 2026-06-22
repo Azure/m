@@ -209,3 +209,77 @@ fn commit_merges_batch_into_base() {
         .collect();
     assert!(skeys.windows(2).all(|w| w[0] <= w[1]), "subkeys not ordinal-ordered");
 }
+
+// --- M4-5: load a serialized C++ PIL artifact end to end --------------------
+
+/// The hand-authored, spec-conformant artifact (D18). Embedded so the test is
+/// hermetic; swap in a real C++-produced artifact when one is available.
+const ARTIFACT_XML: &str = include_str!("../testdata/registry_artifact.xml");
+
+#[test]
+fn load_artifact_decodes_tree_and_enumerates_in_ordinal_order() {
+    let casing = AsciiOrdinalCasing;
+    let hive = crate::load_registry_hive(&casing, ARTIFACT_XML).expect("artifact should parse");
+    let tree = OverlayTree::new(casing, hive);
+
+    // Hive names are normalized to their canonical full forms (D19), so paths a
+    // Session vends resolve — whether the artifact used an abbreviation (HKLM,
+    // HKCC) or a long form (HKEY_CURRENT_USER).
+    let lm = crate::Session::new().root(crate::WellKnownRoot::LocalMachine);
+    assert!(tree.key_exists(&lm));
+    assert!(tree.key_exists(&KeyPath::parse("HKEY_CURRENT_USER\\Environment")));
+    assert!(tree.key_exists(&KeyPath::parse("HKEY_CURRENT_CONFIG\\Display")));
+
+    // Every value type decodes (REG_SZ / EXPAND_SZ / MULTI_SZ / DWORD / QWORD /
+    // BINARY) including the default (empty-name) value.
+    let types = KeyPath::parse("HKEY_LOCAL_MACHINE\\Software\\Types");
+    assert_eq!(
+        tree.get_value(&types, &w("Name")).unwrap(),
+        ValueData::String(w("Srv"))
+    );
+    assert_eq!(
+        tree.get_value(&types, &w("Path")).unwrap(),
+        ValueData::ExpandString(w("%TMP%"))
+    );
+    assert_eq!(
+        tree.get_value(&types, &w("Langs")).unwrap(),
+        ValueData::MultiString(vec![w("en"), w("fr")])
+    );
+    assert_eq!(tree.get_value(&types, &w("Count")).unwrap(), ValueData::Dword(0x1234));
+    assert_eq!(tree.get_value(&types, &w("Big")).unwrap(), ValueData::Qword(1));
+    assert_eq!(
+        tree.get_value(&types, &w("Blob")).unwrap(),
+        ValueData::Binary(vec![0xca, 0xfe])
+    );
+    assert_eq!(
+        tree.get_value(&types, &w("")).unwrap(),
+        ValueData::String(w("def"))
+    );
+
+    // A value tombstone folds away: the value is absent in the sealed base.
+    assert_eq!(
+        tree.get_value(&types, &w("Stale")),
+        Err(crate::error::RegistryError::ValueNotFound)
+    );
+
+    // Subkeys authored out of order enumerate in ordinal order; the deleted key
+    // is absent and the mirrored placeholder is present (empty).
+    let order = KeyPath::parse("HKEY_LOCAL_MACHINE\\Software\\Order");
+    let names = tree.enum_subkeys(&order).expect("enumerable");
+    assert_eq!(
+        names,
+        vec![w("Alpha"), w("beta"), w("Beta2"), w("Mir"), w("Zeta"), w("_under")]
+    );
+    assert!(!tree.key_exists(&order.child(w("Del"))));
+    let mir = order.child(w("Mir"));
+    assert!(tree.key_exists(&mir));
+    assert!(tree.enum_subkeys(&mir).expect("enumerable").is_empty());
+
+    // The long-form hive's value decodes too.
+    assert_eq!(
+        tree.get_value(&KeyPath::parse("HKEY_CURRENT_USER\\Environment"), &w("EDITOR"))
+            .unwrap(),
+        ValueData::String(w("vi"))
+    );
+}
+

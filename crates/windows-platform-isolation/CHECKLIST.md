@@ -141,8 +141,12 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       Added `RegistryError::MalformedArtifact(String)` (with `Display`) for
       malformed XML / unknown hive name / undecodable value — the loader's
       parse-failure channel. Sequenced before M4-3 (the deserializer needs it).
-- [ ] **M4-5** *(integration)* Load a real C++-produced artifact; assert tree
-      contents and ordinal enumeration order.
+- [x] **M4-5** *(integration)* Load a real C++-produced artifact; assert tree
+      contents and ordinal enumeration order. Added a hand-authored
+      spec-conformant fixture `testdata/registry_artifact.xml` (swap a real
+      C++ artifact in later) and an integration test that loads it via
+      `load_registry_hive` and asserts hive-name normalization, all value-type
+      decoding, tombstone/mirrored folding, and ordinal subkey enumeration.
 - [ ] **M4-6** *(integration, from M2-7)* Have the C++ PIL test suite load the
       shared golden fixture `crates/windows-text/testdata/ordinal_golden_vectors.txt`
       and assert the C++ ordinal sort key (per-`I`-row key bytes) and

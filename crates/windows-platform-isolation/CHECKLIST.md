@@ -68,9 +68,27 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       monotonicity; code-page round-trips (UTF-8 and a legacy CP); ill-formed
       UTF-16 round-trips never panic/lose data (D9). Safe crate stays
       `cargo-geiger`-clean (zero `unsafe`).
-- [ ] **M2-7** *(integration)* Golden ordinal sort-key vectors matching the
-      C++ PIL `m::strings` for D5/D8 parity. NOTE: depends on extracting
-      reference vectors from the C++ side — may slip to M4; flag for tuning.
+- [ ] **M2-7** *(integration)* Shared golden sort-key/comparator vectors (WT-5).
+      A Windows-only generator calls the OS primitives (`CompareString*` /
+      `LCMapStringEx` under `LOCALE_NAME_INVARIANT`) over a fixed corpus (ASCII
+      letters/digits/`_`/punctuation, mixed-case words, BMP non-ASCII incl.
+      U+0130/U+0131, ill-formed UTF-16), emitting per-input key bytes (hex) and
+      per-pair comparator signs. Curate the capture against the written spec
+      (annotate any OS quirk we decline to adopt), commit it as a small shared
+      fixture, and have **both** the Rust and the C++ PIL test suites load and
+      assert against the same file. Removes the old "extract reference vectors
+      from C++" prerequisite. Must include the `_` / `a_b` vs `ab` cases that
+      drive the M2-8 ordering decision.
+- [x] **M2-8** Sort-key primitive = `LCMapStringEx(LOCALE_NAME_INVARIANT,
+      LCMAP_SORTKEY | NORM_IGNORECASE)` returning the raw **byte** key; the
+      comparator stays `CompareStringOrdinal(bIgnoreCase = TRUE)`. The two share
+      case-insensitive **equality** but not ordering (the key orders by invariant
+      linguistic collation, the comparator by code unit; they diverge on
+      punctuation such as `"a_b"` vs `"ab"`). Tests assert the equality contract
+      and ordinal comparator parity (`win32_sort_key_equality_agrees_with_compare`,
+      `win32_compare_matches_ascii_reference_on_ascii`). See WT-2. NOTE for M3:
+      when `tree.rs` adopts this, decide which primitive is authoritative for its
+      iteration *order*, since key order ≠ comparator order on punctuation.
 
 ### M3 — Adopt `windows-text` here (integration / refactor)
 

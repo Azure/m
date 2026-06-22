@@ -8,6 +8,11 @@ rust-version.workspace = true
 roxmltree = "0.21.1"
 windows-text = { path = "../windows-text" }
 
+# The live ("direct") registry provider (D20) is Windows-only; its unsafe FFI
+# lives entirely in this leaf crate.
+[target.'cfg(windows)'.dependencies]
+windows-platform-isolation-sys = { path = "../windows-platform-isolation-sys" }
+
 [dev-dependencies]
 # Enable the pure-Rust ASCII ordinal reference so unit tests can exercise the
 # casing seam off Windows (M3-2: production builds vend `Win32OrdinalCasing`).

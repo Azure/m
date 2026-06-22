@@ -161,7 +161,10 @@ fn normalize_hive_name(name: &str) -> Result<&'static str> {
 /// Decode raw value bytes into [`ValueData`] per the `reg_value_type` (D19).
 /// Types the Rust model has no variant for (`none`, `dword_be`, `link`, or any
 /// unrecognized code) fall back to `Binary`, preserving the bytes losslessly.
-fn decode_value(type_code: u32, bytes: Vec<u8>) -> Result<ValueData> {
+///
+/// Shared by both the XML loader and the live registry provider (D20): the live
+/// read path hands the OS `REG_*` type code and raw bytes straight through here.
+pub(crate) fn decode_value(type_code: u32, bytes: Vec<u8>) -> Result<ValueData> {
     let data = match type_code {
         reg_value_type::STRING => ValueData::String(decode_string(&bytes)?),
         reg_value_type::EXPAND_STRING => ValueData::ExpandString(decode_string(&bytes)?),

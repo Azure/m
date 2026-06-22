@@ -38,6 +38,10 @@ pub enum RegistryError {
     /// string describes what went wrong; it is diagnostic, not a stable
     /// contract.
     MalformedArtifact(String),
+    /// The live OS registry provider (D20) returned a Win32 error that is not a
+    /// missing key/value. Carries the raw `WIN32_ERROR` status code; it is
+    /// diagnostic, not a stable contract.
+    Os(u32),
 }
 
 impl fmt::Display for RegistryError {
@@ -52,6 +56,7 @@ impl fmt::Display for RegistryError {
             Self::MalformedArtifact(detail) => {
                 write!(f, "malformed registry artifact: {detail}")
             }
+            Self::Os(code) => write!(f, "live registry OS error {code}"),
         }
     }
 }

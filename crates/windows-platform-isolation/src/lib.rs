@@ -9,17 +9,20 @@
 //! the safe [`windows-text`](windows_text) crate); this crate carries no
 //! `unsafe` at all.
 //!
-//! The first cut has no live/"direct" provider (D15): the safe core is
-//! exercised entirely through synthetic in-memory data and tests. Persistence
-//! (the shared artifact format, D5) and the live Win32 provider are later
-//! milestones.
+//! Ingress initially came from loading saved C++ provider state (the shared
+//! artifact format, D5) rather than a live provider (D15). M5 adds the live
+//! ("direct") Win32 registry provider (D20) — [`LiveRegistry`], Windows-only,
+//! whose `unsafe` lives in the `windows-platform-isolation-sys` leaf so this
+//! crate still carries none.
 //!
-//! See `DESIGN-NOTES.md` for the governing decisions (D1–D15).
+//! See `DESIGN-NOTES.md` for the governing decisions (D1–D20).
 
 #![forbid(unsafe_code)]
 
 pub mod decorator;
 pub mod error;
+#[cfg(windows)]
+pub mod live;
 pub mod path;
 pub mod registry;
 pub mod serial;
@@ -28,6 +31,8 @@ pub mod tree;
 
 pub use decorator::{Buffered, PassThrough};
 pub use error::{RegistryError, Result};
+#[cfg(windows)]
+pub use live::LiveRegistry;
 pub use path::KeyPath;
 pub use registry::{Registry, Session, WellKnownRoot};
 pub use serial::load_registry_hive;

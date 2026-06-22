@@ -176,7 +176,14 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
       unconditionally `#![forbid(unsafe_code)]`. (New crate
       `windows-platform-isolation-sys`: `RegKey` RAII + roots + open/create,
       `RegError`/`is_not_found`; D20.)
-- [ ] **M5-2** Live registry `Surface` over the real OS registry (read path).
+- [x] **M5-2** Live registry `Surface` over the real OS registry (read path).
+      (`windows-platform-isolation-sys` gains `query_value`/`enum_subkey_names`/
+      `enum_values` read FFI; new `#[cfg(windows)] live::LiveRegistry` exposes
+      `key_exists`/`read_value`/`enum_keys`/`enum_values` inherent readers that
+      decode via the shared `serial::decode_value`; `RegistryError::Os` added.
+      The full object-safe `impl Surface` lands in M5-3 with the write verbs,
+      since the trait needs all eight verbs to compile — the read/write split is
+      coupled at the trait boundary, so M5-2 ships inherent readers only.)
 - [ ] **M5-3** Live write path.
 - [ ] **M5-4** Write/capture side of the artifact format (round-trips with M4).
 - [ ] **M5-5** *(integration)* capture → save → load → assert round-trip parity

@@ -9,14 +9,15 @@
 //! UTF-16 slices; no raw pointer escapes.
 
 use windows::Win32::Foundation::{
-    ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, ERROR_SUCCESS, WIN32_ERROR,
+    ERROR_FILE_NOT_FOUND, ERROR_MORE_DATA, ERROR_NO_MORE_ITEMS, ERROR_PATH_NOT_FOUND,
+    ERROR_SUCCESS, WIN32_ERROR,
 };
 use windows::Win32::System::Registry::{
     HKEY, HKEY_CLASSES_ROOT, HKEY_CURRENT_CONFIG, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE,
-    HKEY_USERS, KEY_READ, KEY_WRITE, REG_OPTION_NON_VOLATILE, RegCloseKey, RegCreateKeyExW,
-    RegOpenKeyExW,
+    HKEY_USERS, KEY_READ, KEY_WRITE, REG_OPTION_NON_VOLATILE, REG_VALUE_TYPE, RegCloseKey,
+    RegCreateKeyExW, RegEnumKeyExW, RegEnumValueW, RegOpenKeyExW, RegQueryValueExW,
 };
-use windows::core::PCWSTR;
+use windows::core::{PCWSTR, PWSTR};
 
 /// A failed Win32 registry call, carrying the `WIN32_ERROR` status code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +46,10 @@ impl core::fmt::Display for RegError {
 }
 
 impl std::error::Error for RegError {}
+
+/// A single enumerated registry value: `(name code units, `REG_*` type code,
+/// raw value bytes)`.
+pub type RawValue = (Vec<u16>, u32, Vec<u8>);
 
 /// Map a `WIN32_ERROR` return into a `Result`.
 fn check(rc: WIN32_ERROR) -> Result<(), RegError> {
@@ -119,11 +124,155 @@ impl RegKey {
         Self::predefined(HKEY_CURRENT_CONFIG)
     }
 
-    /// The raw handle, for use by the read/write primitives in this module.
-    // Consumed by the query/enumerate/set primitives added in M5-2 / M5-3.
-    #[allow(dead_code)]
-    pub(crate) fn raw(&self) -> HKEY {
-        self.handle
+    /// Read a value by name from this key.
+    ///
+    /// `name` is a NUL-terminated UTF-16 value name (an empty name, i.e. a lone
+    /// NUL, selects the key's default value). Returns the raw `REG_*` type code
+    /// and the value bytes exactly as stored, using the two-call length probe.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegError`] (with [`RegError::is_not_found`] true when the value
+    /// is absent) on any Win32 failure.
+    pub fn query_value(&self, name: &[u16]) -> Result<(u32, Vec<u8>), RegError> {
+        let mut ty = REG_VALUE_TYPE(0);
+        let mut cb: u32 = 0;
+        // Probe: type and byte length (lpData = null).
+        let rc = unsafe {
+            RegQueryValueExW(
+                self.handle,
+                PCWSTR(name.as_ptr()),
+                None,
+                Some(&mut ty),
+                None,
+                Some(&mut cb),
+            )
+        };
+        check(rc)?;
+        if cb == 0 {
+            return Ok((ty.0, Vec::new()));
+        }
+        let mut buf = vec![0u8; cb as usize];
+        let rc = unsafe {
+            RegQueryValueExW(
+                self.handle,
+                PCWSTR(name.as_ptr()),
+                None,
+                Some(&mut ty),
+                Some(buf.as_mut_ptr()),
+                Some(&mut cb),
+            )
+        };
+        check(rc)?;
+        buf.truncate(cb as usize);
+        Ok((ty.0, buf))
+    }
+
+    /// Enumerate the immediate subkey names of this key (without NUL
+    /// terminators), in the registry's native enumeration order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegError`] on any Win32 failure other than the normal
+    /// end-of-enumeration signal.
+    pub fn enum_subkey_names(&self) -> Result<Vec<Vec<u16>>, RegError> {
+        let mut names = Vec::new();
+        let mut index: u32 = 0;
+        // Subkey names are at most 255 chars; start comfortably and grow if the
+        // OS ever reports otherwise.
+        let mut buf = vec![0u16; 256];
+        loop {
+            let mut cch = buf.len() as u32;
+            let rc = unsafe {
+                RegEnumKeyExW(
+                    self.handle,
+                    index,
+                    Some(PWSTR(buf.as_mut_ptr())),
+                    &mut cch,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            };
+            if rc == ERROR_NO_MORE_ITEMS {
+                break;
+            }
+            if rc == ERROR_MORE_DATA {
+                let bigger = buf.len().saturating_mul(2);
+                buf.resize(bigger, 0);
+                continue;
+            }
+            check(rc)?;
+            names.push(buf[..cch as usize].to_vec());
+            index += 1;
+        }
+        Ok(names)
+    }
+
+    /// Enumerate this key's values as `(name units, REG_* type code, bytes)`.
+    ///
+    /// Each value is fetched with a two-call probe: the first call yields the
+    /// name, type, and data size; the second reads the bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegError`] on any Win32 failure other than the normal
+    /// end-of-enumeration signal.
+    pub fn enum_values(&self) -> Result<Vec<RawValue>, RegError> {
+        let mut out = Vec::new();
+        let mut index: u32 = 0;
+        // Value names are at most 16383 chars; the buffer also carries the NUL.
+        let mut name_buf = vec![0u16; 16384];
+        loop {
+            let mut cch = name_buf.len() as u32;
+            let mut ty: u32 = 0;
+            let mut cb: u32 = 0;
+            // Probe: name, type, and data size (lpData = null).
+            let rc = unsafe {
+                RegEnumValueW(
+                    self.handle,
+                    index,
+                    Some(PWSTR(name_buf.as_mut_ptr())),
+                    &mut cch,
+                    None,
+                    Some(&mut ty),
+                    None,
+                    Some(&mut cb),
+                )
+            };
+            if rc == ERROR_NO_MORE_ITEMS {
+                break;
+            }
+            check(rc)?;
+            let name = name_buf[..cch as usize].to_vec();
+            let data = if cb == 0 {
+                Vec::new()
+            } else {
+                let mut buf = vec![0u8; cb as usize];
+                let mut cch2 = name_buf.len() as u32;
+                let mut ty2: u32 = 0;
+                let mut cb2 = cb;
+                let rc = unsafe {
+                    RegEnumValueW(
+                        self.handle,
+                        index,
+                        Some(PWSTR(name_buf.as_mut_ptr())),
+                        &mut cch2,
+                        None,
+                        Some(&mut ty2),
+                        Some(buf.as_mut_ptr()),
+                        Some(&mut cb2),
+                    )
+                };
+                check(rc)?;
+                buf.truncate(cb2 as usize);
+                buf
+            };
+            out.push((name, ty, data));
+            index += 1;
+        }
+        Ok(out)
     }
 
     /// Open an existing subkey relative to this key.

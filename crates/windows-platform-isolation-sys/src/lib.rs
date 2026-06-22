@@ -21,4 +21,4 @@
 mod win32;
 
 #[cfg(windows)]
-pub use win32::{RegError, RegKey};
+pub use win32::{RawValue, RegError, RegKey};

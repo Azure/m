@@ -20,3 +20,9 @@
 
 #[cfg(windows)]
 extern crate windows_threadpool as _;
+
+#[cfg(windows)]
+mod block_on;
+
+#[cfg(windows)]
+pub use block_on::block_on;

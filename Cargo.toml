@@ -6,6 +6,7 @@ members = ["crates/windows-platform-isolation",
   "crates/windows-threadpool-executor",
   "crates/windows-text",
   "crates/windows-text-sys",
+  "crates/windows-win32-shim",
 ]
 exclude = ["m"]
 

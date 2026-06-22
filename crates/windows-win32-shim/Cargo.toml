@@ -1,0 +1,21 @@
+[package]
+name = "windows-win32-shim"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Parallel all-Rust reimplementation of the C++ mwin32 DLL: a Win32-shaped C ABI (m-prefixed registry/filesystem entry points) routed through windows-platform-isolation. The only unsafe is quarantined at the ABI boundary (SHIM-D2)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(windows)'.dependencies]
+windows-platform-isolation = { path = "../windows-platform-isolation" }
+windows-text = { path = "../windows-text" }
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_System_Registry",
+  "Win32_Storage_FileSystem",
+] }
+
+[lints]
+workspace = true

@@ -237,7 +237,7 @@ Path model is a faithful port of the C++ `m::pil::file_path` (D22); the C++
       likewise ships separate filesystem facets). The genuinely surface-agnostic
       decorators (logging/journaling/fault-injection) are not yet built for
       either surface and remain future work. (D4/D10)
-- [ ] **M6-5** Typed filesystem facade (`std::fs`-shaped, D11) + session vending.
+- [x] **M6-5** Typed filesystem facade (`std::fs`-shaped, D11) + session vending.
 - [ ] **M6-6** *(integration)* Load a C++ filesystem artifact; assert contents
       and ordinal directory ordering.
 

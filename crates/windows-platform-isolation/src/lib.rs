@@ -23,6 +23,7 @@ pub mod decorator;
 pub mod error;
 pub mod file_path;
 pub mod fs_error;
+pub mod fs_surface;
 pub mod fs_tree;
 #[cfg(windows)]
 pub mod live;
@@ -36,6 +37,7 @@ pub use decorator::{Buffered, PassThrough};
 pub use error::{RegistryError, Result};
 pub use file_path::{FilePath, FileRoot, FileRootKind, PathSurface};
 pub use fs_error::{FilesystemError, FilesystemResult};
+pub use fs_surface::{FsPassThrough, FsRequest, FsResponse, FsSurface, TreeFsSurface};
 pub use fs_tree::{DirEntry, FileMetadata, FileTree, NodeKind, OverlayFileTree};
 #[cfg(windows)]
 pub use live::LiveRegistry;

@@ -229,8 +229,14 @@ Path model is a faithful port of the C++ `m::pil::file_path` (D22); the C++
       decompose via `FilePath::components()`. `dir_exists` / `file_exists`,
       `create_dir` / `remove_dir`, `set_file` / `remove_file` / `file_metadata`,
       and ordinal-ordered `read_dir` (`DirEntry { name, kind, metadata }`).
-- [ ] **M6-4** Reified filesystem `Request`/`Response` + `Surface`; reuse the
-      surface-agnostic decorators (D4/D10).
+- [x] **M6-4** Reified filesystem `FsRequest`/`FsResponse` + `FsSurface` seam
+      (D10) with a `TreeFsSurface<C>` leaf provider over `OverlayFileTree`, plus
+      a surface-specific `FsPassThrough` decorator. Note: D10 states pass-through
+      and buffered "carry surface-specific semantics," so the filesystem mirrors
+      the registry's pass-through rather than literally reusing it (the C++ PIL
+      likewise ships separate filesystem facets). The genuinely surface-agnostic
+      decorators (logging/journaling/fault-injection) are not yet built for
+      either surface and remain future work. (D4/D10)
 - [ ] **M6-5** Typed filesystem facade (`std::fs`-shaped, D11) + session vending.
 - [ ] **M6-6** *(integration)* Load a C++ filesystem artifact; assert contents
       and ordinal directory ordering.

@@ -1,0 +1,13 @@
+[package]
+name = "windows-threadpool-executor"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "A futures executor layered on the Windows thread pool (TP-D3): idle async tasks tie up no dedicated threads. Schedules work via windows-threadpool + async-task. No unsafe (#![forbid(unsafe_code)])."
+
+[target.'cfg(windows)'.dependencies]
+windows-threadpool = { path = "../windows-threadpool" }
+async-task = "4"
+
+[lints]
+workspace = true

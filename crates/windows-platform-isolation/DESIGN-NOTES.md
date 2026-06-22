@@ -36,6 +36,8 @@ design rather than binding to the C++ implementation.
 | D15 | First cut has no live/"direct" provider; ingress = loading saved C++ provider state |
 | D16 | `windows-text`: standalone reusable Windows string crate (ordinal casing, code pages, transcoding) |
 | D17 | HWC redirection runs out of process: named-pipe service + async (MPMC→threadpool→IOCP) capture/validation/injection pipeline |
+| D18 | The shared C++ PIL registry artifact is pugixml `<Platform><Registry>` XML (documented schema; D5 read side) |
+| D19 | Rust loader mapping: normalize hives to canonical names, fold a sealed snapshot into a base `Hive`, decode `type`/`data` per `reg_value_type` |
 
 ---
 
@@ -478,6 +480,91 @@ M7 threadpool/executor substrate. No `unsafe` leaks into the HWC logic above it.
 **Status.** Only a **high-level outline** is queued — see `CHECKLIST.md` **M8**.
 Protocol, journal format, API-formation strategy, and the validation/injection
 control plane are explicitly **TBD** and will be designed when M8 is scheduled.
+
+## D18 — The shared C++ PIL registry artifact format (D5 read side)
+
+The persisted artifact the Rust loader must read (D5/D15) is **XML produced by
+pugixml**, built in **wchar (UTF-16) mode** in this repository. A saved platform
+is one document rooted at `<Platform>`; the registry lives under
+`<Platform><Registry>`. (The filesystem lives under `<Platform><Filesystem>` —
+out of scope until M6. The diagnostic log is a *separate* artifact rooted at
+`<DiagnosticLog>` and never appears inside `<Platform>`.) This section documents
+the **observed** C++ schema (what the C++ writes and reads); the Rust loader's
+mapping decisions are D19.
+
+**Element/attribute schema.**
+
+- `<Registry>` — contains one `<Key>` per predefined hive captured in the
+  snapshot.
+- `<Key>` (a hive root or a subkey):
+  - `name` *(string, required)* — for a hive root, a predefined-hive spelling
+    (below); for a subkey, its single path component.
+  - `last_write_time` *(signed 64-bit decimal, optional)* —
+    `time_point_type::time_since_epoch().count()` (raw clock ticks). Emitted only
+    when not `min`; doubles as the C++ load-side version stamp (D5 lazy repair).
+  - `deleted="true"` *(optional)* — tombstone: the key was deleted in the
+    overlay. Carries no children.
+  - `mirrored="true"` *(optional)* — name-only placeholder: the subkey name was
+    observed but its contents were never captured. Carries no children. Mutually
+    exclusive with `deleted` and with having children.
+  - Children — zero or more `<Value>` and nested `<Key>` (only when the key is
+    neither `deleted` nor `mirrored`).
+- `<Value>`:
+  - `name` *(string, required)* — empty name denotes the key's default value.
+  - `deleted="true"` *(optional)* — value tombstone; no `type`/`data`.
+  - `type` *(decimal `uint32`)* and `data` *(hex string)* — present on every
+    non-deleted value. A mirrored value whose bytes were never loaded is **not**
+    emitted at all, so a present non-deleted `<Value>` always carries both.
+
+**`type` = `m::pil::reg_value_type` (`registry_base_types.h`), the Win32 `REG_*`
+numbering:** `0` none, `1` string (`REG_SZ`), `2` expand_string
+(`REG_EXPAND_SZ`), `3` binary (`REG_BINARY`), `4` uint32 (`REG_DWORD`, LE), `5`
+uint32_big_endian (`REG_DWORD_BIG_ENDIAN`), `6` link (`REG_LINK`), `7`
+multi_string (`REG_MULTI_SZ`), `11` uint64 (`REG_QWORD`, LE).
+
+**`data` encoding.** The **raw OS value bytes** as lowercase hex, two digits per
+byte, high nibble first, no separators (`bytes_to_hex` /
+`hex_to_bytes`). String types are UTF-16LE bytes (typically NUL-terminated);
+`REG_MULTI_SZ` is NUL-separated, double-NUL terminated UTF-16LE; `REG_DWORD` /
+`REG_QWORD` are 4/8 little-endian bytes. An odd-length or non-hex `data` is a
+hard parse error on the C++ side.
+
+**Predefined-hive `name` spellings.** The C++ **save** side emits the canonical
+spellings from `pk_to_string_map`: `HKCR`, `HKCU`, `HKLM`, `HKEY_USERS`,
+`HKEY_PERFORMANCE_DATA`, `HKCC`, `HKEY_CURRENT_USER_LOCAL_SETTINGS`,
+`HKEY_PERFORMANCE_TEXT`, `HKEY_PERFORMANCE_NLSTEXT`. The **load** side
+(`predefined_key_names`) additionally accepts the long forms
+`HKEY_CLASSES_ROOT`, `HKEY_CURRENT_USER`, `HKEY_LOCAL_MACHINE`,
+`HKEY_CURRENT_CONFIG`, matched **ordinal case-insensitively**. An unrecognized
+hive name is a hard error (`invalid_parameter`).
+
+**Worked example.**
+
+```xml
+<Platform>
+  <Registry>
+    <Key name="HKLM">
+      <Key name="Software" last_write_time="133600000000000000">
+        <Value name="Name" type="1" data="62006100730065000000"/>
+        <Value name="Count" type="4" data="18000000"/>
+        <Value name="old" deleted="true"/>
+        <Key name="App"><Value name="" type="1" data="68006900000000"/></Key>
+        <Key name="Observed" mirrored="true"/>
+        <Key name="Gone" deleted="true"/>
+      </Key>
+    </Key>
+  </Registry>
+</Platform>
+```
+
+**Source of truth.** `src/libraries/pil/src/buffered/registry.cpp`
+(`registry::save_xml` / `registry::load_xml`),
+`src/libraries/pil/src/buffered/registry_key_key_operations.cpp`
+(`key::save_xml` / `key::load_children_xml`, `bytes_to_hex` / `hex_to_bytes`),
+`src/libraries/pil/src/key_path.cpp` (predefined-hive name maps),
+`src/libraries/pil/include/m/pil/registry_base_types.h` (`reg_value_type`). Per
+D5 this schema is a **shared** contract: it may be changed only by jointly
+migrating both code bases with confirmation, never unilaterally.
 
 ## Status
 

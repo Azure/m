@@ -121,8 +121,11 @@ libraries (D16 charter). Per Option B (D13) the `unsafe` lives **only** in the
 
 ### M4 — C++ artifact format & loader (D5 read side / D15 ingress)
 
-- [ ] **M4-1** Document the C++ PIL saved-state/serialization format (read the
-      serialization code under `src/libraries/pil/`).
+- [x] **M4-1** Document the C++ PIL saved-state/serialization format (read the
+      serialization code under `src/libraries/pil/`). Recorded as **D18** in
+      `DESIGN-NOTES.md`: pugixml `<Platform><Registry>` XML — `<Key>`/`<Value>`
+      schema, `deleted`/`mirrored` markers, `reg_value_type` `type` numbering,
+      lowercase-hex `data`, and predefined-hive name spellings.
 - [ ] **M4-2** Record the shared-format spec in `DESIGN-NOTES.md` (D5 is a
       prerequisite for the loader).
 - [ ] **M4-3** Safe deserializer: bytes → M1 overlay tree, keyed with M2

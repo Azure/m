@@ -27,6 +27,11 @@ pub enum FilesystemError {
     /// No filesystem node exists at the requested path (the directory or file
     /// is absent, or a tombstone shadows it).
     NotFound,
+    /// A live-provider Win32 call failed with the carried `WIN32_ERROR` status
+    /// code (mirror of [`RegistryError::Os`](crate::RegistryError::Os)). Used
+    /// only by the Windows live filesystem provider; the in-memory surfaces
+    /// never produce it.
+    Os(u32),
     /// A serialized C++ PIL filesystem artifact could not be decoded — the XML
     /// was not well-formed or a required attribute was missing or unparseable.
     /// The string is diagnostic, not a stable contract.
@@ -39,6 +44,7 @@ impl fmt::Display for FilesystemError {
             Self::IllFormedUtf16 => f.write_str("stored path is not well-formed UTF-16"),
             Self::InvalidPath(detail) => write!(f, "invalid path: {detail}"),
             Self::NotFound => f.write_str("no filesystem node exists at the path"),
+            Self::Os(code) => write!(f, "OS filesystem error {code}"),
             Self::MalformedArtifact(detail) => write!(f, "malformed filesystem artifact: {detail}"),
         }
     }

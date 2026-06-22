@@ -29,6 +29,8 @@ pub mod fs_surface;
 pub mod fs_tree;
 #[cfg(windows)]
 pub mod live;
+#[cfg(windows)]
+pub mod live_fs;
 pub mod path;
 pub mod registry;
 pub mod serial;
@@ -45,6 +47,8 @@ pub use fs_surface::{FsPassThrough, FsRequest, FsResponse, FsSurface, TreeFsSurf
 pub use fs_tree::{DirEntry, FileMetadata, FileTree, NodeKind, OverlayFileTree};
 #[cfg(windows)]
 pub use live::LiveRegistry;
+#[cfg(windows)]
+pub use live_fs::LiveFilesystem;
 pub use path::KeyPath;
 pub use registry::{Registry, Session, WellKnownRoot};
 pub use serial::{load_registry_hive, save_registry_hive};

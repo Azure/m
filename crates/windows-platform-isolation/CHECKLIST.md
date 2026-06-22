@@ -269,7 +269,7 @@ ABI.
       `DeleteFileW`, and a RAII find-enumeration handle
       (`FindFirstFileW`/`FindNextFileW`/`FindClose`); plus a `FsError(u32)`
       mirroring `RegError`. All `unsafe` confined to the leaf.
-- [ ] **M9-2** `FilesystemError::Os(u32)` (mirror `RegistryError::Os`) + a live
+- [x] **M9-2** `FilesystemError::Os(u32)` (mirror `RegistryError::Os`) + a live
       read path: `#[cfg(windows)] live_fs::LiveFilesystem` exposing
       `dir_exists`/`file_exists`/`metadata`/`read_dir` over the **M9-1 file leaf**
       (attributes/timestamps/size), decoding into `FileMetadata` and

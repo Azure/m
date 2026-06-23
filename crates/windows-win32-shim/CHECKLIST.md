@@ -115,7 +115,7 @@ lib, wiring the link recipe, and the C++ link-proof EXE) are inherently a
 cross-toolchain C++ link concern that cannot run as a `cargo test`; they are
 re-scoped to MW5-3 and deferred pending a C++ test-harness decision.
 
-- [ ] **MW5-1** Author the export `.def` source-of-truth
+- [x] **MW5-1** Author the export `.def` source-of-truth
       (`windows_win32_shim.def`) — the single, ordered manifest of every
       `mwin32` `m<Name>` export. Names **not yet implemented** by this crate are
       commented out with a leading `;` so they are enabled by simply

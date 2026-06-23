@@ -1,0 +1,237 @@
+; Copyright (c) Microsoft Corporation.
+;
+; windows-win32-shim export manifest — the single source of truth for the set of
+; `m<Name>` entry points the shim DLL exports, and the input to the alias
+; generator (`alias_gen`, MW5-2) that mirrors the C++ `generate_mwin32_alias.cmake`.
+;
+; Parity target: the C++ `mwin32.def`. Every genuine Win32 registry / filesystem
+; name has an `m<Name>` shim spelling here. A name is ACTIVE (uncommented) only
+; when this crate actually exports that symbol today — either a real W-form
+; implementation or a `NOT_SUPPORTED` stub. Names this crate does NOT yet export
+; are present but COMMENTED OUT with a leading `;`; enable one by simply deleting
+; its leading `;` once the entry point lands (e.g. the ANSI `A` forms in MW6).
+; Keeping the full roster here means the manifest never has to be re-derived.
+;
+; The `.def` comment marker is `;` (comment to end of line). A leading `;` thus
+; disables the whole line; a trailing `; noalias` keeps the name exported but
+; opts it OUT of auto-redirection (see `mCloseHandle` — redirecting every
+; `CloseHandle` in a client would capture non-shim OS handles). See SHIM-D4.
+;
+; Changing the ACTIVE set is a breaking change for any consumer linking the
+; generated alias object.
+
+EXPORTS
+
+; ============================================================================
+; Filesystem (mwinfile.rs)
+; ============================================================================
+
+; ---- Handle lifetime --------------------------------------------------------
+ mCloseHandle ; noalias
+
+; ---- Create / metadata / directory / enumeration ----------------------------
+;mCopyFile2
+;mCopyFileA
+;mCopyFileExA
+ mCopyFileExW
+;mCopyFileTransactedA
+;mCopyFileTransactedW
+;mCopyFileW
+;mCreateDirectoryA
+;mCreateDirectoryExA
+;mCreateDirectoryExW
+;mCreateDirectoryTransactedA
+;mCreateDirectoryTransactedW
+ mCreateDirectoryW
+;mCreateFileA
+;mCreateFileTransactedA
+;mCreateFileTransactedW
+ mCreateFileW
+;mDeleteFileA
+ mDeleteFileW
+;mDeviceIoControl
+;mDuplicateHandle
+ mFindClose
+;mFindCloseChangeNotification
+;mFindFirstChangeNotificationA
+;mFindFirstChangeNotificationW
+;mFindFirstFileA
+;mFindFirstFileExA
+ mFindFirstFileExW
+;mFindFirstFileTransactedA
+ mFindFirstFileTransactedW
+ mFindFirstFileW
+;mFindNextChangeNotification
+;mFindNextFileA
+ mFindNextFileW
+;mFlushFileBuffers
+;mGetExpandedNameA
+;mGetExpandedNameW
+;mGetFileAttributesA
+;mGetFileAttributesExA
+ mGetFileAttributesExW
+;mGetFileAttributesTransactedA
+;mGetFileAttributesTransactedW
+ mGetFileAttributesW
+;mGetFileInformationByHandle
+;mGetFileInformationByHandleEx
+;mGetFileSize
+ mGetFileSizeEx
+;mGetFileTime
+;mGetFileType
+;mGetFinalPathNameByHandleA
+;mGetFinalPathNameByHandleW
+;mGetFullPathNameA
+;mGetFullPathNameW
+;mGetLongPathNameA
+;mGetLongPathNameTransactedA
+;mGetLongPathNameTransactedW
+;mGetLongPathNameW
+;mGetTempFileNameA
+;mGetTempFileNameW
+;mLZClose
+;mLZCopy
+;mLZInit
+;mLZOpenFileA
+;mLZOpenFileW
+;mLZRead
+;mLZSeek
+;mLockFile
+;mLockFileEx
+;mMoveFileA
+;mMoveFileExA
+ mMoveFileExW
+;mMoveFileTransactedA
+;mMoveFileTransactedW
+;mMoveFileW
+;mOpenFile
+;m_hread
+;m_hwrite
+;m_lclose
+;m_lcreat
+;m_llseek
+;m_lopen
+;m_lread
+;m_lwrite
+;mReadDirectoryChangesExW
+;mReadDirectoryChangesW
+ mReadFile
+;mReadFileEx
+ mReadFileScatter
+;mRemoveDirectoryA
+;mRemoveDirectoryTransactedA
+;mRemoveDirectoryTransactedW
+ mRemoveDirectoryW
+;mReplaceFileA
+;mReplaceFileW
+;mSearchPathA
+;mSearchPathW
+;mSetFileAttributesA
+;mSetFileAttributesTransactedA
+;mSetFileAttributesTransactedW
+ mSetFileAttributesW
+;mSetEndOfFile
+;mSetFileInformationByHandle
+;mSetFilePointer
+ mSetFilePointerEx
+;mSetFileTime
+;mSetFileValidData
+;mUnlockFile
+;mUnlockFileEx
+ mWriteFile
+;mWriteFileEx
+ mWriteFileGather
+
+; ============================================================================
+; Registry (mwinreg.rs)
+; ============================================================================
+
+ mRegCloseKey
+;mRegConnectRegistryA
+;mRegConnectRegistryExA
+ mRegConnectRegistryExW
+ mRegConnectRegistryW
+;mRegCopyTreeA
+ mRegCopyTreeW
+;mRegCreateKeyA
+;mRegCreateKeyExA
+ mRegCreateKeyExW
+;mRegCreateKeyTransactedA
+ mRegCreateKeyTransactedW
+;mRegCreateKeyW
+;mRegDeleteKeyA
+;mRegDeleteKeyExA
+ mRegDeleteKeyExW
+;mRegDeleteKeyTransactedA
+ mRegDeleteKeyTransactedW
+;mRegDeleteKeyValueA
+ mRegDeleteKeyValueW
+;mRegDeleteKeyW
+;mRegDeleteTreeA
+ mRegDeleteTreeW
+;mRegDeleteValueA
+ mRegDeleteValueW
+ mRegDisablePredefinedCache
+ mRegDisablePredefinedCacheEx
+ mRegDisableReflectionKey
+ mRegEnableReflectionKey
+;mRegEnumKeyA
+;mRegEnumKeyExA
+ mRegEnumKeyExW
+;mRegEnumKeyW
+;mRegEnumValueA
+ mRegEnumValueW
+ mRegFlushKey
+ mRegGetKeySecurity
+;mRegGetValueA
+ mRegGetValueW
+;mRegLoadAppKeyA
+;mRegLoadAppKeyW
+;mRegLoadKeyA
+ mRegLoadKeyW
+;mRegLoadMUIStringA
+;mRegLoadMUIStringW
+ mRegNotifyChangeKeyValue
+ mRegOpenCurrentUser
+;mRegOpenKeyA
+;mRegOpenKeyExA
+ mRegOpenKeyExW
+;mRegOpenKeyTransactedA
+ mRegOpenKeyTransactedW
+;mRegOpenKeyW
+ mRegOpenUserClassesRoot
+ mRegOverridePredefKey
+;mRegQueryInfoKeyA
+ mRegQueryInfoKeyW
+;mRegQueryMultipleValuesA
+ mRegQueryMultipleValuesW
+ mRegQueryReflectionKey
+;mRegQueryValueA
+;mRegQueryValueExA
+ mRegQueryValueExW
+ mRegQueryValueW
+ mRegRenameKey
+;mRegReplaceKeyA
+ mRegReplaceKeyW
+;mRegRestoreKeyA
+ mRegRestoreKeyW
+;mRegSaveKeyA
+;mRegSaveKeyExA
+;mRegSaveKeyExW
+ mRegSaveKeyW
+ mRegSetKeySecurity
+;mRegSetKeyValueA
+ mRegSetKeyValueW
+;mRegSetValueA
+;mRegSetValueExA
+ mRegSetValueExW
+ mRegSetValueW
+;mRegUnLoadKeyA
+ mRegUnLoadKeyW
+
+; ============================================================================
+; WebCore — out of scope for this shim (SHIM-D5); listed for parity only.
+; ============================================================================
+;mWebCoreActivate
+;mWebCoreSetMetadata
+;mWebCoreShutdown

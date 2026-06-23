@@ -1,0 +1,240 @@
+# windows-win32-shim — Win32→m alias manifest (NDJSON)
+#
+# The single, versioned source of truth that drives the alias-object emitter
+# (`alias_obj`, MW5-4) and its CLI (`gen-alias-obj`, MW5-5). The emitter writes a
+# COFF object that redirects each genuine Win32 entry point to the shim's
+# `m<Name>` export, with NO C++ compiler and NO MSVC tool involved — only the
+# client's own linker consumes the result. See SHIM-D4.
+#
+# Format — NDJSON with a comment extension:
+#   * One JSON object per ACTIVE alias, e.g.
+#       {"win32":"RegOpenKeyExW","shim":"mRegOpenKeyExW"}
+#     - "win32" (required): the genuine Win32 name being redirected.
+#     - "shim"  (optional): the target export; defaults to "m" + win32.
+#     - "alias" (optional, default true): set false to document a name that is
+#       EXPORTED but deliberately NOT auto-redirected (opt-out; see CloseHandle —
+#       redirecting every CloseHandle in a client would capture non-shim OS
+#       handles).
+#   * A blank line, or a line whose first non-blank characters are `#` or `//`,
+#     is a comment / section header and is ignored by the emitter.
+#   * A name this crate does not yet export is carried as a COMMENTED-OUT record
+#     (`# {"win32":...}`); enable it by deleting the leading `# ` once the entry
+#     point lands. This mirrors windows_win32_shim.def's enable-by-uncommenting.
+#
+# Parity is enforced by a unit test: the ACTIVE aliased set here must equal the
+# aliased set of windows_win32_shim.def. Changing the ACTIVE set is a breaking
+# change for any consumer linking the generated alias object.
+
+# ============================================================================
+# Filesystem (mwinfile.rs)
+# ============================================================================
+
+# ---- Handle lifetime --------------------------------------------------------
+{"win32":"CloseHandle","shim":"mCloseHandle","alias":false}
+
+# ---- Create / metadata / directory / enumeration ----------------------------
+# {"win32":"CopyFile2","shim":"mCopyFile2"}
+# {"win32":"CopyFileA","shim":"mCopyFileA"}
+# {"win32":"CopyFileExA","shim":"mCopyFileExA"}
+{"win32":"CopyFileExW","shim":"mCopyFileExW"}
+# {"win32":"CopyFileTransactedA","shim":"mCopyFileTransactedA"}
+# {"win32":"CopyFileTransactedW","shim":"mCopyFileTransactedW"}
+# {"win32":"CopyFileW","shim":"mCopyFileW"}
+# {"win32":"CreateDirectoryA","shim":"mCreateDirectoryA"}
+# {"win32":"CreateDirectoryExA","shim":"mCreateDirectoryExA"}
+# {"win32":"CreateDirectoryExW","shim":"mCreateDirectoryExW"}
+# {"win32":"CreateDirectoryTransactedA","shim":"mCreateDirectoryTransactedA"}
+# {"win32":"CreateDirectoryTransactedW","shim":"mCreateDirectoryTransactedW"}
+{"win32":"CreateDirectoryW","shim":"mCreateDirectoryW"}
+# {"win32":"CreateFileA","shim":"mCreateFileA"}
+# {"win32":"CreateFileTransactedA","shim":"mCreateFileTransactedA"}
+# {"win32":"CreateFileTransactedW","shim":"mCreateFileTransactedW"}
+{"win32":"CreateFileW","shim":"mCreateFileW"}
+# {"win32":"DeleteFileA","shim":"mDeleteFileA"}
+{"win32":"DeleteFileW","shim":"mDeleteFileW"}
+# {"win32":"DeviceIoControl","shim":"mDeviceIoControl"}
+# {"win32":"DuplicateHandle","shim":"mDuplicateHandle"}
+{"win32":"FindClose","shim":"mFindClose"}
+# {"win32":"FindCloseChangeNotification","shim":"mFindCloseChangeNotification"}
+# {"win32":"FindFirstChangeNotificationA","shim":"mFindFirstChangeNotificationA"}
+# {"win32":"FindFirstChangeNotificationW","shim":"mFindFirstChangeNotificationW"}
+# {"win32":"FindFirstFileA","shim":"mFindFirstFileA"}
+# {"win32":"FindFirstFileExA","shim":"mFindFirstFileExA"}
+{"win32":"FindFirstFileExW","shim":"mFindFirstFileExW"}
+# {"win32":"FindFirstFileTransactedA","shim":"mFindFirstFileTransactedA"}
+{"win32":"FindFirstFileTransactedW","shim":"mFindFirstFileTransactedW"}
+{"win32":"FindFirstFileW","shim":"mFindFirstFileW"}
+# {"win32":"FindNextChangeNotification","shim":"mFindNextChangeNotification"}
+# {"win32":"FindNextFileA","shim":"mFindNextFileA"}
+{"win32":"FindNextFileW","shim":"mFindNextFileW"}
+# {"win32":"FlushFileBuffers","shim":"mFlushFileBuffers"}
+# {"win32":"GetExpandedNameA","shim":"mGetExpandedNameA"}
+# {"win32":"GetExpandedNameW","shim":"mGetExpandedNameW"}
+# {"win32":"GetFileAttributesA","shim":"mGetFileAttributesA"}
+# {"win32":"GetFileAttributesExA","shim":"mGetFileAttributesExA"}
+{"win32":"GetFileAttributesExW","shim":"mGetFileAttributesExW"}
+# {"win32":"GetFileAttributesTransactedA","shim":"mGetFileAttributesTransactedA"}
+# {"win32":"GetFileAttributesTransactedW","shim":"mGetFileAttributesTransactedW"}
+{"win32":"GetFileAttributesW","shim":"mGetFileAttributesW"}
+# {"win32":"GetFileInformationByHandle","shim":"mGetFileInformationByHandle"}
+# {"win32":"GetFileInformationByHandleEx","shim":"mGetFileInformationByHandleEx"}
+# {"win32":"GetFileSize","shim":"mGetFileSize"}
+{"win32":"GetFileSizeEx","shim":"mGetFileSizeEx"}
+# {"win32":"GetFileTime","shim":"mGetFileTime"}
+# {"win32":"GetFileType","shim":"mGetFileType"}
+# {"win32":"GetFinalPathNameByHandleA","shim":"mGetFinalPathNameByHandleA"}
+# {"win32":"GetFinalPathNameByHandleW","shim":"mGetFinalPathNameByHandleW"}
+# {"win32":"GetFullPathNameA","shim":"mGetFullPathNameA"}
+# {"win32":"GetFullPathNameW","shim":"mGetFullPathNameW"}
+# {"win32":"GetLongPathNameA","shim":"mGetLongPathNameA"}
+# {"win32":"GetLongPathNameTransactedA","shim":"mGetLongPathNameTransactedA"}
+# {"win32":"GetLongPathNameTransactedW","shim":"mGetLongPathNameTransactedW"}
+# {"win32":"GetLongPathNameW","shim":"mGetLongPathNameW"}
+# {"win32":"GetTempFileNameA","shim":"mGetTempFileNameA"}
+# {"win32":"GetTempFileNameW","shim":"mGetTempFileNameW"}
+# {"win32":"LZClose","shim":"mLZClose"}
+# {"win32":"LZCopy","shim":"mLZCopy"}
+# {"win32":"LZInit","shim":"mLZInit"}
+# {"win32":"LZOpenFileA","shim":"mLZOpenFileA"}
+# {"win32":"LZOpenFileW","shim":"mLZOpenFileW"}
+# {"win32":"LZRead","shim":"mLZRead"}
+# {"win32":"LZSeek","shim":"mLZSeek"}
+# {"win32":"LockFile","shim":"mLockFile"}
+# {"win32":"LockFileEx","shim":"mLockFileEx"}
+# {"win32":"MoveFileA","shim":"mMoveFileA"}
+# {"win32":"MoveFileExA","shim":"mMoveFileExA"}
+{"win32":"MoveFileExW","shim":"mMoveFileExW"}
+# {"win32":"MoveFileTransactedA","shim":"mMoveFileTransactedA"}
+# {"win32":"MoveFileTransactedW","shim":"mMoveFileTransactedW"}
+# {"win32":"MoveFileW","shim":"mMoveFileW"}
+# {"win32":"OpenFile","shim":"mOpenFile"}
+# {"win32":"_hread","shim":"m_hread"}
+# {"win32":"_hwrite","shim":"m_hwrite"}
+# {"win32":"_lclose","shim":"m_lclose"}
+# {"win32":"_lcreat","shim":"m_lcreat"}
+# {"win32":"_llseek","shim":"m_llseek"}
+# {"win32":"_lopen","shim":"m_lopen"}
+# {"win32":"_lread","shim":"m_lread"}
+# {"win32":"_lwrite","shim":"m_lwrite"}
+# {"win32":"ReadDirectoryChangesExW","shim":"mReadDirectoryChangesExW"}
+# {"win32":"ReadDirectoryChangesW","shim":"mReadDirectoryChangesW"}
+{"win32":"ReadFile","shim":"mReadFile"}
+# {"win32":"ReadFileEx","shim":"mReadFileEx"}
+{"win32":"ReadFileScatter","shim":"mReadFileScatter"}
+# {"win32":"RemoveDirectoryA","shim":"mRemoveDirectoryA"}
+# {"win32":"RemoveDirectoryTransactedA","shim":"mRemoveDirectoryTransactedA"}
+# {"win32":"RemoveDirectoryTransactedW","shim":"mRemoveDirectoryTransactedW"}
+{"win32":"RemoveDirectoryW","shim":"mRemoveDirectoryW"}
+# {"win32":"ReplaceFileA","shim":"mReplaceFileA"}
+# {"win32":"ReplaceFileW","shim":"mReplaceFileW"}
+# {"win32":"SearchPathA","shim":"mSearchPathA"}
+# {"win32":"SearchPathW","shim":"mSearchPathW"}
+# {"win32":"SetFileAttributesA","shim":"mSetFileAttributesA"}
+# {"win32":"SetFileAttributesTransactedA","shim":"mSetFileAttributesTransactedA"}
+# {"win32":"SetFileAttributesTransactedW","shim":"mSetFileAttributesTransactedW"}
+{"win32":"SetFileAttributesW","shim":"mSetFileAttributesW"}
+# {"win32":"SetEndOfFile","shim":"mSetEndOfFile"}
+# {"win32":"SetFileInformationByHandle","shim":"mSetFileInformationByHandle"}
+# {"win32":"SetFilePointer","shim":"mSetFilePointer"}
+{"win32":"SetFilePointerEx","shim":"mSetFilePointerEx"}
+# {"win32":"SetFileTime","shim":"mSetFileTime"}
+# {"win32":"SetFileValidData","shim":"mSetFileValidData"}
+# {"win32":"UnlockFile","shim":"mUnlockFile"}
+# {"win32":"UnlockFileEx","shim":"mUnlockFileEx"}
+{"win32":"WriteFile","shim":"mWriteFile"}
+# {"win32":"WriteFileEx","shim":"mWriteFileEx"}
+{"win32":"WriteFileGather","shim":"mWriteFileGather"}
+
+# ============================================================================
+# Registry (mwinreg.rs)
+# ============================================================================
+
+{"win32":"RegCloseKey","shim":"mRegCloseKey"}
+# {"win32":"RegConnectRegistryA","shim":"mRegConnectRegistryA"}
+# {"win32":"RegConnectRegistryExA","shim":"mRegConnectRegistryExA"}
+{"win32":"RegConnectRegistryExW","shim":"mRegConnectRegistryExW"}
+{"win32":"RegConnectRegistryW","shim":"mRegConnectRegistryW"}
+# {"win32":"RegCopyTreeA","shim":"mRegCopyTreeA"}
+{"win32":"RegCopyTreeW","shim":"mRegCopyTreeW"}
+# {"win32":"RegCreateKeyA","shim":"mRegCreateKeyA"}
+# {"win32":"RegCreateKeyExA","shim":"mRegCreateKeyExA"}
+{"win32":"RegCreateKeyExW","shim":"mRegCreateKeyExW"}
+# {"win32":"RegCreateKeyTransactedA","shim":"mRegCreateKeyTransactedA"}
+{"win32":"RegCreateKeyTransactedW","shim":"mRegCreateKeyTransactedW"}
+# {"win32":"RegCreateKeyW","shim":"mRegCreateKeyW"}
+# {"win32":"RegDeleteKeyA","shim":"mRegDeleteKeyA"}
+# {"win32":"RegDeleteKeyExA","shim":"mRegDeleteKeyExA"}
+{"win32":"RegDeleteKeyExW","shim":"mRegDeleteKeyExW"}
+# {"win32":"RegDeleteKeyTransactedA","shim":"mRegDeleteKeyTransactedA"}
+{"win32":"RegDeleteKeyTransactedW","shim":"mRegDeleteKeyTransactedW"}
+# {"win32":"RegDeleteKeyValueA","shim":"mRegDeleteKeyValueA"}
+{"win32":"RegDeleteKeyValueW","shim":"mRegDeleteKeyValueW"}
+# {"win32":"RegDeleteKeyW","shim":"mRegDeleteKeyW"}
+# {"win32":"RegDeleteTreeA","shim":"mRegDeleteTreeA"}
+{"win32":"RegDeleteTreeW","shim":"mRegDeleteTreeW"}
+# {"win32":"RegDeleteValueA","shim":"mRegDeleteValueA"}
+{"win32":"RegDeleteValueW","shim":"mRegDeleteValueW"}
+{"win32":"RegDisablePredefinedCache","shim":"mRegDisablePredefinedCache"}
+{"win32":"RegDisablePredefinedCacheEx","shim":"mRegDisablePredefinedCacheEx"}
+{"win32":"RegDisableReflectionKey","shim":"mRegDisableReflectionKey"}
+{"win32":"RegEnableReflectionKey","shim":"mRegEnableReflectionKey"}
+# {"win32":"RegEnumKeyA","shim":"mRegEnumKeyA"}
+# {"win32":"RegEnumKeyExA","shim":"mRegEnumKeyExA"}
+{"win32":"RegEnumKeyExW","shim":"mRegEnumKeyExW"}
+# {"win32":"RegEnumKeyW","shim":"mRegEnumKeyW"}
+# {"win32":"RegEnumValueA","shim":"mRegEnumValueA"}
+{"win32":"RegEnumValueW","shim":"mRegEnumValueW"}
+{"win32":"RegFlushKey","shim":"mRegFlushKey"}
+{"win32":"RegGetKeySecurity","shim":"mRegGetKeySecurity"}
+# {"win32":"RegGetValueA","shim":"mRegGetValueA"}
+{"win32":"RegGetValueW","shim":"mRegGetValueW"}
+# {"win32":"RegLoadAppKeyA","shim":"mRegLoadAppKeyA"}
+# {"win32":"RegLoadAppKeyW","shim":"mRegLoadAppKeyW"}
+# {"win32":"RegLoadKeyA","shim":"mRegLoadKeyA"}
+{"win32":"RegLoadKeyW","shim":"mRegLoadKeyW"}
+# {"win32":"RegLoadMUIStringA","shim":"mRegLoadMUIStringA"}
+# {"win32":"RegLoadMUIStringW","shim":"mRegLoadMUIStringW"}
+{"win32":"RegNotifyChangeKeyValue","shim":"mRegNotifyChangeKeyValue"}
+{"win32":"RegOpenCurrentUser","shim":"mRegOpenCurrentUser"}
+# {"win32":"RegOpenKeyA","shim":"mRegOpenKeyA"}
+# {"win32":"RegOpenKeyExA","shim":"mRegOpenKeyExA"}
+{"win32":"RegOpenKeyExW","shim":"mRegOpenKeyExW"}
+# {"win32":"RegOpenKeyTransactedA","shim":"mRegOpenKeyTransactedA"}
+{"win32":"RegOpenKeyTransactedW","shim":"mRegOpenKeyTransactedW"}
+# {"win32":"RegOpenKeyW","shim":"mRegOpenKeyW"}
+{"win32":"RegOpenUserClassesRoot","shim":"mRegOpenUserClassesRoot"}
+{"win32":"RegOverridePredefKey","shim":"mRegOverridePredefKey"}
+# {"win32":"RegQueryInfoKeyA","shim":"mRegQueryInfoKeyA"}
+{"win32":"RegQueryInfoKeyW","shim":"mRegQueryInfoKeyW"}
+# {"win32":"RegQueryMultipleValuesA","shim":"mRegQueryMultipleValuesA"}
+{"win32":"RegQueryMultipleValuesW","shim":"mRegQueryMultipleValuesW"}
+{"win32":"RegQueryReflectionKey","shim":"mRegQueryReflectionKey"}
+# {"win32":"RegQueryValueA","shim":"mRegQueryValueA"}
+# {"win32":"RegQueryValueExA","shim":"mRegQueryValueExA"}
+{"win32":"RegQueryValueExW","shim":"mRegQueryValueExW"}
+{"win32":"RegQueryValueW","shim":"mRegQueryValueW"}
+{"win32":"RegRenameKey","shim":"mRegRenameKey"}
+# {"win32":"RegReplaceKeyA","shim":"mRegReplaceKeyA"}
+{"win32":"RegReplaceKeyW","shim":"mRegReplaceKeyW"}
+# {"win32":"RegRestoreKeyA","shim":"mRegRestoreKeyA"}
+{"win32":"RegRestoreKeyW","shim":"mRegRestoreKeyW"}
+# {"win32":"RegSaveKeyA","shim":"mRegSaveKeyA"}
+# {"win32":"RegSaveKeyExA","shim":"mRegSaveKeyExA"}
+# {"win32":"RegSaveKeyExW","shim":"mRegSaveKeyExW"}
+{"win32":"RegSaveKeyW","shim":"mRegSaveKeyW"}
+{"win32":"RegSetKeySecurity","shim":"mRegSetKeySecurity"}
+# {"win32":"RegSetKeyValueA","shim":"mRegSetKeyValueA"}
+{"win32":"RegSetKeyValueW","shim":"mRegSetKeyValueW"}
+# {"win32":"RegSetValueA","shim":"mRegSetValueA"}
+# {"win32":"RegSetValueExA","shim":"mRegSetValueExA"}
+{"win32":"RegSetValueExW","shim":"mRegSetValueExW"}
+{"win32":"RegSetValueW","shim":"mRegSetValueW"}
+# {"win32":"RegUnLoadKeyA","shim":"mRegUnLoadKeyA"}
+{"win32":"RegUnLoadKeyW","shim":"mRegUnLoadKeyW"}
+
+# ============================================================================
+# WebCore — out of scope for this shim (SHIM-D5); listed for parity only.
+# ============================================================================
+# {"win32":"WebCoreActivate","shim":"mWebCoreActivate"}
+# {"win32":"WebCoreSetMetadata","shim":"mWebCoreSetMetadata"}
+# {"win32":"WebCoreShutdown","shim":"mWebCoreShutdown"}

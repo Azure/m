@@ -138,7 +138,7 @@ a genuinely cross-toolchain verification (MW5-6) and stays deferred.
       invalid-shape error) and over the real `include_str!`'d `.def` (active /
       aliased counts, `mCloseHandle` excluded, a sample mapping). Record the
       realization in **SHIM-D4**.
-- [ ] **MW5-3** Define the NDJSON alias manifest + author the checked-in input
+- [x] **MW5-3** Define the NDJSON alias manifest + author the checked-in input
       (`windows_win32_shim_aliases.ndjson`). One JSON object per active alias —
       `{"win32":"RegOpenKeyExW","shim":"mRegOpenKeyExW"}` — with `shim` optional
       (defaults to `"m"` + `win32`) and an optional `"alias": false` for an

@@ -30,6 +30,10 @@
 
 #![deny(unsafe_code)]
 
+// Platform-independent (no `unsafe`, no Windows deps): the Win32→`m` link-time
+// alias generator and its embedded export manifest (MW5, SHIM-D4).
+pub mod alias_gen;
+
 #[cfg(windows)]
 pub mod error_map;
 

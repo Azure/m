@@ -53,6 +53,21 @@ by a `.def` generated/maintained alongside the Rust exports. `mCloseHandle` is
 marked `noalias` (opt-in) so aliasing does not capture unrelated OS handles from
 other code in the client.
 
+**Rust realization (MW5).** The export `.def` (`windows_win32_shim.def`) is the
+single source of truth: it lists the full `mwin32` `m<Name>` roster, with names
+this crate does not yet export commented out (leading `;`) so they are enabled by
+uncommenting as the entry points land; `mCloseHandle` carries a trailing
+`; noalias`. The [`alias_gen`](../src/alias_gen.rs) module is the Rust
+counterpart of `generate_mwin32_alias.cmake`: it parses the manifest (skipping
+comments / `EXPORTS` / `noalias`, validating the `m([A-Z]|_)` shape, deduping)
+and emits, per aliased export, `extern "C" void m<Name>();`, the decisive
+`extern "C" void (*__imp_<Name>)() = &m<Name>;` slot, and the
+`/alternatename:<Name>=m<Name>` pragma. The manifest + generator are pure text
+processing (no `unsafe`, platform-independent) and are unit-tested here. Actually
+compiling the generated alias object into an undecorated import lib, wiring the
+opt-in link recipe, and the C++ link-proof EXE are an inherently cross-toolchain
+C++ link concern that cannot run as a `cargo test`; they are deferred to MW5-3.
+
 ## SHIM-D5 — Reuse the C++ JSON `.pilcfg` sidecar format (artifact parity)
 
 Configuration comes from a `<host-executable>.pilcfg` JSON sidecar with the same

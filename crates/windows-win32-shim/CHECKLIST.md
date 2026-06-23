@@ -123,7 +123,7 @@ re-scoped to MW5-3 and deferred pending a C++ test-harness decision.
       `NOT_SUPPORTED` stubs are active. Includes the MW8 find-Ex additions
       (`mFindFirstFileExW` active; `mFindFirstFileExA` commented, MW6). Mark
       `mCloseHandle` `; noalias` (exported but opt-out of auto-redirect).
-- [ ] **MW5-2** Alias generator (`alias_gen` module, no `unsafe`, platform-
+- [x] **MW5-2** Alias generator (`alias_gen` module, no `unsafe`, platform-
       independent) mirroring `generate_mwin32_alias.cmake`: parse the `.def`,
       skip comment / `EXPORTS` / `noalias` lines, validate the `m([A-Z]|_)`
       shim shape, dedupe, and emit for each remaining `m<Name>` the

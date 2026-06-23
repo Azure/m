@@ -107,23 +107,41 @@ test. Sub-steps use decimal notation.
 
 ## MW5 — Link-time Win32→`m` alias (redirection, SHIM-D4)
 
-- [ ] **MW5-1** Author the export `.def` (parity with `mwin32.def` for the
-      in-scope registry + filesystem names, **including the `FindFirstFileEx`
-      / `FindFirstFileTransacted` family added by MW8** — `mFindFirstFileExW`,
-      `mFindFirstFileExA`, `mFindFirstFileTransactedW`, `mFindFirstFileTransactedA`);
-      mark `mCloseHandle` `noalias`.
+Re-planned on execution: this crate is a Rust `cdylib`, not the C++ build, so the
+Rust-native, `cargo`-verifiable core of the milestone is the export `.def`
+source-of-truth (MW5-1) plus the alias **generator** with unit tests (MW5-2).
+The remaining items (compiling the generated alias object + undecorated import
+lib, wiring the link recipe, and the C++ link-proof EXE) are inherently a
+cross-toolchain C++ link concern that cannot run as a `cargo test`; they are
+re-scoped to MW5-3 and deferred pending a C++ test-harness decision.
 
-      > **⬅ CROSS-MILESTONE PREREQUISITE:** the Ex/Transacted `W` exports are
-      > minted in MW8; their `A` forms in MW6. Add their alias/`/alternatename`
-      > slots here once those entry points exist.
-- [ ] **MW5-2** Alias generation: emit the `__imp_<Name> = m<Name>` IAT-slot
-      definitions + `/alternatename` directives from the export list (build
-      script or a generator mirroring the C++ `generate_mwin32_alias.cmake`).
-- [ ] **MW5-3** Produce the alias object / import lib and wire the link recipe so
-      a consumer opts in by linking it alongside the shim.
-- [ ] **MW5-4** *(integration)* Link-proof test (port of `test_mwin32_alias.cpp`):
-      genuine `<windows.h>` `RegOpenKeyExW` / `CreateFileW` calls (no shim
-      headers) are redirected through the shim and observe the isolated state.
+- [ ] **MW5-1** Author the export `.def` source-of-truth
+      (`windows_win32_shim.def`) — the single, ordered manifest of every
+      `mwin32` `m<Name>` export. Names **not yet implemented** by this crate are
+      commented out with a leading `;` so they are enabled by simply
+      uncommenting as the entry points land; the currently-exported W forms and
+      `NOT_SUPPORTED` stubs are active. Includes the MW8 find-Ex additions
+      (`mFindFirstFileExW` active; `mFindFirstFileExA` commented, MW6). Mark
+      `mCloseHandle` `; noalias` (exported but opt-out of auto-redirect).
+- [ ] **MW5-2** Alias generator (`alias_gen` module, no `unsafe`, platform-
+      independent) mirroring `generate_mwin32_alias.cmake`: parse the `.def`,
+      skip comment / `EXPORTS` / `noalias` lines, validate the `m([A-Z]|_)`
+      shim shape, dedupe, and emit for each remaining `m<Name>` the
+      `extern "C" void m<Name>();` decl, the decisive
+      `extern "C" void (*__imp_<Name>)() = &m<Name>;` IAT slot, and the
+      `#pragma comment(linker, "/alternatename:<Name>=m<Name>")` fallback, with
+      a generated-file header. Unit-tested over synthetic `.def` snippets (noalias
+      exclusion, comment skipping, dedupe, `m_lopen`→`_lopen` dusty-deck strip,
+      invalid-shape error) and over the real `include_str!`'d `.def` (active /
+      aliased counts, `mCloseHandle` excluded, a sample mapping). Record the
+      realization in **SHIM-D4**.
+- [ ] **MW5-3** *(deferred — cross-toolchain, not a `cargo test`)* Compile the
+      generated alias translation unit into an object + undecorated import lib,
+      wire the opt-in link recipe, and port the C++ link-proof
+      (`test_mwin32_alias.cpp`): genuine `<windows.h>` `RegOpenKeyExW` /
+      `CreateFileW` calls (no shim headers) redirected through the shim observe
+      the isolated state. Requires a C++ consumer EXE in the build; tracked here
+      until a harness approach is chosen.
 
 ## MW6 — ANSI (A) variants — OUTLINE (detail when scheduled, SHIM-D9)
 

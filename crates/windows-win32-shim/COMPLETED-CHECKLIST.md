@@ -147,3 +147,58 @@ and confirms redirection end to end. Recorded as **SHIM-D4**.
       the shim. The undecorated cdylib import library suffices (the Rust exports
       are `extern "system"` + `no_mangle`), so the separate undecorated import
       lib the C++ build needed is unnecessary here.
+
+
+---
+
+## Moved 2026-06-23 — MW6: ANSI (`A`) variants (`CP_ACP` boundary over the shared cores, SHIM-D15)
+
+Added the `A` entry points for the observable-parity set (the genuinely
+implemented `W` cores only). Each `A` form transcodes its string arguments at
+the boundary (`CP_ACP`) and delegates to the **same** safe `reg_ops` / `fs_ops`
+core the `W` export calls — *not* to the `W` C-ABI export. Behavior owned by us
+(Design Autonomy): the conversion is *specified* as "go through the
+`windows-text` `CP_ACP` code page," chosen because its whole-slice
+`MultiByteToWideChar` / `WideCharToMultiByte` wrappers preserve embedded /
+trailing NULs (so `REG_MULTI_SZ` round-trips). `A` spellings of `NOT_SUPPORTED`
+`W` stubs were **not** added (no observable behavior to mirror); they stay
+commented in the `.def` / `.ndjson` until their `W` core lands. Recorded as
+**SHIM-D15**.
+
+- [x] **MW6-1** `ansi` boundary module (`src/ansi.rs`, no exports): `CP_ACP`
+      transcoding via `windows-text` (`Utf16::{from_code_page,to_code_page}`).
+      Helpers: `ansi_to_utf16` (NUL-terminated `LPCSTR` → `Utf16`), `fill_ansi_fixed`
+      (`Utf16` → fixed `CHAR` buffer, truncate + NUL — the `WIN32_FIND_DATAA`
+      `cFileName` / `cAlternateFileName` shape), and registry value-DATA conversion
+      `data_wide_to_ansi` / `data_ansi_to_wide` keyed on a string-type predicate
+      (`REG_SZ`, `REG_EXPAND_SZ`, `REG_LINK`, `REG_MULTI_SZ` convert the whole
+      buffer in one call — embedded / trailing NULs preserved; non-string types
+      pass through). Owned behavior, unit-tested incl. a `REG_MULTI_SZ`
+      embedded-NUL round-trip.
+- [x] **MW6-2** Registry `A` forms in `mwinreg.rs` over the shared `reg_ops`
+      core: `mRegOpenKeyExA`, `mRegCreateKeyExA`, `mRegDeleteKeyExA`,
+      `mRegSetValueExA` (DATA `A`→`W`), `mRegQueryValueExA` (DATA `W`→`A`, sizes in
+      ANSI bytes), `mRegDeleteValueA`, `mRegGetValueA` (DATA `W`→`A`),
+      `mRegEnumKeyExA` (name `W`→`A`), `mRegEnumValueA` (name + DATA `W`→`A`),
+      `mRegQueryInfoKeyA` (delegate; lengths reported in stored-form units — exact
+      for ASCII, an owned simplification). Uncommented the 10 names in
+      `windows_win32_shim.def` **and** `windows_win32_shim_aliases.ndjson`; bumped
+      the manifest count asserts.
+- [x] **MW6-3** Filesystem `A` forms in `mwinfile.rs` over the shared `fs_ops`
+      core: `mCreateFileA`, `mDeleteFileA`, `mCreateDirectoryA`,
+      `mRemoveDirectoryA`, `mSetFileAttributesA`, `mGetFileAttributesA`,
+      `mGetFileAttributesExA` (identical out struct — delegate with the path
+      transcoded), and the find family `mFindFirstFileA`, `mFindFirstFileExA`,
+      `mFindFirstFileTransactedA`, `mFindNextFileA` (reuse the private
+      `map_find_ex_params` + the MW8 `fs_ops` find core; a new `fill_find_data_ansi`
+      mirrors `fill_find_data` with `CP_ACP` down-conversion of the `[i8; N]`
+      `cFileName` / `cAlternateFileName` buffers). Uncommented the 11 names in the
+      `.def` **and** `.ndjson`; bumped the manifest count asserts (exports 83,
+      aliased 82).
+- [x] **MW6-4** *(integration)* `tests/ansi_parity.rs`: `A`-writer / `W`-reader and
+      `W`-writer / `A`-reader agree for registry values (`REG_SZ` + `REG_MULTI_SZ`)
+      over an in-memory `Registry` fixture, and an `A` directory enumeration's
+      `cFileName` (reconstructed via the public `ansi` boundary) matches the `W`
+      enumeration over an in-memory `Filesystem` tree. (Re-scoped from a live-FS
+      scratch dir to the in-memory surface to match the established
+      structural-isolation test pattern: deterministic, no OS dependency.)

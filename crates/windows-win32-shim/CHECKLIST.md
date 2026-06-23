@@ -149,11 +149,15 @@ until their `W` core lands.
 
       > **⬅ CROSS-MILESTONE PREREQUISITE:** the `W` find-Ex core and search
       > predicate landed in MW8; this item reuses them.
-- [ ] **MW6-4** *(integration)* `tests/ansi_parity.rs`: `A`-writer / `W`-reader and
+- [x] **MW6-4** *(integration)* `tests/ansi_parity.rs`: `A`-writer / `W`-reader and
       `W`-writer / `A`-reader agree for registry values (`REG_SZ` + `REG_MULTI_SZ`,
-      mirroring the C++ `test_mwinreg_value_ops` ANSI cases) over a buffered
-      fixture, and an `A` directory enumeration matches the `W` enumeration
-      (`cFileName`) over the live FS provider on a scratch temp dir.
+      mirroring the C++ `test_mwinreg_value_ops` ANSI cases) over an in-memory
+      `Registry` fixture, and an `A` directory enumeration's `cFileName`
+      (reconstructed via the public `ansi` boundary) matches the `W` enumeration
+      over an in-memory `Filesystem` tree. (Re-scoped from a live-FS scratch dir
+      to the in-memory surface to match the established structural-isolation test
+      pattern: deterministic, no OS dependency; the boundary transcoding is the
+      sole behavior under test and the cores are surface-generic.)
 
 ## MW7 — End-to-end / C++ artifact parity — OUTLINE (detail when scheduled)
 

@@ -80,9 +80,24 @@ cross-buildable — so only the client's own linker (unavoidable for any PE link
 consumes our output. NDJSON was chosen for the manifest specifically so the
 versioned input supports comment / section lines and enable-by-uncommenting.
 Both manifests are pure text/JSON processing (no `unsafe`, platform-independent)
-and fully unit-tested here. The remaining work is the C++ link-proof EXE (MW5-6),
-which is genuinely cross-toolchain and cannot run as a `cargo test`; it stays
-deferred.
+and fully unit-tested here.
+
+**Link-proof (MW5-6).** The cross-toolchain verification reuses the mwin32 C++
+tree's link-proof program (`test/test_mwin32_alias.cpp`): `linkproof/linkproof_main.cpp`
+is that program with its GoogleTest harness swapped for a dependency-free `main`,
+and `linkproof/run-linkproof.ps1` drives the production link recipe end to end —
+`cargo build` the cdylib, `gen-alias-obj` emits the alias COFF, `cl /c` the
+genuine-`<windows.h>` TU, `link` it with the alias `.obj` + the cdylib import
+library `windows_win32_shim.dll.lib`, then run under a buffered `.pilcfg`.
+`dumpbin /imports` confirms the EXE binds `mRegCreateKeyExW` / `mRegSetValueExW`
+/ `mRegQueryValueExW` / `mRegCloseKey` from `windows_win32_shim.dll` (the
+client's `Reg*` calls are redirected into the shim, not advapi32), and the
+runtime exit code flips with shim config (buffered ⇒ overlay captures the write,
+the live-registry negative check passes, exit 0; no `.pilcfg` / live passthrough
+⇒ the negative check finds the key, exit 1). Note the Rust exports are
+`extern "system"` + `#[unsafe(no_mangle)]` (undecorated), so the cdylib's own
+import library resolves the `m<Name>` targets — the separate undecorated import
+library the C++ build needed (its `mReg*` had C++ linkage) is unnecessary here.
 
 ## SHIM-D5 — Reuse the C++ JSON `.pilcfg` sidecar format (artifact parity)
 

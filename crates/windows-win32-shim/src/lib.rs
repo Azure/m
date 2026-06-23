@@ -40,6 +40,9 @@ pub mod alias_gen;
 pub mod alias_obj;
 
 #[cfg(windows)]
+pub mod ansi;
+
+#[cfg(windows)]
 pub mod error_map;
 
 #[cfg(windows)]

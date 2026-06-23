@@ -355,3 +355,50 @@ operations, and flag bits it accepts, and `windows-sys`'s named `FINDEX_*` /
 - **Transacted stub.** `mFindFirstFileTransactedW` ignores its trailing
   transaction handle and forwards to `mFindFirstFileExW` — the shim has no
   transaction surface, matching the C++ forwarding stub.
+
+## SHIM-D15 — ANSI (`A`) forms: `CP_ACP` boundary transcoding over the shared cores (MW6)
+
+MW6 realizes the SHIM-D9 deferral. The `A` entry points are thin boundary
+adapters: they transcode their string arguments between `CP_ACP` and UTF-16 and
+then delegate to the **same** safe `reg_ops` / `fs_ops` cores the `W` exports
+call — never to the `W` C-ABI export. (SHIM-D9 said "delegating to the `W`
+implementation"; the implementation *is* the shared core, so `A` and `W` are
+peers over one core rather than `A` calling `W`.) All conversion goes through the
+`windows-text` `CP_ACP` code page (`Utf16::from_code_page` / `to_code_page`),
+which is the single owned transcoding dependency.
+
+- **Scope (owned).** MW6 adds `A` forms only for the **functionally implemented**
+  `W` cores — the set with observable, testable `A`/`W` parity (open/create/delete
+  keys, value set/query/get/delete/enum, key enum/info on the registry side;
+  create/delete/attributes/dir/find on the filesystem side). `A` spellings whose
+  `W` counterpart is a `NOT_SUPPORTED` stub are deliberately **not** exported:
+  delegating to a stub yields nothing to mirror, and adding them would balloon the
+  surface with no behavior. They remain commented in `windows_win32_shim.def` /
+  `windows_win32_shim_aliases.ndjson` until their `W` core lands (the same
+  incremental enable-by-uncommenting the manifests already use).
+
+- **`ansi` helper module.** The pointer-free transcoding primitives live in
+  `src/ansi.rs` (no exports, fully unit-tested): `ansi_to_utf16` (a
+  NUL-terminated `LPCSTR` → `Utf16`), `fill_ansi_fixed` (a `Utf16` into a fixed
+  `CHAR` array, truncating with a guaranteed NUL — the `WIN32_FIND_DATAA`
+  `cFileName` / `cAlternateFileName` shape), `write_ansi_name` (a `Utf16` into a
+  caller `LPSTR` honoring the `lpcch` character in/out contract — `RegEnumKeyExA`
+  / `RegEnumValueA`), and the value-DATA converters `data_wide_to_ansi` /
+  `data_ansi_to_wide`.
+
+- **Registry string-DATA conversion.** For the textual value types (`REG_SZ`,
+  `REG_EXPAND_SZ`, `REG_LINK`, `REG_MULTI_SZ`) the `A` value entry points convert
+  the value **data** between `CP_ACP` and the UTF-16 stored form, so an `A` writer
+  and a `W` reader (or vice-versa) agree (matching C++ `mwin32` D6). The whole
+  buffer is converted in one call — the `windows-text` wrappers pass the slice by
+  length (not NUL-terminated), so embedded and trailing NULs are preserved and
+  `REG_MULTI_SZ` is handled uniformly with the single-string types. Non-string
+  types carry their bytes through unchanged, and `A` query sizes (`lpcbData`) are
+  reported in ANSI bytes.
+
+- **Owned simplifications.** A `CP_ACP` decode failure (which the ANSI code page
+  does not normally produce) yields an empty string, so the downstream op fails
+  with the same not-found / invalid shape the `W` form would for an empty path.
+  `mRegQueryInfoKeyA` reports its max-length fields in stored-form units rather
+  than re-measuring ANSI byte lengths — exact for ASCII, a recorded divergence
+  acceptable for the shim's uses.

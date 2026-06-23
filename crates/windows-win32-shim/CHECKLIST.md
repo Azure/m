@@ -105,19 +105,55 @@ test. Sub-steps use decimal notation.
       + buffered `test_mwinreg_value_ops`): a buffered fixture isolates writes
       from the live registry; `capture_snapshot` writes state on teardown.
 
-## MW6 — ANSI (A) variants — OUTLINE (detail when scheduled, SHIM-D9)
+## MW6 — ANSI (A) variants (SHIM-D9, SHIM-D15)
 
-- [ ] **MW6-1** `A`↔`W` boundary transcoding via `windows-text` (`CP_ACP`).
-- [ ] **MW6-2** Registry `A` forms delegating to the `W` implementations.
-- [ ] **MW6-3** Filesystem `A` forms delegating to the `W` implementations,
-      **including `mFindFirstFileExA` and `mFindFirstFileTransactedA`** (transcode
-      `lpFileName` via MW6-1, then call the shared `W` find-Ex core from MW8;
-      `WIN32_FIND_DATAA` out-fill mirrors `fill_find_data` with `CP_ACP`
-      down-conversion of `cFileName` / `cAlternateFileName`).
+Scope (SHIM-D15): MW6 adds the `A` entry points for the **functionally
+implemented** `W` cores only (the observable-parity set). Each `A` form
+transcodes its string arguments at the boundary (`CP_ACP`, MW6-1) and delegates
+to the same safe `reg_ops` / `fs_ops` core the `W` export calls — *not* to the
+`W` C-ABI export. `A` spellings of `NOT_SUPPORTED` `W` stubs are **not** added
+(no observable behavior to mirror); they stay commented in the `.def` / `.ndjson`
+until their `W` core lands.
+
+- [ ] **MW6-1** `ansi` boundary module (`src/ansi.rs`, no exports): `CP_ACP`
+      transcoding via `windows-text` (`Utf16::{from_code_page,to_code_page}`).
+      Helpers: `ansi_to_utf16` (NUL-terminated `LPCSTR` → `Utf16`), `fill_ansi_fixed`
+      (`Utf16` → fixed `CHAR` buffer, truncate + NUL — the `WIN32_FIND_DATAA`
+      `cFileName` / `cAlternateFileName` shape), `write_ansi_name` (`Utf16` →
+      caller `LPSTR` with the `lpcch` char in/out contract — `RegEnumKeyExA` /
+      `RegEnumValueA`), and registry value-DATA conversion `data_wide_to_ansi` /
+      `data_ansi_to_wide` keyed on a string-type predicate (`REG_SZ`,
+      `REG_EXPAND_SZ`, `REG_LINK`, `REG_MULTI_SZ` convert the whole buffer in one
+      call — embedded / trailing NULs preserved; non-string types pass through).
+      Owned behavior (Design Autonomy), unit-tested incl. a `REG_MULTI_SZ`
+      embedded-NUL round-trip.
+- [ ] **MW6-2** Registry `A` forms in `mwinreg.rs` over the shared `reg_ops`
+      core: `mRegOpenKeyExA`, `mRegCreateKeyExA`, `mRegDeleteKeyExA`,
+      `mRegSetValueExA` (DATA `A`→`W`), `mRegQueryValueExA` (DATA `W`→`A`, sizes in
+      ANSI bytes), `mRegDeleteValueA`, `mRegGetValueA` (DATA `W`→`A`),
+      `mRegEnumKeyExA` (name `W`→`A`), `mRegEnumValueA` (name + DATA `W`→`A`),
+      `mRegQueryInfoKeyA` (delegate; lengths reported in stored-form units — exact
+      for ASCII, an owned simplification). Uncomment the 10 names in
+      `windows_win32_shim.def` **and** `windows_win32_shim_aliases.ndjson`; bump
+      the manifest count asserts (`alias_gen` 62/61, `alias_obj` 61) accordingly.
+- [ ] **MW6-3** Filesystem `A` forms in `mwinfile.rs` over the shared `fs_ops`
+      core: `mCreateFileA`, `mDeleteFileA`, `mCreateDirectoryA`,
+      `mRemoveDirectoryA`, `mSetFileAttributesA`, `mGetFileAttributesA`,
+      `mGetFileAttributesExA` (identical out struct — delegate with the path
+      transcoded), and the find family `mFindFirstFileA`, `mFindFirstFileExA`,
+      `mFindFirstFileTransactedA`, `mFindNextFileA` (reuse the private
+      `map_find_ex_params` + the MW8 `fs_ops` find core; a new `fill_find_data_ansi`
+      mirrors `fill_find_data` with `CP_ACP` down-conversion of `cFileName` /
+      `cAlternateFileName`). Uncomment the 11 names in the `.def` **and** `.ndjson`;
+      bump the manifest count asserts again.
 
       > **⬅ CROSS-MILESTONE PREREQUISITE:** the `W` find-Ex core and search
-      > predicate land in MW8; this item reuses them.
-- [ ] **MW6-4** *(integration)* `A`/`W` parity tests.
+      > predicate landed in MW8; this item reuses them.
+- [ ] **MW6-4** *(integration)* `tests/ansi_parity.rs`: `A`-writer / `W`-reader and
+      `W`-writer / `A`-reader agree for registry values (`REG_SZ` + `REG_MULTI_SZ`,
+      mirroring the C++ `test_mwinreg_value_ops` ANSI cases) over a buffered
+      fixture, and an `A` directory enumeration matches the `W` enumeration
+      (`cFileName`) over the live FS provider on a scratch temp dir.
 
 ## MW7 — End-to-end / C++ artifact parity — OUTLINE (detail when scheduled)
 

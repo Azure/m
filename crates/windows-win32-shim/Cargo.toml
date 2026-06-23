@@ -8,6 +8,25 @@ description = "Parallel all-Rust reimplementation of the C++ mwin32 DLL: a Win32
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# Platform-independent dependencies (used by the ungated `alias_gen` / `alias_obj`
+# manifest tooling, which has no `unsafe` and no OS dependency).
+[dependencies]
+# Pure-Rust, zero-dependency, `#![forbid(unsafe_code)]` JSON parser. Reads the
+# `.pilcfg` sidecar (SHIM-D5 / MW4) and the NDJSON alias manifest (SHIM-D4 / MW5).
+# Chosen for its minimal footprint; the schema mapping is owned here (Design
+# Autonomy), not inherited from it.
+tinyjson = "2"
+# Writes the Win32→`m` alias COFF object directly (SHIM-D4 / MW5): emitting the
+# alias artifact needs no C++ compiler and no MSVC tool — only the client's
+# linker consumes it. The safe `write`/`read` COFF API is used; the emitted
+# symbol/relocation contract is owned here, not inherited from the crate.
+object = { version = "0.36", default-features = false, features = [
+  "write",
+  "read",
+  "coff",
+  "std",
+] }
+
 [target.'cfg(windows)'.dependencies]
 windows-platform-isolation = { path = "../windows-platform-isolation" }
 windows-text = { path = "../windows-text" }
@@ -16,10 +35,6 @@ windows-sys = { version = "0.59", features = [
   "Win32_System_Registry",
   "Win32_Storage_FileSystem",
 ] }
-# Pure-Rust, zero-dependency, `#![forbid(unsafe_code)]` JSON parser used only to
-# read the `.pilcfg` sidecar (SHIM-D5 / MW4). Chosen for its minimal footprint;
-# the schema mapping is owned here (Design Autonomy), not inherited from it.
-tinyjson = "2"
 
 [lints]
 workspace = true

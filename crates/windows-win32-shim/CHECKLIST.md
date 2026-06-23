@@ -147,7 +147,7 @@ a genuinely cross-toolchain verification (MW5-6) and stays deferred.
       comment / section lines; not-yet-implemented entries are carried as
       comments so they enable by uncommenting. Populate with the current aliased
       roster (parity with the `.def` aliased set).
-- [ ] **MW5-4** `alias_obj` module (no `unsafe`, platform-independent): add the
+- [x] **MW5-4** `alias_obj` module (no `unsafe`, platform-independent): add the
       `object` crate (write API); parse the NDJSON via `tinyjson` line-by-line
       (skip blanks / comments, validate the `m<Name>` / `<Name>` shapes, dedupe),
       and emit an x64 COFF object — per alias an undefined external `m<Name>`, a

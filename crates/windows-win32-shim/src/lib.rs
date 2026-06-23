@@ -34,6 +34,11 @@
 // alias generator and its embedded export manifest (MW5, SHIM-D4).
 pub mod alias_gen;
 
+// Platform-independent (no `unsafe`, no Windows deps): the NDJSON-driven Win32→`m`
+// alias COFF-object emitter — writes the alias artifact with no C++ compiler and
+// no MSVC tool involved (MW5, SHIM-D4).
+pub mod alias_obj;
+
 #[cfg(windows)]
 pub mod error_map;
 

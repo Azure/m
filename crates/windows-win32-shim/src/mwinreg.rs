@@ -30,6 +30,7 @@ use windows_sys::Win32::Foundation::{
 };
 use windows_sys::Win32::System::Registry::HKEY;
 
+use crate::ansi;
 use crate::error_map::Lstatus;
 use crate::reg_ops;
 use crate::session::session;
@@ -169,6 +170,98 @@ unsafe fn fill_value_buffer(
         }
     }
     outcome.status
+}
+
+// --- ANSI (A) pointer marshaling helpers (MW6-2, SHIM-D15) -------------------
+
+/// Read a NUL-terminated `CP_ACP` (ANSI) string into owned bytes (excluding the
+/// NUL). A null pointer yields an empty vector. The ANSI mirror of
+/// [`read_wide_units`].
+///
+/// # Safety
+///
+/// `p` must be null or point to a NUL-terminated sequence of bytes.
+unsafe fn read_ansi_units(p: *const u8) -> Vec<u8> {
+    if p.is_null() {
+        return Vec::new();
+    }
+    // SAFETY: caller guarantees a NUL-terminated buffer; we stop at the NUL and
+    // never read past it.
+    unsafe {
+        let mut len = 0usize;
+        while *p.add(len) != 0 {
+            len += 1;
+        }
+        ptr::slice_from_raw_parts(p, len)
+            .as_ref()
+            .map(<[u8]>::to_vec)
+            .unwrap_or_default()
+    }
+}
+
+/// Marshal an ANSI `lpValueName` into a [`Utf16`] value name (empty for the
+/// default value), transcoding from `CP_ACP`.
+///
+/// # Safety
+///
+/// `p` must be null or a NUL-terminated ANSI string.
+unsafe fn ansi_value_name(p: *const u8) -> Utf16 {
+    // SAFETY: forwarded contract.
+    ansi::ansi_to_utf16(&unsafe { read_ansi_units(p) })
+}
+
+/// Marshal an ANSI `lpSubKey` into a [`KeyPath`], transcoding from `CP_ACP` and
+/// splitting on `\` or `/` (dropping empty components) — the ANSI mirror of
+/// [`subkey_path`].
+///
+/// # Safety
+///
+/// `p` must be null or a NUL-terminated ANSI string.
+unsafe fn ansi_subkey_path(p: *const u8) -> KeyPath {
+    // SAFETY: forwarded contract.
+    let units = ansi::ansi_to_utf16(&unsafe { read_ansi_units(p) });
+    let mut path = KeyPath::root();
+    for component in units
+        .as_units()
+        .split(|&u| u == SEP_BACKSLASH || u == SEP_SLASH)
+    {
+        if !component.is_empty() {
+            path.push(Utf16::from_units(component.to_vec()));
+        }
+    }
+    path
+}
+
+/// Write a wide name into a caller ANSI buffer following the `lpcch`
+/// character-count in/out contract (the ANSI mirror of [`write_wide_name`], used
+/// by `RegEnumKeyExA` / `RegEnumValueA`). The character count is the `CP_ACP`
+/// byte length (owned simplification, SHIM-D15: exact for single-byte text).
+///
+/// # Safety
+///
+/// `lp_name` must be null or valid for `*lpcch` byte writes; `lpcch` must be
+/// null or valid for a `u32` read/write.
+unsafe fn write_ansi_name(units: &[u16], lp_name: *mut u8, lpcch: *mut u32) -> Lstatus {
+    // `lpcch` is required and holds the buffer capacity in characters on entry.
+    if lpcch.is_null() {
+        return INVALID_PARAMETER;
+    }
+    let ansi = ansi::utf16_to_ansi(units);
+    // SAFETY: capacity read from the caller's in/out count pointer.
+    let capacity = (unsafe { *lpcch }) as usize;
+    let needed = ansi.len();
+    if lp_name.is_null() || capacity < needed + 1 {
+        // SAFETY: lpcch is non-null (checked).
+        unsafe { *lpcch = needed as u32 };
+        return ERROR_MORE_DATA as Lstatus;
+    }
+    // SAFETY: lp_name has room for needed + 1 bytes (checked above).
+    unsafe {
+        ptr::copy_nonoverlapping(ansi.as_ptr(), lp_name, needed);
+        *lp_name.add(needed) = 0;
+        *lpcch = needed as u32;
+    }
+    SUCCESS
 }
 
 // --- Implemented registry W entry points (MW2-1..MW2-3) ----------------------
@@ -506,6 +599,350 @@ pub extern "system" fn mRegDeleteKeyExW(
         Ok(()) => SUCCESS,
         Err(code) => code,
     }
+}
+
+// --- ANSI (A) registry entry points (MW6-2, SHIM-D15) ------------------------
+//
+// Each A form transcodes its string arguments from CP_ACP and delegates to the
+// same `reg_ops` core the corresponding W form uses (SHIM-D15). For value DATA,
+// the textual `REG_*` types are converted between CP_ACP and the UTF-16 stored
+// form at the boundary via `crate::ansi`; query sizes are reported in ANSI bytes.
+
+/// `RegOpenKeyExA`: ANSI form of [`mRegOpenKeyExW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegOpenKeyExA(
+    h_key: HKEY,
+    lp_sub_key: *const u8,
+    ul_options: u32,
+    _sam_desired: u32,
+    phk_result: *mut HKEY,
+) -> Lstatus {
+    // SAFETY: phk_result written only when non-null.
+    unsafe {
+        if !phk_result.is_null() {
+            *phk_result = ptr::null_mut();
+        }
+    }
+    if ul_options != 0 {
+        return INVALID_PARAMETER;
+    }
+    // SAFETY: lp_sub_key is a NUL-terminated ANSI string or null.
+    let sub = unsafe { ansi_subkey_path(lp_sub_key) };
+    let s = session();
+    match s.with_registry(|reg| reg_ops::open_key(reg, s.handles(), h_key as usize, &sub)) {
+        Ok(handle) => {
+            // SAFETY: phk_result written only when non-null.
+            unsafe {
+                if !phk_result.is_null() {
+                    *phk_result = handle as HKEY;
+                }
+            }
+            SUCCESS
+        }
+        Err(code) => code,
+    }
+}
+
+/// `RegCreateKeyExA`: ANSI form of [`mRegCreateKeyExW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegCreateKeyExA(
+    h_key: HKEY,
+    lp_sub_key: *const u8,
+    reserved: u32,
+    _lp_class: *const u8,
+    dw_options: u32,
+    _sam_desired: u32,
+    _lp_security_attributes: *const c_void,
+    phk_result: *mut HKEY,
+    lpdw_disposition: *mut u32,
+) -> Lstatus {
+    // SAFETY: out pointers written only when non-null.
+    unsafe {
+        if !phk_result.is_null() {
+            *phk_result = ptr::null_mut();
+        }
+        if !lpdw_disposition.is_null() {
+            *lpdw_disposition = 0;
+        }
+    }
+    if reserved != 0 || dw_options != 0 {
+        return INVALID_PARAMETER;
+    }
+    // SAFETY: lp_sub_key is a NUL-terminated ANSI string or null.
+    let sub = unsafe { ansi_subkey_path(lp_sub_key) };
+    let s = session();
+    match s.with_registry(|reg| reg_ops::create_key(reg, s.handles(), h_key as usize, &sub)) {
+        Ok(handle) => {
+            // SAFETY: phk_result written only when non-null.
+            unsafe {
+                if !phk_result.is_null() {
+                    *phk_result = handle as HKEY;
+                }
+            }
+            SUCCESS
+        }
+        Err(code) => code,
+    }
+}
+
+/// `RegDeleteKeyExA`: ANSI form of [`mRegDeleteKeyExW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegDeleteKeyExA(
+    h_key: HKEY,
+    lp_sub_key: *const u8,
+    _sam_desired: u32,
+    _reserved: u32,
+) -> Lstatus {
+    // SAFETY: lp_sub_key is a NUL-terminated ANSI string or null.
+    let sub = unsafe { ansi_subkey_path(lp_sub_key) };
+    let s = session();
+    match s.with_registry(|reg| reg_ops::delete_key(reg, s.handles(), h_key as usize, &sub)) {
+        Ok(()) => SUCCESS,
+        Err(code) => code,
+    }
+}
+
+/// `RegSetValueExA`: ANSI form of [`mRegSetValueExW`]. Textual value DATA is
+/// transcoded from `CP_ACP` to the UTF-16 stored form before delegating.
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegSetValueExA(
+    h_key: HKEY,
+    lp_value_name: *const u8,
+    reserved: u32,
+    dw_type: u32,
+    lp_data: *const u8,
+    cb_data: u32,
+) -> Lstatus {
+    if reserved != 0 {
+        return INVALID_PARAMETER;
+    }
+    // SAFETY: lp_value_name is a NUL-terminated ANSI string or null.
+    let name = unsafe { ansi_value_name(lp_value_name) };
+    let ansi_data = if lp_data.is_null() || cb_data == 0 {
+        Vec::new()
+    } else {
+        // SAFETY: caller guarantees cb_data readable bytes at lp_data.
+        unsafe { ptr::slice_from_raw_parts(lp_data, cb_data as usize).as_ref() }
+            .map(<[u8]>::to_vec)
+            .unwrap_or_default()
+    };
+    let data = ansi::data_ansi_to_wide(dw_type, &ansi_data);
+    let s = session();
+    match s.with_registry(|reg| {
+        reg_ops::set_value(reg, s.handles(), h_key as usize, &name, dw_type, &data)
+    }) {
+        Ok(()) => SUCCESS,
+        Err(code) => code,
+    }
+}
+
+/// `RegQueryValueExA`: ANSI form of [`mRegQueryValueExW`]. Textual value DATA is
+/// transcoded to `CP_ACP` and the reported size is in ANSI bytes.
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegQueryValueExA(
+    h_key: HKEY,
+    lp_value_name: *const u8,
+    lp_reserved: *const u32,
+    lp_type: *mut u32,
+    lp_data: *mut u8,
+    lpcb_data: *mut u32,
+) -> Lstatus {
+    if !lp_reserved.is_null() {
+        return INVALID_PARAMETER;
+    }
+    if !lp_data.is_null() && lpcb_data.is_null() {
+        return INVALID_PARAMETER;
+    }
+    // SAFETY: lp_value_name is a NUL-terminated ANSI string or null.
+    let name = unsafe { ansi_value_name(lp_value_name) };
+    let s = session();
+    let (win32_type, bytes) =
+        match s.with_registry(|reg| reg_ops::query_value(reg, s.handles(), h_key as usize, &name)) {
+            Ok(value) => value,
+            Err(code) => return code,
+        };
+    let ansi_bytes = ansi::data_wide_to_ansi(win32_type, &bytes);
+    // SAFETY: out pointers validated by the caller contract.
+    unsafe { fill_value_buffer(&ansi_bytes, win32_type, lp_type, lp_data, lpcb_data) }
+}
+
+/// `RegDeleteValueA`: ANSI form of [`mRegDeleteValueW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegDeleteValueA(h_key: HKEY, lp_value_name: *const u8) -> Lstatus {
+    // SAFETY: lp_value_name is a NUL-terminated ANSI string or null.
+    let name = unsafe { ansi_value_name(lp_value_name) };
+    let s = session();
+    match s.with_registry(|reg| reg_ops::delete_value(reg, s.handles(), h_key as usize, &name)) {
+        Ok(()) => SUCCESS,
+        Err(code) => code,
+    }
+}
+
+/// `RegGetValueA`: ANSI form of [`mRegGetValueW`]. Textual value DATA is
+/// transcoded to `CP_ACP`.
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegGetValueA(
+    h_key: HKEY,
+    lp_sub_key: *const u8,
+    lp_value: *const u8,
+    _dw_flags: u32,
+    pdw_type: *mut u32,
+    pv_data: *mut c_void,
+    pcb_data: *mut u32,
+) -> Lstatus {
+    if !pv_data.is_null() && pcb_data.is_null() {
+        return INVALID_PARAMETER;
+    }
+    // SAFETY: both pointers are NUL-terminated ANSI strings or null.
+    let sub = unsafe { ansi_subkey_path(lp_sub_key) };
+    // SAFETY: see above.
+    let name = unsafe { ansi_value_name(lp_value) };
+    let s = session();
+    let (win32_type, bytes) = match s.with_registry(|reg| {
+        reg_ops::get_value_under(reg, s.handles(), h_key as usize, &sub, &name)
+    }) {
+        Ok(value) => value,
+        Err(code) => return code,
+    };
+    let ansi_bytes = ansi::data_wide_to_ansi(win32_type, &bytes);
+    // SAFETY: out pointers validated by the caller contract.
+    unsafe { fill_value_buffer(&ansi_bytes, win32_type, pdw_type, pv_data.cast::<u8>(), pcb_data) }
+}
+
+/// `RegEnumKeyExA`: ANSI form of [`mRegEnumKeyExW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegEnumKeyExA(
+    h_key: HKEY,
+    dw_index: u32,
+    lp_name: *mut u8,
+    lpcch_name: *mut u32,
+    lp_reserved: *const u32,
+    _lp_class: *mut u8,
+    lpcch_class: *mut u32,
+    lpft_last_write_time: *mut FILETIME,
+) -> Lstatus {
+    if !lp_reserved.is_null() || lpcch_name.is_null() {
+        return INVALID_PARAMETER;
+    }
+    let s = session();
+    let name =
+        match s.with_registry(|reg| reg_ops::enum_key(reg, s.handles(), h_key as usize, dw_index)) {
+            Ok(Some(name)) => name,
+            Ok(None) => return NO_MORE_ITEMS,
+            Err(code) => return code,
+        };
+    // SAFETY: optional out pointers written only when non-null.
+    unsafe {
+        if !lpcch_class.is_null() {
+            *lpcch_class = 0;
+        }
+        if !lpft_last_write_time.is_null() {
+            *lpft_last_write_time = FILETIME {
+                dwLowDateTime: 0,
+                dwHighDateTime: 0,
+            };
+        }
+        write_ansi_name(name.as_units(), lp_name, lpcch_name)
+    }
+}
+
+/// `RegEnumValueA`: ANSI form of [`mRegEnumValueW`]. The value name and textual
+/// value DATA are transcoded to `CP_ACP`.
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegEnumValueA(
+    h_key: HKEY,
+    dw_index: u32,
+    lp_value_name: *mut u8,
+    lpcch_value_name: *mut u32,
+    lp_reserved: *const u32,
+    lp_type: *mut u32,
+    lp_data: *mut u8,
+    lpcb_data: *mut u32,
+) -> Lstatus {
+    if !lp_reserved.is_null() || lpcch_value_name.is_null() {
+        return INVALID_PARAMETER;
+    }
+    if !lp_data.is_null() && lpcb_data.is_null() {
+        return INVALID_PARAMETER;
+    }
+    let s = session();
+    let (name, win32_type, bytes) = match s
+        .with_registry(|reg| reg_ops::enum_value(reg, s.handles(), h_key as usize, dw_index))
+    {
+        Ok(Some(value)) => value,
+        Ok(None) => return NO_MORE_ITEMS,
+        Err(code) => return code,
+    };
+    // SAFETY: name buffer contract on the caller's in/out count.
+    let name_status = unsafe { write_ansi_name(name.as_units(), lp_value_name, lpcch_value_name) };
+    if name_status != SUCCESS {
+        return name_status;
+    }
+    let ansi_bytes = ansi::data_wide_to_ansi(win32_type, &bytes);
+    // SAFETY: data out pointers validated by the caller contract.
+    unsafe { fill_value_buffer(&ansi_bytes, win32_type, lp_type, lp_data, lpcb_data) }
+}
+
+/// `RegQueryInfoKeyA`: ANSI form of [`mRegQueryInfoKeyW`]. The max-length fields
+/// are reported in stored-form units (owned simplification, SHIM-D15: exact for
+/// ASCII).
+#[unsafe(no_mangle)]
+pub extern "system" fn mRegQueryInfoKeyA(
+    h_key: HKEY,
+    _lp_class: *mut u8,
+    lpcch_class: *mut u32,
+    lp_reserved: *const u32,
+    lpc_sub_keys: *mut u32,
+    lpcb_max_sub_key_len: *mut u32,
+    lpcb_max_class_len: *mut u32,
+    lpc_values: *mut u32,
+    lpcb_max_value_name_len: *mut u32,
+    lpcb_max_value_len: *mut u32,
+    lpcb_security_descriptor: *mut u32,
+    lpft_last_write_time: *mut FILETIME,
+) -> Lstatus {
+    if !lp_reserved.is_null() {
+        return INVALID_PARAMETER;
+    }
+    let s = session();
+    let info = match s.with_registry(|reg| reg_ops::query_info(reg, s.handles(), h_key as usize)) {
+        Ok(info) => info,
+        Err(code) => return code,
+    };
+    // SAFETY: each out pointer written only when non-null.
+    unsafe {
+        if !lpcch_class.is_null() {
+            *lpcch_class = 0;
+        }
+        if !lpc_sub_keys.is_null() {
+            *lpc_sub_keys = info.subkeys;
+        }
+        if !lpcb_max_sub_key_len.is_null() {
+            *lpcb_max_sub_key_len = info.max_subkey_len;
+        }
+        if !lpcb_max_class_len.is_null() {
+            *lpcb_max_class_len = 0;
+        }
+        if !lpc_values.is_null() {
+            *lpc_values = info.values;
+        }
+        if !lpcb_max_value_name_len.is_null() {
+            *lpcb_max_value_name_len = info.max_value_name_len;
+        }
+        if !lpcb_max_value_len.is_null() {
+            *lpcb_max_value_len = info.max_value_len;
+        }
+        if !lpcb_security_descriptor.is_null() {
+            *lpcb_security_descriptor = 0;
+        }
+        if !lpft_last_write_time.is_null() {
+            *lpft_last_write_time = FILETIME {
+                dwLowDateTime: 0,
+                dwHighDateTime: 0,
+            };
+        }
+    }
+    SUCCESS
 }
 
 // --- NOT_SUPPORTED W-form stubs (MW2-4) --------------------------------------

@@ -154,13 +154,13 @@ EXPORTS
 ;mRegCopyTreeA
  mRegCopyTreeW
 ;mRegCreateKeyA
-;mRegCreateKeyExA
+ mRegCreateKeyExA
  mRegCreateKeyExW
 ;mRegCreateKeyTransactedA
  mRegCreateKeyTransactedW
 ;mRegCreateKeyW
 ;mRegDeleteKeyA
-;mRegDeleteKeyExA
+ mRegDeleteKeyExA
  mRegDeleteKeyExW
 ;mRegDeleteKeyTransactedA
  mRegDeleteKeyTransactedW
@@ -169,21 +169,21 @@ EXPORTS
 ;mRegDeleteKeyW
 ;mRegDeleteTreeA
  mRegDeleteTreeW
-;mRegDeleteValueA
+ mRegDeleteValueA
  mRegDeleteValueW
  mRegDisablePredefinedCache
  mRegDisablePredefinedCacheEx
  mRegDisableReflectionKey
  mRegEnableReflectionKey
 ;mRegEnumKeyA
-;mRegEnumKeyExA
+ mRegEnumKeyExA
  mRegEnumKeyExW
 ;mRegEnumKeyW
-;mRegEnumValueA
+ mRegEnumValueA
  mRegEnumValueW
  mRegFlushKey
  mRegGetKeySecurity
-;mRegGetValueA
+ mRegGetValueA
  mRegGetValueW
 ;mRegLoadAppKeyA
 ;mRegLoadAppKeyW
@@ -194,20 +194,20 @@ EXPORTS
  mRegNotifyChangeKeyValue
  mRegOpenCurrentUser
 ;mRegOpenKeyA
-;mRegOpenKeyExA
+ mRegOpenKeyExA
  mRegOpenKeyExW
 ;mRegOpenKeyTransactedA
  mRegOpenKeyTransactedW
 ;mRegOpenKeyW
  mRegOpenUserClassesRoot
  mRegOverridePredefKey
-;mRegQueryInfoKeyA
+ mRegQueryInfoKeyA
  mRegQueryInfoKeyW
 ;mRegQueryMultipleValuesA
  mRegQueryMultipleValuesW
  mRegQueryReflectionKey
 ;mRegQueryValueA
-;mRegQueryValueExA
+ mRegQueryValueExA
  mRegQueryValueExW
  mRegQueryValueW
  mRegRenameKey
@@ -223,7 +223,7 @@ EXPORTS
 ;mRegSetKeyValueA
  mRegSetKeyValueW
 ;mRegSetValueA
-;mRegSetValueExA
+ mRegSetValueExA
  mRegSetValueExW
  mRegSetValueW
 ;mRegUnLoadKeyA

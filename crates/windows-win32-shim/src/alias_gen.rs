@@ -270,10 +270,11 @@ mod tests {
     #[test]
     fn real_manifest_active_and_aliased_counts() {
         let m = parse_manifest(EXPORT_DEF).unwrap();
-        // 62 active exports today (W forms + NOT_SUPPORTED stubs); mCloseHandle
-        // is the sole noalias export, so 61 are aliased.
-        assert_eq!(m.exports.len(), 62);
-        assert_eq!(m.aliased.len(), 61);
+        // 72 active exports today (W forms + NOT_SUPPORTED stubs + the 10
+        // registry A forms, MW6-2); mCloseHandle is the sole noalias export, so
+        // 71 are aliased.
+        assert_eq!(m.exports.len(), 72);
+        assert_eq!(m.aliased.len(), 71);
     }
 
     #[test]
@@ -294,9 +295,8 @@ mod tests {
     fn real_manifest_unimplemented_names_are_commented_out() {
         let m = parse_manifest(EXPORT_DEF).unwrap();
         for absent in [
-            "mCreateFileA",          // ANSI form, MW6
-            "mFindFirstFileExA",     // find-Ex ANSI form, MW6
-            "mRegOpenKeyExA",        // ANSI form, MW6
+            "mCreateFileA",          // ANSI form, MW6-3
+            "mFindFirstFileExA",     // find-Ex ANSI form, MW6-3
             "mWebCoreActivate",      // out of scope
             "mLZOpenFileW",          // dusty-deck, unimplemented
         ] {

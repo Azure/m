@@ -422,9 +422,9 @@ mod tests {
     }
 
     #[test]
-    fn real_manifest_aliases_sixty_one_names() {
+    fn real_manifest_aliases_seventy_one_names() {
         let names = aliased_win32_names(ALIAS_MANIFEST).unwrap();
-        assert_eq!(names.len(), 61);
+        assert_eq!(names.len(), 71);
         assert!(names.contains("RegOpenKeyExW"));
         assert!(names.contains("FindFirstFileExW"));
         // CloseHandle is exported but opts out of auto-redirect.
@@ -432,7 +432,7 @@ mod tests {
     }
 
     #[test]
-    fn real_manifest_emits_a_parseable_object_with_sixty_one_slots() {
+    fn real_manifest_emits_a_parseable_object_with_seventy_one_slots() {
         let bytes = generate_alias_object(ALIAS_MANIFEST).unwrap();
         let file = object::File::parse(bytes.as_slice()).unwrap();
         let imp_count = file
@@ -440,7 +440,7 @@ mod tests {
             .filter_map(|s| s.name().ok())
             .filter(|n| n.starts_with("__imp_"))
             .count();
-        assert_eq!(imp_count, 61);
+        assert_eq!(imp_count, 71);
     }
 
     /// Drift guard: the NDJSON aliased set must equal the `.def` aliased set

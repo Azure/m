@@ -115,7 +115,7 @@ to the same safe `reg_ops` / `fs_ops` core the `W` export calls — *not* to the
 (no observable behavior to mirror); they stay commented in the `.def` / `.ndjson`
 until their `W` core lands.
 
-- [ ] **MW6-1** `ansi` boundary module (`src/ansi.rs`, no exports): `CP_ACP`
+- [x] **MW6-1** `ansi` boundary module (`src/ansi.rs`, no exports): `CP_ACP`
       transcoding via `windows-text` (`Utf16::{from_code_page,to_code_page}`).
       Helpers: `ansi_to_utf16` (NUL-terminated `LPCSTR` → `Utf16`), `fill_ansi_fixed`
       (`Utf16` → fixed `CHAR` buffer, truncate + NUL — the `WIN32_FIND_DATAA`
@@ -127,7 +127,7 @@ until their `W` core lands.
       call — embedded / trailing NULs preserved; non-string types pass through).
       Owned behavior (Design Autonomy), unit-tested incl. a `REG_MULTI_SZ`
       embedded-NUL round-trip.
-- [ ] **MW6-2** Registry `A` forms in `mwinreg.rs` over the shared `reg_ops`
+- [x] **MW6-2** Registry `A` forms in `mwinreg.rs` over the shared `reg_ops`
       core: `mRegOpenKeyExA`, `mRegCreateKeyExA`, `mRegDeleteKeyExA`,
       `mRegSetValueExA` (DATA `A`→`W`), `mRegQueryValueExA` (DATA `W`→`A`, sizes in
       ANSI bytes), `mRegDeleteValueA`, `mRegGetValueA` (DATA `W`→`A`),

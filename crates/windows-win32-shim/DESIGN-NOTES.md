@@ -53,20 +53,36 @@ by a `.def` generated/maintained alongside the Rust exports. `mCloseHandle` is
 marked `noalias` (opt-in) so aliasing does not capture unrelated OS handles from
 other code in the client.
 
-**Rust realization (MW5).** The export `.def` (`windows_win32_shim.def`) is the
-single source of truth: it lists the full `mwin32` `m<Name>` roster, with names
-this crate does not yet export commented out (leading `;`) so they are enabled by
-uncommenting as the entry points land; `mCloseHandle` carries a trailing
-`; noalias`. The [`alias_gen`](../src/alias_gen.rs) module is the Rust
-counterpart of `generate_mwin32_alias.cmake`: it parses the manifest (skipping
-comments / `EXPORTS` / `noalias`, validating the `m([A-Z]|_)` shape, deduping)
-and emits, per aliased export, `extern "C" void m<Name>();`, the decisive
-`extern "C" void (*__imp_<Name>)() = &m<Name>;` slot, and the
-`/alternatename:<Name>=m<Name>` pragma. The manifest + generator are pure text
-processing (no `unsafe`, platform-independent) and are unit-tested here. Actually
-compiling the generated alias object into an undecorated import lib, wiring the
-opt-in link recipe, and the C++ link-proof EXE are an inherently cross-toolchain
-C++ link concern that cannot run as a `cargo test`; they are deferred to MW5-3.
+**Rust realization (MW5).** Two checked-in manifests describe the one logical
+alias roster, kept in lockstep by a unit test (`ndjson_aliased_set_matches_def_aliased_set`):
+
+- `windows_win32_shim.def` drives [`alias_gen`](../src/alias_gen.rs), the Rust
+  counterpart of `generate_mwin32_alias.cmake`. It parses the `.def` (skipping
+  comments / `EXPORTS` / `noalias`, validating the `m([A-Z]|_)` shape, deduping)
+  and emits C++ *text* — per aliased export `extern "C" void m<Name>();`, the
+  decisive `extern "C" void (*__imp_<Name>)() = &m<Name>;` slot, and the
+  `/alternatename:<Name>=m<Name>` pragma. This text is the source for the
+  eventual C++ link-proof (MW5-6).
+- `windows_win32_shim_aliases.ndjson` drives [`alias_obj`](../src/alias_obj.rs),
+  which writes the alias **COFF object bytes directly** via the `object` crate —
+  per aliased record an undefined external `m<Name>`, a defined public 8-byte
+  `__imp_<Name>` slot in `.data` initialized by an `IMAGE_REL_AMD64_ADDR64`
+  relocation to `&m<Name>`, and a `.drectve` section carrying the
+  `/alternatename` fallbacks. The CLI [`gen-alias-obj`](../src/bin/gen-alias-obj.rs)
+  exposes it (`--manifest` / `--out`, defaulting to the embedded manifest).
+
+The decisive choice (SHIM-D4.1): **the production alias artifact is produced with
+no C++ compiler and no MSVC tool.** We considered emitting C++/`.asm` and running
+`cl.exe`/`ml64.exe`, and we checked for an `aliasobj.exe` next to `link.exe`
+(it does not ship with MSVC). Writing the COFF directly is strictly better — it
+is pure Rust, unit-testable by re-reading the emitted bytes, and even
+cross-buildable — so only the client's own linker (unavoidable for any PE link)
+consumes our output. NDJSON was chosen for the manifest specifically so the
+versioned input supports comment / section lines and enable-by-uncommenting.
+Both manifests are pure text/JSON processing (no `unsafe`, platform-independent)
+and fully unit-tested here. The remaining work is the C++ link-proof EXE (MW5-6),
+which is genuinely cross-toolchain and cannot run as a `cargo test`; it stays
+deferred.
 
 ## SHIM-D5 — Reuse the C++ JSON `.pilcfg` sidecar format (artifact parity)
 

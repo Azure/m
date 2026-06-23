@@ -159,7 +159,7 @@ a genuinely cross-toolchain verification (MW5-6) and stays deferred.
       comment / blank handling, dedupe, malformed-record error, and a cross-check
       that the NDJSON aliased set equals `alias_gen`'s `.def` aliased set (drift
       guard).
-- [ ] **MW5-5** CLI tool `gen-alias-obj` (`src/bin/gen-alias-obj.rs`): read an
+- [x] **MW5-5** CLI tool `gen-alias-obj` (`src/bin/gen-alias-obj.rs`): read an
       NDJSON manifest path and write the COFF `.obj`. Document the link recipe
       (client links the emitted `.obj` + the cdylib import library). Record the
       COFF / NDJSON realization in **SHIM-D4**.

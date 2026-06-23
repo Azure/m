@@ -30,6 +30,9 @@ x86/
 [Aa][Rr][Mm]64/
 bld/
 [Bb]in/
+# Rust crate binary sources live in src/bin/ — keep them tracked despite [Bb]in/
+!crates/**/src/bin/
+!crates/**/src/bin/**
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/

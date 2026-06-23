@@ -136,7 +136,7 @@ until their `W` core lands.
       for ASCII, an owned simplification). Uncomment the 10 names in
       `windows_win32_shim.def` **and** `windows_win32_shim_aliases.ndjson`; bump
       the manifest count asserts (`alias_gen` 62/61, `alias_obj` 61) accordingly.
-- [ ] **MW6-3** Filesystem `A` forms in `mwinfile.rs` over the shared `fs_ops`
+- [x] **MW6-3** Filesystem `A` forms in `mwinfile.rs` over the shared `fs_ops`
       core: `mCreateFileA`, `mDeleteFileA`, `mCreateDirectoryA`,
       `mRemoveDirectoryA`, `mSetFileAttributesA`, `mGetFileAttributesA`,
       `mGetFileAttributesExA` (identical out struct — delegate with the path

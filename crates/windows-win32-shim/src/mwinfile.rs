@@ -43,9 +43,10 @@ use windows_sys::Win32::Storage::FileSystem::{
     FIND_FIRST_EX_LARGE_FETCH, FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY, FindExInfoBasic,
     FindExInfoStandard, FindExSearchLimitToDirectories, FindExSearchNameMatch,
     GET_FILEEX_INFO_LEVELS, GetFileExInfoStandard, INVALID_FILE_ATTRIBUTES,
-    WIN32_FILE_ATTRIBUTE_DATA, WIN32_FIND_DATAW,
+    WIN32_FILE_ATTRIBUTE_DATA, WIN32_FIND_DATAA, WIN32_FIND_DATAW,
 };
 
+use crate::ansi;
 use crate::error_map::set_last_error;
 use crate::fs_ops;
 use crate::handle_table::is_minted_value;
@@ -94,6 +95,39 @@ unsafe fn read_wide_units(p: *const u16) -> Vec<u16> {
 unsafe fn to_file_path(p: *const u16) -> FilePath {
     // SAFETY: forwarded contract.
     FilePath::from_units(unsafe { read_wide_units(p) })
+}
+
+/// Read a NUL-terminated CP_ACP (`*A`) byte string into owned bytes (excluding
+/// the NUL). A null pointer yields an empty vector.
+///
+/// # Safety
+///
+/// `p` must be null or point to a NUL-terminated sequence of bytes.
+unsafe fn read_ansi_bytes(p: *const u8) -> Vec<u8> {
+    if p.is_null() {
+        return Vec::new();
+    }
+    // SAFETY: caller guarantees a NUL-terminated buffer; we stop at the NUL and
+    // never read past it.
+    unsafe {
+        let mut len = 0usize;
+        while *p.add(len) != 0 {
+            len += 1;
+        }
+        core::slice::from_raw_parts(p, len).to_vec()
+    }
+}
+
+/// Marshal an `lpFileName` / `lpPathName` `*A` pointer into a [`FilePath`],
+/// decoding the bytes through `CP_ACP` (SHIM-D15).
+///
+/// # Safety
+///
+/// `p` must be null or a NUL-terminated CP_ACP byte string.
+unsafe fn to_ansi_file_path(p: *const u8) -> FilePath {
+    // SAFETY: forwarded contract.
+    let bytes = unsafe { read_ansi_bytes(p) };
+    FilePath::from_units(ansi::ansi_to_utf16(&bytes).as_units().to_vec())
 }
 
 // --- Win32 projection helpers -----------------------------------------------
@@ -148,6 +182,54 @@ unsafe fn fill_find_data(entry: &DirEntry, emit_short_name: bool, out: *mut WIN3
     let capacity = out.cFileName.len();
     let n = core::cmp::min(units.len(), capacity - 1);
     out.cFileName[..n].copy_from_slice(&units[..n]);
+}
+
+/// Fill a [`WIN32_FIND_DATAA`] from a directory entry, mirroring
+/// [`fill_find_data`] but transcoding the names to `CP_ACP` (SHIM-D15). The
+/// fixed `cFileName` / `cAlternateFileName` buffers are `[i8; N]`; their bytes
+/// are reinterpreted as `u8` (identical layout) so the shared
+/// [`ansi::fill_ansi_fixed`] can encode, truncate, NUL-terminate, and zero-fill
+/// them.
+///
+/// # Safety
+///
+/// `out` must point to a writable [`WIN32_FIND_DATAA`].
+unsafe fn fill_find_data_ansi(entry: &DirEntry, emit_short_name: bool, out: *mut WIN32_FIND_DATAA) {
+    let size = entry.metadata.size;
+    // SAFETY: `out` is a writable WIN32_FIND_DATAA; every field is plain integer
+    // data, so any prior bit pattern is a valid value to overwrite.
+    let out = unsafe { &mut *out };
+    out.dwFileAttributes = fs_ops::to_win32_attributes(&entry.metadata, entry.kind);
+    out.ftCreationTime = to_filetime(entry.metadata.creation_time);
+    out.ftLastAccessTime = to_filetime(entry.metadata.last_access_time);
+    out.ftLastWriteTime = to_filetime(entry.metadata.last_write_time);
+    out.nFileSizeHigh = (size >> SIZE_HIGH_SHIFT) as u32;
+    out.nFileSizeLow = (size & SIZE_LOW_MASK) as u32;
+    out.dwReserved0 = 0;
+    out.dwReserved1 = 0;
+
+    // The 8.3 short name is emitted (transcoded) only when requested; otherwise
+    // an empty unit slice zero-fills the buffer.
+    let alt_units: &[u16] = if emit_short_name {
+        entry.short_name.as_ref().map_or(&[], |s| s.as_units())
+    } else {
+        &[]
+    };
+    // SAFETY: cAlternateFileName is a fixed [i8; N] buffer; i8 and u8 share
+    // layout, so the byte view is sound for the full length.
+    let alt = unsafe {
+        core::slice::from_raw_parts_mut(
+            out.cAlternateFileName.as_mut_ptr().cast::<u8>(),
+            out.cAlternateFileName.len(),
+        )
+    };
+    ansi::fill_ansi_fixed(alt_units, alt);
+
+    // SAFETY: cFileName is a fixed [i8; N] buffer; same i8/u8 byte view.
+    let name = unsafe {
+        core::slice::from_raw_parts_mut(out.cFileName.as_mut_ptr().cast::<u8>(), out.cFileName.len())
+    };
+    ansi::fill_ansi_fixed(entry.name.as_units(), name);
 }
 
 /// Fill a [`WIN32_FILE_ATTRIBUTE_DATA`] (the `GetFileExInfoStandard` payload)
@@ -646,6 +728,326 @@ pub extern "system" fn mFindClose(h_find_file: HANDLE) -> BOOL {
     } else {
         set_last_error(ERROR_INVALID_HANDLE);
         FALSE
+    }
+}
+
+// --- Implemented filesystem A entry points (MW6-3) ---------------------------
+//
+// Each `*A` form transcodes its path argument from `CP_ACP` to UTF-16
+// (SHIM-D15) and then drives the same `fs_ops` cores as its `*W` sibling, so the
+// two share one observable behavior. Output names are transcoded back to
+// `CP_ACP` in the `WIN32_FIND_DATAA` buffers.
+
+/// `CreateFileA`: the `CP_ACP` form of [`mCreateFileW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mCreateFileA(
+    lp_file_name: *const u8,
+    _dw_desired_access: u32,
+    _dw_share_mode: u32,
+    _lp_security_attributes: *const c_void,
+    dw_creation_disposition: u32,
+    dw_flags_and_attributes: u32,
+    _h_template_file: HANDLE,
+) -> HANDLE {
+    if lp_file_name.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return INVALID_HANDLE_VALUE;
+    }
+    // SAFETY: lp_file_name is a NUL-terminated CP_ACP string (checked non-null).
+    let path = unsafe { to_ansi_file_path(lp_file_name) };
+    let s = session();
+    match s.with_filesystem(|fs| {
+        fs_ops::create_file(
+            fs,
+            s.handles(),
+            &path,
+            dw_creation_disposition,
+            dw_flags_and_attributes,
+        )
+    }) {
+        Ok(handle) => handle as HANDLE,
+        Err(code) => {
+            set_last_error(code);
+            INVALID_HANDLE_VALUE
+        }
+    }
+}
+
+/// `GetFileAttributesA`: the `CP_ACP` form of [`mGetFileAttributesW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mGetFileAttributesA(lp_file_name: *const u8) -> u32 {
+    if lp_file_name.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return INVALID_FILE_ATTRIBUTES;
+    }
+    // SAFETY: lp_file_name is a NUL-terminated CP_ACP string (checked non-null).
+    let path = unsafe { to_ansi_file_path(lp_file_name) };
+    let s = session();
+    match s.with_filesystem(|fs| fs_ops::stat_path(fs, &path)) {
+        Ok((metadata, kind)) => fs_ops::to_win32_attributes(&metadata, kind),
+        Err(code) => {
+            set_last_error(code);
+            INVALID_FILE_ATTRIBUTES
+        }
+    }
+}
+
+/// `GetFileAttributesExA`: the `CP_ACP` form of [`mGetFileAttributesExW`]. The
+/// `WIN32_FILE_ATTRIBUTE_DATA` payload holds no strings, so only the path is
+/// transcoded.
+#[unsafe(no_mangle)]
+pub extern "system" fn mGetFileAttributesExA(
+    lp_file_name: *const u8,
+    f_info_level_id: GET_FILEEX_INFO_LEVELS,
+    lp_file_information: *mut c_void,
+) -> BOOL {
+    if lp_file_name.is_null()
+        || lp_file_information.is_null()
+        || f_info_level_id != GetFileExInfoStandard
+    {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    // SAFETY: lp_file_name is a NUL-terminated CP_ACP string (checked non-null).
+    let path = unsafe { to_ansi_file_path(lp_file_name) };
+    let s = session();
+    match s.with_filesystem(|fs| fs_ops::stat_path(fs, &path)) {
+        Ok((metadata, kind)) => {
+            // SAFETY: lp_file_information is non-null and, per the API contract,
+            // points to a WIN32_FILE_ATTRIBUTE_DATA the caller provided.
+            unsafe {
+                fill_attribute_data(
+                    &metadata,
+                    kind,
+                    lp_file_information as *mut WIN32_FILE_ATTRIBUTE_DATA,
+                );
+            }
+            TRUE
+        }
+        Err(code) => {
+            set_last_error(code);
+            FALSE
+        }
+    }
+}
+
+/// `SetFileAttributesA`: the `CP_ACP` form of [`mSetFileAttributesW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mSetFileAttributesA(
+    lp_file_name: *const u8,
+    dw_file_attributes: u32,
+) -> BOOL {
+    if lp_file_name.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    // SAFETY: lp_file_name is a NUL-terminated CP_ACP string (checked non-null).
+    let path = unsafe { to_ansi_file_path(lp_file_name) };
+    let s = session();
+    match s.with_filesystem(|fs| fs_ops::set_file_attributes(fs, &path, dw_file_attributes)) {
+        Ok(()) => TRUE,
+        Err(code) => {
+            set_last_error(code);
+            FALSE
+        }
+    }
+}
+
+/// `DeleteFileA`: the `CP_ACP` form of [`mDeleteFileW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mDeleteFileA(lp_file_name: *const u8) -> BOOL {
+    if lp_file_name.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    // SAFETY: lp_file_name is a NUL-terminated CP_ACP string (checked non-null).
+    let path = unsafe { to_ansi_file_path(lp_file_name) };
+    let s = session();
+    match s.with_filesystem(|fs| fs_ops::delete_file(fs, &path)) {
+        Ok(()) => TRUE,
+        Err(code) => {
+            set_last_error(code);
+            FALSE
+        }
+    }
+}
+
+/// `CreateDirectoryA`: the `CP_ACP` form of [`mCreateDirectoryW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mCreateDirectoryA(
+    lp_path_name: *const u8,
+    _lp_security_attributes: *const c_void,
+) -> BOOL {
+    if lp_path_name.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    // SAFETY: lp_path_name is a NUL-terminated CP_ACP string (checked non-null).
+    let path = unsafe { to_ansi_file_path(lp_path_name) };
+    let s = session();
+    match s.with_filesystem(|fs| fs_ops::create_directory(fs, &path)) {
+        Ok(()) => TRUE,
+        Err(code) => {
+            set_last_error(code);
+            FALSE
+        }
+    }
+}
+
+/// `RemoveDirectoryA`: the `CP_ACP` form of [`mRemoveDirectoryW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mRemoveDirectoryA(lp_path_name: *const u8) -> BOOL {
+    if lp_path_name.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    // SAFETY: lp_path_name is a NUL-terminated CP_ACP string (checked non-null).
+    let path = unsafe { to_ansi_file_path(lp_path_name) };
+    let s = session();
+    match s.with_filesystem(|fs| fs_ops::remove_directory(fs, &path)) {
+        Ok(()) => TRUE,
+        Err(code) => {
+            set_last_error(code);
+            FALSE
+        }
+    }
+}
+
+/// `FindFirstFileA`: the `CP_ACP` form of [`mFindFirstFileW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mFindFirstFileA(
+    lp_file_name: *const u8,
+    lp_find_file_data: *mut WIN32_FIND_DATAA,
+) -> HANDLE {
+    if lp_file_name.is_null() || lp_find_file_data.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return INVALID_HANDLE_VALUE;
+    }
+    // SAFETY: lp_file_name is a NUL-terminated CP_ACP string (checked non-null).
+    let pattern = unsafe { to_ansi_file_path(lp_file_name) };
+    let s = session();
+    match s.with_filesystem(|fs| {
+        fs_ops::find_first(fs, s.handles(), &pattern, SearchOp::NameMatch, false, true)
+    }) {
+        Ok(Some((handle, entry))) => {
+            // SAFETY: lp_find_file_data is non-null (checked) and writable.
+            unsafe {
+                fill_find_data_ansi(&entry, true, lp_find_file_data);
+            }
+            handle as HANDLE
+        }
+        Ok(None) => {
+            set_last_error(ERROR_FILE_NOT_FOUND);
+            INVALID_HANDLE_VALUE
+        }
+        Err(code) => {
+            set_last_error(code);
+            INVALID_HANDLE_VALUE
+        }
+    }
+}
+
+/// `FindFirstFileExA`: the `CP_ACP` form of [`mFindFirstFileExW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mFindFirstFileExA(
+    lp_file_name: *const u8,
+    f_info_level_id: FINDEX_INFO_LEVELS,
+    lp_find_file_data: *mut c_void,
+    f_search_op: FINDEX_SEARCH_OPS,
+    lp_search_filter: *const c_void,
+    dw_additional_flags: FIND_FIRST_EX_FLAGS,
+) -> HANDLE {
+    if lp_file_name.is_null() || lp_find_file_data.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return INVALID_HANDLE_VALUE;
+    }
+    let (op, case_sensitive, emit_short_name) = match map_find_ex_params(
+        f_info_level_id,
+        f_search_op,
+        lp_search_filter,
+        dw_additional_flags,
+    ) {
+        Ok(parts) => parts,
+        Err(code) => {
+            set_last_error(code);
+            return INVALID_HANDLE_VALUE;
+        }
+    };
+    let out = lp_find_file_data.cast::<WIN32_FIND_DATAA>();
+    // SAFETY: lp_file_name is a NUL-terminated CP_ACP string (checked non-null).
+    let pattern = unsafe { to_ansi_file_path(lp_file_name) };
+    let s = session();
+    match s.with_filesystem(|fs| {
+        fs_ops::find_first(fs, s.handles(), &pattern, op, case_sensitive, emit_short_name)
+    }) {
+        Ok(Some((handle, entry))) => {
+            // SAFETY: out is non-null (checked) and points to a writable
+            // WIN32_FIND_DATAA (the documented lpFindFileData contract).
+            unsafe {
+                fill_find_data_ansi(&entry, emit_short_name, out);
+            }
+            handle as HANDLE
+        }
+        Ok(None) => {
+            set_last_error(ERROR_FILE_NOT_FOUND);
+            INVALID_HANDLE_VALUE
+        }
+        Err(code) => {
+            set_last_error(code);
+            INVALID_HANDLE_VALUE
+        }
+    }
+}
+
+/// `FindFirstFileTransactedA`: the `CP_ACP` form of
+/// [`mFindFirstFileTransactedW`]; the ignored transaction handle forwards to the
+/// non-transacted A path.
+#[unsafe(no_mangle)]
+pub extern "system" fn mFindFirstFileTransactedA(
+    lp_file_name: *const u8,
+    f_info_level_id: FINDEX_INFO_LEVELS,
+    lp_find_file_data: *mut c_void,
+    f_search_op: FINDEX_SEARCH_OPS,
+    lp_search_filter: *const c_void,
+    dw_additional_flags: FIND_FIRST_EX_FLAGS,
+    _h_transaction: HANDLE,
+) -> HANDLE {
+    mFindFirstFileExA(
+        lp_file_name,
+        f_info_level_id,
+        lp_find_file_data,
+        f_search_op,
+        lp_search_filter,
+        dw_additional_flags,
+    )
+}
+
+/// `FindNextFileA`: the `CP_ACP` form of [`mFindNextFileW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mFindNextFileA(
+    h_find_file: HANDLE,
+    lp_find_file_data: *mut WIN32_FIND_DATAA,
+) -> BOOL {
+    if lp_find_file_data.is_null() {
+        set_last_error(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    match fs_ops::find_next(session().handles(), h_find_file as usize) {
+        Ok(Some((entry, emit_short_name))) => {
+            // SAFETY: lp_find_file_data is non-null (checked) and writable.
+            unsafe {
+                fill_find_data_ansi(&entry, emit_short_name, lp_find_file_data);
+            }
+            TRUE
+        }
+        Ok(None) => {
+            set_last_error(ERROR_NO_MORE_FILES);
+            FALSE
+        }
+        Err(code) => {
+            set_last_error(code);
+            FALSE
+        }
     }
 }
 

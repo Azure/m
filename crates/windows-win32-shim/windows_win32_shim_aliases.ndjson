@@ -40,17 +40,17 @@
 # {"win32":"CopyFileTransactedA","shim":"mCopyFileTransactedA"}
 # {"win32":"CopyFileTransactedW","shim":"mCopyFileTransactedW"}
 # {"win32":"CopyFileW","shim":"mCopyFileW"}
-# {"win32":"CreateDirectoryA","shim":"mCreateDirectoryA"}
+{"win32":"CreateDirectoryA","shim":"mCreateDirectoryA"}
 # {"win32":"CreateDirectoryExA","shim":"mCreateDirectoryExA"}
 # {"win32":"CreateDirectoryExW","shim":"mCreateDirectoryExW"}
 # {"win32":"CreateDirectoryTransactedA","shim":"mCreateDirectoryTransactedA"}
 # {"win32":"CreateDirectoryTransactedW","shim":"mCreateDirectoryTransactedW"}
 {"win32":"CreateDirectoryW","shim":"mCreateDirectoryW"}
-# {"win32":"CreateFileA","shim":"mCreateFileA"}
+{"win32":"CreateFileA","shim":"mCreateFileA"}
 # {"win32":"CreateFileTransactedA","shim":"mCreateFileTransactedA"}
 # {"win32":"CreateFileTransactedW","shim":"mCreateFileTransactedW"}
 {"win32":"CreateFileW","shim":"mCreateFileW"}
-# {"win32":"DeleteFileA","shim":"mDeleteFileA"}
+{"win32":"DeleteFileA","shim":"mDeleteFileA"}
 {"win32":"DeleteFileW","shim":"mDeleteFileW"}
 # {"win32":"DeviceIoControl","shim":"mDeviceIoControl"}
 # {"win32":"DuplicateHandle","shim":"mDuplicateHandle"}
@@ -58,20 +58,20 @@
 # {"win32":"FindCloseChangeNotification","shim":"mFindCloseChangeNotification"}
 # {"win32":"FindFirstChangeNotificationA","shim":"mFindFirstChangeNotificationA"}
 # {"win32":"FindFirstChangeNotificationW","shim":"mFindFirstChangeNotificationW"}
-# {"win32":"FindFirstFileA","shim":"mFindFirstFileA"}
-# {"win32":"FindFirstFileExA","shim":"mFindFirstFileExA"}
+{"win32":"FindFirstFileA","shim":"mFindFirstFileA"}
+{"win32":"FindFirstFileExA","shim":"mFindFirstFileExA"}
 {"win32":"FindFirstFileExW","shim":"mFindFirstFileExW"}
-# {"win32":"FindFirstFileTransactedA","shim":"mFindFirstFileTransactedA"}
+{"win32":"FindFirstFileTransactedA","shim":"mFindFirstFileTransactedA"}
 {"win32":"FindFirstFileTransactedW","shim":"mFindFirstFileTransactedW"}
 {"win32":"FindFirstFileW","shim":"mFindFirstFileW"}
 # {"win32":"FindNextChangeNotification","shim":"mFindNextChangeNotification"}
-# {"win32":"FindNextFileA","shim":"mFindNextFileA"}
+{"win32":"FindNextFileA","shim":"mFindNextFileA"}
 {"win32":"FindNextFileW","shim":"mFindNextFileW"}
 # {"win32":"FlushFileBuffers","shim":"mFlushFileBuffers"}
 # {"win32":"GetExpandedNameA","shim":"mGetExpandedNameA"}
 # {"win32":"GetExpandedNameW","shim":"mGetExpandedNameW"}
-# {"win32":"GetFileAttributesA","shim":"mGetFileAttributesA"}
-# {"win32":"GetFileAttributesExA","shim":"mGetFileAttributesExA"}
+{"win32":"GetFileAttributesA","shim":"mGetFileAttributesA"}
+{"win32":"GetFileAttributesExA","shim":"mGetFileAttributesExA"}
 {"win32":"GetFileAttributesExW","shim":"mGetFileAttributesExW"}
 # {"win32":"GetFileAttributesTransactedA","shim":"mGetFileAttributesTransactedA"}
 # {"win32":"GetFileAttributesTransactedW","shim":"mGetFileAttributesTransactedW"}
@@ -121,7 +121,7 @@
 {"win32":"ReadFile","shim":"mReadFile"}
 # {"win32":"ReadFileEx","shim":"mReadFileEx"}
 {"win32":"ReadFileScatter","shim":"mReadFileScatter"}
-# {"win32":"RemoveDirectoryA","shim":"mRemoveDirectoryA"}
+{"win32":"RemoveDirectoryA","shim":"mRemoveDirectoryA"}
 # {"win32":"RemoveDirectoryTransactedA","shim":"mRemoveDirectoryTransactedA"}
 # {"win32":"RemoveDirectoryTransactedW","shim":"mRemoveDirectoryTransactedW"}
 {"win32":"RemoveDirectoryW","shim":"mRemoveDirectoryW"}
@@ -129,7 +129,7 @@
 # {"win32":"ReplaceFileW","shim":"mReplaceFileW"}
 # {"win32":"SearchPathA","shim":"mSearchPathA"}
 # {"win32":"SearchPathW","shim":"mSearchPathW"}
-# {"win32":"SetFileAttributesA","shim":"mSetFileAttributesA"}
+{"win32":"SetFileAttributesA","shim":"mSetFileAttributesA"}
 # {"win32":"SetFileAttributesTransactedA","shim":"mSetFileAttributesTransactedA"}
 # {"win32":"SetFileAttributesTransactedW","shim":"mSetFileAttributesTransactedW"}
 {"win32":"SetFileAttributesW","shim":"mSetFileAttributesW"}

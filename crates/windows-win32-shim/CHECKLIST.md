@@ -107,13 +107,16 @@ test. Sub-steps use decimal notation.
 
 ## MW5 — Link-time Win32→`m` alias (redirection, SHIM-D4)
 
-Re-planned on execution: this crate is a Rust `cdylib`, not the C++ build, so the
-Rust-native, `cargo`-verifiable core of the milestone is the export `.def`
-source-of-truth (MW5-1) plus the alias **generator** with unit tests (MW5-2).
-The remaining items (compiling the generated alias object + undecorated import
-lib, wiring the link recipe, and the C++ link-proof EXE) are inherently a
-cross-toolchain C++ link concern that cannot run as a `cargo test`; they are
-re-scoped to MW5-3 and deferred pending a C++ test-harness decision.
+Re-planned on execution (twice): this crate is a Rust `cdylib`, not the C++
+build. The `cargo`-verifiable core is the alias manifest plus a generator with
+unit tests. MW5-1/MW5-2 first realized this as a `.def` + a C++-text generator
+(`alias_gen`). MW5-3..MW5-5 replace the `cl.exe`-compiled-text path with a
+**pure-Rust COFF emitter** driven by a checked-in NDJSON manifest: we write the
+alias object's bytes directly (via the `object` crate), so producing the alias
+artifact needs **no C++ compiler and no MSVC tool at all** — only the client's
+own linker consumes it. NDJSON is chosen so the versioned input supports
+comment / section lines (the "extended" format). The C++ link-proof EXE remains
+a genuinely cross-toolchain verification (MW5-6) and stays deferred.
 
 - [x] **MW5-1** Author the export `.def` source-of-truth
       (`windows_win32_shim.def`) — the single, ordered manifest of every
@@ -135,13 +138,36 @@ re-scoped to MW5-3 and deferred pending a C++ test-harness decision.
       invalid-shape error) and over the real `include_str!`'d `.def` (active /
       aliased counts, `mCloseHandle` excluded, a sample mapping). Record the
       realization in **SHIM-D4**.
-- [ ] **MW5-3** *(deferred — cross-toolchain, not a `cargo test`)* Compile the
-      generated alias translation unit into an object + undecorated import lib,
-      wire the opt-in link recipe, and port the C++ link-proof
-      (`test_mwin32_alias.cpp`): genuine `<windows.h>` `RegOpenKeyExW` /
-      `CreateFileW` calls (no shim headers) redirected through the shim observe
-      the isolated state. Requires a C++ consumer EXE in the build; tracked here
-      until a harness approach is chosen.
+- [ ] **MW5-3** Define the NDJSON alias manifest + author the checked-in input
+      (`windows_win32_shim_aliases.ndjson`). One JSON object per active alias —
+      `{"win32":"RegOpenKeyExW","shim":"mRegOpenKeyExW"}` — with `shim` optional
+      (defaults to `"m"` + `win32`) and an optional `"alias": false` for an
+      exported-but-not-redirected name (e.g. `CloseHandle`). Extended format:
+      blank lines and lines whose first non-blank chars are `#` or `//` are
+      comment / section lines; not-yet-implemented entries are carried as
+      comments so they enable by uncommenting. Populate with the current aliased
+      roster (parity with the `.def` aliased set).
+- [ ] **MW5-4** `alias_obj` module (no `unsafe`, platform-independent): add the
+      `object` crate (write API); parse the NDJSON via `tinyjson` line-by-line
+      (skip blanks / comments, validate the `m<Name>` / `<Name>` shapes, dedupe),
+      and emit an x64 COFF object — per alias an undefined external `m<Name>`, a
+      defined public 8-byte `__imp_<Name>` in `.data` with an
+      `IMAGE_REL_AMD64_ADDR64` relocation onto `m<Name>`, plus a single
+      `.drectve` section carrying the `/alternatename:<Name>=m<Name>` directives.
+      Round-trip unit tests: re-read the emitted COFF with `object` and assert
+      the `__imp_` symbols, externals, relocations, and `.drectve` text; plus
+      comment / blank handling, dedupe, malformed-record error, and a cross-check
+      that the NDJSON aliased set equals `alias_gen`'s `.def` aliased set (drift
+      guard).
+- [ ] **MW5-5** CLI tool `gen-alias-obj` (`src/bin/gen-alias-obj.rs`): read an
+      NDJSON manifest path and write the COFF `.obj`. Document the link recipe
+      (client links the emitted `.obj` + the cdylib import library). Record the
+      COFF / NDJSON realization in **SHIM-D4**.
+- [ ] **MW5-6** *(deferred — cross-toolchain, not a `cargo test`)* C++ link-proof
+      EXE consuming the emitted alias `.obj`: genuine `<windows.h>`
+      `RegOpenKeyExW` / `CreateFileW` calls (no shim headers) redirected through
+      the shim observe the isolated state. Requires a C++ consumer in the build;
+      tracked until a harness approach is chosen.
 
 ## MW6 — ANSI (A) variants — OUTLINE (detail when scheduled, SHIM-D9)
 

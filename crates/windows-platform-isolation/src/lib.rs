@@ -56,8 +56,9 @@ pub use serial::{load_registry_hive, save_registry_hive};
 pub use surface::{Request, Response, Surface, TreeSurface};
 pub use tree::{Hive, OverlayTree, ValueData, ValueType};
 pub use web::{
-    Disposition, Header, HttpRequest, HttpResponse, IdentityHandler, JournalingHandler,
-    ObservationSink, ObservedEvent, RequestHandler, VolumePolicy,
+    Disposition, Header, HttpRequest, HttpResponse, IdentityHandler, IsolationMode,
+    JournalingHandler, ObservationSink, ObservedEvent, RequestHandler, VolumePolicy, WebHandler,
+    WebSession,
 };
 
 // The UTF-16 string type and ordinal-casing seam now live in the standalone

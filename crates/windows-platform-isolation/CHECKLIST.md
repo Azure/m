@@ -359,7 +359,7 @@ heavy-traffic optimization, not the scheduled entry path.
 - [x] **M8-3** `JournalingHandler` decorator — records each exchange to an
       observation sink (D28 PII-first, D29 volume policy) then forwards unchanged;
       slots into the D4 decorator stack alongside the reg/fs decorators.
-- [ ] **M8-4** Session wiring: the session selects identity / journaling /
+- [x] **M8-4** Session wiring: the session selects identity / journaling /
       (future) substituting handler by mode (D25), exactly as the reg/fs backings
       are composed; off yields the bit-identical pass-through.
 - [ ] **M8-5** *(integration)* Pure-Rust host-emulating harness: drive a synthetic

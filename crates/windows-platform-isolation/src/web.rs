@@ -399,6 +399,89 @@ impl<H: RequestHandler, S: ObservationSink> RequestHandler for JournalingHandler
     }
 }
 
+/// The isolation mode the [`WebSession`] uses to pick a handler (M8-4, D25). The
+/// default is [`IsolationMode::Off`] — the bit-identical pass-through that adds
+/// no behavior. `Record` observes without altering. A future `Replay` /
+/// substituting mode is reserved but not yet modeled.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum IsolationMode {
+    /// No behavior change: the session vends an [`IdentityHandler`].
+    #[default]
+    Off,
+    /// Observe each exchange: the session vends a [`JournalingHandler`].
+    Record,
+}
+
+/// The handler a [`WebSession`] vends, sized to the chosen [`IsolationMode`].
+/// Both variants implement [`RequestHandler`], so a host drives the session's
+/// handler without knowing which mode is active. This mirrors how the registry /
+/// filesystem backings are composed from decorators (D4) — the session selects
+/// the stack, the caller just invokes it.
+pub enum WebHandler<H: RequestHandler, S: ObservationSink> {
+    /// `Off` mode — the true pass-through.
+    Identity(IdentityHandler<H>),
+    /// `Record` mode — observing pass-through.
+    Journaling(JournalingHandler<H, S>),
+}
+
+impl<H: RequestHandler, S: ObservationSink> RequestHandler for WebHandler<H, S> {
+    fn on_begin_request(&mut self, request: &HttpRequest) -> Disposition {
+        match self {
+            Self::Identity(h) => h.on_begin_request(request),
+            Self::Journaling(h) => h.on_begin_request(request),
+        }
+    }
+
+    fn on_send_response(&mut self, response: &mut HttpResponse) -> Disposition {
+        match self {
+            Self::Identity(h) => h.on_send_response(response),
+            Self::Journaling(h) => h.on_send_response(response),
+        }
+    }
+}
+
+/// A thin session that selects the web decorator stack by [`IsolationMode`]
+/// (M8-4), shaped after the registry / filesystem sessions: a small, `Copy`
+/// value that vends a configured handler rather than owning one. `Off` (the
+/// default) yields the bit-identical pass-through; `Record` yields the
+/// journaling stack.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct WebSession {
+    mode: IsolationMode,
+}
+
+impl WebSession {
+    /// A session in the given mode.
+    #[must_use]
+    pub fn new(mode: IsolationMode) -> Self {
+        Self { mode }
+    }
+
+    /// The session's isolation mode.
+    #[must_use]
+    pub fn mode(&self) -> IsolationMode {
+        self.mode
+    }
+
+    /// Wrap an inner handler in the decorator stack for this session's mode. In
+    /// `Off` mode the `sink` and `policy` are unused (dropped) and the result is
+    /// a true pass-through; in `Record` mode they drive the journal.
+    pub fn wrap<H: RequestHandler, S: ObservationSink>(
+        &self,
+        inner: H,
+        sink: S,
+        policy: VolumePolicy,
+    ) -> WebHandler<H, S> {
+        match self.mode {
+            IsolationMode::Off => WebHandler::Identity(IdentityHandler::new(inner)),
+            IsolationMode::Record => {
+                WebHandler::Journaling(JournalingHandler::new(inner, sink, policy))
+            }
+        }
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -590,4 +673,48 @@ mod tests {
         assert!(h.sink().events.is_empty());
         assert_eq!((h.inner().begins, h.inner().sends), (1, 1));
     }
+
+    #[test]
+    fn session_defaults_to_off_pass_through() {
+        let session = WebSession::default();
+        assert_eq!(session.mode(), IsolationMode::Off);
+
+        let mut handler = session.wrap(
+            MutatingHandler {
+                new_status: 418,
+                disposition: Disposition::Continue,
+            },
+            VecSink::default(),
+            VolumePolicy::record_all(),
+        );
+        let req = HttpRequest::new("GET", "/");
+        let mut resp = HttpResponse::new(200);
+        handler.on_begin_request(&req);
+        handler.on_send_response(&mut resp);
+
+        // Off mode is identity: the inner handler's mutation flows through, with
+        // no observation side-channel (the journaling variant is not selected).
+        assert!(matches!(handler, WebHandler::Identity(_)));
+        assert_eq!(resp.status(), 418);
+    }
+
+    #[test]
+    fn session_record_mode_journals() {
+        let session = WebSession::new(IsolationMode::Record);
+        let mut handler = session.wrap(
+            StubHandler::new(),
+            VecSink::default(),
+            VolumePolicy::record_all(),
+        );
+        let req = HttpRequest::new("PUT", "/item");
+        let mut resp = HttpResponse::new(200);
+        handler.on_begin_request(&req);
+        handler.on_send_response(&mut resp);
+
+        match handler {
+            WebHandler::Journaling(h) => assert_eq!(h.sink().events.len(), 2),
+            WebHandler::Identity(_) => panic!("record mode should journal"),
+        }
+    }
 }
+

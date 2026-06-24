@@ -15,7 +15,7 @@ Tracks CHECKLIST.md files in this source-component and their status.
   C++ `mwin32` antecedent. Off-mode is byte-for-byte transparent; the loader
   family is non-opt-in in the alias roster; behavior proven end-to-end in
   `tests/loader.rs`.
-- **MW10 — COM activation shims (not started):** `mCoCreateInstance` /
+- **MW10 — COM activation shims (done):** `mCoCreateInstance` /
   `mCoCreateInstanceEx` / `mCoGetClassObject` (+ passthrough `mCoInitialize*` /
   `mCoUninitialize`), a CLSID→factory substitution registry, and minimal
   `IUnknown`/`IClassFactory` plumbing (SHIM-D17). Depends on MW9 for the

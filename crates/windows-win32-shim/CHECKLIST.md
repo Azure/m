@@ -177,7 +177,7 @@ Realizes the COM half of platform-isolation **D24/D29**. New surface — no C++
       (manifest'd with `/alternatename`, like the loader family, not `noalias`);
       transparent when no factory is registered, with volume-aware observation
       per D29.
-- [ ] **MW10-5** *(integration)* Test: a registered CLSID activates a
+- [x] **MW10-5** *(integration)* Test: a registered CLSID activates a
       shim-supplied object implementing the requested interface (replay path); an
       unregistered CLSID forwards to real activation (passthrough); activations
       are observed; off-mode forwards unchanged.

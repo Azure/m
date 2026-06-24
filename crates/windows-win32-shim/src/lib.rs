@@ -72,6 +72,9 @@ pub mod mwinload;
 pub mod mwinreg;
 
 #[cfg(windows)]
+pub mod mwinweb;
+
+#[cfg(windows)]
 pub mod pilcfg;
 
 #[cfg(windows)]

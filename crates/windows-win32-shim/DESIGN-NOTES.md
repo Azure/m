@@ -617,3 +617,81 @@ non-opt-in alias (`/alternatename`, never `noalias`): redirecting the host's
 module-registration entry is the whole mechanism by which the shim reaches the
 response path. The residency probe `mShimWebProbe` (MW11-1) is shim-internal —
 no Win32 antecedent — so it is exported but absent from the alias roster.
+
+## SHIM-D19 — `wordy`: a shim-unaware HWC proof application + isolation harness
+
+The registry / filesystem / loader / COM / web seams (SHIM-D2..D18) need a
+*realistic, third-party-shaped* HWC application to prove that the link-time alias
+(SHIM-D4 / D24) redirects an **ordinary** native module's host calls into the
+isolation overlay — and, longer term, to drive that application's business logic
+on an unprivileged developer machine with **no HWC installed**. `wordy`
+(`crates/wordy`) is that application: a Rust IIS native-module REST "shared
+dictionary" service. It is both the proof vehicle for the whole isolation surface
+and a reusable testing asset for other HWC users in the division, so it is
+deliberately **generic** — organized around the host seams *any* HWC app touches,
+not shaped to mirror any one client (e.g. WireServer).
+
+**Shim-unaware contract.** `wordy`'s source carries zero isolation awareness — no
+dependency on this crate, no feature flags, no capture hooks. The only
+isolation-related artifacts are *external to its code*: (1) the alias `.obj` +
+shim import lib, injected into the link by a **generic, env-driven `build.rs`**
+that adds an extra object + library search path only when told to, and otherwise
+builds a plain binary (that plain build is the proof the crate is unaware); and
+(2) a `.pilcfg` sidecar beside the binary. Isolation is an act performed *on*
+`wordy` from the outside — exactly the posture a real third-party app is in (we
+do not get to edit their `build.rs` either). The `build.rs` holds no isolation
+knowledge; it is "link whatever I am handed" glue, chosen over external
+`RUSTFLAGS` / `.cargo/config.toml` injection for build-cache reliability (the
+latter leaks to every crate in the graph and invalidates caches on toggle).
+
+**Host-seam coverage (the point).** `wordy` exercises the seams that matter, each
+mapping to an isolation surface: inbound HTTP request **read** and response
+**write** (IIS native-module vtables — `wordy` hand-declares its **own** modeled
+vtable subset, a peer of `mwinweb` but living in `wordy`, to stay shim-unaware);
+filesystem **namespace / metadata** ops; and **asynchronous request completion on
+the Windows thread pool**. The async path (every route) is genuine: the heavy
+dictionary work — anagram search, batch spell-check, `fst` edit-distance
+suggestions, `regex` enumeration over a ~60k-word list — is offloaded via
+`windows-threadpool::submit_once`; the module returns `RQ_NOTIFICATION_PENDING`
+and the pool work item writes the response and calls `IHttpContext::PostCompletion`.
+This forces the redirection open across a **second seam beyond the filesystem**
+(the thread-pool / loader surface), guarding against an accidentally FS-only
+proof.
+
+**Custom dictionary = namespace-only store (SHIM-D6 alignment).** The mutable,
+per-user / per-locale "custom dictionary" stores each word as an **empty file
+whose name encodes the word**, under `{dynamic-root}/{locale}/{user}/`. Add /
+remove / exists / enumerate are therefore `CreateFileW` / `DeleteFileW` /
+`GetFileAttributesW` / `FindFirst`+`FindNext` — purely the metadata / namespace
+surface this crate already isolates; **no file content is needed**, so the design
+sits entirely inside SHIM-D6's content deferral. The read-only **shared
+dictionary** is a static word-list file read into memory (a content read, which
+is legitimately *not* isolated). The two roots thus split exactly along what the
+shim isolates today. Word ↔ filename uses a reversible, path-escape-proof
+encoding (lowercase + percent-encode anything outside `[a-z]`) so hostile input
+cannot escape the dictionary directory.
+
+**Forward-compatible identity / locale.** The service has no per-user logon
+today, but is **designed and coded as if per-user**: a `Principal` / `UserId`
+newtype is threaded through every handler and resolved from a request header,
+defaulting to a single built-in user when absent. This is the WireServer-style
+"the app reads its own claims" posture — and no real authentication is
+implemented, consistent with the finding that HWC apps perform their own
+payload-level auth while the platform hands them anonymous requests. A `Locale`
+enum (only `en-US` populated now) namespaces storage so other locales drop in
+without a schema change.
+
+**Word list.** A SCOWL / ESDB-generated `en-US` list (offensive category
+excluded, moderate size) is vendored as the shared dictionary, with its license
+file (public-domain core); chosen for tunable size, built-in profanity exclusion,
+and native dialect modeling that seeds the locale carve-out.
+
+**Deferred (not scheduled now).** A neutral `iis-native-module` crate shared by
+`wordy` and `mwinweb` (to remove the modeled-vtable duplication) is a known
+option, explicitly **not** queued — `wordy` carries its own subset until the
+duplication proves painful. The `windows-threadpool-executor` `async` / `await`
+variant of the async path is a follow-on to the `submit_once` first cut.
+
+Realized by **MW13** (synchronous service), **MW14** (asynchronous completion on
+the thread pool), and **MW15** (isolation proof harness; outline — isolation is
+deferred per the current "what the service does first" focus). See CHECKLIST.md.

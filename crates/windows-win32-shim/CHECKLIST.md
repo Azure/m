@@ -239,3 +239,95 @@ change today" endpoint.
       emulated host into our bridge and the identity decorator and back; assert
       the response is byte-identical to the un-shimmed path.
 
+## MW13 — `wordy`: a shim-unaware Rust HWC dictionary service (synchronous surface, SHIM-D19)
+
+A standalone, **shim-unaware** native IIS module + host activator that serves a
+"shared dictionary" REST API synchronously under genuine HWC, with the word
+business-logic fully unit-testable off-host. No isolation, no async yet (those
+are MW14 / MW15). `wordy` is a sibling crate (`crates/wordy`); its source carries
+zero isolation awareness (SHIM-D19) — it declares its **own** modeled IIS vtable
+subset (peer of `mwinweb`), never depending on this crate.
+
+- [ ] **MW13-1** Scaffold `crates/wordy` (add to workspace): a `cdylib`+`rlib`
+      IIS native-module crate with a generic **env-driven `build.rs`** (SHIM-D19:
+      links an extra object + lib search dir only when `WORDY_EXTRA_LINK_*` env
+      vars are set, else a plain build — no isolation knowledge). Its own
+      `#[allow(unsafe_code)]` IIS-ABI boundary module declaring the minimal
+      native-module vtables (`IHttpModuleRegistrationInfo` subset,
+      `IHttpModuleFactory`, `CHttpModule`, `IHttpContext`/`IHttpRequest` read of
+      method+URL, `IHttpResponse` **status** write) — a peer of `mwinweb`, never
+      depending on this crate. Export `RegisterModule`; the factory vends a
+      `CHttpModule` whose `OnBeginRequest` runs a safe route dispatcher seed
+      (`GET /healthz` → 200, else continue). `wordy` `PLANS.md` + brief
+      `DESIGN-NOTES.md` (shim-unaware contract). Proven via an emulated-host unit
+      test (mirrors `mwinweb`) — no HWC dependency. The genuine-HWC activator is
+      MW13-5.
+- [ ] **MW13-2** Word-domain core (pure Rust, no IIS, no FS): in-memory shared
+      dictionary loaded from the vendored SCOWL `en-US` list (+ its license file);
+      `Locale` enum (only `en-US` populated); spell-check **membership**; `regex`
+      enumeration; **anagram** solver (positional template fixes length, fixed
+      letters are free givens, blanks drawn from a supplied letter **multiset**,
+      optional **wildcard tiles**); `fst` edit-distance **suggestions** over the
+      shared list. Extensive unit tests (≥10 normal + edge cases) — proves the
+      business logic runs with **zero host** (the no-HWC end-goal in miniature).
+- [ ] **MW13-3** Custom-dictionary FS store: per-`{locale}/{user}` directory of
+      **name-encoded empty word files**; add / exists / remove / enumerate via
+      `std::fs` **namespace/metadata ops only** (no content — SHIM-D6 aligned);
+      reversible, path-escape-proof word↔filename encoding (lowercase +
+      percent-encode outside `[a-z]`); `Principal`/`UserId` newtype threaded,
+      resolved from an `X-Wordy-User` header with a single default user.
+      Unit-tested over a scratch temp dir (RAII cleanup).
+- [ ] **MW13-4** Response **body** write path + route dispatcher: extend `wordy`'s
+      IIS boundary to clear/set-status/write a JSON body (`IHttpResponse`); JSON
+      request/response models; map every route — `POST /spellcheck`,
+      `POST /anagram`, `GET /shared?pattern=`, `GET /custom?pattern=`,
+      `POST /custom/{word}`, `DELETE /custom/{word}`, `GET /custom/{word}` — to the
+      domain core + FS store, **synchronously**.
+- [ ] **MW13-5** *(integration)* Add the `wordy-host` activator bin that
+      `WebCoreActivate`s genuine `hwebcore.dll` (absolute `inetsrv` path, per repo
+      HWC notes) with a generated applicationHost/web.config loading `wordy.dll`;
+      then drive each route end-to-end via real HTTP when HWC is present, and via
+      the emulated-host harness (extended for body write) otherwise; assert
+      dictionary behaviors (gated/ignored when HWC absent).
+
+## MW14 — Asynchronous request completion on the Windows thread pool (SHIM-D19)
+
+Make **every** route async via IIS asynchronous completion, offloaded to our
+`windows-threadpool` crate — the deliberate "force the redirection open across a
+second seam" milestone.
+
+- [ ] **MW14-1** Extend `wordy`'s IIS-ABI boundary with the async-completion
+      subset: `IHttpContext::PostCompletion` (and the `RQ_NOTIFICATION_PENDING`
+      return); boundary module only, unit-modeled.
+- [ ] **MW14-2** Async dispatch: `OnBeginRequest` submits the route's work to
+      `windows_threadpool::submit_once`, returns `RQ_NOTIFICATION_PENDING`; the
+      pool work item computes, writes the response, and calls `PostCompletion`.
+      Route every endpoint through it (add the `windows-threadpool` path dep).
+- [ ] **MW14-3** Extend the emulated-host harness to model **suspend/resume**
+      (deliver `PENDING`, run the completion, finalize) so async routes are
+      testable without HWC.
+- [ ] **MW14-4** Concurrency hardening: shared dictionary as a read-only `Arc`;
+      per-user custom-store FS ops serialized or concurrency-tolerant; verify no
+      data races or handle-lifetime issues across the pool boundary.
+- [ ] **MW14-5** *(integration)* Async end-to-end: many concurrent requests across
+      routes; assert correctness, that work ran off the host thread (observation
+      marker), and clean completion. (`windows-threadpool-executor` async/await
+      variant noted as a follow-on, not required here.)
+
+## MW15 — Isolation proof: force the redirection open — OUTLINE (detail when scheduled; isolation deferred)
+
+Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
+(SHIM-D19) and proves its namespace ops land in the overlay, not the live FS.
+
+- [ ] **MW15-1** Build `wordy` with the alias `.obj` + shim import lib injected via
+      the generic `build.rs` env vars (no `wordy` source change); confirm via
+      `dumpbin /imports` that the FS + thread-pool/loader imports bind the shim.
+- [ ] **MW15-2** `hwcproof/` harness (mirrors `linkproof/`): genuine HWC + a
+      buffered `.pilcfg` beside `wordy.dll`; real HTTP add/remove/enumerate of
+      custom words; assert the namespace ops land in the shim overlay, not the
+      live FS.
+- [ ] **MW15-3** Negative control: a non-aliased `wordy` hits the live FS; an
+      exit-code discriminator distinguishes the two builds.
+- [ ] **MW15-4** *(integration)* End-to-end isolation proof, gated/ignored when HWC
+      is absent; record closure / any new decisions in SHIM-D19.
+

@@ -31,6 +31,23 @@ Tracks CHECKLIST.md files in this source-component and their status.
   unchanged today (SHIM-D18). Builds on MW11; consumes platform-isolation **M8**.
   Together MW11/MW12 are the in-process replacement for the former out-of-process
   HWC pipeline (platform-isolation D17, deferred).
+- **MW13 — `wordy` synchronous dictionary service (planned):** a shim-unaware
+  sibling crate (`crates/wordy`) — a Rust IIS native-module REST "shared
+  dictionary" service (spell-check, custom-dict add/remove, regex enumeration,
+  anagram solver, `fst` suggestions) + a `wordy-host` HWC activator. Serves the
+  REST surface **synchronously** under genuine HWC; word business-logic fully
+  unit-testable off-host. Custom dictionary = name-encoded files (SHIM-D6
+  namespace surface); per-user/per-locale forward-compatible (SHIM-D19). `wordy`
+  declares its **own** modeled IIS vtables and never depends on this crate.
+- **MW14 — Asynchronous completion on the Windows thread pool (planned):** every
+  route async via IIS `RQ_NOTIFICATION_PENDING` + `IHttpContext::PostCompletion`,
+  offloaded to `windows-threadpool::submit_once`; emulated host extended to model
+  suspend/resume. Deliberately forces the redirection open across a second seam
+  beyond the filesystem (SHIM-D19).
+- **MW15 — Isolation proof harness (outline; isolation deferred):** apply the
+  alias `.obj` + `.pilcfg` to the *unmodified* `wordy` from the outside and prove
+  its namespace ops land in the overlay, not the live FS (`hwcproof/`, mirrors
+  `linkproof/`); negative control + exit-code discriminator (SHIM-D19).
 
 First cut keeps the loader/COM substitution registries and observation sink
 **shim-local**; no new `windows-platform-isolation` surface is introduced (the
@@ -55,3 +72,8 @@ MW8 (8.3 short-name passthrough) depends on `windows-platform-isolation` →
 MW11/MW12 (web-host response-path module) depend on `windows-platform-isolation`
 → **M8** (`RequestHandler` surface + identity/journaling decorators). See
 [`../windows-platform-isolation/CHECKLIST.md`](../windows-platform-isolation/CHECKLIST.md).
+
+MW14 (`wordy` async completion) depends on `windows-threadpool` (path dep) for
+`submit_once`; MW13 vendors a SCOWL `en-US` word list and uses the `fst` +
+`regex` crates. `wordy` itself stays **shim-unaware** — it does not depend on
+`windows-win32-shim` (SHIM-D19).

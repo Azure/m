@@ -39,16 +39,27 @@ use core::ffi::c_void;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicU32, Ordering, fence};
 
-use windows_sys::Win32::Foundation::{BOOL, E_NOINTERFACE, E_POINTER, S_OK};
+use windows_sys::Win32::Foundation::{BOOL, E_INVALIDARG, E_NOINTERFACE, E_POINTER, S_OK};
+use windows_sys::Win32::System::Com::{
+    CLSCTX, COSERVERINFO, CoCreateInstance, CoCreateInstanceEx, MULTI_QI,
+};
 use windows_sys::core::{GUID, HRESULT};
 
-use crate::com::Guid;
+use crate::com::{ActivationDisposition, ActivationExDisposition, Guid};
+use crate::session::session;
 
 /// `CLASS_E_NOAGGREGATION` — the COM error a class object returns when asked to
 /// aggregate but it does not support aggregation. Fixed by COM (`0x8004_0110`);
 /// `windows-sys` 0.59 does not surface it, so it is named here. Changing the
 /// value is meaningless, not a breaking change of ours.
 const CLASS_E_NOAGGREGATION: HRESULT = 0x8004_0110_u32 as HRESULT;
+
+/// `CO_S_NOTALLINTERFACES` — the COM success code a multi-`QueryInterface`
+/// activation returns when some, but not all, requested interfaces were
+/// produced. Fixed by COM (`0x0008_0012`); `windows-sys` 0.59 does not surface
+/// it, so it is named here. Changing the value is meaningless, not a breaking
+/// change of ours.
+const CO_S_NOTALLINTERFACES: HRESULT = 0x0008_0012;
 
 /// `IID_IUnknown` — the base COM interface. Fixed by COM; changing it is
 /// meaningless, not a breaking change of ours.
@@ -315,6 +326,119 @@ pub fn mint_shim_factory(supported: Vec<Guid>) -> *mut c_void {
         supported,
     });
     Box::into_raw(factory).cast::<c_void>()
+}
+
+// --- COM activation exports (SHIM-D17) --------------------------------------
+
+/// `mCoCreateInstance` — the single-interface COM activation shim. Off mode and
+/// any unregistered CLSID forward verbatim to the real ole32 `CoCreateInstance`;
+/// in substitute mode a registered factory vends a shim object (or fails with
+/// `E_NOINTERFACE` when it cannot supply the requested interface).
+#[unsafe(no_mangle)]
+pub extern "system" fn mCoCreateInstance(
+    rclsid: *const GUID,
+    punkouter: *mut c_void,
+    dwclscontext: CLSCTX,
+    riid: *const GUID,
+    ppv: *mut *mut c_void,
+) -> HRESULT {
+    if ppv.is_null() {
+        return E_POINTER;
+    }
+    // SAFETY: ppv is non-null (checked above).
+    unsafe { *ppv = null_mut() };
+    if rclsid.is_null() || riid.is_null() {
+        return E_POINTER;
+    }
+    // SAFETY: rclsid / riid are non-null caller GUIDs.
+    let clsid = to_guid(unsafe { &*rclsid });
+    // SAFETY: riid is a non-null caller GUID.
+    let iid = to_guid(unsafe { &*riid });
+    match session().with_com(|com| com.on_create_instance(clsid, iid, dwclscontext)) {
+        ActivationDisposition::Substitute(want) => {
+            // SAFETY: ppv is non-null.
+            unsafe { *ppv = mint_shim_object(want) };
+            S_OK
+        }
+        ActivationDisposition::NoInterface => E_NOINTERFACE,
+        ActivationDisposition::Forward => {
+            // SAFETY: forward the caller's verbatim arguments to real ole32.
+            unsafe { CoCreateInstance(rclsid, punkouter, dwclscontext, riid, ppv) }
+        }
+    }
+}
+
+/// `mCoCreateInstanceEx` — the multi-`QueryInterface` COM activation shim. Off
+/// mode and any unregistered CLSID forward verbatim to the real ole32
+/// `CoCreateInstanceEx`; in substitute mode a registered factory fills each
+/// `MULTI_QI` slot it supports with a shim object and fails the rest with
+/// `E_NOINTERFACE`, returning `S_OK` / `CO_S_NOTALLINTERFACES` / `E_NOINTERFACE`
+/// per the COM contract.
+#[unsafe(no_mangle)]
+pub extern "system" fn mCoCreateInstanceEx(
+    rclsid: *const GUID,
+    punkouter: *mut c_void,
+    dwclscontext: CLSCTX,
+    pserverinfo: *const COSERVERINFO,
+    dwcount: u32,
+    presults: *mut MULTI_QI,
+) -> HRESULT {
+    if rclsid.is_null() {
+        return E_POINTER;
+    }
+    if dwcount == 0 || presults.is_null() {
+        return E_INVALIDARG;
+    }
+    // SAFETY: rclsid is a non-null caller GUID.
+    let clsid = to_guid(unsafe { &*rclsid });
+    let count = dwcount as usize;
+    // Snapshot the requested IIDs from the MULTI_QI array.
+    let mut iids = Vec::with_capacity(count);
+    for i in 0..count {
+        // SAFETY: presults points at dwcount MULTI_QI entries (caller contract).
+        let entry = unsafe { &*presults.add(i) };
+        if entry.pIID.is_null() {
+            return E_POINTER;
+        }
+        // SAFETY: pIID is a non-null caller GUID.
+        iids.push(to_guid(unsafe { &*entry.pIID }));
+    }
+    match session().with_com(|com| com.on_create_instance_ex(clsid, &iids, dwclscontext)) {
+        ActivationExDisposition::Forward => {
+            // SAFETY: forward the caller's verbatim arguments to real ole32.
+            unsafe {
+                CoCreateInstanceEx(rclsid, punkouter, dwclscontext, pserverinfo, dwcount, presults)
+            }
+        }
+        ActivationExDisposition::Substitute(slots) => {
+            if !punkouter.is_null() {
+                return CLASS_E_NOAGGREGATION;
+            }
+            let mut produced = 0usize;
+            for (i, slot) in slots.into_iter().enumerate() {
+                // SAFETY: presults has dwcount entries; i < count.
+                let entry = unsafe { &mut *presults.add(i) };
+                match slot {
+                    Some(want) => {
+                        entry.pItf = mint_shim_object(want);
+                        entry.hr = S_OK;
+                        produced += 1;
+                    }
+                    None => {
+                        entry.pItf = null_mut();
+                        entry.hr = E_NOINTERFACE;
+                    }
+                }
+            }
+            if produced == count {
+                S_OK
+            } else if produced == 0 {
+                E_NOINTERFACE
+            } else {
+                CO_S_NOTALLINTERFACES
+            }
+        }
+    }
 }
 
 #[cfg(test)]

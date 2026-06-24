@@ -165,7 +165,7 @@ Realizes the COM half of platform-isolation **D24/D29**. New surface — no C++
       `windows-sys` GUID / HRESULT), plus a safe `ShimClassFactory` trait and a
       `CLSID→factory` registry the session can populate. Unit-tested via a stub
       factory.
-- [ ] **MW10-2** `mCoCreateInstance` + `mCoCreateInstanceEx`: off→forward;
+- [x] **MW10-2** `mCoCreateInstance` + `mCoCreateInstanceEx`: off→forward;
       observe `(CLSID, IID, CLSCTX)`; substitute via the registry when a factory
       is registered; map factory / `QueryInterface` failures to the correct
       `HRESULT`.

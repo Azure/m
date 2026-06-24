@@ -230,6 +230,20 @@ pub enum ActivationDisposition {
     Forward,
 }
 
+/// The per-interface disposition of an observed `CoCreateInstanceEx`
+/// multi-`QueryInterface` activation, decided by the policy and carried out by
+/// the ABI body.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ActivationExDisposition {
+    /// No factory is registered (or the mode does not substitute); forward the
+    /// whole call to the real `CoCreateInstanceEx`.
+    Forward,
+    /// Substitute shim-supplied objects: one slot per requested `MULTI_QI`
+    /// entry, in order. `Some(iid)` vends a shim object claiming `iid`; `None`
+    /// fails that slot with `E_NOINTERFACE`.
+    Substitute(Vec<Option<Guid>>),
+}
+
 /// The disposition of an observed `CoGetClassObject` request.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ClassObjectDisposition {
@@ -304,6 +318,49 @@ impl ComState {
             }
         } else {
             ActivationDisposition::Forward
+        }
+    }
+
+    /// Decide how a `CoCreateInstanceEx(clsid, iids, clsctx)` should behave
+    /// (SHIM-D17) — the multi-interface analogue of [`Self::on_create_instance`].
+    ///
+    /// Off mode is a pure forward (no observation). Otherwise every requested
+    /// interface is reported, then in [`ComMode::Substitute`] a registered CLSID
+    /// yields [`ActivationExDisposition::Substitute`] carrying one slot per
+    /// requested `iid` — `Some(iid)` where the factory supports it, `None`
+    /// where it does not. An unregistered CLSID (or any non-substitute mode)
+    /// forwards the whole call (the transparency-for-unregistered-classes
+    /// invariant).
+    pub fn on_create_instance_ex(
+        &mut self,
+        clsid: Guid,
+        iids: &[Guid],
+        clsctx: u32,
+    ) -> ActivationExDisposition {
+        if self.mode == ComMode::Off {
+            return ActivationExDisposition::Forward;
+        }
+        for iid in iids {
+            self.observe(ComEvent::CreateInstance {
+                clsid,
+                iid: *iid,
+                clsctx,
+            });
+        }
+        if self.mode == ComMode::Substitute && self.factories.is_registered(&clsid) {
+            let slots = iids
+                .iter()
+                .map(|iid| {
+                    if self.factories.supports(&clsid, iid) {
+                        Some(*iid)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            ActivationExDisposition::Substitute(slots)
+        } else {
+            ActivationExDisposition::Forward
         }
     }
 
@@ -500,6 +557,60 @@ mod tests {
         assert_eq!(
             sink.events.lock().unwrap().as_slice(),
             &[ComEvent::Initialize, ComEvent::Uninitialize]
+        );
+    }
+
+    #[test]
+    fn off_mode_create_instance_ex_forwards_without_observing() {
+        let sink = RecordingSink::default();
+        let mut com = ComState::new();
+        com.set_sink(Box::new(sink.clone()));
+        com.factories.register(TEST_CLSID, Box::new(StubFactory));
+        assert_eq!(
+            com.on_create_instance_ex(TEST_CLSID, &[SUPPORTED_IID, OTHER_IID], INPROC),
+            ActivationExDisposition::Forward
+        );
+        assert!(sink.events.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn substitute_mode_create_instance_ex_resolves_each_slot() {
+        let sink = RecordingSink::default();
+        let mut com = ComState::new();
+        com.mode = ComMode::Substitute;
+        com.set_sink(Box::new(sink.clone()));
+        com.factories.register(TEST_CLSID, Box::new(StubFactory));
+        // Two slots: the supported IID is vended, the unsupported one is None.
+        assert_eq!(
+            com.on_create_instance_ex(TEST_CLSID, &[SUPPORTED_IID, OTHER_IID], INPROC),
+            ActivationExDisposition::Substitute(vec![Some(SUPPORTED_IID), None])
+        );
+        // Every requested interface was reported, in order.
+        assert_eq!(
+            sink.events.lock().unwrap().as_slice(),
+            &[
+                ComEvent::CreateInstance {
+                    clsid: TEST_CLSID,
+                    iid: SUPPORTED_IID,
+                    clsctx: INPROC,
+                },
+                ComEvent::CreateInstance {
+                    clsid: TEST_CLSID,
+                    iid: OTHER_IID,
+                    clsctx: INPROC,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn substitute_mode_create_instance_ex_forwards_unregistered_class() {
+        let mut com = ComState::new();
+        com.mode = ComMode::Substitute;
+        // No factory registered: the whole multi-QI call forwards transparently.
+        assert_eq!(
+            com.on_create_instance_ex(TEST_CLSID, &[SUPPORTED_IID], INPROC),
+            ActivationExDisposition::Forward
         );
     }
 }

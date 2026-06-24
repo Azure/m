@@ -160,7 +160,7 @@ Realizes the COM half of platform-isolation **D24/D29**. New surface — no C++
 > **CROSS-MILESTONE PREREQUISITE:** MW10 reuses the session mode + observation
 > sink introduced in **MW9-1**; do MW9 first.
 
-- [ ] **MW10-1** Minimal COM plumbing: `IUnknown` / `IClassFactory` vtable
+- [x] **MW10-1** Minimal COM plumbing: `IUnknown` / `IClassFactory` vtable
       scaffolding in the `#[allow(unsafe_code)]` boundary module (raw
       `windows-sys` GUID / HRESULT), plus a safe `ShimClassFactory` trait and a
       `CLSID→factory` registry the session can populate. Unit-tested via a stub

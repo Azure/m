@@ -28,6 +28,7 @@ use windows_platform_isolation::{
     load_registry_hive, save_registry_hive,
 };
 
+use crate::com::ComState;
 use crate::handle_table::HandleTable;
 use crate::loader::LoaderState;
 use crate::pilcfg::{Pilcfg, load_pilcfg};
@@ -74,6 +75,7 @@ pub struct ShimSession {
     filesystem: Mutex<LiveFs>,
     handles: HandleTable,
     loader: Mutex<LoaderState>,
+    com: Mutex<ComState>,
     casing: Win32OrdinalCasing,
     capture_snapshot: String,
 }
@@ -103,6 +105,7 @@ impl ShimSession {
             filesystem: Mutex::new(Filesystem::new(LiveFilesystem::new(casing))),
             handles: HandleTable::new(),
             loader: Mutex::new(LoaderState::new()),
+            com: Mutex::new(ComState::new()),
             casing,
             capture_snapshot: cfg.capture_snapshot,
         }
@@ -158,6 +161,16 @@ impl ShimSession {
     /// observation sink through here.
     pub fn with_loader<R>(&self, f: impl FnOnce(&mut LoaderState) -> R) -> R {
         let mut guard = self.loader.lock().expect("session loader poisoned");
+        f(&mut guard)
+    }
+
+    /// Borrow the COM activation policy state under the session lock (SHIM-D17).
+    ///
+    /// The COM shims (`mCoCreateInstance`, `mCoCreateInstanceEx`,
+    /// `mCoGetClassObject`, and the passthrough lifecycle exports) route their
+    /// class-factory registry and observation sink through here.
+    pub fn with_com<R>(&self, f: impl FnOnce(&mut ComState) -> R) -> R {
+        let mut guard = self.com.lock().expect("session com poisoned");
         f(&mut guard)
     }
 

@@ -39,6 +39,11 @@ pub mod alias_gen;
 // no MSVC tool involved (MW5, SHIM-D4).
 pub mod alias_obj;
 
+// Platform-independent (no `unsafe`, no Windows deps): the safe COM activation
+// policy state (CLSID→factory registry, observation sink, dispositions) the
+// exported `mCo*` bodies route through (MW10, SHIM-D17).
+pub mod com;
+
 #[cfg(windows)]
 pub mod ansi;
 
@@ -53,6 +58,9 @@ pub mod handle_table;
 
 #[cfg(windows)]
 pub mod loader;
+
+#[cfg(windows)]
+pub mod mwincom;
 
 #[cfg(windows)]
 pub mod mwinfile;
@@ -88,6 +96,11 @@ pub use handle_table::{
 pub use loader::{
     EngineSubstitution, LoaderEvent, LoaderMode, LoaderState, ModuleEntry, ModuleTable, NullSink,
     ObservationSink, ProcQuery, RawModule, ShimProc, ShimProcTable,
+};
+
+pub use com::{
+    ClassFactoryRegistry, ComEvent, ComMode, ComObservationSink, ComState, Guid, NullComSink,
+    ShimClassFactory,
 };
 
 #[cfg(windows)]

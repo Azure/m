@@ -202,7 +202,7 @@ names only — no host-specific identifiers.
       `IHttpModuleRegistrationInfo::SetRequestNotifications` → `CHttpModule`)
       and/or a handler-factory acquisition import — using only public SDK names.
       Record the chosen seam in SHIM-D18.
-- [ ] **MW11-3** Intercept the seam: alias the factory-acquisition import (D24,
+- [x] **MW11-3** Intercept the seam: alias the factory-acquisition import (D24,
       MW9/MW10 machinery) or register our module factory, so the host obtains a
       shim-controlled handler. First cut returns a handler that forwards to the
       real one (pass-through).

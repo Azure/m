@@ -32,6 +32,7 @@ use crate::com::ComState;
 use crate::handle_table::HandleTable;
 use crate::loader::LoaderState;
 use crate::pilcfg::{Pilcfg, load_pilcfg};
+use crate::web::WebState;
 
 /// The live filesystem provider the default session routes through: live
 /// passthrough over the real OS filesystem, keyed with the mandated production
@@ -76,6 +77,7 @@ pub struct ShimSession {
     handles: HandleTable,
     loader: Mutex<LoaderState>,
     com: Mutex<ComState>,
+    web: Mutex<WebState>,
     casing: Win32OrdinalCasing,
     capture_snapshot: String,
 }
@@ -106,6 +108,7 @@ impl ShimSession {
             handles: HandleTable::new(),
             loader: Mutex::new(LoaderState::new()),
             com: Mutex::new(ComState::new()),
+            web: Mutex::new(WebState::new()),
             casing,
             capture_snapshot: cfg.capture_snapshot,
         }
@@ -171,6 +174,16 @@ impl ShimSession {
     /// class-factory registry and observation sink through here.
     pub fn with_com<R>(&self, f: impl FnOnce(&mut ComState) -> R) -> R {
         let mut guard = self.com.lock().expect("session com poisoned");
+        f(&mut guard)
+    }
+
+    /// Borrow the web-host policy state under the session lock.
+    ///
+    /// The web-host shim (`mRegisterModule` and the shim `CHttpModule`
+    /// notifications) routes its mode and observation sink through here
+    /// (MW11, SHIM-D18).
+    pub fn with_web<R>(&self, f: impl FnOnce(&mut WebState) -> R) -> R {
+        let mut guard = self.web.lock().expect("session web poisoned");
         f(&mut guard)
     }
 

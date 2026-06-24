@@ -44,6 +44,12 @@ pub mod alias_obj;
 // exported `mCo*` bodies route through (MW10, SHIM-D17).
 pub mod com;
 
+// Platform-independent (no `unsafe`, no Windows deps): the safe web-host
+// activation policy state (mode + observation sink) the exported
+// `mRegisterModule` body and shim `CHttpModule` notifications route through
+// (MW11, SHIM-D18).
+pub mod web;
+
 #[cfg(windows)]
 pub mod ansi;
 
@@ -105,6 +111,8 @@ pub use com::{
     ClassFactoryRegistry, ComEvent, ComMode, ComObservationSink, ComState, Guid, NullComSink,
     ShimClassFactory,
 };
+
+pub use web::{NullWebSink, WebEvent, WebMode, WebObservationSink, WebState};
 
 #[cfg(windows)]
 pub use pilcfg::{Pilcfg, PilcfgError, expand_environment_path, load_pilcfg, parse_pilcfg};

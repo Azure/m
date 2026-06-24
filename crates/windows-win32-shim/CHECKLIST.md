@@ -209,7 +209,7 @@ names only — no host-specific identifiers.
 - [x] **MW11-4** Add any new exports to the dual manifests (`.def` + `.ndjson`,
       drift-guard green); set their aliasing posture (non-opt-in, consistent with
       MW9/MW10).
-- [ ] **MW11-5** *(integration)* In an emulated host harness, the interception
+- [x] **MW11-5** *(integration)* In an emulated host harness, the interception
       hands back our handler and the host drives it; assert pass-through behavior
       and that our code is on the call path.
 

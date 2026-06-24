@@ -20,7 +20,7 @@ Tracks CHECKLIST.md files in this source-component and their status.
   `mCoUninitialize`), a CLSID→factory substitution registry, and minimal
   `IUnknown`/`IClassFactory` plumbing (SHIM-D17). Depends on MW9 for the
   mode/observation seam. New surface — no C++ `mwin32` antecedent.
-- **MW11 — In-process module bootstrap + web-host activation seam (not started):**
+- **MW11 — In-process module bootstrap + web-host activation seam (done):**
   load the shim cdylib into the web host (aliasobj relink), intercept the public
   activation seam (`RegisterModule` / handler-factory acquisition import, D24/D26)
   and hand back a shim-controlled pass-through handler (SHIM-D18). Consumes

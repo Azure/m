@@ -145,7 +145,7 @@ policy; the loader policy tables are shim-local (SHIM-D16 first-cut).
       (every export carries a `/alternatename` entry — contrast `mCloseHandle`'s
       `noalias`); correctness rests on the transparency-for-non-minted-values
       invariant, not on opting out.
-- [ ] **MW9-5** *(integration)* Link-proof + behavior test: a client that
+- [x] **MW9-5** *(integration)* Link-proof + behavior test: a client that
       resolves a shimmed API via genuine `GetProcAddress` (redirected to
       `mGetProcAddress`) lands in the shim body; an engine-substitution sentinel
       returns a shim proc; observation records the resolutions; off-mode is

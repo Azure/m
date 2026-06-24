@@ -8,11 +8,13 @@ Tracks CHECKLIST.md files in this source-component and their status.
 
 ## Newly planned milestones
 
-- **MW9 — Dynamic-loader shims (not started):** `mLoadLibrary*` / `mGetProcAddress`
+- **MW9 — Dynamic-loader shims (done):** `mLoadLibrary*` / `mGetProcAddress`
   / `mFreeLibrary` / `mGetModuleHandle*`, a module handle table, a name→shim-proc
   redirection table, an engine-substitution sentinel, and a session observation
   sink (D29). Realizes platform-isolation **D26** (SHIM-D16). New surface — no
-  C++ `mwin32` antecedent.
+  C++ `mwin32` antecedent. Off-mode is byte-for-byte transparent; the loader
+  family is non-opt-in in the alias roster; behavior proven end-to-end in
+  `tests/loader.rs`.
 - **MW10 — COM activation shims (not started):** `mCoCreateInstance` /
   `mCoCreateInstanceEx` / `mCoGetClassObject` (+ passthrough `mCoInitialize*` /
   `mCoUninitialize`), a CLSID→factory substitution registry, and minimal

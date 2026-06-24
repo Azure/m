@@ -353,7 +353,7 @@ heavy-traffic optimization, not the scheduled entry path.
       request/response exchange (and/or the notification points
       `on_begin_request` / `on_send_response`) in terms of borrowed request /
       response models, independent of any Windows or COM type.
-- [ ] **M8-2** `IdentityHandler` decorator — a **true pass-through** that forwards
+- [x] **M8-2** `IdentityHandler` decorator — a **true pass-through** that forwards
       to the inner handler and returns its disposition unchanged (D25 "off" =
       identity; the "no behavior change today" endpoint).
 - [ ] **M8-3** `JournalingHandler` decorator — records each exchange to the

@@ -55,7 +55,7 @@ pub use registry::{Registry, Session, WellKnownRoot};
 pub use serial::{load_registry_hive, save_registry_hive};
 pub use surface::{Request, Response, Surface, TreeSurface};
 pub use tree::{Hive, OverlayTree, ValueData, ValueType};
-pub use web::{Disposition, Header, HttpRequest, HttpResponse, RequestHandler};
+pub use web::{Disposition, Header, HttpRequest, HttpResponse, IdentityHandler, RequestHandler};
 
 // The UTF-16 string type and ordinal-casing seam now live in the standalone
 // `windows-text` crate (D16 charter; CHECKLIST M2/M3). Re-exported here for API

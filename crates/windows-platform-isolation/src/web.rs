@@ -215,6 +215,43 @@ pub trait RequestHandler {
     fn on_send_response(&mut self, response: &mut HttpResponse) -> Disposition;
 }
 
+/// A transparent handler decorator (M8-2): forwards both notification points to
+/// the inner handler and returns its disposition unchanged. This is the web
+/// analogue of [`PassThrough`](crate::PassThrough) and the **D25 "off"**
+/// behavior — code is resident on the response path but alters nothing (the "no
+/// behavior change today" endpoint). It never inspects or mutates the response.
+pub struct IdentityHandler<H: RequestHandler> {
+    inner: H,
+}
+
+impl<H: RequestHandler> IdentityHandler<H> {
+    /// Wrap an inner handler.
+    pub fn new(inner: H) -> Self {
+        Self { inner }
+    }
+
+    /// Borrow the inner handler.
+    #[must_use]
+    pub fn inner(&self) -> &H {
+        &self.inner
+    }
+
+    /// Recover the inner handler.
+    pub fn into_inner(self) -> H {
+        self.inner
+    }
+}
+
+impl<H: RequestHandler> RequestHandler for IdentityHandler<H> {
+    fn on_begin_request(&mut self, request: &HttpRequest) -> Disposition {
+        self.inner.on_begin_request(request)
+    }
+
+    fn on_send_response(&mut self, response: &mut HttpResponse) -> Disposition {
+        self.inner.on_send_response(response)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,5 +317,60 @@ mod tests {
         assert_eq!(h.on_begin_request(&req), Disposition::Continue);
         assert_eq!(h.on_send_response(&mut resp), Disposition::Continue);
         assert_eq!((h.begins, h.sends), (1, 1));
+    }
+
+    /// A leaf handler that *does* alter the response and returns a chosen
+    /// disposition, so a decorator's pass-through fidelity can be proven.
+    struct MutatingHandler {
+        new_status: u16,
+        disposition: Disposition,
+    }
+
+    impl RequestHandler for MutatingHandler {
+        fn on_begin_request(&mut self, _request: &HttpRequest) -> Disposition {
+            Disposition::Continue
+        }
+
+        fn on_send_response(&mut self, response: &mut HttpResponse) -> Disposition {
+            response.set_status(self.new_status);
+            response.push_header("X-Handler", "mutating");
+            self.disposition
+        }
+    }
+
+    #[test]
+    fn identity_forwards_dispositions_and_counts() {
+        let mut h = IdentityHandler::new(StubHandler::new());
+        let req = HttpRequest::new("POST", "/submit");
+        let mut resp = HttpResponse::new(200);
+        assert_eq!(h.on_begin_request(&req), Disposition::Continue);
+        assert_eq!(h.on_send_response(&mut resp), Disposition::Continue);
+        // Identity adds nothing of its own: the inner handler saw both calls.
+        assert_eq!((h.inner().begins, h.inner().sends), (1, 1));
+    }
+
+    #[test]
+    fn identity_is_byte_identical_to_undecorated() {
+        let req = HttpRequest::new("GET", "/page");
+        // Bare inner handler.
+        let mut bare = MutatingHandler {
+            new_status: 503,
+            disposition: Disposition::FinishRequest,
+        };
+        let mut bare_resp = HttpResponse::new(200);
+        let bare_begin = bare.on_begin_request(&req);
+        let bare_send = bare.on_send_response(&mut bare_resp);
+        // Same inner handler behind identity.
+        let mut wrapped = IdentityHandler::new(MutatingHandler {
+            new_status: 503,
+            disposition: Disposition::FinishRequest,
+        });
+        let mut wrapped_resp = HttpResponse::new(200);
+        let wrapped_begin = wrapped.on_begin_request(&req);
+        let wrapped_send = wrapped.on_send_response(&mut wrapped_resp);
+        // Dispositions and the resulting response are identical.
+        assert_eq!(bare_begin, wrapped_begin);
+        assert_eq!(bare_send, wrapped_send);
+        assert_eq!(bare_resp, wrapped_resp);
     }
 }

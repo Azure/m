@@ -41,11 +41,11 @@ use core::sync::atomic::{AtomicU32, Ordering, fence};
 
 use windows_sys::Win32::Foundation::{BOOL, E_INVALIDARG, E_NOINTERFACE, E_POINTER, S_OK};
 use windows_sys::Win32::System::Com::{
-    CLSCTX, COSERVERINFO, CoCreateInstance, CoCreateInstanceEx, MULTI_QI,
+    CLSCTX, COSERVERINFO, CoCreateInstance, CoCreateInstanceEx, CoGetClassObject, MULTI_QI,
 };
 use windows_sys::core::{GUID, HRESULT};
 
-use crate::com::{ActivationDisposition, ActivationExDisposition, Guid};
+use crate::com::{ActivationDisposition, ActivationExDisposition, ClassObjectDisposition, Guid};
 use crate::session::session;
 
 /// `CLASS_E_NOAGGREGATION` — the COM error a class object returns when asked to
@@ -437,6 +437,48 @@ pub extern "system" fn mCoCreateInstanceEx(
             } else {
                 CO_S_NOTALLINTERFACES
             }
+        }
+    }
+}
+
+/// `mCoGetClassObject` — the class-object activation shim. Off mode and any
+/// unregistered CLSID forward verbatim to the real ole32 `CoGetClassObject`; in
+/// substitute mode a registered CLSID vends a shim `IClassFactory` (when the
+/// caller asks for `IUnknown` / `IClassFactory`, else `E_NOINTERFACE`).
+#[unsafe(no_mangle)]
+pub extern "system" fn mCoGetClassObject(
+    rclsid: *const GUID,
+    dwclscontext: CLSCTX,
+    pvreserved: *const c_void,
+    riid: *const GUID,
+    ppv: *mut *mut c_void,
+) -> HRESULT {
+    if ppv.is_null() {
+        return E_POINTER;
+    }
+    // SAFETY: ppv is non-null (checked above).
+    unsafe { *ppv = null_mut() };
+    if rclsid.is_null() || riid.is_null() {
+        return E_POINTER;
+    }
+    // SAFETY: rclsid / riid are non-null caller GUIDs.
+    let clsid = to_guid(unsafe { &*rclsid });
+    // SAFETY: riid is a non-null caller GUID.
+    let iid = to_guid(unsafe { &*riid });
+    match session().with_com(|com| com.on_get_class_object(clsid, iid, dwclscontext)) {
+        ClassObjectDisposition::Factory(iids) => {
+            // A shim class object only implements IUnknown / IClassFactory.
+            if iid == IID_IUNKNOWN || iid == IID_ICLASSFACTORY {
+                // SAFETY: ppv is non-null.
+                unsafe { *ppv = mint_shim_factory(iids) };
+                S_OK
+            } else {
+                E_NOINTERFACE
+            }
+        }
+        ClassObjectDisposition::Forward => {
+            // SAFETY: forward the caller's verbatim arguments to real ole32.
+            unsafe { CoGetClassObject(rclsid, dwclscontext, pvreserved, riid, ppv) }
         }
     }
 }

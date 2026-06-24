@@ -169,7 +169,7 @@ Realizes the COM half of platform-isolation **D24/D29**. New surface — no C++
       observe `(CLSID, IID, CLSCTX)`; substitute via the registry when a factory
       is registered; map factory / `QueryInterface` failures to the correct
       `HRESULT`.
-- [ ] **MW10-3** `mCoGetClassObject`: off→forward; observe; return a shim class
+- [x] **MW10-3** `mCoGetClassObject`: off→forward; observe; return a shim class
       factory for a registered CLSID, else forward to real activation.
 - [ ] **MW10-4** Passthrough lifecycle exports (`mCoInitialize` /
       `mCoInitializeEx` / `mCoUninitialize`) + add all MW10 exports to the dual

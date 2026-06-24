@@ -25,7 +25,7 @@ Tracks CHECKLIST.md files in this source-component and their status.
   activation seam (`RegisterModule` / handler-factory acquisition import, D24/D26)
   and hand back a shim-controlled pass-through handler (SHIM-D18). Consumes
   platform-isolation **M8**.
-- **MW12 — Response-path bridge to the safe handler surface (not started):**
+- **MW12 — Response-path bridge to the safe handler surface (done):**
   unsafe vtable bridge translating the host's per-request notifications into the
   safe `RequestHandler` trait, wiring the identity decorator so behavior is
   unchanged today (SHIM-D18). Builds on MW11; consumes platform-isolation **M8**.

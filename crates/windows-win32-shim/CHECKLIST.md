@@ -235,7 +235,7 @@ change today" endpoint.
 - [x] **MW12-4** Optional journaling path: swap in the platform-isolation
       `JournalingHandler` under record mode, observing each request without
       changing the response (D29 volume policy applies).
-- [ ] **MW12-5** *(integration)* End-to-end: a request flows through a real or
+- [x] **MW12-5** *(integration)* End-to-end: a request flows through a real or
       emulated host into our bridge and the identity decorator and back; assert
       the response is byte-identical to the un-shimmed path.
 

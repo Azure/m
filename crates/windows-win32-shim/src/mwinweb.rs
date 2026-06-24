@@ -42,6 +42,13 @@ use crate::session::session;
 /// Changing it is meaningless, not a breaking change of ours.
 const RQ_NOTIFICATION_CONTINUE: i32 = 0;
 
+/// `RQ_NOTIFICATION_FINISH_REQUEST` — the `REQUEST_NOTIFICATION_STATUS` value
+/// that tells the host to stop the pipeline and finish the request now. Fixed by
+/// IIS (`2`); the bridge returns it when a handler dispositions
+/// [`Disposition::FinishRequest`]. Changing it is meaningless, not a breaking
+/// change of ours.
+const RQ_NOTIFICATION_FINISH_REQUEST: i32 = 2;
+
 /// `RQ_BEGIN_REQUEST` — the request-notification flag for the begin-request
 /// stage. Fixed by IIS (`0x0000_0001`); the shim registers for it so its module
 /// runs at the start of each request.
@@ -242,6 +249,22 @@ unsafe fn decode_response(context: *mut c_void) -> HttpResponse {
     HttpResponse::new(status)
 }
 
+/// Map a safe-handler [`Disposition`] back to the host's
+/// `REQUEST_NOTIFICATION_STATUS` (MW12-3). The two outcomes round-trip exactly:
+/// [`Disposition::Continue`] -> [`RQ_NOTIFICATION_CONTINUE`] and
+/// [`Disposition::FinishRequest`] -> [`RQ_NOTIFICATION_FINISH_REQUEST`].
+///
+/// The M8 handler surface has no *error* disposition, so there is no error code
+/// to map here; the HRESULT-returning entry points
+/// ([`mRegisterModule`] / [`factory_get_http_module`]) own their own
+/// `S_OK` / `E_POINTER` round-trip and are unaffected.
+fn disposition_to_status(disposition: Disposition) -> i32 {
+    match disposition {
+        Disposition::Continue => RQ_NOTIFICATION_CONTINUE,
+        Disposition::FinishRequest => RQ_NOTIFICATION_FINISH_REQUEST,
+    }
+}
+
 // --- Shim-vended objects ----------------------------------------------------
 
 /// The shim's `IHttpModuleFactory`: a heap object whose first field is the
@@ -344,11 +367,7 @@ unsafe extern "system" fn module_on_begin_request(
     let request = unsafe { decode_request(context) };
     // SAFETY: drive the per-module handler stack on the request thread.
     let disposition = unsafe { (*module).handler.on_begin_request(&request) };
-    // MW12-2: the identity decorator over the continue-leaf forwards Continue
-    // unchanged; only Continue is reachable today. The full disposition ->
-    // REQUEST_NOTIFICATION_STATUS table (finish-request) is wired in MW12-3.
-    debug_assert!(matches!(disposition, Disposition::Continue));
-    RQ_NOTIFICATION_CONTINUE
+    disposition_to_status(disposition)
 }
 
 /// `CHttpModule::OnSendResponse`: record the traversal, then bridge the host
@@ -370,8 +389,7 @@ unsafe extern "system" fn module_on_send_response(
     let mut response = unsafe { decode_response(context) };
     // SAFETY: drive the per-module handler stack on the request thread.
     let disposition = unsafe { (*module).handler.on_send_response(&mut response) };
-    debug_assert!(matches!(disposition, Disposition::Continue));
-    RQ_NOTIFICATION_CONTINUE
+    disposition_to_status(disposition)
 }
 
 /// `CHttpModule::Dispose`: reclaim the module allocation.
@@ -653,6 +671,20 @@ mod tests {
         // SAFETY: as above.
         let response = unsafe { decode_response(null_mut()) };
         assert_eq!(response, HttpResponse::default());
+    }
+
+    // --- MW12-3: disposition mapping ----------------------------------------
+
+    #[test]
+    fn disposition_round_trips_to_host_status_codes() {
+        assert_eq!(
+            disposition_to_status(Disposition::Continue),
+            RQ_NOTIFICATION_CONTINUE
+        );
+        assert_eq!(
+            disposition_to_status(Disposition::FinishRequest),
+            RQ_NOTIFICATION_FINISH_REQUEST
+        );
     }
 }
 

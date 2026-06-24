@@ -230,7 +230,7 @@ change today" endpoint.
 - [x] **MW12-2** Wire the platform-isolation `IdentityHandler` as the active
       handler (D25 off): forward every notification to the real handler, return
       its disposition unchanged.
-- [ ] **MW12-3** Map handler dispositions back to host notification return codes /
+- [x] **MW12-3** Map handler dispositions back to host notification return codes /
       `HRESULT`; ensure error and continue/finish outcomes round-trip exactly.
 - [ ] **MW12-4** Optional journaling path: swap in the platform-isolation
       `JournalingHandler` under record mode, observing each request without

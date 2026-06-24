@@ -32,6 +32,7 @@ use core::ffi::c_void;
 
 use windows_sys::Win32::Foundation::{E_POINTER, S_OK};
 use windows_sys::core::{GUID, HRESULT};
+use windows_platform_isolation::{HttpRequest, HttpResponse};
 
 use crate::session::session;
 
@@ -106,6 +107,143 @@ struct CHttpModuleVtbl {
     on_begin_request: unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_void) -> i32,
     on_send_response: unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_void) -> i32,
     dispose: unsafe extern "system" fn(*mut c_void),
+}
+
+// --- Host per-request interfaces (modeled subsets, MW12) ---------------------
+
+/// The `IHttpContext` vtable layout (host-provided, modeled subset): the two
+/// accessors the bridge uses to reach the request and response for a
+/// notification. The real interface is far larger; only the slots the bridge
+/// reads are modeled (SHIM-D18), and the precise layout is pinned when a real
+/// host is bound.
+#[repr(C)]
+struct IHttpContextVtbl {
+    get_request: unsafe extern "system" fn(*mut c_void) -> *mut c_void,
+    get_response: unsafe extern "system" fn(*mut c_void) -> *mut c_void,
+}
+
+/// The `IHttpRequest` vtable layout (host-provided, modeled subset). The method
+/// is an ANSI `PCSTR` and the URL a wide `PCWSTR`, matching IIS
+/// (`GetHttpMethod` / the cooked-URL full URL); the rest of the interface is
+/// elided until a scenario needs it.
+#[repr(C)]
+struct IHttpRequestVtbl {
+    get_http_method: unsafe extern "system" fn(*mut c_void) -> *const u8,
+    get_http_url: unsafe extern "system" fn(*mut c_void) -> *const u16,
+}
+
+/// The `IHttpResponse` vtable layout (host-provided, modeled subset): the status
+/// accessor the bridge reads to build the response model. A compact stand-in for
+/// `GetStatus` (whose real form returns the code through an out-parameter).
+#[repr(C)]
+struct IHttpResponseVtbl {
+    get_status: unsafe extern "system" fn(*mut c_void) -> u16,
+}
+
+/// Read a NUL-terminated ANSI `PCSTR` into an owned `String` (lossy UTF-8). An
+/// empty string for a null pointer.
+///
+/// # Safety
+///
+/// `ptr` must be null or point at a NUL-terminated byte string the host owns for
+/// the duration of the call.
+#[allow(dead_code)]
+unsafe fn pcstr_to_string(ptr: *const u8) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    let mut len = 0usize;
+    // SAFETY: ptr is a NUL-terminated C string; scan to the terminator.
+    while unsafe { *ptr.add(len) } != 0 {
+        len += 1;
+    }
+    // SAFETY: the first `len` bytes are valid and initialized.
+    let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// Read a NUL-terminated wide `PCWSTR` into an owned `String` (lossy UTF-16). An
+/// empty string for a null pointer.
+///
+/// # Safety
+///
+/// `ptr` must be null or point at a NUL-terminated UTF-16 string the host owns
+/// for the duration of the call.
+#[allow(dead_code)]
+unsafe fn pcwstr_to_string(ptr: *const u16) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    let mut len = 0usize;
+    // SAFETY: ptr is a NUL-terminated wide string; scan to the terminator.
+    while unsafe { *ptr.add(len) } != 0 {
+        len += 1;
+    }
+    // SAFETY: the first `len` units are valid and initialized.
+    let units = unsafe { core::slice::from_raw_parts(ptr, len) };
+    String::from_utf16_lossy(units)
+}
+
+/// Translate the host's `IHttpContext` into a borrowed-model [`HttpRequest`]
+/// (SHIM-D18 / SHIM-D2). A null context (or null request) yields the default
+/// empty request, so a host that drives a notification without request data is
+/// tolerated. Only the modeled subset (method + URL) is read; headers and body
+/// are deferred until a scenario needs them.
+///
+/// # Safety
+///
+/// `context` must be null or a live `IHttpContext` whose first field is its
+/// vtable pointer, owned by the host for the duration of the call.
+#[allow(dead_code)]
+unsafe fn decode_request(context: *mut c_void) -> HttpRequest {
+    if context.is_null() {
+        return HttpRequest::default();
+    }
+    // SAFETY: context's first field is its vtable pointer.
+    let ctx_vtbl = unsafe { *context.cast::<*const IHttpContextVtbl>() };
+    // SAFETY: call the host accessor to reach the request.
+    let request = unsafe { ((*ctx_vtbl).get_request)(context) };
+    if request.is_null() {
+        return HttpRequest::default();
+    }
+    // SAFETY: request's first field is its vtable pointer.
+    let req_vtbl = unsafe { *request.cast::<*const IHttpRequestVtbl>() };
+    // SAFETY: call the host accessors for the method and URL.
+    let method_ptr = unsafe { ((*req_vtbl).get_http_method)(request) };
+    let url_ptr = unsafe { ((*req_vtbl).get_http_url)(request) };
+    // SAFETY: the accessors return NUL-terminated host strings (or null).
+    let method = unsafe { pcstr_to_string(method_ptr) };
+    // SAFETY: as above for the wide URL.
+    let url = unsafe { pcwstr_to_string(url_ptr) };
+    HttpRequest::new(method, url)
+}
+
+/// Translate the host's `IHttpContext` into a borrowed-model [`HttpResponse`]
+/// (SHIM-D18 / SHIM-D2). A null context (or null response) yields the default
+/// empty response. Only the modeled subset (status) is read; headers and body
+/// are deferred.
+///
+/// # Safety
+///
+/// `context` must be null or a live `IHttpContext` whose first field is its
+/// vtable pointer, owned by the host for the duration of the call.
+#[allow(dead_code)]
+unsafe fn decode_response(context: *mut c_void) -> HttpResponse {
+    if context.is_null() {
+        return HttpResponse::default();
+    }
+    // SAFETY: context's first field is its vtable pointer.
+    let ctx_vtbl = unsafe { *context.cast::<*const IHttpContextVtbl>() };
+    // SAFETY: call the host accessor to reach the response.
+    let response = unsafe { ((*ctx_vtbl).get_response)(context) };
+    if response.is_null() {
+        return HttpResponse::default();
+    }
+    // SAFETY: response's first field is its vtable pointer.
+    let resp_vtbl = unsafe { *response.cast::<*const IHttpResponseVtbl>() };
+    // SAFETY: call the host accessor for the status code.
+    let status = unsafe { ((*resp_vtbl).get_status)(response) };
+    HttpResponse::new(status)
 }
 
 // --- Shim-vended objects ----------------------------------------------------
@@ -388,6 +526,108 @@ mod tests {
     #[test]
     fn register_module_rejects_a_null_registration_info() {
         assert_eq!(mRegisterModule(0, null_mut(), null_mut()), E_POINTER);
+    }
+
+    // --- MW12-1: per-request bridge decode ----------------------------------
+
+    /// An emulated `IHttpRequest` carrying a method and URL.
+    #[repr(C)]
+    struct FakeRequest {
+        vtable: *const IHttpRequestVtbl,
+        method: *const u8,
+        url: *const u16,
+    }
+
+    /// An emulated `IHttpResponse` carrying a status code.
+    #[repr(C)]
+    struct FakeResponse {
+        vtable: *const IHttpResponseVtbl,
+        status: u16,
+    }
+
+    /// An emulated `IHttpContext` vending a request and response.
+    #[repr(C)]
+    struct FakeContext {
+        vtable: *const IHttpContextVtbl,
+        request: *mut c_void,
+        response: *mut c_void,
+    }
+
+    unsafe extern "system" fn fake_get_request(this: *mut c_void) -> *mut c_void {
+        // SAFETY: this is a live FakeContext.
+        unsafe { (*this.cast::<FakeContext>()).request }
+    }
+
+    unsafe extern "system" fn fake_get_response(this: *mut c_void) -> *mut c_void {
+        // SAFETY: this is a live FakeContext.
+        unsafe { (*this.cast::<FakeContext>()).response }
+    }
+
+    unsafe extern "system" fn fake_get_http_method(this: *mut c_void) -> *const u8 {
+        // SAFETY: this is a live FakeRequest.
+        unsafe { (*this.cast::<FakeRequest>()).method }
+    }
+
+    unsafe extern "system" fn fake_get_http_url(this: *mut c_void) -> *const u16 {
+        // SAFETY: this is a live FakeRequest.
+        unsafe { (*this.cast::<FakeRequest>()).url }
+    }
+
+    unsafe extern "system" fn fake_get_status(this: *mut c_void) -> u16 {
+        // SAFETY: this is a live FakeResponse.
+        unsafe { (*this.cast::<FakeResponse>()).status }
+    }
+
+    static FAKE_CONTEXT_VTBL: IHttpContextVtbl = IHttpContextVtbl {
+        get_request: fake_get_request,
+        get_response: fake_get_response,
+    };
+    static FAKE_REQUEST_VTBL: IHttpRequestVtbl = IHttpRequestVtbl {
+        get_http_method: fake_get_http_method,
+        get_http_url: fake_get_http_url,
+    };
+    static FAKE_RESPONSE_VTBL: IHttpResponseVtbl = IHttpResponseVtbl {
+        get_status: fake_get_status,
+    };
+
+    #[test]
+    fn decode_translates_method_url_and_status_from_the_host() {
+        let method = b"GET\0";
+        let url: Vec<u16> = "/index.html\0".encode_utf16().collect();
+        let mut request = FakeRequest {
+            vtable: &FAKE_REQUEST_VTBL,
+            method: method.as_ptr(),
+            url: url.as_ptr(),
+        };
+        let mut response = FakeResponse {
+            vtable: &FAKE_RESPONSE_VTBL,
+            status: 200,
+        };
+        let mut context = FakeContext {
+            vtable: &FAKE_CONTEXT_VTBL,
+            request: (&mut request as *mut FakeRequest).cast(),
+            response: (&mut response as *mut FakeResponse).cast(),
+        };
+        let ctx_ptr = (&mut context as *mut FakeContext).cast();
+
+        // SAFETY: ctx_ptr is a live FakeContext exposing the modeled vtables.
+        let decoded_request = unsafe { decode_request(ctx_ptr) };
+        assert_eq!(decoded_request.method(), "GET");
+        assert_eq!(decoded_request.url(), "/index.html");
+
+        // SAFETY: as above.
+        let decoded_response = unsafe { decode_response(ctx_ptr) };
+        assert_eq!(decoded_response.status(), 200);
+    }
+
+    #[test]
+    fn decode_tolerates_a_null_context() {
+        // SAFETY: a null context is explicitly handled.
+        let request = unsafe { decode_request(null_mut()) };
+        assert_eq!(request, HttpRequest::default());
+        // SAFETY: as above.
+        let response = unsafe { decode_response(null_mut()) };
+        assert_eq!(response, HttpResponse::default());
     }
 }
 

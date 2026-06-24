@@ -223,7 +223,7 @@ change today" endpoint.
 > **CROSS-COMPONENT PREREQUISITE:** `windows-platform-isolation` → **M8**
 > (handler surface + identity decorator); builds on **MW11**.
 
-- [ ] **MW12-1** Unsafe vtable bridge: translate the host's per-request
+- [x] **MW12-1** Unsafe vtable bridge: translate the host's per-request
       notifications (`OnBeginRequest` / `OnSendResponse`, raw `IHttpContext` /
       request-response pointers) into borrowed models for the safe trait, in the
       `#[allow(unsafe_code)]` boundary module (SHIM-D2).

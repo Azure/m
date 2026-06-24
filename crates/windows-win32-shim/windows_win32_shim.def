@@ -265,6 +265,18 @@ mSetFileAttributesA
  mCoUninitialize
 
 ; ============================================================================
+; Web host activation (mwinweb.rs)
+; ============================================================================
+; The in-process web-host seam (SHIM-D18). `RegisterModule` is non-opt-in:
+; redirecting the relinked host's module-registration entry is the whole
+; mechanism by which the shim reaches the response path, so it carries
+; `/alternatename` like the loader / COM families. The residency probe
+; `mShimWebProbe` is shim-internal (no Win32 antecedent) and is therefore
+; exported but absent from the alias roster.
+
+ mRegisterModule
+
+; ============================================================================
 ; WebCore — out of scope for this shim (SHIM-D5); listed for parity only.
 ; ============================================================================
 ;mWebCoreActivate

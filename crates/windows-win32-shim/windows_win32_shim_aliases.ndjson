@@ -265,6 +265,16 @@
 {"win32":"CoUninitialize","shim":"mCoUninitialize"}
 
 # ============================================================================
+# Web host activation (mwinweb.rs)
+# ============================================================================
+# The in-process web-host seam (SHIM-D18). `RegisterModule` is non-opt-in: it
+# auto-redirects (no "alias":false) so the relinked host's module-registration
+# entry flows into the shim's request handler. The residency probe
+# `mShimWebProbe` is shim-internal (no Win32 antecedent) and is therefore absent
+# from this roster.
+{"win32":"RegisterModule","shim":"mRegisterModule"}
+
+# ============================================================================
 # WebCore — out of scope for this shim (SHIM-D5); listed for parity only.
 # ============================================================================
 # {"win32":"WebCoreActivate","shim":"mWebCoreActivate"}

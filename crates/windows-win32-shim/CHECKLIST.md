@@ -206,7 +206,7 @@ names only — no host-specific identifiers.
       MW9/MW10 machinery) or register our module factory, so the host obtains a
       shim-controlled handler. First cut returns a handler that forwards to the
       real one (pass-through).
-- [ ] **MW11-4** Add any new exports to the dual manifests (`.def` + `.ndjson`,
+- [x] **MW11-4** Add any new exports to the dual manifests (`.def` + `.ndjson`,
       drift-guard green); set their aliasing posture (non-opt-in, consistent with
       MW9/MW10).
 - [ ] **MW11-5** *(integration)* In an emulated host harness, the interception

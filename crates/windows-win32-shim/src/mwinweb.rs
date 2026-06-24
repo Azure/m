@@ -32,7 +32,7 @@ use core::ffi::c_void;
 
 use windows_sys::Win32::Foundation::{E_POINTER, S_OK};
 use windows_sys::core::{GUID, HRESULT};
-use windows_platform_isolation::{HttpRequest, HttpResponse};
+use windows_platform_isolation::{Disposition, HttpRequest, HttpResponse, RequestHandler};
 
 use crate::session::session;
 
@@ -147,7 +147,6 @@ struct IHttpResponseVtbl {
 ///
 /// `ptr` must be null or point at a NUL-terminated byte string the host owns for
 /// the duration of the call.
-#[allow(dead_code)]
 unsafe fn pcstr_to_string(ptr: *const u8) -> String {
     if ptr.is_null() {
         return String::new();
@@ -169,7 +168,6 @@ unsafe fn pcstr_to_string(ptr: *const u8) -> String {
 ///
 /// `ptr` must be null or point at a NUL-terminated UTF-16 string the host owns
 /// for the duration of the call.
-#[allow(dead_code)]
 unsafe fn pcwstr_to_string(ptr: *const u16) -> String {
     if ptr.is_null() {
         return String::new();
@@ -194,7 +192,6 @@ unsafe fn pcwstr_to_string(ptr: *const u16) -> String {
 ///
 /// `context` must be null or a live `IHttpContext` whose first field is its
 /// vtable pointer, owned by the host for the duration of the call.
-#[allow(dead_code)]
 unsafe fn decode_request(context: *mut c_void) -> HttpRequest {
     if context.is_null() {
         return HttpRequest::default();
@@ -227,7 +224,6 @@ unsafe fn decode_request(context: *mut c_void) -> HttpRequest {
 ///
 /// `context` must be null or a live `IHttpContext` whose first field is its
 /// vtable pointer, owned by the host for the duration of the call.
-#[allow(dead_code)]
 unsafe fn decode_response(context: *mut c_void) -> HttpResponse {
     if context.is_null() {
         return HttpResponse::default();
@@ -264,9 +260,12 @@ struct ShimModuleFactory {
 #[repr(C)]
 struct ShimHttpModule {
     /// Dispatched through by the host via the vtable contract, never read by
-    /// Rust.
+    /// Rust. Must stay first so the host's pointer-to-object reads the vtable.
     #[allow(dead_code)]
     vtable: *const CHttpModuleVtbl,
+    /// The per-request safe handler stack (MW12) the notifications drive. A
+    /// shim-private field the host never reads.
+    handler: Box<dyn RequestHandler>,
 }
 
 /// The single shared factory vtable every [`ShimModuleFactory`] points at.
@@ -292,16 +291,18 @@ fn mint_shim_module_factory() -> *mut c_void {
 }
 
 /// Mint a shim `CHttpModule`, returning a heap pointer the host releases via
-/// `Dispose`.
-fn mint_shim_http_module() -> *mut c_void {
+/// `Dispose`. The module owns the per-request handler stack it drives (MW12).
+fn mint_shim_http_module(handler: Box<dyn RequestHandler>) -> *mut c_void {
     let module = Box::new(ShimHttpModule {
         vtable: &SHIM_HTTP_MODULE_VTBL,
+        handler,
     });
     Box::into_raw(module).cast::<c_void>()
 }
 
 /// `IHttpModuleFactory::GetHttpModule`: vend a shim `CHttpModule` and record the
-/// acquisition. Pass-through first cut — the module forwards every notification.
+/// acquisition. The module is minted with the session's current handler stack
+/// (MW12) so each request is bridged into the safe `RequestHandler` surface.
 unsafe extern "system" fn factory_get_http_module(
     _this: *mut c_void,
     pp_module: *mut *mut c_void,
@@ -310,7 +311,8 @@ unsafe extern "system" fn factory_get_http_module(
     if pp_module.is_null() {
         return E_POINTER;
     }
-    let module = mint_shim_http_module();
+    let handler = session().with_web(|web| web.build_handler());
+    let module = mint_shim_http_module(handler);
     // SAFETY: pp_module is non-null (checked above); write the out-param.
     unsafe { *pp_module = module };
     session().with_web(|web| web.on_get_http_module());
@@ -327,25 +329,48 @@ unsafe extern "system" fn factory_terminate(this: *mut c_void) {
     drop(unsafe { Box::from_raw(this.cast::<ShimModuleFactory>()) });
 }
 
-/// `CHttpModule::OnBeginRequest`: record the traversal and continue the pipeline
-/// unchanged (the pass-through disposition, MW11).
+/// `CHttpModule::OnBeginRequest`: record the traversal, then bridge the host
+/// request into the safe handler stack and return its disposition (MW12). The
+/// MW11 seam marker is kept as the coarse on-path signal.
 unsafe extern "system" fn module_on_begin_request(
-    _this: *mut c_void,
-    _context: *mut c_void,
+    this: *mut c_void,
+    context: *mut c_void,
     _provider: *mut c_void,
 ) -> i32 {
     session().with_web(|web| web.on_begin_request());
+    // SAFETY: this is a live ShimHttpModule minted by mint_shim_http_module.
+    let module = this.cast::<ShimHttpModule>();
+    // SAFETY: decode the host request (tolerates a null context).
+    let request = unsafe { decode_request(context) };
+    // SAFETY: drive the per-module handler stack on the request thread.
+    let disposition = unsafe { (*module).handler.on_begin_request(&request) };
+    // MW12-2: the identity decorator over the continue-leaf forwards Continue
+    // unchanged; only Continue is reachable today. The full disposition ->
+    // REQUEST_NOTIFICATION_STATUS table (finish-request) is wired in MW12-3.
+    debug_assert!(matches!(disposition, Disposition::Continue));
     RQ_NOTIFICATION_CONTINUE
 }
 
-/// `CHttpModule::OnSendResponse`: record the traversal and continue the pipeline
-/// unchanged (the pass-through disposition, MW11).
+/// `CHttpModule::OnSendResponse`: record the traversal, then bridge the host
+/// response into the safe handler stack and return its disposition (MW12).
+///
+/// Pass-through: the (handler-visible) response model is **not** written back to
+/// the host. The identity and journaling stacks never mutate it, so the host
+/// response is byte-identical to the un-shimmed path; a future redirecting mode
+/// will diff the model and flush only real changes.
 unsafe extern "system" fn module_on_send_response(
-    _this: *mut c_void,
-    _context: *mut c_void,
+    this: *mut c_void,
+    context: *mut c_void,
     _provider: *mut c_void,
 ) -> i32 {
     session().with_web(|web| web.on_send_response());
+    // SAFETY: this is a live ShimHttpModule minted by mint_shim_http_module.
+    let module = this.cast::<ShimHttpModule>();
+    // SAFETY: decode the host response (tolerates a null context).
+    let mut response = unsafe { decode_response(context) };
+    // SAFETY: drive the per-module handler stack on the request thread.
+    let disposition = unsafe { (*module).handler.on_send_response(&mut response) };
+    debug_assert!(matches!(disposition, Disposition::Continue));
     RQ_NOTIFICATION_CONTINUE
 }
 

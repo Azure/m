@@ -227,7 +227,7 @@ change today" endpoint.
       notifications (`OnBeginRequest` / `OnSendResponse`, raw `IHttpContext` /
       request-response pointers) into borrowed models for the safe trait, in the
       `#[allow(unsafe_code)]` boundary module (SHIM-D2).
-- [ ] **MW12-2** Wire the platform-isolation `IdentityHandler` as the active
+- [x] **MW12-2** Wire the platform-isolation `IdentityHandler` as the active
       handler (D25 off): forward every notification to the real handler, return
       its disposition unchanged.
 - [ ] **MW12-3** Map handler dispositions back to host notification return codes /

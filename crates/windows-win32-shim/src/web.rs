@@ -17,6 +17,10 @@
 //! family gates substitution/observation (SHIM-D17). Installation is
 //! unconditional in both modes; being resident on the path is the point.
 
+use windows_platform_isolation::{
+    Disposition, HttpRequest, HttpResponse, IdentityHandler, RequestHandler,
+};
+
 /// A single observed web-host activation or per-request notification (SHIM-D18 /
 /// D29). The variant is the seam point; observation never changes the host's
 /// behavior. A future substituting mode will carry richer events; MW11 records
@@ -68,6 +72,24 @@ pub enum WebMode {
     /// Observing identity: continue every notification unchanged but report each
     /// step to the observation sink (D29).
     Observe,
+}
+
+/// The terminal handler the shim's decorators sit above: it represents the
+/// host's own downstream pipeline, so every notification continues and the host
+/// proceeds with its real handling. The pass-through cut inserts only
+/// non-mutating decorators over this leaf, which is why the response is
+/// unchanged (MW12, D25 "off").
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ContinueLeaf;
+
+impl RequestHandler for ContinueLeaf {
+    fn on_begin_request(&mut self, _request: &HttpRequest) -> Disposition {
+        Disposition::Continue
+    }
+
+    fn on_send_response(&mut self, _response: &mut HttpResponse) -> Disposition {
+        Disposition::Continue
+    }
 }
 
 /// The session-held web policy: the mode and the observation sink. Composed like
@@ -124,6 +146,15 @@ impl WebState {
     /// Record an `OnSendResponse` traversal ([`WebEvent::SendResponse`]).
     pub fn on_send_response(&mut self) {
         self.observe(WebEvent::SendResponse);
+    }
+
+    /// Build the per-request handler stack the shim `CHttpModule` drives (MW12).
+    /// The first cut is the identity decorator over the [`ContinueLeaf`]
+    /// (D25 "off"): every notification is forwarded to the real handler and its
+    /// disposition returned unchanged. The journaling stack arrives in MW12-4.
+    #[must_use]
+    pub fn build_handler(&self) -> Box<dyn RequestHandler> {
+        Box::new(IdentityHandler::new(ContinueLeaf))
     }
 }
 

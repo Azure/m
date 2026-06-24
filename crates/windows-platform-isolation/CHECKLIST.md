@@ -356,7 +356,7 @@ heavy-traffic optimization, not the scheduled entry path.
 - [x] **M8-2** `IdentityHandler` decorator — a **true pass-through** that forwards
       to the inner handler and returns its disposition unchanged (D25 "off" =
       identity; the "no behavior change today" endpoint).
-- [ ] **M8-3** `JournalingHandler` decorator — records each exchange to the
+- [x] **M8-3** `JournalingHandler` decorator — records each exchange to an
       observation sink (D28 PII-first, D29 volume policy) then forwards unchanged;
       slots into the D4 decorator stack alongside the reg/fs decorators.
 - [ ] **M8-4** Session wiring: the session selects identity / journaling /

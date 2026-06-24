@@ -252,6 +252,153 @@ impl<H: RequestHandler> RequestHandler for IdentityHandler<H> {
     }
 }
 
+/// A single observation recorded by the [`JournalingHandler`] (M8-3).
+///
+/// **PII-first (D28):** an event carries only *structural metadata* — the
+/// method, URL, status, and header **names**. Header **values** and the request
+/// / response **body** are never copied into the stream, because those are the
+/// likeliest PII carriers. (The URL itself can carry PII in a query string; that
+/// is a recorded limitation — for now the full URL is observed and finer
+/// redaction is deferred to when the record format is designed.)
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ObservedEvent {
+    /// The host began a request.
+    BeginRequest {
+        /// The request method (e.g. `GET`).
+        method: String,
+        /// The request URL / target.
+        url: String,
+        /// The request header names (values excluded — D28).
+        header_names: Vec<String>,
+    },
+    /// The host is about to send a response.
+    SendResponse {
+        /// The response status code.
+        status: u16,
+        /// The response header names (values excluded — D28).
+        header_names: Vec<String>,
+    },
+}
+
+/// The sink the [`JournalingHandler`] reports [`ObservedEvent`]s to. This is the
+/// safe seam through which the session's observation log is fed; the shim's
+/// session supplies the concrete implementation (SHIM-D18). Kept deliberately
+/// minimal — one method — so the storage target is separable from the handler.
+pub trait ObservationSink {
+    /// Record one observation.
+    fn observe(&mut self, event: ObservedEvent);
+}
+
+/// A volume-control policy (D29): a set of known-safe `(method, url)` pairs whose
+/// observations are **suppressed** so the high-traffic, low-information requests
+/// do not flood the log. Suppression affects only what is *recorded*; it never
+/// changes what the handler *returns* (the response is always forwarded
+/// unchanged). Matching is exact (method and URL compared verbatim).
+#[derive(Clone, Debug, Default)]
+pub struct VolumePolicy {
+    suppressed: Vec<(String, String)>,
+}
+
+impl VolumePolicy {
+    /// A policy that suppresses nothing (records every exchange).
+    #[must_use]
+    pub fn record_all() -> Self {
+        Self::default()
+    }
+
+    /// Mark a `(method, url)` pair as known-safe, suppressing its observations.
+    pub fn suppress(&mut self, method: impl Into<String>, url: impl Into<String>) {
+        self.suppressed.push((method.into(), url.into()));
+    }
+
+    /// Whether an exchange for `(method, url)` should be recorded (`true`) or is
+    /// suppressed as known-safe (`false`).
+    #[must_use]
+    pub fn records(&self, method: &str, url: &str) -> bool {
+        !self
+            .suppressed
+            .iter()
+            .any(|(m, u)| m == method && u == url)
+    }
+}
+
+/// A journaling handler decorator (M8-3): records each exchange to an
+/// [`ObservationSink`] (subject to the [`VolumePolicy`], D29) then forwards the
+/// notification to the inner handler **unchanged**. This is the **D25 "record"**
+/// behavior — observe without altering the response. It slots into the D4
+/// decorator stack exactly as the registry/filesystem decorators do.
+pub struct JournalingHandler<H: RequestHandler, S: ObservationSink> {
+    inner: H,
+    sink: S,
+    policy: VolumePolicy,
+    /// Whether the in-flight request is being recorded (decided at
+    /// `on_begin_request` from the policy, reused at `on_send_response` so the
+    /// paired response observation honors the same suppression).
+    record_current: bool,
+}
+
+impl<H: RequestHandler, S: ObservationSink> JournalingHandler<H, S> {
+    /// Wrap an inner handler with a sink and volume policy.
+    pub fn new(inner: H, sink: S, policy: VolumePolicy) -> Self {
+        Self {
+            inner,
+            sink,
+            policy,
+            record_current: true,
+        }
+    }
+
+    /// Borrow the inner handler.
+    #[must_use]
+    pub fn inner(&self) -> &H {
+        &self.inner
+    }
+
+    /// Borrow the observation sink (e.g. to inspect what was recorded).
+    #[must_use]
+    pub fn sink(&self) -> &S {
+        &self.sink
+    }
+
+    /// Recover the inner handler and sink.
+    pub fn into_parts(self) -> (H, S) {
+        (self.inner, self.sink)
+    }
+}
+
+/// Collect header names without copying values (PII-first, D28).
+fn header_names(headers: &[Header]) -> Vec<String> {
+    headers.iter().map(|h| h.name().to_owned()).collect()
+}
+
+impl<H: RequestHandler, S: ObservationSink> RequestHandler for JournalingHandler<H, S> {
+    fn on_begin_request(&mut self, request: &HttpRequest) -> Disposition {
+        self.record_current = self.policy.records(request.method(), request.url());
+        if self.record_current {
+            self.sink.observe(ObservedEvent::BeginRequest {
+                method: request.method().to_owned(),
+                url: request.url().to_owned(),
+                header_names: header_names(request.headers()),
+            });
+        }
+        self.inner.on_begin_request(request)
+    }
+
+    fn on_send_response(&mut self, response: &mut HttpResponse) -> Disposition {
+        // Forward first so the journal reflects the response as it actually
+        // *leaves* (after the inner handler has produced it), mirroring how
+        // `on_begin_request` records the request as it *enters*.
+        let disposition = self.inner.on_send_response(response);
+        if self.record_current {
+            self.sink.observe(ObservedEvent::SendResponse {
+                status: response.status(),
+                header_names: header_names(response.headers()),
+            });
+        }
+        disposition
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,5 +519,75 @@ mod tests {
         assert_eq!(bare_begin, wrapped_begin);
         assert_eq!(bare_send, wrapped_send);
         assert_eq!(bare_resp, wrapped_resp);
+    }
+
+    /// A sink that collects events into a vector for inspection.
+    #[derive(Default)]
+    struct VecSink {
+        events: Vec<ObservedEvent>,
+    }
+
+    impl ObservationSink for VecSink {
+        fn observe(&mut self, event: ObservedEvent) {
+            self.events.push(event);
+        }
+    }
+
+    #[test]
+    fn journaling_observes_without_altering_response() {
+        let mut h = JournalingHandler::new(
+            MutatingHandler {
+                new_status: 204,
+                disposition: Disposition::Continue,
+            },
+            VecSink::default(),
+            VolumePolicy::record_all(),
+        );
+        let req = HttpRequest::new("GET", "/api").with_header("Accept", "text/html");
+        // Compare the journaled response against the bare handler's output.
+        let mut expected = HttpResponse::new(200);
+        MutatingHandler {
+            new_status: 204,
+            disposition: Disposition::Continue,
+        }
+        .on_send_response(&mut expected);
+
+        let mut resp = HttpResponse::new(200);
+        h.on_begin_request(&req);
+        h.on_send_response(&mut resp);
+
+        // Response is exactly what the inner handler produced — unaltered.
+        assert_eq!(resp, expected);
+        // Two events observed: begin then send, names only (no values).
+        assert_eq!(
+            h.sink().events,
+            vec![
+                ObservedEvent::BeginRequest {
+                    method: "GET".to_owned(),
+                    url: "/api".to_owned(),
+                    header_names: vec!["Accept".to_owned()],
+                },
+                ObservedEvent::SendResponse {
+                    status: 204,
+                    header_names: vec!["X-Handler".to_owned()],
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn volume_policy_suppresses_known_safe_but_still_forwards() {
+        let mut policy = VolumePolicy::record_all();
+        policy.suppress("GET", "/health");
+        let mut h = JournalingHandler::new(StubHandler::new(), VecSink::default(), policy);
+
+        let req = HttpRequest::new("GET", "/health");
+        let mut resp = HttpResponse::new(200);
+        assert_eq!(h.on_begin_request(&req), Disposition::Continue);
+        assert_eq!(h.on_send_response(&mut resp), Disposition::Continue);
+
+        // Suppressed: nothing recorded, but the inner handler still ran.
+        assert!(h.sink().events.is_empty());
+        assert_eq!((h.inner().begins, h.inner().sends), (1, 1));
     }
 }

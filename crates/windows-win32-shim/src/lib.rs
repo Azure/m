@@ -52,6 +52,9 @@ pub mod fs_ops;
 pub mod handle_table;
 
 #[cfg(windows)]
+pub mod loader;
+
+#[cfg(windows)]
 pub mod mwinfile;
 
 #[cfg(windows)]
@@ -76,6 +79,12 @@ pub use error_map::{filesystem_error_to_win32, registry_error_to_lstatus, set_la
 pub use handle_table::{
     FileHandleState, FindEnumerationState, HandlePayload, HandleTable, RawHandle, SearchOp,
     SearchPredicate, predefined_root,
+};
+
+#[cfg(windows)]
+pub use loader::{
+    EngineSubstitution, LoaderEvent, LoaderMode, LoaderState, ModuleEntry, ModuleTable, NullSink,
+    ObservationSink, ProcQuery, RawModule, ShimProc, ShimProcTable,
 };
 
 #[cfg(windows)]

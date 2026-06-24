@@ -64,7 +64,12 @@ pub fn is_minted_value(value: RawHandle) -> bool {
 
 /// Compose a minted handle value from a sequence number, per the reserved
 /// encoding.
-fn mint_value(sequence: RawHandle) -> RawHandle {
+///
+/// Shared with the module handle table (SHIM-D16): the loader's sentinel
+/// `HMODULE`s use the same reserved bit pattern so a minted value is recognizable
+/// as ours and never collides with a real OS module base. Every value this
+/// returns satisfies [`is_minted_value`].
+pub fn mint_value(sequence: RawHandle) -> RawHandle {
     ((sequence & SEQUENCE_MASK) << SEQUENCE_SHIFT) | BIT30
 }
 

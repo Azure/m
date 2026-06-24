@@ -122,7 +122,7 @@ New surface — no C++ `mwin32` antecedent. The session gains an **observation
 sink** (a safe trait, default no-op) keyed by `(api, target)` for the D29 volume
 policy; the loader policy tables are shim-local (SHIM-D16 first-cut).
 
-- [ ] **MW9-1** Module handle table + observation seam: intern real vs
+- [x] **MW9-1** Module handle table + observation seam: intern real vs
       minted-sentinel `HMODULE` (peer of the SHIM-D3 handle table); add the
       `ObservationSink` trait the session holds (default no-op) plus the
       shim-local `EngineSubstitution` registry and `name→shim-proc` table types

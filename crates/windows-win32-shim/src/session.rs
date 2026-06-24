@@ -29,6 +29,7 @@ use windows_platform_isolation::{
 };
 
 use crate::handle_table::HandleTable;
+use crate::loader::LoaderState;
 use crate::pilcfg::{Pilcfg, load_pilcfg};
 
 /// The live filesystem provider the default session routes through: live
@@ -72,6 +73,7 @@ pub struct ShimSession {
     registry: Mutex<Registry<RegistryBacking>>,
     filesystem: Mutex<LiveFs>,
     handles: HandleTable,
+    loader: Mutex<LoaderState>,
     casing: Win32OrdinalCasing,
     capture_snapshot: String,
 }
@@ -100,6 +102,7 @@ impl ShimSession {
             registry: Mutex::new(Registry::new(build_registry_backing(&cfg, casing))),
             filesystem: Mutex::new(Filesystem::new(LiveFilesystem::new(casing))),
             handles: HandleTable::new(),
+            loader: Mutex::new(LoaderState::new()),
             casing,
             capture_snapshot: cfg.capture_snapshot,
         }
@@ -146,6 +149,16 @@ impl ShimSession {
     #[must_use]
     pub fn handles(&self) -> &HandleTable {
         &self.handles
+    }
+
+    /// Borrow the loader policy state under the session lock (SHIM-D16).
+    ///
+    /// The loader shims (`mLoadLibrary*`, `mGetProcAddress`, `mFreeLibrary`,
+    /// `mGetModuleHandle*`) route their module table, substitution tables, and
+    /// observation sink through here.
+    pub fn with_loader<R>(&self, f: impl FnOnce(&mut LoaderState) -> R) -> R {
+        let mut guard = self.loader.lock().expect("session loader poisoned");
+        f(&mut guard)
     }
 
     /// The path of a well-known root, vended by the held isolation session.

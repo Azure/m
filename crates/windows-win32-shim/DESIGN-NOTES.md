@@ -563,3 +563,57 @@ Per-interface method-level journaling beyond the begin/send-response notificatio
 points is added per interface as scenarios need it, not generically (mirrors
 SHIM-D17's COM stance). The out-of-process service variant remains a deferred
 optimization owned by platform-isolation D17, not this crate.
+
+### Chosen activation seam (MW11)
+
+The seam is the IIS native-module registration path, expressed entirely in
+public Windows SDK names:
+
+```
+RegisterModule(version, IHttpModuleRegistrationInfo*, IHttpServer*)
+  └─ IHttpModuleRegistrationInfo::SetRequestNotifications(IHttpModuleFactory*, …)
+       └─ IHttpModuleFactory::GetHttpModule(CHttpModule**, IModuleAllocator*)
+            └─ CHttpModule::OnBeginRequest / OnSendResponse  →  per-request seam
+```
+
+The shim exports `mRegisterModule`; the relinked host's `RegisterModule` entry is
+redirected to it via the alias technique (D24), so the host hands the shim its
+`IHttpModuleRegistrationInfo`. `mRegisterModule` mints a shim `IHttpModuleFactory`
+and registers it for the begin-request and send-response notifications; the
+factory's `GetHttpModule` vends a shim `CHttpModule` whose notification methods
+are the per-request bridge (the safe-surface translation lands in MW12). The HWC
+host-activation API (`WebCoreActivate` / `WebCoreSetMetadata` / `WebCoreShutdown`)
+stays out of scope (SHIM-D5); it remains as commented parity placeholders in the
+manifests.
+
+**Modeled-subset vtables.** `windows-sys` does not surface the IIS hosting ABI
+(`httpserv.h`), so the three module vtables are hand-rolled `#[repr(C)]` structs
+(Design Autonomy), each a **documented subset** of its real interface — the slots
+the shim invokes or vends, not the full notification roster:
+
+- `IHttpModuleRegistrationInfo` (host-provided): the shim calls only
+  `SetRequestNotifications`; the preceding/following slots are modeled so the
+  call lands at the right vtable offset.
+- `IHttpModuleFactory` (shim-vended): `GetHttpModule` + `Terminate`.
+- `CHttpModule` (shim-vended): `OnBeginRequest` + `OnSendResponse` + `Dispose`.
+
+The precise real-IIS vtable layout is pinned when a real host is bound; until
+then the emulated-host harness (MW11-5) builds the same structs, so both sides
+agree. Additional notification slots are added per scenario, never generically
+(same stance as the per-interface journaling note above).
+
+**Pass-through first cut (MW11).** The shim `CHttpModule` returns
+`RQ_NOTIFICATION_CONTINUE` from every notification — the host pipeline proceeds
+unchanged — while recording the call through the session's web policy
+([`crate::web`]). This is the "code on the response path, zero behavior change"
+endpoint; the disposition is fixed to *continue* and the request/response are
+never inspected. Mode gates only observation (`Off` = silent identity, `Observe`
+= recorded identity), exactly as the COM family gates substitution/observation
+(SHIM-D17). Installation is unconditional in both modes — being resident on the
+path is the point; the mode only decides whether the traversal is journaled.
+
+**Non-opt-in aliasing.** `mRegisterModule` joins the loader/COM families as a
+non-opt-in alias (`/alternatename`, never `noalias`): redirecting the host's
+module-registration entry is the whole mechanism by which the shim reaches the
+response path. The residency probe `mShimWebProbe` (MW11-1) is shim-internal —
+no Win32 antecedent — so it is exported but absent from the alias roster.

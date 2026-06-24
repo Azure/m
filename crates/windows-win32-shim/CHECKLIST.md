@@ -197,7 +197,7 @@ names only — no host-specific identifiers.
 - [x] **MW11-1** Confirm load: the shim cdylib is a load-time dependency of the
       relinked host module (via the aliasobj relink, MW5) and its initializer
       runs in the host process; a smoke export proves we are resident.
-- [ ] **MW11-2** Identify the public activation seam in IIS/HWC terms — a native
+- [x] **MW11-2** Identify the public activation seam in IIS/HWC terms — a native
       module registration entry (`RegisterModule` →
       `IHttpModuleRegistrationInfo::SetRequestNotifications` → `CHttpModule`)
       and/or a handler-factory acquisition import — using only public SDK names.

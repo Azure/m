@@ -58,6 +58,9 @@ pub mod loader;
 pub mod mwinfile;
 
 #[cfg(windows)]
+pub mod mwinload;
+
+#[cfg(windows)]
 pub mod mwinreg;
 
 #[cfg(windows)]

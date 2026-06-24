@@ -127,7 +127,7 @@ policy; the loader policy tables are shim-local (SHIM-D16 first-cut).
       `ObservationSink` trait the session holds (default no-op) plus the
       shim-local `EngineSubstitution` registry and `name→shim-proc` table types
       (empty/seeded). No exports yet; pure unit-tested data structures.
-- [ ] **MW9-2** `mLoadLibraryW`/`A`, `mLoadLibraryExW`/`A`, `mFreeLibrary`:
+- [x] **MW9-2** `mLoadLibraryW`/`A`, `mLoadLibraryExW`/`A`, `mFreeLibrary`:
       passthrough that observes the load and interns the real `HMODULE`;
       minted-sentinel path wired through the (initially empty) engine-substitution
       registry; `*A` transcode via the `ansi` module (SHIM-D15). Transparent for

@@ -387,6 +387,32 @@ pub enum LoaderMode {
     Substitute,
 }
 
+/// The disposition of an observed `LoadLibrary*` call, decided by the policy and
+/// carried out by the ABI body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoadDisposition {
+    /// Return this minted sentinel `HMODULE`; do not call the OS loader (the
+    /// engine was substituted).
+    Substitute(RawModule),
+    /// Call the real OS loader. `record` says whether to intern the real result
+    /// in the module table afterward (suppressed in [`LoaderMode::Off`] so a
+    /// pure passthrough adds no state).
+    Forward {
+        /// Whether to intern the OS result via [`LoaderState::record_loaded`].
+        record: bool,
+    },
+}
+
+/// The disposition of an observed `FreeLibrary` call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FreeDisposition {
+    /// The value named a minted sentinel that was released; do not call the OS
+    /// loader.
+    Released,
+    /// The value is a real / unknown module; forward to the OS `FreeLibrary`.
+    Forward,
+}
+
 /// The session-held loader policy: the mode, the substitution tables, the module
 /// handle table, and the observation sink. Composed like the registry/filesystem
 /// backings (SHIM-D13) and held behind the session lock.
@@ -426,6 +452,54 @@ impl LoaderState {
     pub fn observe(&mut self, event: LoaderEvent) {
         if self.mode != LoaderMode::Off {
             self.sink.observe(event);
+        }
+    }
+
+    /// Decide how a `LoadLibrary*(name)` should behave (SHIM-D16).
+    ///
+    /// In [`LoaderMode::Off`] this is a pure forward that records nothing. When
+    /// observing it reports the load; in [`LoaderMode::Substitute`] a load of a
+    /// registered engine mints (or re-returns) a sentinel `HMODULE` and skips the
+    /// OS loader entirely. Every other load forwards and is interned by
+    /// [`record_loaded`](Self::record_loaded).
+    pub fn on_load_library(&mut self, name: &str) -> LoadDisposition {
+        if self.mode == LoaderMode::Off {
+            return LoadDisposition::Forward { record: false };
+        }
+        self.observe(LoaderEvent::LoadLibrary {
+            name: name.to_owned(),
+        });
+        if self.mode == LoaderMode::Substitute && self.engines.is_engine(name) {
+            LoadDisposition::Substitute(self.modules.mint_sentinel(name))
+        } else {
+            LoadDisposition::Forward { record: true }
+        }
+    }
+
+    /// Intern a real `HMODULE` the OS loader returned (the [`LoadDisposition::Forward`]
+    /// `record` follow-up).
+    pub fn record_loaded(&mut self, module: RawModule) {
+        self.modules.record_real(module);
+    }
+
+    /// Decide how a `FreeLibrary(module)` should behave (SHIM-D16).
+    ///
+    /// A minted sentinel is released here and never reaches the OS loader
+    /// (the transparency-for-minted-values half of the invariant); any real or
+    /// unknown value forwards. Observation (when the mode observes) names the
+    /// sentinel being freed, else renders the raw value for diagnostics.
+    pub fn on_free_library(&mut self, module: RawModule) -> FreeDisposition {
+        if self.mode != LoaderMode::Off {
+            let rendered = match self.modules.entry(module) {
+                Some(ModuleEntry::Sentinel { name }) => name.clone(),
+                _ => format!("{module:#x}"),
+            };
+            self.observe(LoaderEvent::FreeLibrary { module: rendered });
+        }
+        if self.modules.release_sentinel(module) {
+            FreeDisposition::Released
+        } else {
+            FreeDisposition::Forward
         }
     }
 }
@@ -624,5 +698,86 @@ mod tests {
                 proc: ProcQuery::Ordinal(7),
             }
         );
+    }
+
+    #[test]
+    fn off_mode_load_forwards_without_recording() {
+        let mut state = LoaderState::new();
+        let disposition = state.on_load_library("kernel32.dll");
+        assert_eq!(disposition, LoadDisposition::Forward { record: false });
+        // Off mode interns nothing.
+        assert!(state.modules.is_empty());
+    }
+
+    #[test]
+    fn observe_mode_load_forwards_and_records() {
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut state = LoaderState::new();
+        state.set_sink(Box::new(RecordingSink {
+            events: events.clone(),
+        }));
+        state.mode = LoaderMode::Observe;
+
+        let disposition = state.on_load_library("kernel32.dll");
+        assert_eq!(disposition, LoadDisposition::Forward { record: true });
+        // An unregistered engine is never substituted, even when observing.
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec![LoaderEvent::LoadLibrary {
+                name: "kernel32.dll".to_owned()
+            }]
+        );
+
+        // The recorded real module is interned and not classified as a sentinel.
+        let real: RawModule = 0x7ffe_0000;
+        state.record_loaded(real);
+        assert!(!state.modules.is_sentinel(real));
+        assert_eq!(state.modules.len(), 1);
+    }
+
+    #[test]
+    fn substitute_mode_mints_sentinel_for_registered_engine() {
+        let mut state = LoaderState::new();
+        state.mode = LoaderMode::Substitute;
+        state.engines.register_engine("WebCore.dll");
+
+        let disposition = state.on_load_library("webcore.dll");
+        let sentinel = match disposition {
+            LoadDisposition::Substitute(value) => value,
+            other => panic!("expected substitution, got {other:?}"),
+        };
+        assert!(is_minted_value(sentinel));
+        assert!(state.modules.is_sentinel(sentinel));
+
+        // A non-engine load in the same mode still forwards.
+        assert_eq!(
+            state.on_load_library("kernel32.dll"),
+            LoadDisposition::Forward { record: true }
+        );
+    }
+
+    #[test]
+    fn free_releases_sentinel_and_forwards_real() {
+        let mut state = LoaderState::new();
+        state.mode = LoaderMode::Substitute;
+        state.engines.register_engine("WebCore.dll");
+        let sentinel = match state.on_load_library("WebCore.dll") {
+            LoadDisposition::Substitute(value) => value,
+            other => panic!("expected substitution, got {other:?}"),
+        };
+
+        // A real module forwards; the sentinel is released.
+        let real: RawModule = 0x7ffe_0000;
+        state.record_loaded(real);
+        assert_eq!(state.on_free_library(real), FreeDisposition::Forward);
+        assert_eq!(state.on_free_library(sentinel), FreeDisposition::Released);
+        // A second free of the released sentinel forwards (it is gone).
+        assert_eq!(state.on_free_library(sentinel), FreeDisposition::Forward);
+    }
+
+    #[test]
+    fn off_mode_free_forwards_unknown_value() {
+        let mut state = LoaderState::new();
+        assert_eq!(state.on_free_library(0x1234), FreeDisposition::Forward);
     }
 }

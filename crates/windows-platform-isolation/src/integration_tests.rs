@@ -606,3 +606,146 @@ fn live_filesystem_lifecycle_round_trips_metadata_and_ordering() {
     fs.remove_dir(&root).unwrap();
 }
 
+// --- M8-5: web handler surface end-to-end (host-emulating harness) -----------
+
+/// Synthetic request count for the web integration harness. A few hundred
+/// exchanges exercises the decorator stack at integration scale.
+const WEB_REQUEST_COUNT: usize = 300;
+
+/// A leaf "application" handler that produces a deterministic response from the
+/// request — the thing a real host would invoke at the bottom of the stack. It
+/// fills the response in `on_send_response`, mirroring how the host hands the
+/// handler a blank response to populate.
+struct EchoApp;
+
+impl crate::RequestHandler for EchoApp {
+    fn on_begin_request(&mut self, _request: &crate::HttpRequest) -> crate::Disposition {
+        crate::Disposition::Continue
+    }
+
+    fn on_send_response(&mut self, response: &mut crate::HttpResponse) -> crate::Disposition {
+        // Derive a deterministic, request-independent body/header so two runs
+        // over the same request are byte-identical.
+        response.push_header("X-Echo", "served");
+        crate::Disposition::Continue
+    }
+}
+
+/// Build the i-th synthetic request: cycling method, a unique URL, and a header
+/// whose *value* carries would-be PII the journal must never capture.
+fn web_request(i: usize) -> crate::HttpRequest {
+    let method = match i % 3 {
+        0 => "GET",
+        1 => "POST",
+        _ => "PUT",
+    };
+    crate::HttpRequest::new(method, format!("/res/{i:04}"))
+        .with_header("X-User", format!("secret-user-{i}"))
+        .with_body(format!("payload-{i}").into_bytes())
+}
+
+/// Drive one request through a handler exactly as a host would: notify begin,
+/// let the handler populate a blank response, notify send, return the response.
+fn drive<H: crate::RequestHandler>(
+    handler: &mut H,
+    request: &crate::HttpRequest,
+) -> crate::HttpResponse {
+    let mut response = crate::HttpResponse::new(200);
+    let _ = handler.on_begin_request(request);
+    let _ = handler.on_send_response(&mut response);
+    response
+}
+
+/// A sink that records every observed event for later inspection.
+#[derive(Default)]
+struct CollectingSink {
+    events: Vec<crate::ObservedEvent>,
+}
+
+impl crate::ObservationSink for CollectingSink {
+    fn observe(&mut self, event: crate::ObservedEvent) {
+        self.events.push(event);
+    }
+}
+
+#[test]
+fn web_identity_path_is_byte_identical_to_undecorated() {
+    let session = crate::WebSession::default();
+    assert_eq!(session.mode(), crate::IsolationMode::Off);
+
+    for i in 0..WEB_REQUEST_COUNT {
+        let request = web_request(i);
+
+        // Baseline: the bare app with no decorator.
+        let baseline = drive(&mut EchoApp, &request);
+
+        // Through the session's Off-mode (identity) stack.
+        let mut handler =
+            session.wrap(EchoApp, CollectingSink::default(), crate::VolumePolicy::record_all());
+        let observed = drive(&mut handler, &request);
+
+        assert_eq!(observed, baseline, "identity path must not alter the response");
+        // Off mode selects the identity variant — no observation occurs.
+        assert!(matches!(handler, crate::WebHandler::Identity(_)));
+    }
+}
+
+#[test]
+fn web_journaling_path_observes_without_altering_response() {
+    let session = crate::WebSession::new(crate::IsolationMode::Record);
+
+    for i in 0..WEB_REQUEST_COUNT {
+        let request = web_request(i);
+        let baseline = drive(&mut EchoApp, &request);
+
+        let mut handler =
+            session.wrap(EchoApp, CollectingSink::default(), crate::VolumePolicy::record_all());
+        let observed = drive(&mut handler, &request);
+
+        // The response is byte-identical to the undecorated path — journaling
+        // observes, it does not mutate.
+        assert_eq!(observed, baseline, "journaling must not alter the response");
+
+        // Exactly one begin and one send were recorded, names only.
+        let crate::WebHandler::Journaling(journaling) = handler else {
+            panic!("record mode must select the journaling variant");
+        };
+        let events = &journaling.sink().events;
+        assert_eq!(events.len(), 2, "one begin + one send per exchange");
+        match &events[0] {
+            crate::ObservedEvent::BeginRequest { method, url, header_names } => {
+                assert_eq!(url, &format!("/res/{i:04}"));
+                assert!(matches!(method.as_str(), "GET" | "POST" | "PUT"));
+                // PII-first (D28): header NAMES are observed, values are not.
+                assert_eq!(header_names, &vec!["X-User".to_string()]);
+            }
+            other => panic!("first event should be BeginRequest, got {other:?}"),
+        }
+        assert!(matches!(events[1], crate::ObservedEvent::SendResponse { .. }));
+    }
+}
+
+#[test]
+fn web_volume_policy_suppresses_observation_but_preserves_response() {
+    let session = crate::WebSession::new(crate::IsolationMode::Record);
+    let mut policy = crate::VolumePolicy::record_all();
+    // Suppress a high-traffic health probe.
+    policy.suppress("GET", "/health");
+
+    let probe = crate::HttpRequest::new("GET", "/health");
+    let baseline = drive(&mut EchoApp, &probe);
+
+    let mut handler = session.wrap(EchoApp, CollectingSink::default(), policy);
+    let observed = drive(&mut handler, &probe);
+
+    assert_eq!(observed, baseline, "suppression must not alter the response");
+    let crate::WebHandler::Journaling(journaling) = handler else {
+        panic!("record mode must select the journaling variant");
+    };
+    assert!(
+        journaling.sink().events.is_empty(),
+        "suppressed exchange records nothing"
+    );
+}
+
+

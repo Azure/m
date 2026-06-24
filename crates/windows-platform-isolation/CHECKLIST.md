@@ -362,7 +362,7 @@ heavy-traffic optimization, not the scheduled entry path.
 - [x] **M8-4** Session wiring: the session selects identity / journaling /
       (future) substituting handler by mode (D25), exactly as the reg/fs backings
       are composed; off yields the bit-identical pass-through.
-- [ ] **M8-5** *(integration)* Pure-Rust host-emulating harness: drive a synthetic
+- [x] **M8-5** *(integration)* Pure-Rust host-emulating harness: drive a synthetic
       request through the decorator stack with a stub inner handler; assert the
       identity path is byte-identical to the undecorated path and the journaling
       path observes the exchange without altering the response.

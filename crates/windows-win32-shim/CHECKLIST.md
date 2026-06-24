@@ -132,7 +132,7 @@ policy; the loader policy tables are shim-local (SHIM-D16 first-cut).
       minted-sentinel path wired through the (initially empty) engine-substitution
       registry; `*A` transcode via the `ansi` module (SHIM-D15). Transparent for
       any `HMODULE` not minted here.
-- [ ] **MW9-3** `mGetProcAddress`: observe `(module, proc)`; consult the
+- [x] **MW9-3** `mGetProcAddress`: observe `(module, proc)`; consult the
       `name→shim-proc` table (seeded from the current export roster) and return
       the shim body when the mode is not off and the name is shimmed, else
       forward; sentinel modules resolve to shim-supplied procs. Off-mode is a

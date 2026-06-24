@@ -413,6 +413,18 @@ pub enum FreeDisposition {
     Forward,
 }
 
+/// The disposition of an observed `GetProcAddress` call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProcDisposition {
+    /// Return this shim proc address; do not call the OS `GetProcAddress`. A
+    /// [`ShimProc`] of `0` is the "not found" result for a sentinel module whose
+    /// engine does not supply the requested proc (still never forwarded — a
+    /// sentinel is not a real module).
+    Shim(ShimProc),
+    /// Forward to the real `GetProcAddress` against a genuine module.
+    Forward,
+}
+
 /// The session-held loader policy: the mode, the substitution tables, the module
 /// handle table, and the observation sink. Composed like the registry/filesystem
 /// backings (SHIM-D13) and held behind the session lock.
@@ -501,6 +513,50 @@ impl LoaderState {
         } else {
             FreeDisposition::Forward
         }
+    }
+
+    /// Decide how to resolve a `GetProcAddress` against `module` for `query`.
+    ///
+    /// Off mode is a pure forward (no observation, no redirection). Otherwise the
+    /// resolution is reported to the sink, then:
+    ///
+    /// * a minted sentinel module never reaches the OS loader (transparency for
+    ///   minted values): a named proc supplied by the substituted engine yields
+    ///   [`ProcDisposition::Shim`]; anything else yields `Shim(ShimProc(0))`
+    ///   (a null "not found"), still without forwarding;
+    /// * in [`LoaderMode::Substitute`], a real / unknown module whose requested
+    ///   proc name is in the shim-proc table is redirected to the shim body;
+    /// * every other case forwards to the genuine `GetProcAddress`.
+    ///
+    /// Engine substitution and proc redirection key on the proc *name*; ordinal
+    /// queries against a sentinel resolve to the null "not found" result.
+    pub fn on_get_proc_address(&mut self, module: RawModule, query: &ProcQuery) -> ProcDisposition {
+        if self.mode == LoaderMode::Off {
+            return ProcDisposition::Forward;
+        }
+        let module_name = match self.modules.entry(module) {
+            Some(ModuleEntry::Sentinel { name }) => name.clone(),
+            _ => format!("{module:#x}"),
+        };
+        self.observe(LoaderEvent::GetProcAddress {
+            module: module_name,
+            proc: query.clone(),
+        });
+        if let Some(ModuleEntry::Sentinel { name }) = self.modules.entry(module) {
+            if let ProcQuery::Named(proc) = query
+                && let Some(shim) = self.engines.proc(name, proc)
+            {
+                return ProcDisposition::Shim(shim);
+            }
+            return ProcDisposition::Shim(ShimProc(0));
+        }
+        if self.mode == LoaderMode::Substitute
+            && let ProcQuery::Named(proc) = query
+            && let Some(shim) = self.procs.lookup(proc)
+        {
+            return ProcDisposition::Shim(shim);
+        }
+        ProcDisposition::Forward
     }
 }
 
@@ -779,5 +835,97 @@ mod tests {
     fn off_mode_free_forwards_unknown_value() {
         let mut state = LoaderState::new();
         assert_eq!(state.on_free_library(0x1234), FreeDisposition::Forward);
+    }
+
+    #[test]
+    fn off_mode_get_proc_address_forwards_without_observing() {
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut state = LoaderState::new();
+        state.set_sink(Box::new(RecordingSink {
+            events: events.clone(),
+        }));
+        let real: RawModule = 0x7ffe_0000;
+        let query = ProcQuery::Named("RegOpenKeyExW".to_owned());
+        assert_eq!(
+            state.on_get_proc_address(real, &query),
+            ProcDisposition::Forward
+        );
+        assert!(events.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn observe_mode_get_proc_address_records_but_forwards() {
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut state = LoaderState::new();
+        state.set_sink(Box::new(RecordingSink {
+            events: events.clone(),
+        }));
+        state.mode = LoaderMode::Observe;
+        // A shimmed name is in the table, but observe mode never redirects.
+        state
+            .procs
+            .seed("RegOpenKeyExW", ShimProc(0x4000_1000));
+        let real: RawModule = 0x7ffe_0000;
+        let query = ProcQuery::Named("RegOpenKeyExW".to_owned());
+        assert_eq!(
+            state.on_get_proc_address(real, &query),
+            ProcDisposition::Forward
+        );
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec![LoaderEvent::GetProcAddress {
+                module: format!("{real:#x}"),
+                proc: ProcQuery::Named("RegOpenKeyExW".to_owned()),
+            }]
+        );
+    }
+
+    #[test]
+    fn substitute_mode_redirects_shimmed_proc_on_real_module() {
+        let mut state = LoaderState::new();
+        state.mode = LoaderMode::Substitute;
+        state.procs.seed("RegOpenKeyExW", ShimProc(0x4000_1000));
+        let real: RawModule = 0x7ffe_0000;
+
+        assert_eq!(
+            state.on_get_proc_address(real, &ProcQuery::Named("RegOpenKeyExW".to_owned())),
+            ProcDisposition::Shim(ShimProc(0x4000_1000))
+        );
+        // An unshimmed name on a real module forwards.
+        assert_eq!(
+            state.on_get_proc_address(real, &ProcQuery::Named("CreateFileW".to_owned())),
+            ProcDisposition::Forward
+        );
+    }
+
+    #[test]
+    fn substitute_mode_resolves_sentinel_proc_via_engine() {
+        let mut state = LoaderState::new();
+        state.mode = LoaderMode::Substitute;
+        state.engines.register_engine("WebCore.dll");
+        state
+            .engines
+            .add_proc("WebCore.dll", "WebCoreActivate", ShimProc(0x4200_2000));
+        let sentinel = match state.on_load_library("WebCore.dll") {
+            LoadDisposition::Substitute(value) => value,
+            other => panic!("expected substitution, got {other:?}"),
+        };
+
+        // A proc the engine supplies resolves to the shim body.
+        assert_eq!(
+            state.on_get_proc_address(sentinel, &ProcQuery::Named("WebCoreActivate".to_owned())),
+            ProcDisposition::Shim(ShimProc(0x4200_2000))
+        );
+        // A proc the engine does not supply is the null "not found" result, and
+        // the sentinel is never forwarded to the OS loader.
+        assert_eq!(
+            state.on_get_proc_address(sentinel, &ProcQuery::Named("Missing".to_owned())),
+            ProcDisposition::Shim(ShimProc(0))
+        );
+        // An ordinal query against a sentinel is likewise the null result.
+        assert_eq!(
+            state.on_get_proc_address(sentinel, &ProcQuery::Ordinal(7)),
+            ProcDisposition::Shim(ShimProc(0))
+        );
     }
 }

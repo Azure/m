@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 
-//! The Win32 dynamic-loader C ABI (`mLoadLibrary*` / `mFreeLibrary`) — MW9.
+//! The Win32 dynamic-loader C ABI (`mLoadLibrary*` / `mGetProcAddress` /
+//! `mFreeLibrary`) — MW9.
 //!
 //! These entry points mirror the Win32 loader prototypes so the shim is a
 //! drop-in for the loader half of the C++ `mwin32` surface. Each body does only
@@ -28,14 +29,22 @@
 #![allow(unsafe_code)]
 #![allow(clippy::not_unsafe_ptr_arg_deref, clippy::too_many_arguments)]
 
-use windows_sys::Win32::Foundation::{BOOL, FreeLibrary, HANDLE, HMODULE, TRUE};
+use windows_sys::Win32::Foundation::{BOOL, FARPROC, FreeLibrary, HANDLE, HMODULE, TRUE};
 use windows_sys::Win32::System::LibraryLoader::{
-    LoadLibraryA, LoadLibraryExA, LoadLibraryExW, LoadLibraryW, LOAD_LIBRARY_FLAGS,
+    GetProcAddress, LoadLibraryA, LoadLibraryExA, LoadLibraryExW, LoadLibraryW, LOAD_LIBRARY_FLAGS,
 };
 
 use crate::ansi;
-use crate::loader::{FreeDisposition, LoadDisposition, RawModule};
+use crate::loader::{
+    FreeDisposition, LoadDisposition, ProcDisposition, ProcQuery, RawModule, ShimProc,
+};
 use crate::session::session;
+
+/// A `GetProcAddress` `lpProcName` whose value fits in this many low bits is an
+/// ordinal (`MAKEINTRESOURCE`), not a string pointer: the high word is zero.
+const ORDINAL_NAME_SHIFT: u32 = 16;
+/// Mask selecting the ordinal value out of an `lpProcName` that is an ordinal.
+const ORDINAL_VALUE_MASK: usize = 0xffff;
 
 // --- Pointer marshaling helpers ---------------------------------------------
 
@@ -80,6 +89,31 @@ unsafe fn read_ansi_string(p: *const u8) -> String {
         let bytes = core::slice::from_raw_parts(p, len);
         String::from_utf16_lossy(ansi::ansi_to_utf16(bytes).as_units())
     }
+}
+
+/// Decode an `lpProcName` argument into a [`ProcQuery`]. When the pointer value
+/// has a zero high word it is an ordinal (`MAKEINTRESOURCE`); otherwise it is a
+/// NUL-terminated `CP_ACP` export name decoded via the `ansi` boundary.
+///
+/// # Safety
+///
+/// When `p` is a string pointer (high word non-zero) it must be NUL-terminated.
+unsafe fn read_proc_query(p: *const u8) -> ProcQuery {
+    let value = p as usize;
+    if value >> ORDINAL_NAME_SHIFT == 0 {
+        return ProcQuery::Ordinal((value & ORDINAL_VALUE_MASK) as u16);
+    }
+    // SAFETY: a non-ordinal lpProcName is a NUL-terminated export name.
+    ProcQuery::Named(unsafe { read_ansi_string(p) })
+}
+
+/// Convert a shim proc address into the Win32 `FARPROC` return type. A
+/// [`ShimProc`] of `0` becomes the null "not found" result.
+fn shim_proc_to_farproc(proc: ShimProc) -> FARPROC {
+    // SAFETY: FARPROC is `Option<unsafe extern "system" fn() -> isize>`, a
+    // nullable pointer-sized value; transmuting a code address (or 0 for null)
+    // to it is the standard FARPROC round-trip.
+    unsafe { core::mem::transmute::<usize, FARPROC>(proc.0) }
 }
 
 /// Run the loader policy for a `LoadLibrary*` of `name`, calling `forward` to
@@ -153,6 +187,23 @@ pub extern "system" fn mLoadLibraryExA(
     })
 }
 
+/// `GetProcAddress`: resolve `lp_proc_name` against `h_module`. A shimmed proc
+/// name (substitute mode) or an engine-supplied sentinel proc returns the shim
+/// body without touching the OS; every other case forwards to the real
+/// `GetProcAddress`. Off mode is a pure passthrough (SHIM-D16).
+#[unsafe(no_mangle)]
+pub extern "system" fn mGetProcAddress(h_module: HMODULE, lp_proc_name: *const u8) -> FARPROC {
+    let module = h_module as RawModule;
+    // SAFETY: lp_proc_name is an ordinal or a NUL-terminated name (C ABI).
+    let query = unsafe { read_proc_query(lp_proc_name) };
+    match session().with_loader(|loader| loader.on_get_proc_address(module, &query)) {
+        ProcDisposition::Shim(proc) => shim_proc_to_farproc(proc),
+        // SAFETY: forwarding the caller's original handle and pointer to the
+        // real resolver against a genuine module.
+        ProcDisposition::Forward => unsafe { GetProcAddress(h_module, lp_proc_name) },
+    }
+}
+
 /// `FreeLibrary`: release a minted sentinel (no OS call) or forward any genuine
 /// `HMODULE` to the real `FreeLibrary` (SHIM-D16 transparency invariant).
 #[unsafe(no_mangle)]
@@ -199,5 +250,34 @@ mod tests {
         let handle = mLoadLibraryExW(name.as_ptr(), core::ptr::null_mut(), 0);
         assert!(!handle.is_null());
         assert_eq!(mFreeLibrary(handle), TRUE);
+    }
+
+    #[test]
+    fn get_proc_address_forwards_to_real_resolver_in_off_mode() {
+        // Off mode is a pure passthrough: resolving a genuine kernel32 export
+        // returns the real address, and a missing export returns null.
+        let name = wide("kernel32.dll");
+        let handle = mLoadLibraryW(name.as_ptr());
+        assert!(!handle.is_null());
+
+        let proc = mGetProcAddress(handle, c"GetCurrentProcessId".as_ptr().cast());
+        assert!(proc.is_some());
+
+        let missing = mGetProcAddress(handle, c"NoSuchExport_zzz".as_ptr().cast());
+        assert!(missing.is_none());
+
+        assert_eq!(mFreeLibrary(handle), TRUE);
+    }
+
+    #[test]
+    fn read_proc_query_classifies_ordinal_and_name() {
+        // A small integer pointer value is an ordinal, never dereferenced.
+        // SAFETY: the ordinal branch reads no memory.
+        let ordinal = unsafe { read_proc_query(7 as *const u8) };
+        assert_eq!(ordinal, ProcQuery::Ordinal(7));
+
+        // SAFETY: a genuine NUL-terminated name is decoded as a named query.
+        let named = unsafe { read_proc_query(c"RegOpenKeyExW".as_ptr().cast()) };
+        assert_eq!(named, ProcQuery::Named("RegOpenKeyExW".to_owned()));
     }
 }

@@ -270,12 +270,12 @@ mod tests {
     #[test]
     fn real_manifest_active_and_aliased_counts() {
         let m = parse_manifest(EXPORT_DEF).unwrap();
-        // 93 active exports today (W forms + NOT_SUPPORTED stubs + the 10
+        // 99 active exports today (W forms + NOT_SUPPORTED stubs + the 10
         // registry A forms (MW6-2) + the 11 filesystem A forms (MW6-3) + the 10
-        // loader-family exports (MW9)); mCloseHandle is the sole noalias export,
-        // so 92 are aliased.
-        assert_eq!(m.exports.len(), 93);
-        assert_eq!(m.aliased.len(), 92);
+        // loader-family exports (MW9) + the 6 COM exports (MW10)); mCloseHandle
+        // is the sole noalias export, so 98 are aliased.
+        assert_eq!(m.exports.len(), 99);
+        assert_eq!(m.aliased.len(), 98);
     }
 
     #[test]

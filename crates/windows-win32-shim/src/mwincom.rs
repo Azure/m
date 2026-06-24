@@ -41,11 +41,14 @@ use core::sync::atomic::{AtomicU32, Ordering, fence};
 
 use windows_sys::Win32::Foundation::{BOOL, E_INVALIDARG, E_NOINTERFACE, E_POINTER, S_OK};
 use windows_sys::Win32::System::Com::{
-    CLSCTX, COSERVERINFO, CoCreateInstance, CoCreateInstanceEx, CoGetClassObject, MULTI_QI,
+    CLSCTX, COSERVERINFO, CoCreateInstance, CoCreateInstanceEx, CoGetClassObject, CoInitialize,
+    CoInitializeEx, CoUninitialize, MULTI_QI,
 };
 use windows_sys::core::{GUID, HRESULT};
 
-use crate::com::{ActivationDisposition, ActivationExDisposition, ClassObjectDisposition, Guid};
+use crate::com::{
+    ActivationDisposition, ActivationExDisposition, ClassObjectDisposition, ComEvent, Guid,
+};
 use crate::session::session;
 
 /// `CLASS_E_NOAGGREGATION` — the COM error a class object returns when asked to
@@ -481,6 +484,36 @@ pub extern "system" fn mCoGetClassObject(
             unsafe { CoGetClassObject(rclsid, dwclscontext, pvreserved, riid, ppv) }
         }
     }
+}
+
+// --- Passthrough lifecycle exports (SHIM-D17) -------------------------------
+
+/// `mCoInitialize` — a pure passthrough: the apartment lifecycle is never
+/// substituted, only observed (a no-op in [`ComMode::Off`](crate::com::ComMode))
+/// before forwarding verbatim to the real ole32 `CoInitialize`.
+#[unsafe(no_mangle)]
+pub extern "system" fn mCoInitialize(pvreserved: *const c_void) -> HRESULT {
+    session().with_com(|com| com.observe(ComEvent::Initialize));
+    // SAFETY: forward the caller's verbatim argument to real ole32.
+    unsafe { CoInitialize(pvreserved) }
+}
+
+/// `mCoInitializeEx` — a pure passthrough: observe the apartment initialization,
+/// then forward verbatim to the real ole32 `CoInitializeEx`.
+#[unsafe(no_mangle)]
+pub extern "system" fn mCoInitializeEx(pvreserved: *const c_void, dwcoinit: u32) -> HRESULT {
+    session().with_com(|com| com.observe(ComEvent::Initialize));
+    // SAFETY: forward the caller's verbatim arguments to real ole32.
+    unsafe { CoInitializeEx(pvreserved, dwcoinit) }
+}
+
+/// `mCoUninitialize` — a pure passthrough: observe the apartment teardown, then
+/// forward verbatim to the real ole32 `CoUninitialize`.
+#[unsafe(no_mangle)]
+pub extern "system" fn mCoUninitialize() {
+    session().with_com(|com| com.observe(ComEvent::Uninitialize));
+    // SAFETY: forward to real ole32.
+    unsafe { CoUninitialize() }
 }
 
 #[cfg(test)]

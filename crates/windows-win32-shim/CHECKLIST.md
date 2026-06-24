@@ -171,7 +171,7 @@ Realizes the COM half of platform-isolation **D24/D29**. New surface — no C++
       `HRESULT`.
 - [x] **MW10-3** `mCoGetClassObject`: off→forward; observe; return a shim class
       factory for a registered CLSID, else forward to real activation.
-- [ ] **MW10-4** Passthrough lifecycle exports (`mCoInitialize` /
+- [x] **MW10-4** Passthrough lifecycle exports (`mCoInitialize` /
       `mCoInitializeEx` / `mCoUninitialize`) + add all MW10 exports to the dual
       manifests (drift-guard green). **All COM exports are non-opt-in**
       (manifest'd with `/alternatename`, like the loader family, not `noalias`);

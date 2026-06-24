@@ -251,6 +251,20 @@
 {"win32":"LoadLibraryW","shim":"mLoadLibraryW"}
 
 # ============================================================================
+# COM activation (mwincom.rs)
+# ============================================================================
+# The whole COM family is non-opt-in: every record auto-redirects (no
+# "alias":false), so a client's COM activation calls flow through the shim's
+# substitution / observation policy (SHIM-D17). An unregistered CLSID stays
+# transparent.
+{"win32":"CoCreateInstance","shim":"mCoCreateInstance"}
+{"win32":"CoCreateInstanceEx","shim":"mCoCreateInstanceEx"}
+{"win32":"CoGetClassObject","shim":"mCoGetClassObject"}
+{"win32":"CoInitialize","shim":"mCoInitialize"}
+{"win32":"CoInitializeEx","shim":"mCoInitializeEx"}
+{"win32":"CoUninitialize","shim":"mCoUninitialize"}
+
+# ============================================================================
 # WebCore — out of scope for this shim (SHIM-D5); listed for parity only.
 # ============================================================================
 # {"win32":"WebCoreActivate","shim":"mWebCoreActivate"}

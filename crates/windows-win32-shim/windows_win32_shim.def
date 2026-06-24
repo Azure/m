@@ -249,6 +249,22 @@ mSetFileAttributesA
  mLoadLibraryW
 
 ; ============================================================================
+; COM activation (mwincom.rs)
+; ============================================================================
+; The whole COM family is non-opt-in: every export carries `/alternatename` so
+; a client's COM activation calls flow through the shim's substitution /
+; observation policy (SHIM-D17). `CoCreateInstance` is itself an ole32 import,
+; but it is not reachable through `GetProcAddress`, so COM needs its own
+; exports. None opt out; an unregistered CLSID stays transparent.
+
+ mCoCreateInstance
+ mCoCreateInstanceEx
+ mCoGetClassObject
+ mCoInitialize
+ mCoInitializeEx
+ mCoUninitialize
+
+; ============================================================================
 ; WebCore — out of scope for this shim (SHIM-D5); listed for parity only.
 ; ============================================================================
 ;mWebCoreActivate

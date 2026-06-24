@@ -248,7 +248,7 @@ are MW14 / MW15). `wordy` is a sibling crate (`crates/wordy`); its source carrie
 zero isolation awareness (SHIM-D19) — it declares its **own** modeled IIS vtable
 subset (peer of `mwinweb`), never depending on this crate.
 
-- [ ] **MW13-1** Scaffold `crates/wordy` (add to workspace): a `cdylib`+`rlib`
+- [x] **MW13-1** Scaffold `crates/wordy` (add to workspace): a `cdylib`+`rlib`
       IIS native-module crate with a generic **env-driven `build.rs`** (SHIM-D19:
       links an extra object + lib search dir only when `WORDY_EXTRA_LINK_*` env
       vars are set, else a plain build — no isolation knowledge). Its own

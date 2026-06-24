@@ -1,0 +1,18 @@
+[package]
+name = "wordy"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "A shim-unaware Rust IIS native-module REST 'shared dictionary' service. A realistic third-party HWC application used to prove link-time host-call redirection and to drive HWC business logic on an unprivileged developer machine. Carries no isolation awareness (windows-win32-shim SHIM-D19)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+] }
+
+[lints]
+workspace = true

@@ -17,8 +17,11 @@
 //! family gates substitution/observation (SHIM-D17). Installation is
 //! unconditional in both modes; being resident on the path is the point.
 
+use std::sync::{Arc, Mutex};
+
 use windows_platform_isolation::{
-    Disposition, HttpRequest, HttpResponse, IdentityHandler, RequestHandler,
+    Disposition, HttpRequest, HttpResponse, IsolationMode, ObservationSink, ObservedEvent,
+    RequestHandler, VolumePolicy, WebSession,
 };
 
 /// A single observed web-host activation or per-request notification (SHIM-D18 /
@@ -92,6 +95,21 @@ impl RequestHandler for ContinueLeaf {
     }
 }
 
+/// An [`ObservationSink`] that appends each [`ObservedEvent`] to the session's
+/// shared observation log (MW12-4). The journaling decorator drives it on the
+/// request thread; the log is held behind an `Arc<Mutex<..>>` shared with the
+/// session so it survives the per-request handler and can be inspected (or, in a
+/// future cut, drained).
+pub struct LogSink {
+    log: Arc<Mutex<Vec<ObservedEvent>>>,
+}
+
+impl ObservationSink for LogSink {
+    fn observe(&mut self, event: ObservedEvent) {
+        self.log.lock().expect("observation log poisoned").push(event);
+    }
+}
+
 /// The session-held web policy: the mode and the observation sink. Composed like
 /// the COM state (SHIM-D17) and held behind the session lock. MW11 has no
 /// substitution registry — the pass-through cut needs only mode + sink.
@@ -99,6 +117,13 @@ pub struct WebState {
     /// The active behavior mode.
     pub mode: WebMode,
     sink: Box<dyn WebObservationSink>,
+    /// The shared per-request observation log the journaling stack feeds
+    /// (MW12-4). Held behind `Arc<Mutex<..>>` so the per-request [`LogSink`] and
+    /// the session see the same buffer.
+    observation_log: Arc<Mutex<Vec<ObservedEvent>>>,
+    /// The volume policy the journaling stack honors (D29). Defaults to
+    /// recording every exchange.
+    policy: VolumePolicy,
 }
 
 impl WebState {
@@ -109,12 +134,27 @@ impl WebState {
         Self {
             mode: WebMode::Off,
             sink: Box::new(NullWebSink),
+            observation_log: Arc::new(Mutex::new(Vec::new())),
+            policy: VolumePolicy::record_all(),
         }
     }
 
     /// Replace the observation sink (the session installs the real sink here).
     pub fn set_sink(&mut self, sink: Box<dyn WebObservationSink>) {
         self.sink = sink;
+    }
+
+    /// Set the volume policy the journaling stack honors (D29). Defaults to
+    /// recording every exchange.
+    pub fn set_volume_policy(&mut self, policy: VolumePolicy) {
+        self.policy = policy;
+    }
+
+    /// A clone of the shared observation-log handle. The journaling stack
+    /// appends to it; callers (and tests) read what was recorded.
+    #[must_use]
+    pub fn observation_log(&self) -> Arc<Mutex<Vec<ObservedEvent>>> {
+        self.observation_log.clone()
     }
 
     /// Report `event` to the sink when the mode observes ([`WebMode::Observe`]);
@@ -149,12 +189,21 @@ impl WebState {
     }
 
     /// Build the per-request handler stack the shim `CHttpModule` drives (MW12).
-    /// The first cut is the identity decorator over the [`ContinueLeaf`]
-    /// (D25 "off"): every notification is forwarded to the real handler and its
-    /// disposition returned unchanged. The journaling stack arrives in MW12-4.
+    /// The mode selects the decorator stack over the [`ContinueLeaf`]: in
+    /// [`WebMode::Off`] an identity pass-through (D25 "off"); in
+    /// [`WebMode::Observe`] the journaling stack (D25 "record") that reports each
+    /// exchange to the session log subject to the volume policy (D29). Neither
+    /// stack mutates the response.
     #[must_use]
     pub fn build_handler(&self) -> Box<dyn RequestHandler> {
-        Box::new(IdentityHandler::new(ContinueLeaf))
+        let mode = match self.mode {
+            WebMode::Off => IsolationMode::Off,
+            WebMode::Observe => IsolationMode::Record,
+        };
+        let sink = LogSink {
+            log: self.observation_log.clone(),
+        };
+        Box::new(WebSession::new(mode).wrap(ContinueLeaf, sink, self.policy.clone()))
     }
 }
 
@@ -222,5 +271,69 @@ mod tests {
         assert_eq!(state.mode, WebMode::Off);
         // Observing in Off mode is a no-op even with the default sink.
         state.on_begin_request();
+    }
+
+    // --- MW12-4: journaling stack -------------------------------------------
+
+    #[test]
+    fn observe_mode_journals_each_exchange_into_the_log() {
+        let mut state = WebState::new();
+        state.mode = WebMode::Observe;
+        let log = state.observation_log();
+        let mut handler = state.build_handler();
+
+        let request = HttpRequest::new("GET", "/page");
+        assert_eq!(handler.on_begin_request(&request), Disposition::Continue);
+        let mut response = HttpResponse::new(200);
+        assert_eq!(handler.on_send_response(&mut response), Disposition::Continue);
+
+        let events = log.lock().expect("log poisoned").clone();
+        assert_eq!(
+            events,
+            vec![
+                ObservedEvent::BeginRequest {
+                    method: "GET".to_owned(),
+                    url: "/page".to_owned(),
+                    header_names: Vec::new(),
+                },
+                ObservedEvent::SendResponse {
+                    status: 200,
+                    header_names: Vec::new(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn off_mode_journals_nothing() {
+        let state = WebState::new();
+        let log = state.observation_log();
+        let mut handler = state.build_handler();
+
+        handler.on_begin_request(&HttpRequest::new("GET", "/page"));
+        handler.on_send_response(&mut HttpResponse::new(200));
+
+        assert!(log.lock().expect("log poisoned").is_empty());
+    }
+
+    #[test]
+    fn volume_policy_suppresses_known_safe_exchanges() {
+        let mut state = WebState::new();
+        state.mode = WebMode::Observe;
+        let mut policy = VolumePolicy::record_all();
+        policy.suppress("GET", "/health");
+        state.set_volume_policy(policy);
+        let log = state.observation_log();
+        let mut handler = state.build_handler();
+
+        // The suppressed exchange records nothing (begin and send both elided).
+        handler.on_begin_request(&HttpRequest::new("GET", "/health"));
+        handler.on_send_response(&mut HttpResponse::new(200));
+        assert!(log.lock().expect("log poisoned").is_empty());
+
+        // A non-suppressed exchange still records.
+        handler.on_begin_request(&HttpRequest::new("GET", "/page"));
+        handler.on_send_response(&mut HttpResponse::new(200));
+        assert_eq!(log.lock().expect("log poisoned").len(), 2);
     }
 }

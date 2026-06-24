@@ -232,7 +232,7 @@ change today" endpoint.
       its disposition unchanged.
 - [x] **MW12-3** Map handler dispositions back to host notification return codes /
       `HRESULT`; ensure error and continue/finish outcomes round-trip exactly.
-- [ ] **MW12-4** Optional journaling path: swap in the platform-isolation
+- [x] **MW12-4** Optional journaling path: swap in the platform-isolation
       `JournalingHandler` under record mode, observing each request without
       changing the response (D29 volume policy applies).
 - [ ] **MW12-5** *(integration)* End-to-end: a request flows through a real or

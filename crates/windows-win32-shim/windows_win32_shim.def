@@ -230,6 +230,25 @@ mSetFileAttributesA
  mRegUnLoadKeyW
 
 ; ============================================================================
+; Dynamic loader (mwinload.rs)
+; ============================================================================
+; The whole loader family is non-opt-in: every export carries `/alternatename`
+; so a client's runtime symbol resolution (LoadLibrary/GetProcAddress) is the
+; seam that brings dynamically-bound APIs and substitutable engines under the
+; same redirection as static imports (SHIM-D16). None opt out.
+
+ mFreeLibrary
+ mGetModuleHandleA
+ mGetModuleHandleExA
+ mGetModuleHandleExW
+ mGetModuleHandleW
+ mGetProcAddress
+ mLoadLibraryA
+ mLoadLibraryExA
+ mLoadLibraryExW
+ mLoadLibraryW
+
+; ============================================================================
 ; WebCore — out of scope for this shim (SHIM-D5); listed for parity only.
 ; ============================================================================
 ;mWebCoreActivate

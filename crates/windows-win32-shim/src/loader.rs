@@ -32,7 +32,7 @@
 //! `windows-platform-isolation` loader surface is deferred until a second
 //! consumer needs it. No C ABI exports live here — they arrive in MW9-2..MW9-4.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::handle_table::{mint_value, RawHandle};
 
@@ -93,6 +93,7 @@ pub struct ModuleTable {
     next_sequence: RawModule,
     entries: HashMap<RawModule, ModuleEntry>,
     sentinel_by_name: HashMap<String, RawModule>,
+    pinned: HashSet<RawModule>,
 }
 
 impl ModuleTable {
@@ -103,6 +104,7 @@ impl ModuleTable {
             next_sequence: 1,
             entries: HashMap::new(),
             sentinel_by_name: HashMap::new(),
+            pinned: HashSet::new(),
         }
     }
 
@@ -165,11 +167,32 @@ impl ModuleTable {
         matches!(self.entries.get(&value), Some(ModuleEntry::Sentinel { .. }))
     }
 
+    /// Pin a minted sentinel so a later `release_sentinel` leaves it in place.
+    /// Models the `GET_MODULE_HANDLE_EX_FLAG_PIN` flag of `GetModuleHandleEx`
+    /// (SHIM-D16): a pinned engine sentinel survives `mFreeLibrary` just as a
+    /// pinned OS module survives `FreeLibrary`. A no-op for non-sentinels.
+    pub fn pin(&mut self, value: RawModule) {
+        if self.is_sentinel(value) {
+            self.pinned.insert(value);
+        }
+    }
+
+    /// Whether `value` is a pinned sentinel.
+    #[must_use]
+    pub fn is_pinned(&self, value: RawModule) -> bool {
+        self.pinned.contains(&value)
+    }
+
     /// Release a minted sentinel, returning `true` if `value` named a live
-    /// sentinel that was removed. A real or unknown value is left untouched and
-    /// returns `false` (the caller forwards it to the real `FreeLibrary`).
+    /// sentinel (so the caller does not forward to the real `FreeLibrary`). A
+    /// **pinned** sentinel reports `true` but is kept (pin semantics); an
+    /// unpinned sentinel is removed. A real or unknown value is left untouched
+    /// and returns `false` (the caller forwards it).
     pub fn release_sentinel(&mut self, value: RawModule) -> bool {
         if let Some(ModuleEntry::Sentinel { name }) = self.entries.get(&value) {
+            if self.pinned.contains(&value) {
+                return true;
+            }
             let key = normalize_module_name(name);
             self.sentinel_by_name.remove(&key);
             self.entries.remove(&value);
@@ -425,6 +448,16 @@ pub enum ProcDisposition {
     Forward,
 }
 
+/// The disposition of an observed `GetModuleHandle` / `GetModuleHandleEx` call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModuleHandleDisposition {
+    /// The name resolved to a previously-minted sentinel; return it without
+    /// touching the OS loader.
+    Sentinel(RawModule),
+    /// No sentinel matched; forward to the real `GetModuleHandle*`.
+    Forward,
+}
+
 /// The session-held loader policy: the mode, the substitution tables, the module
 /// handle table, and the observation sink. Composed like the registry/filesystem
 /// backings (SHIM-D13) and held behind the session lock.
@@ -557,6 +590,41 @@ impl LoaderState {
             return ProcDisposition::Shim(shim);
         }
         ProcDisposition::Forward
+    }
+
+    /// Decide how to resolve a `GetModuleHandleW`/`A` for `name`.
+    ///
+    /// Off mode is a pure forward. Otherwise the lookup is reported to the sink,
+    /// then a previously-minted engine sentinel for `name` yields
+    /// [`ModuleHandleDisposition::Sentinel`]; anything else forwards to the real
+    /// `GetModuleHandle*` (a real module is never interned by a handle query — it
+    /// is interned only by an actual load).
+    pub fn on_get_module_handle(&mut self, name: &str) -> ModuleHandleDisposition {
+        if self.mode == LoaderMode::Off {
+            return ModuleHandleDisposition::Forward;
+        }
+        self.observe(LoaderEvent::GetModuleHandle {
+            name: name.to_owned(),
+        });
+        match self.modules.sentinel_for_name(name) {
+            Some(raw) => ModuleHandleDisposition::Sentinel(raw),
+            None => ModuleHandleDisposition::Forward,
+        }
+    }
+
+    /// The `GetModuleHandleEx` form of [`on_get_module_handle`]: resolves `name`
+    /// the same way and, when `pin` is set and a sentinel matched, pins the
+    /// sentinel so a later `mFreeLibrary` leaves it in place (SHIM-D16 minimal
+    /// `GET_MODULE_HANDLE_EX_FLAG_PIN` modeling). The unchanged-refcount flag is
+    /// inherently a no-op for sentinels, which carry no OS reference count.
+    ///
+    /// [`on_get_module_handle`]: Self::on_get_module_handle
+    pub fn on_get_module_handle_ex(&mut self, name: &str, pin: bool) -> ModuleHandleDisposition {
+        let disposition = self.on_get_module_handle(name);
+        if pin && let ModuleHandleDisposition::Sentinel(raw) = disposition {
+            self.modules.pin(raw);
+        }
+        disposition
     }
 }
 
@@ -926,6 +994,78 @@ mod tests {
         assert_eq!(
             state.on_get_proc_address(sentinel, &ProcQuery::Ordinal(7)),
             ProcDisposition::Shim(ShimProc(0))
+        );
+    }
+
+    #[test]
+    fn off_mode_get_module_handle_forwards_without_observing() {
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut state = LoaderState::new();
+        state.set_sink(Box::new(RecordingSink {
+            events: events.clone(),
+        }));
+        assert_eq!(
+            state.on_get_module_handle("kernel32.dll"),
+            ModuleHandleDisposition::Forward
+        );
+        assert!(events.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn get_module_handle_resolves_minted_sentinel_by_name() {
+        let mut state = LoaderState::new();
+        state.mode = LoaderMode::Substitute;
+        state.engines.register_engine("WebCore.dll");
+        let sentinel = match state.on_load_library("WebCore.dll") {
+            LoadDisposition::Substitute(value) => value,
+            other => panic!("expected substitution, got {other:?}"),
+        };
+
+        // Case-insensitive name resolution returns the same sentinel.
+        assert_eq!(
+            state.on_get_module_handle("webcore.dll"),
+            ModuleHandleDisposition::Sentinel(sentinel)
+        );
+        // An unknown name forwards.
+        assert_eq!(
+            state.on_get_module_handle("kernel32.dll"),
+            ModuleHandleDisposition::Forward
+        );
+    }
+
+    #[test]
+    fn pinned_sentinel_survives_free() {
+        let mut state = LoaderState::new();
+        state.mode = LoaderMode::Substitute;
+        state.engines.register_engine("WebCore.dll");
+        let sentinel = match state.on_load_library("WebCore.dll") {
+            LoadDisposition::Substitute(value) => value,
+            other => panic!("expected substitution, got {other:?}"),
+        };
+
+        // Pin via the Ex path, then free: the sentinel reports released (ABI
+        // TRUE) but remains resolvable.
+        assert_eq!(
+            state.on_get_module_handle_ex("WebCore.dll", true),
+            ModuleHandleDisposition::Sentinel(sentinel)
+        );
+        assert!(state.modules.is_pinned(sentinel));
+        assert_eq!(state.on_free_library(sentinel), FreeDisposition::Released);
+        assert_eq!(
+            state.on_get_module_handle("WebCore.dll"),
+            ModuleHandleDisposition::Sentinel(sentinel)
+        );
+
+        // An unpinned engine is removed on free.
+        state.engines.register_engine("Other.dll");
+        let other = match state.on_load_library("Other.dll") {
+            LoadDisposition::Substitute(value) => value,
+            other => panic!("expected substitution, got {other:?}"),
+        };
+        assert_eq!(state.on_free_library(other), FreeDisposition::Released);
+        assert_eq!(
+            state.on_get_module_handle("Other.dll"),
+            ModuleHandleDisposition::Forward
         );
     }
 }

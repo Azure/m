@@ -233,6 +233,24 @@
 {"win32":"RegUnLoadKeyW","shim":"mRegUnLoadKeyW"}
 
 # ============================================================================
+# Dynamic loader (mwinload.rs)
+# ============================================================================
+# The whole loader family is non-opt-in: every record auto-redirects (no
+# "alias":false), so a client's runtime symbol resolution (LoadLibrary /
+# GetProcAddress) is redirected into the shim just like a static import
+# (SHIM-D16).
+{"win32":"FreeLibrary","shim":"mFreeLibrary"}
+{"win32":"GetModuleHandleA","shim":"mGetModuleHandleA"}
+{"win32":"GetModuleHandleExA","shim":"mGetModuleHandleExA"}
+{"win32":"GetModuleHandleExW","shim":"mGetModuleHandleExW"}
+{"win32":"GetModuleHandleW","shim":"mGetModuleHandleW"}
+{"win32":"GetProcAddress","shim":"mGetProcAddress"}
+{"win32":"LoadLibraryA","shim":"mLoadLibraryA"}
+{"win32":"LoadLibraryExA","shim":"mLoadLibraryExA"}
+{"win32":"LoadLibraryExW","shim":"mLoadLibraryExW"}
+{"win32":"LoadLibraryW","shim":"mLoadLibraryW"}
+
+# ============================================================================
 # WebCore — out of scope for this shim (SHIM-D5); listed for parity only.
 # ============================================================================
 # {"win32":"WebCoreActivate","shim":"mWebCoreActivate"}

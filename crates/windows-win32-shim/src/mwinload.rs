@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 
 //! The Win32 dynamic-loader C ABI (`mLoadLibrary*` / `mGetProcAddress` /
-//! `mFreeLibrary`) — MW9.
+//! `mFreeLibrary` / `mGetModuleHandle*`) — MW9.
 //!
 //! These entry points mirror the Win32 loader prototypes so the shim is a
 //! drop-in for the loader half of the C++ `mwin32` surface. Each body does only
@@ -31,12 +31,15 @@
 
 use windows_sys::Win32::Foundation::{BOOL, FARPROC, FreeLibrary, HANDLE, HMODULE, TRUE};
 use windows_sys::Win32::System::LibraryLoader::{
-    GetProcAddress, LoadLibraryA, LoadLibraryExA, LoadLibraryExW, LoadLibraryW, LOAD_LIBRARY_FLAGS,
+    GetModuleHandleA, GetModuleHandleExA, GetModuleHandleExW, GetModuleHandleW,
+    GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN, GetProcAddress,
+    LoadLibraryA, LoadLibraryExA, LoadLibraryExW, LoadLibraryW, LOAD_LIBRARY_FLAGS,
 };
 
 use crate::ansi;
 use crate::loader::{
-    FreeDisposition, LoadDisposition, ProcDisposition, ProcQuery, RawModule, ShimProc,
+    FreeDisposition, LoadDisposition, ModuleHandleDisposition, ProcDisposition, ProcQuery,
+    RawModule, ShimProc,
 };
 use crate::session::session;
 
@@ -217,6 +220,94 @@ pub extern "system" fn mFreeLibrary(h_lib_module: HMODULE) -> BOOL {
     }
 }
 
+/// `GetModuleHandleW`: resolve a previously-minted engine sentinel by name (no
+/// OS call), else forward to the real `GetModuleHandleW`. A null name (the
+/// caller's own module) is never a sentinel and forwards (SHIM-D16).
+#[unsafe(no_mangle)]
+pub extern "system" fn mGetModuleHandleW(lp_module_name: *const u16) -> HMODULE {
+    // SAFETY: lp_module_name is null or a NUL-terminated wide string (C ABI).
+    let name = unsafe { read_wide_string(lp_module_name) };
+    match session().with_loader(|loader| loader.on_get_module_handle(&name)) {
+        ModuleHandleDisposition::Sentinel(raw) => raw as HMODULE,
+        // SAFETY: forwarding the caller's original pointer to the real resolver.
+        ModuleHandleDisposition::Forward => unsafe { GetModuleHandleW(lp_module_name) },
+    }
+}
+
+/// `GetModuleHandleA`: the `CP_ACP` form of [`mGetModuleHandleW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mGetModuleHandleA(lp_module_name: *const u8) -> HMODULE {
+    // SAFETY: lp_module_name is null or a NUL-terminated CP_ACP string (C ABI).
+    let name = unsafe { read_ansi_string(lp_module_name) };
+    match session().with_loader(|loader| loader.on_get_module_handle(&name)) {
+        ModuleHandleDisposition::Sentinel(raw) => raw as HMODULE,
+        // SAFETY: forwarding the caller's original pointer to the real resolver.
+        ModuleHandleDisposition::Forward => unsafe { GetModuleHandleA(lp_module_name) },
+    }
+}
+
+/// `GetModuleHandleExW`: the flags form of [`mGetModuleHandleW`]. A sentinel
+/// match writes `ph_module` and returns `TRUE`; the `PIN` flag pins the sentinel
+/// so it survives a later `mFreeLibrary` (minimal flag modeling, SHIM-D16). A
+/// `FROM_ADDRESS` query carries an address rather than a name and is forwarded
+/// verbatim, as an address cannot be mapped back to a sentinel.
+#[unsafe(no_mangle)]
+pub extern "system" fn mGetModuleHandleExW(
+    dw_flags: u32,
+    lp_module_name: *const u16,
+    ph_module: *mut HMODULE,
+) -> BOOL {
+    if dw_flags & GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS != 0 {
+        // SAFETY: forwarding the caller's verbatim arguments to the real API.
+        return unsafe { GetModuleHandleExW(dw_flags, lp_module_name, ph_module) };
+    }
+    // SAFETY: lp_module_name is null or a NUL-terminated wide string (C ABI).
+    let name = unsafe { read_wide_string(lp_module_name) };
+    let pin = dw_flags & GET_MODULE_HANDLE_EX_FLAG_PIN != 0;
+    match session().with_loader(|loader| loader.on_get_module_handle_ex(&name, pin)) {
+        ModuleHandleDisposition::Sentinel(raw) => {
+            if !ph_module.is_null() {
+                // SAFETY: ph_module is a caller-owned out-pointer (non-null).
+                unsafe { *ph_module = raw as HMODULE };
+            }
+            TRUE
+        }
+        // SAFETY: forwarding the caller's verbatim arguments to the real API.
+        ModuleHandleDisposition::Forward => unsafe {
+            GetModuleHandleExW(dw_flags, lp_module_name, ph_module)
+        },
+    }
+}
+
+/// `GetModuleHandleExA`: the `CP_ACP` form of [`mGetModuleHandleExW`].
+#[unsafe(no_mangle)]
+pub extern "system" fn mGetModuleHandleExA(
+    dw_flags: u32,
+    lp_module_name: *const u8,
+    ph_module: *mut HMODULE,
+) -> BOOL {
+    if dw_flags & GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS != 0 {
+        // SAFETY: forwarding the caller's verbatim arguments to the real API.
+        return unsafe { GetModuleHandleExA(dw_flags, lp_module_name, ph_module) };
+    }
+    // SAFETY: lp_module_name is null or a NUL-terminated CP_ACP string (C ABI).
+    let name = unsafe { read_ansi_string(lp_module_name) };
+    let pin = dw_flags & GET_MODULE_HANDLE_EX_FLAG_PIN != 0;
+    match session().with_loader(|loader| loader.on_get_module_handle_ex(&name, pin)) {
+        ModuleHandleDisposition::Sentinel(raw) => {
+            if !ph_module.is_null() {
+                // SAFETY: ph_module is a caller-owned out-pointer (non-null).
+                unsafe { *ph_module = raw as HMODULE };
+            }
+            TRUE
+        }
+        // SAFETY: forwarding the caller's verbatim arguments to the real API.
+        ModuleHandleDisposition::Forward => unsafe {
+            GetModuleHandleExA(dw_flags, lp_module_name, ph_module)
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,5 +370,32 @@ mod tests {
         // SAFETY: a genuine NUL-terminated name is decoded as a named query.
         let named = unsafe { read_proc_query(c"RegOpenKeyExW".as_ptr().cast()) };
         assert_eq!(named, ProcQuery::Named("RegOpenKeyExW".to_owned()));
+    }
+
+    #[test]
+    fn get_module_handle_w_forwards_to_real_resolver_in_off_mode() {
+        // Off mode forwards: kernel32 is mapped, so a by-name query returns a
+        // genuine handle; an unloaded module returns null.
+        let name = wide("kernel32.dll");
+        let handle = mGetModuleHandleW(name.as_ptr());
+        assert!(!handle.is_null());
+
+        let absent = wide("definitely_not_loaded_zzz.dll");
+        assert!(mGetModuleHandleW(absent.as_ptr()).is_null());
+    }
+
+    #[test]
+    fn get_module_handle_a_forwards_to_real_resolver_in_off_mode() {
+        let handle = mGetModuleHandleA(c"kernel32.dll".as_ptr().cast());
+        assert!(!handle.is_null());
+    }
+
+    #[test]
+    fn get_module_handle_ex_w_forwards_to_real_resolver_in_off_mode() {
+        let name = wide("kernel32.dll");
+        let mut module: HMODULE = core::ptr::null_mut();
+        let ok = mGetModuleHandleExW(0, name.as_ptr(), &mut module);
+        assert_eq!(ok, TRUE);
+        assert!(!module.is_null());
     }
 }

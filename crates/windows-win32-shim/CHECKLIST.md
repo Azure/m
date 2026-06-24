@@ -137,7 +137,7 @@ policy; the loader policy tables are shim-local (SHIM-D16 first-cut).
       the shim body when the mode is not off and the name is shimmed, else
       forward; sentinel modules resolve to shim-supplied procs. Off-mode is a
       pure forward.
-- [ ] **MW9-4** `mGetModuleHandleW`/`A`, `mGetModuleHandleExW`/`A`: resolve
+- [x] **MW9-4** `mGetModuleHandleW`/`A`, `mGetModuleHandleExW`/`A`: resolve
       previously-minted sentinels by name (else forward); model the `Ex`
       pin/ref-count flags minimally for sentinels. Add all MW9 exports to
       `windows_win32_shim.def` + `windows_win32_shim_aliases.ndjson` (the

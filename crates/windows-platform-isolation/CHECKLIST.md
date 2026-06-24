@@ -337,23 +337,37 @@ roadmap outline; track and check off the real work there.
 - [x] **M7-4** *(integration)* spawn+await, timer fire, IOCP completion smoke
       tests.
 
-### M8 — HWC (Hostable Web Core) isolation layer — OUTLINE (to be detailed when scheduled)
+### M8 — Web request/response handler surface (safe; in-process pass-through bootstrap) — DETAILED
 
-Majority of redirection runs **out of process** per D17; everything below is a
-high-level placeholder — protocol, journal format, and API-formation strategy
-are deferred ("design later").
+Supersedes the former out-of-process HWC pipeline outline per D17's "Generalized
+by D24–D29" note: the inbound web surface is now reached **in-process** via the
+aliasobj + loader-shim technique (D24/D26), and the redirection logic is just
+another decorated surface in the D4 stack (D25: off = identity). This milestone
+builds the **safe** side — the handler surface and its identity/journaling
+decorators — with no `unsafe` and no real web server. The ABI that loads us into
+the host and drives the response path is the shim's job (handoff below). The
+out-of-process service variant (former M8-2..M8-6) is deferred to D17 as a future
+heavy-traffic optimization, not the scheduled entry path.
 
-- [ ] **M8-1** HTTP listener / webcore surface shapes (C++
-      `http_listener_interfaces.h` / `webcore.h`).
-- [ ] **M8-2** Out-of-process **service executable** + thin in-process shim,
-      communicating over **named pipes** with a defined protocol (D17).
-- [ ] **M8-3** Capture hot path: on the caller thread record the minimum, hand
-      off via an **MPMC queue** to a threadpool worker (M7) that ships records to
-      the service over **async I/O (IOCP)** (D17).
-- [ ] **M8-4** Service side: journal messages, then either form the API model
-      dynamically or post-process the journal into the API (choice deferred, D17).
-- [ ] **M8-5** Make **API validation** and **work injection** injectable from
-      out of process across the same service boundary (D17).
-- [ ] **M8-6** Named-pipe + IOCP FFI leaf as its own `-sys` crate (Option B / D13).
-- [ ] **M8-7** *(integration)* end-to-end HWC scenario over an isolated world
-      (scope TBD — flag for tuning).
+- [x] **M8-1** Define the safe `RequestHandler` surface: a trait modeling one
+      request/response exchange (and/or the notification points
+      `on_begin_request` / `on_send_response`) in terms of borrowed request /
+      response models, independent of any Windows or COM type.
+- [ ] **M8-2** `IdentityHandler` decorator — a **true pass-through** that forwards
+      to the inner handler and returns its disposition unchanged (D25 "off" =
+      identity; the "no behavior change today" endpoint).
+- [ ] **M8-3** `JournalingHandler` decorator — records each exchange to the
+      observation sink (D28 PII-first, D29 volume policy) then forwards unchanged;
+      slots into the D4 decorator stack alongside the reg/fs decorators.
+- [ ] **M8-4** Session wiring: the session selects identity / journaling /
+      (future) substituting handler by mode (D25), exactly as the reg/fs backings
+      are composed; off yields the bit-identical pass-through.
+- [ ] **M8-5** *(integration)* Pure-Rust host-emulating harness: drive a synthetic
+      request through the decorator stack with a stub inner handler; assert the
+      identity path is byte-identical to the undecorated path and the journaling
+      path observes the exchange without altering the response.
+      > **➡ CROSS-COMPONENT HANDOFF:** the ABI that loads this surface into a real
+      > web host and drives the response path is `windows-win32-shim` → **MW11**
+      > (module bootstrap + activation-seam interception) → **MW12** (per-request
+      > vtable bridge + pass-through wiring + integration). See
+      > [`crates/windows-win32-shim/CHECKLIST.md`](../windows-win32-shim/CHECKLIST.md).

@@ -11,6 +11,14 @@ surface; the Rust `windows-platform-isolation` crate is the implementation
 substrate. Where the two disagree, this crate owns its own specified behavior
 (see the repo's "Design Autonomy" rule) and chooses dependencies that satisfy it.
 
+**Scope.** The original surface is **filesystem and registry** (the C++ `mwin32`
+ABI). SHIM-D16/SHIM-D17 extend the crate with two **new** surfaces that have no
+C++ `mwin32` antecedent — the **dynamic-loader** shims (`mLoadLibrary*` /
+`mGetProcAddress`) and the **COM activation** shims (`mCoCreateInstance` / …) —
+realizing platform-isolation decisions **D26** (loader shims) and **D29**
+(observe unaddressed seams) under the same aliasobj technique (**D24**) and
+off/record/replay modes (**D25**) the registry/filesystem surfaces already use.
+
 ---
 
 ## SHIM-D1 — Parallel all-Rust shim, not layered on C++
@@ -402,3 +410,156 @@ which is the single owned transcoding dependency.
   `mRegQueryInfoKeyA` reports its max-length fields in stored-form units rather
   than re-measuring ANSI byte lengths — exact for ASCII, a recorded divergence
   acceptable for the shim's uses.
+
+## SHIM-D16 — Dynamic-loader shims (`mLoadLibrary*` / `mGetProcAddress` / module handles)
+
+The loader family is the mechanism (platform-isolation **D26**) by which
+**runtime-bound** symbols and **substitutable engines** come under the same
+redirection as static imports. A dynamically-resolved API is called through a
+function pointer the host obtained at runtime, **not** through its import table,
+so aliasobj (SHIM-D4 / D24) cannot reach it directly; intercepting the host's
+*loader calls* is the only link-time seam that does. Exported set:
+
+- `mLoadLibraryW` / `mLoadLibraryA`, `mLoadLibraryExW` / `mLoadLibraryExA`
+- `mGetProcAddress`
+- `mFreeLibrary`
+- `mGetModuleHandleW` / `mGetModuleHandleA`, `mGetModuleHandleExW` / `mGetModuleHandleExA`
+
+**Behavior model**, driven by the session mode (SHIM-D13 / D25), with a module
+handle table that is a peer of the existing handle table (SHIM-D3) interning each
+load as either a **real** `HMODULE` (passthrough) or a **minted sentinel**
+`HMODULE` standing for a shim-substituted module:
+
+- **off / passthrough.** `mLoadLibrary*` forwards to the real loader and returns
+  the real `HMODULE`; `mGetProcAddress` forwards to the real `GetProcAddress`.
+  The only addition over the bare OS call is the observation hook below — the call
+  is otherwise transparent (the D24 identity requirement).
+- **observe (D29).** Every `LoadLibrary(name)` and every resolved
+  `(module-name, proc-name-or-ordinal)` is reported to the session's observation
+  sink, keyed so a known-safe `(api, target)` pair can later be suppressed by the
+  volume policy. Observation never changes the returned value.
+- **substitute (record/replay, opt-in per target).** Two distinct substitutions:
+  1. **Proc redirection.** `mGetProcAddress(h, name)` consults a
+     **name→shim-proc table** (the same `m*` bodies the static aliases resolve
+     to). When `name` is a shimmed API and the mode is not off, it returns the
+     address of the shim's own export instead of the real proc, so a
+     *dynamically*-resolved call lands in the same body as a *statically*-aliased
+     one. The table is seeded from the current export roster and **grows as new
+     surfaces (network, COM) land** — the mechanism ships even though most
+     interesting targets arrive later.
+  2. **Engine substitution.** `mLoadLibrary*` of a registered engine DLL name
+     returns a minted sentinel `HMODULE`; `mGetProcAddress` against that sentinel
+     returns shim-supplied entry points (e.g. a fake `WebCoreActivate`). This is
+     the "become the engine" route (D26): the host's loader call is the seam, not
+     the engine's internals.
+
+**Handle accounting.** `mFreeLibrary` releases a minted sentinel from the table
+(no OS call) or forwards a real `HMODULE` to the real `FreeLibrary`.
+`mGetModuleHandle*` resolves a name to a previously-minted sentinel when one
+exists (so a substituted engine is found again), else forwards to the OS;
+`GetModuleHandleEx`'s pin / ref-count flags are honored for real modules and
+modeled minimally for sentinels.
+
+**Aliasing posture (non-opt-in).** The entire loader family — `mLoadLibrary*`,
+`mGetProcAddress`, `mFreeLibrary`, and `mGetModuleHandle*` — is **non-opt-in**:
+every one is carried in the dual manifests with a `/alternatename` entry, so the
+host's naive `LoadLibraryW` / `GetProcAddress` / `FreeLibrary` / `GetModuleHandle`
+imports are rewritten to the `m*` body at link time with no per-call gate. This
+is the **opposite** of `mCloseHandle` (SHIM-D4, `noalias`/opt-in): universal
+capture is the entire point of D26, because a runtime-bound call can only be
+reached if the loader call that produced its function pointer was itself
+captured. The safety net is therefore **not** opt-out but an invariant: every
+loader export stays byte-for-byte **transparent for any `HMODULE` / `FARPROC` it
+did not mint** (and fully transparent in off-mode), so unrelated host loads are
+unaffected even though they all pass through the shim.
+
+**Ownership / safety.** The raw `HMODULE` / `FARPROC` / function-pointer
+manipulation is Windows ABI glue confined to the shim's `#[allow(unsafe_code)]`
+boundary module (SHIM-D2); the **policy** (mode, the engine-name and proc-name
+tables, the observation sink) is safe session state, composed exactly as the
+registry/filesystem backings are (SHIM-D13).
+
+**Owned simplification (first cut).** The name→shim-proc table, the
+engine-substitution registry, and the observation sink are **shim-local** data,
+seeded programmatically and (later) from `.pilcfg`; promoting them into a shared
+`windows-platform-isolation` "loader surface" is deferred until a second consumer
+needs it ("design notes are not a work queue").
+
+## SHIM-D17 — COM activation shims (`mCoCreateInstance` / `mCoGetClassObject` / …)
+
+`CoCreateInstance` is an **ole32 import**, so unlike a vtable method it is
+directly aliasable (D24) — and it is **not** reachable through the loader shims
+(it does not go through `GetProcAddress`), which is why COM needs its own exports.
+Providing for the loader without COM would leave object activation as a blind
+spot. Exported set (first cut):
+
+- `mCoCreateInstance`, `mCoCreateInstanceEx`
+- `mCoGetClassObject`
+- passthrough lifecycle: `mCoInitialize` / `mCoInitializeEx` / `mCoUninitialize`
+  (forwarded; present so the COM apartment lifecycle is observable and the alias
+  roster is coherent)
+
+**Behavior model**, mirroring SHIM-D16 and driven by session mode:
+
+- **off / passthrough.** Forward to the real ole32 entry point; return the real
+  interface pointer unchanged.
+- **observe (D29).** Report `(CLSID, IID, CLSCTX)` activations to the observation
+  sink. This is a high-traffic surface, so the volume policy's known-safe
+  allowlist is expected to matter here in particular.
+- **substitute (replay / selective record).** Consult a
+  **CLSID→shim-class-factory** registry. When a factory is registered for the
+  requested CLSID and the mode allows, the shim's factory produces an object
+  implementing the requested IID — a shim-supplied COM object (e.g. a faked
+  config admin manager so dev replay needs no real engine). With no factory
+  registered, forward to the real activation (or fail per a configured policy).
+
+**COM plumbing.** Vending a substitute object needs minimal `IUnknown` /
+`IClassFactory` vtable support. The decision is to implement these as raw
+`windows-sys` vtable structs in the shim's `#[allow(unsafe_code)]` boundary
+module rather than pulling the heavier `windows` COM macro stack into this crate,
+keeping the dependency story uniform with the rest of the shim (Design Autonomy);
+revisit if substitute objects become numerous. **Record-mode method-level
+journaling** — a forwarding wrapper that logs each vtable call on a *real* object
+— is **out of first-cut scope**: it is per-interface work with no generic form,
+so the first cut does activation-observation + substitution only, and per-method
+wrapping is added for a specific interface when a scenario needs it.
+
+**Ownership / safety.** As with SHIM-D16, the GUID / HRESULT / vtable glue is
+shim-local unsafe ABI; the CLSID registry and observation sink are safe session
+state.
+
+**Aliasing posture (non-opt-in).** Every COM export — `mCoCreateInstance`,
+`mCoCreateInstanceEx`, `mCoGetClassObject`, and the passthrough lifecycle
+exports — is **non-opt-in**, manifest'd with a `/alternatename` entry like the
+loader family, so all client COM activation in a relinked module is captured at
+link time. Unlike `mCloseHandle`, none of these is `noalias`. Because capture is
+total and `CoCreateInstance` is high-traffic, the runtime cost is bounded by the
+transparency invariant (forward unchanged when no factory is registered and in
+off-mode) and by the D29 volume policy suppressing known-safe `(CLSID, IID)`
+activations from the observation log.
+
+## SHIM-D18 — In-process web-host response-path module (loadable module + handler bridge)
+
+Realizes the **in-process** replacement for platform-isolation **D17**'s
+out-of-process HWC pipeline. Rather than a separate service + named-pipe
+protocol, the shim loads into the web host — it is already a load-time dependency
+via the aliasobj relink (MW5) — and inserts a request handler at the host's
+**public activation seam**: an IIS/HWC native module (`RegisterModule` →
+`IHttpModuleRegistrationInfo::SetRequestNotifications` → `CHttpModule`) and/or a
+handler-factory acquisition import that the alias technique (D24) redirects.
+Engine activation reached through the loader shims (SHIM-D16 / D26) is the same
+seam family. Only public Windows SDK names are used.
+
+The handler the shim hands back bridges the host's per-request calls into the
+**safe** `RequestHandler` surface owned by `windows-platform-isolation` (M8): the
+unsafe vtable / `IHttpContext` glue lives in the shim's `#[allow(unsafe_code)]`
+boundary module (SHIM-D2); the policy (identity / journaling / future
+substituting decorator, selected by session mode, D25) is safe platform-isolation
+state. The **first cut wires the identity decorator** — code runs on the response
+path with **zero behavior change** — establishing the seam before any redirection
+is applied.
+
+Per-interface method-level journaling beyond the begin/send-response notification
+points is added per interface as scenarios need it, not generically (mirrors
+SHIM-D17's COM stance). The out-of-process service variant remains a deferred
+optimization owned by platform-isolation D17, not this crate.

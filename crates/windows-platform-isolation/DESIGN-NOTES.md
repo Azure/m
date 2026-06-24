@@ -42,6 +42,12 @@ design rather than binding to the C++ implementation.
 | D21 | Write/capture side of the artifact (`save_registry_hive`): a deterministic, platform-independent serializer that is the exact inverse of the D19 loader, so `load`→`save`→`load` is a fixed point |
 | D22 | Filesystem path model (`FilePath`/`FileRoot`/`PathSurface`) is a faithful port of the C++ `m::pil::file_path`; its C++ unit tests are the conformance spec |
 | D23 | `DirEntry` carries an optional 8.3 short name (`short_name`); the live provider sources it from `cAlternateFileName`, synthetic trees stamp it explicitly (default `None`), the C++ artifact leaves it `None` |
+| D24 | Interception is link-time aliasobj symbol redirection, never runtime patching |
+| D25 | Off / record / replay modes are exactly the D4 decorator stack applied to the full surface |
+| D26 | Dynamic-loader shims (`mLoadLibrary{A,W}`, `mLoadLibraryEx{A,W}`, `mGetProcAddress`) bring runtime-bound symbols and substitutable engines under the same technique |
+| D27 | Coordinated multi-surface isolation: network + filesystem + registry recorded/replayed as one coherent world |
+| D28 | PII discipline is a first-class record-mode constraint: payload is not captured without audit |
+| D29 | Observe unaddressed seams: named entry points we choose not to virtualize are still logged as call-events for later review |
 
 ---
 
@@ -630,9 +636,20 @@ so the boundary is designed with this in mind; not scheduled in detail.
 lives in its own leaf `-sys` crate(s) over the `windows` binding (D1), atop the
 M7 threadpool/executor substrate. No `unsafe` leaks into the HWC logic above it.
 
-**Status.** Only a **high-level outline** is queued — see `CHECKLIST.md` **M8**.
-Protocol, journal format, API-formation strategy, and the validation/injection
-control plane are explicitly **TBD** and will be designed when M8 is scheduled.
+**Status.** The out-of-process pipeline is **deferred** as a future heavy-traffic
+optimization; it is **no longer the scheduled HWC entry path**. The in-process
+bootstrap that supersedes it is queued as `CHECKLIST.md` **M8** (safe
+`RequestHandler` surface + identity/journaling decorators), with the ABI
+realization in `windows-win32-shim` **MW11/MW12** (SHIM-D18). Protocol, journal
+format, API-formation strategy, and the validation/injection control plane for
+the out-of-process variant remain explicitly **TBD** and will be designed only if
+and when that optimization is scheduled.
+
+**Generalized by D24–D29.** D17 remains the heavy-traffic out-of-process
+pipeline, but the *interception mechanism* across all surfaces is now unified as
+the aliasobj + loader-shim technique (D24/D26), and the HWC inbound surface is
+reached via that technique (engine activation through the loader shims) rather
+than being a bespoke path.
 
 ## D18 — The shared C++ PIL registry artifact format (D5 read side)
 
@@ -781,6 +798,94 @@ is a parse error. Per **D9** the loader never rejects ill-formed UTF-16 string
 `#![forbid(unsafe_code)]` (D13). Behavior is owned by us (Design-Autonomy):
 roxmltree is the chosen mechanism for the XML grammar D18 already specifies.
 
+## D24 — Interception is link-time aliasobj symbol redirection
+
+**Decision.** "Intercept" means exactly one technique: an **alias object** placed
+in the link of a module we build so the **naive imported symbol the author wrote**
+(`RegOpenKeyExW`, `CreateFileW`, the HTTP-client / RPC entry points,
+`LoadLibraryW`, `GetProcAddress`, …) resolves to **our** implementation instead of
+the OS import. This is a **link-time** decision in the consuming module's import
+table — **not** Detours, IAT hot-patching, or any runtime code modification.
+
+**Boundary it does and does not cross.** aliasobj redirects calls a module
+**makes** (its import table). It does **not** redirect virtual calls made **into**
+a module through an interface pointer it was handed (vtable dispatch owned by
+whoever constructed the object). That second case is reached not by a new
+technique but by the loader shims (D26): by intercepting the host's
+**engine-load** call, the shim becomes the party that activates the engine and
+therefore supplies the object whose vtable would otherwise be out of reach.
+
+Recorded in `design-sessions/DESIGN-SESSION-2026-06-23-aliasobj-shim-record-replay.md`.
+
+## D25 — Off / record / replay modes are the D4 decorator stack
+
+**Decision.** The shim is mode-switchable, and the modes are the **D4** decorator
+stack applied to this surface:
+
+| Mode | D4 layer | Behavior |
+|---|---|---|
+| **off** | pass-through | every shimmed symbol forwards to the real implementation; a faithful **identity**, indistinguishable from not being shimmed at all |
+| **record** | journaling | forward to the real implementation **and** append an ordered, replayable verb stream, subject to the PII constraint (D28) |
+| **replay** | replay-consumer (D15) | service calls from the recorded journal **instead of** forwarding; the real platform is not touched |
+
+Pass-through being a true identity is load-bearing: it lets the shim be linked in
+permanently and toggled, rather than being a separate build.
+
+## D26 — Dynamic-loader shims (`mLoadLibrary*` / `mGetProcAddress`)
+
+**Decision.** Some symbols and whole engines bind **at runtime**, not through the
+static import table (`GetProcAddress` against a `LoadLibrary`'d module;
+delay-loaded DLLs). To bring those under the **same** aliasobj technique (D24),
+the shim ships `mLoadLibraryA/W`, `mLoadLibraryExA/W`, and `mGetProcAddress`. A
+relinked module's naive `LoadLibrary*` / `GetProcAddress` calls redirect to these,
+and the shim decides per request whether to return a real or a **shim-supplied**
+module/proc (off vs record/replay, or to substitute an engine entirely).
+
+This is what makes a dynamically loaded engine (e.g. an HWC web core resolved via
+`GetProcAddress` for `WebCoreActivate`) reachable, and is the mechanism by which a
+vtable-delivered inbound surface is reached: the shim intercepts the host's
+**loader call**, becomes the engine activator, supplies the registrar/context, and
+the receiving module's own registration entry point (`RegisterModule` →
+`SetRequestNotifications(factory, …)` → `CHttpModule::OnBeginRequest`) hands the
+shim its factory voluntarily — the receiving module unmodified.
+
+## D27 — Coordinated multi-surface isolation (network + filesystem + registry)
+
+**Decision.** Network is the majority of the surface but is **not** isolated in a
+vacuum. Network, filesystem, and registry are treated as **one coordinated
+recorded world** sharing the journal model and the mode switch (D25): a replay
+must present filesystem/registry state **consistent with** the network journal it
+is replaying, and record mode captures the coordinated reads alongside the
+traffic. The surfaces move together rather than being independently recorded.
+
+## D28 — PII discipline is a first-class record-mode constraint
+
+**Decision.** Recording is **PII-first**: capture **shape / control / metadata**
+(which call, ordering, sizes, status, non-sensitive headers/keys) freely; **do
+not** capture payload / body / value data **without an audit** of its contents;
+reuse the host product's **existing scrubbing machinery** rather than inventing a
+parallel one. The journal format is designed with redaction as a primary concern,
+not an afterthought. The concrete redaction contract is specified during
+implementation review.
+
+## D29 — Observe unaddressed seams
+
+**Decision.** For any surface we **choose not to virtualize** but whose **entry
+point we can name** (`CoCreateInstance`, `GetProcAddress` / `LoadLibrary*`,
+`HttpSetServiceConfiguration`, the CRT `FILE*` family, …), the shim still **logs
+that the entry point was used** — which API, against which target (CLSID,
+module/proc name, config key) — even when it passes the call straight through. The
+result is an **inventory of what the host actually exercised** without committing
+to handle it; later review decides per entry point whether to promote it from
+*observed-and-passed-through* to *virtualized*. This makes the tracked-risk list
+(in the session doc) **measurable** rather than speculative.
+
+**Coupled volume policy (deferred).** Once an entry-point use is known-safe and
+fires constantly, logging every occurrence is noise. The intent is a **known-safe
+`(api, target)` allowlist** that suppresses routine logging while still counting
+occurrences, so the journal stays focused on data worth processing. The concrete
+policy is deferred until implementation shows which seams fire constantly.
+
 ## Status
 
 The kickoff questions (relationship, surfaces, layering, interop) are resolved
@@ -790,7 +895,10 @@ are session-vended). D13 is the unsafe-quarantine invariant; D14 the per-surface
 error rule; D15 the no-live-provider first cut; D16 factors the casing seam into
 the standalone `windows-text` (+ `-sys` leaf) crates; D17 records the
 out-of-process HWC redirection architecture (named-pipe service + async capture
-pipeline), deferred in detail; D1/D13 confine
+pipeline), deferred in detail; D24–D29 unify the interception model across all
+surfaces (link-time aliasobj + loader shims, the off/record/replay decorator
+modes, coordinated network/fs/registry isolation, PII discipline, and
+observe-but-passthrough of unaddressed seams), generalizing D17; D1/D13 confine
 all `unsafe` to leaf `-sys` crates bound to `windows`. Milestone M1 (pure safe core) is
 complete; M2+ are queued in `CHECKLIST.md` and cross-referenced to these
 D-numbers. The Windows thread pool / async work lives in the sibling

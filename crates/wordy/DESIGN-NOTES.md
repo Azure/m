@@ -154,8 +154,39 @@ gains `Clear` / `SetHeader` / a body-write alongside `SetStatus`, and the modele
 `IHttpRequest` gains header and entity-body reads. These additions are modeled
 simplifications of the genuine `httpserv.h` surface (`WriteEntityChunks`,
 `ReadEntityBody`, `GetHeader`), whose exact layouts are pinned when a real host
-is bound (MW13-5). The process-wide `Service` is a `LazyLock` rooted at
+is bound (MW16). The process-wide `Service` is a `LazyLock` rooted at
 `WORDY_CUSTOM_ROOT` (default: a temp-dir subdirectory). The emulated-host unit
 tests are extended to supply a body + header and capture the cleared flag,
 status, content type, and written body, proving a JSON route flows end-to-end
 through the boundary.
+
+## WD-D10 — Integration harness + HWC readiness pre-flight; genuine activation deferred (MW13-5 → MW16)
+
+`tests/host.rs` drives the **entire** REST surface end-to-end through the public
+`routes::Service` over a scratch custom-dictionary store at integration scale
+(hundreds of add/remove/list operations, batch spell-check, anagram, regex
+enumeration, per-user isolation), asserting dictionary behaviors. This is the
+host-agnostic end-to-end harness; the IIS ABI boundary itself is covered by the
+emulated-host unit tests in `src/iis.rs` (WD-D9).
+
+`src/bin/wordy-host.rs` is the `wordy-host` activator/pre-flight. By default it
+**discovers** the genuine `hwebcore.dll` at the absolute `inetsrv` path,
+**locates** the built `wordy.dll`, **generates** a representative
+applicationHost/web.config that loads it, and reports an HWC readiness verdict,
+exiting `0` everywhere (safe in CI and on machines without HWC). With
+`WORDY_HOST_PROBE=1` it additionally `LoadLibraryExW`s the real engine by
+absolute path with the `inetsrv` dependency directory and resolves its three
+exports — proving the documented dynamic-load seam (a bare-name load fails with
+`ERROR_MOD_NOT_FOUND` because of the engine's `inetsrv` dependency closure) —
+then frees it without activating.
+
+**Re-plan (execution-driven).** Genuine `WebCoreActivate` + live HTTP was
+separated out of MW13-5 into a new milestone **MW16**. The reason is a real
+prerequisite that the original plan under-acknowledged: `wordy`'s modeled IIS
+vtables (WD-D3) match only the *subset* of `httpserv.h` it uses, in a
+self-consistent ordering sufficient for the emulated host — but a genuine host
+calls `CHttpModule`'s full ~30-slot notification vtable, so activating against
+the modeled subset would mis-dispatch. Pinning the real `httpserv.h` layout is a
+substantial, SDK-dependent, crash-sensitive effort shared with MW15-2's
+`hwcproof/` harness, so it is its own milestone; MW13-5 lands the runnable
+integration harness + load-seam proof, and MW16 carries the genuine activation.

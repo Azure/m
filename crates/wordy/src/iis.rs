@@ -7,7 +7,7 @@
 //! `wordy` actually uses. The IIS `httpserv.h` COM-like interfaces are not part
 //! of `windows-sys`, so the vtables are modeled here as the minimal subset
 //! `wordy` exercises; their layout is pinned precisely when a genuine host is
-//! bound (MW13-5). `wordy` declares its **own** copy of these vtables rather than
+//! bound (MW16). `wordy` declares its **own** copy of these vtables rather than
 //! reusing `mwinweb` so that it remains a peer third-party application with no
 //! dependency on — or knowledge of — the shim (SHIM-D19).
 //!
@@ -97,7 +97,7 @@ struct IHttpContextVtbl {
 ///
 /// The body- and header-read methods are modeled simplifications of the genuine
 /// `ReadEntityBody` / `GetHeader` surface; the precise layouts are pinned when a
-/// real host is bound (MW13-5).
+/// real host is bound (MW16).
 #[repr(C)]
 struct IHttpRequestVtbl {
     /// `GetHttpMethod` returns an ASCII `PCSTR`.
@@ -116,7 +116,7 @@ struct IHttpRequestVtbl {
 ///
 /// `set_header` and `write_body` are modeled simplifications of the genuine
 /// `SetHeader` / `WriteEntityChunks` surface; the precise layouts are pinned
-/// when a real host is bound (MW13-5).
+/// when a real host is bound (MW16).
 #[repr(C)]
 struct IHttpResponseVtbl {
     /// `Clear()` — discard any buffered response state.

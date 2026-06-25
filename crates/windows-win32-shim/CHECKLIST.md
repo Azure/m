@@ -283,12 +283,52 @@ subset (peer of `mwinweb`), never depending on this crate.
       `POST /anagram`, `GET /shared?pattern=`, `GET /custom?pattern=`,
       `POST /custom/{word}`, `DELETE /custom/{word}`, `GET /custom/{word}` — to the
       domain core + FS store, **synchronously**.
-- [ ] **MW13-5** *(integration)* Add the `wordy-host` activator bin that
-      `WebCoreActivate`s genuine `hwebcore.dll` (absolute `inetsrv` path, per repo
-      HWC notes) with a generated applicationHost/web.config loading `wordy.dll`;
-      then drive each route end-to-end via real HTTP when HWC is present, and via
-      the emulated-host harness (extended for body write) otherwise; assert
-      dictionary behaviors (gated/ignored when HWC absent).
+- [x] **MW13-5** *(integration)* End-to-end route harness + HWC readiness
+      pre-flight. Integration tests (`wordy/tests/host.rs`) drive **every** route
+      end-to-end through the public `routes::Service` (the host-agnostic core the
+      IIS boundary calls) over a scratch custom-dictionary store at integration
+      scale (hundreds of ops), asserting all dictionary behaviors; the IIS ABI
+      boundary itself (decode body/header → dispatch → write JSON body) is covered
+      by the emulated-host unit tests in `src/iis.rs`. Adds the `wordy-host`
+      activator bin (`src/bin/wordy-host.rs`): discovers genuine `hwebcore.dll` at
+      the absolute `inetsrv` path, locates the built `wordy.dll`, generates a
+      representative applicationHost/web.config loading it, and (opt-in
+      `WORDY_HOST_PROBE`) `LoadLibraryExW`s the real engine by absolute path with
+      the `inetsrv` dependency dir and resolves its three exports — proving the
+      load seam — then frees it. Safe everywhere (exits 0; HWC discovery gated).
+      **Genuine `WebCoreActivate` + live HTTP is deferred to MW16** (it requires
+      pinning the modeled vtables to real `httpserv.h` first).
+
+      > **➡ HANDOFF:** genuine in-process HWC hosting (this milestone's
+      > `WebCoreActivate` + live HTTP, and MW15-2's `hwcproof/`) is blocked on
+      > **MW16** (real `httpserv.h` vtable pinning). See MW16 below.
+
+## MW16 — Pin the modeled IIS vtables to `httpserv.h` + genuine HWC activation (SHIM-D19)
+
+> **Re-plan note (execution-driven):** MW13-1 deliberately modeled only the
+> *subset* of the IIS native-module vtables `wordy` exercises (WD-D3), in a
+> self-consistent ordering sufficient for the emulated host. Driving a **genuine**
+> Hostable Web Core process, however, requires those vtables to match the real
+> `httpserv.h` memory layout exactly — `CHttpModule` alone declares ~30 ordered
+> notification methods, and a real host calling an unmodeled slot at the wrong
+> offset would mis-dispatch. Pinning the real layout is therefore a substantial,
+> SDK-dependent, crash-sensitive effort that is its own milestone — a shared
+> prerequisite of MW13-5's genuine path and MW15-2's `hwcproof/` harness. It was
+> separated out of MW13-5 during execution so the rest of MW13 could land runnable.
+
+- [ ] **MW16-1** Pin the genuine `httpserv.h` vtable layouts for every interface
+      `wordy` touches (`IHttpModuleRegistrationInfo`, `IHttpModuleFactory`,
+      `CHttpModule` — all notification slots, `IHttpContext`, `IHttpRequest`,
+      `IHttpResponse`), with the unmodeled `CHttpModule` notifications defaulting
+      to a safe pass-through, verified against the SDK header.
+- [ ] **MW16-2** Genuine activation in `wordy-host`: `WebCoreActivate` the real
+      `hwebcore.dll` with the generated applicationHost/web.config loading the
+      pinned `wordy.dll`, then `WebCoreShutdown`; single-activation-per-process
+      and error-code semantics handled per the HWC notes.
+- [ ] **MW16-3** *(integration)* Drive every route end-to-end over **real HTTP**
+      against the activated host; assert dictionary behaviors; gated/ignored when
+      HWC is absent. Reconciles the modeled-vs-genuine boundary and unblocks
+      MW15-2.
 
 ## MW14 — Asynchronous request completion on the Windows thread pool (SHIM-D19)
 

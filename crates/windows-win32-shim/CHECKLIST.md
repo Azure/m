@@ -438,10 +438,22 @@ Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
       config, so the genuine-C-ABI-through-buffered proof is MW15-4 (`hwcproof/`);
       these tests drive the same `fs_ops` core the C ABI marshals into. Updated
       SHIM-D13 with a "Filesystem backing composition" bullet + narrowed gap.)*
-- [ ] **MW15-3** Build `wordy` with the alias `.obj` + shim import lib injected via
+- [x] **MW15-3** Build `wordy` with the alias `.obj` + shim import lib injected via
       the generic `build.rs` env vars (no `wordy` source change); confirm via
       `dumpbin /imports` that the FS + thread-pool/loader imports bind the shim.
       (Orchestration script mirroring `linkproof/run-linkproof.ps1`.)
+      *(`hwcproof/build-aliased-wordy.ps1`: builds the shim, emits the alias COFF
+      via `gen-alias-obj`, builds `wordy` with `WORDY_EXTRA_LINK_{SEARCH,OBJ}` set
+      (the alias object **and** the shim import library are passed as raw linker
+      inputs — `rustc-link-lib` would not resolve the `.dll.lib`), then parses
+      `dumpbin /imports wordy.dll`. Verified: all 99 manifest exports — every
+      aliased FS entry point (`mCreateFileW`/`mCreateDirectoryW`/`mDeleteFileW`/
+      `mFindFirstFile*`/`mFindNextFileW`/`mFindClose`/`mGetFileAttributes*`/
+      `mRemoveDirectoryW`/…) plus loader/registry/COM — bind `windows_win32_shim.dll`,
+      and **zero** aliased FS names survive as `kernel32` imports. The OS thread
+      pool is intentionally not in the alias manifest (the shim does not virtualize
+      it), so thread-pool calls remain native by design. `-ReportOnly` prints the
+      findings; assertion mode exits 0 on success.)*
 - [ ] **MW15-4** `hwcproof/` harness (mirrors `linkproof/`): genuine HWC + a
       buffered `.pilcfg` beside the aliased `wordy.dll`; real HTTP add/remove/
       enumerate of custom words; assert the namespace ops land in the shim

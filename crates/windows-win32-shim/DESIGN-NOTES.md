@@ -706,6 +706,36 @@ option, explicitly **not** queued — `wordy` carries its own subset until the
 duplication proves painful. The `windows-threadpool-executor` `async` / `await`
 variant of the async path is a follow-on to the `submit_once` first cut.
 
+**Isolation proof — closed end to end (MW15).** The redirection is now proven at
+both layers, against the unmodified `wordy`:
+
+- **Link time (static).** `hwcproof/build-aliased-wordy.ps1` builds `wordy` with
+  the alias object + shim import library injected through the generic `build.rs`
+  vars and asserts, via `dumpbin /imports wordy.dll`, that every aliased
+  filesystem entry point (plus the loader / registry / COM manifest) binds
+  `windows_win32_shim.dll` and that **zero** aliased FS names survive as
+  `kernel32` imports.
+- **Run time (dynamic).** `hwcproof/run-hwcproof.ps1` genuinely `WebCoreActivate`s
+  HWC with a buffered host sidecar and drives POST/GET/DELETE `/custom/widget`
+  over real HTTP. The `isolated` variant proves the add/get/delete round-trip
+  succeeds (read-your-writes) while the live custom root is **never created on
+  disk** — the module's namespace mutations stayed in the shim overlay
+  (SHIM-D13 / platform-isolation D30). The `native` variant is the negative
+  control: the same round-trip with an un-aliased `wordy.dll` **does** create the
+  live root, proving the overlay is a real effect and the assertion discriminates.
+- **Gate.** `tests/hwc_isolation.rs` wraps the `isolated` run as an `#[ignore]`d
+  integration test that skips cleanly when HWC is absent or the URL is unbindable
+  (the proof needs the HWC feature and a URL reservation), so the default test
+  run never depends on host configuration.
+
+**Decision (MW15): isolate the loadable module, not the host.** The alias object
+is injected only into the **cdylib** (`build.rs` uses `rustc-link-arg-cdylib`),
+leaving any host binary that loads it an ordinary executable. An object file is
+linked unconditionally, so aliasing the host too would route the host's own
+config-file writes through the buffered shim and break activation. Scoping the
+alias to the module mirrors production exactly: a native HWC worker hosting an
+isolated third-party module.
+
 Realized by **MW13** (synchronous service), **MW14** (asynchronous completion on
-the thread pool), and **MW15** (isolation proof harness; outline — isolation is
-deferred per the current "what the service does first" focus). See CHECKLIST.md.
+the thread pool), and **MW15** (isolation proof — link-time `dumpbin` + genuine-HWC
+runtime harness with a native negative control). See CHECKLIST.md.

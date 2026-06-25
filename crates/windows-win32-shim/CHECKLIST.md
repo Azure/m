@@ -483,7 +483,15 @@ Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
       and not an artifact. The script's per-variant exit code is the discriminator
       (PASS=0 / FAIL=1 / SKIP=2); the only independent variable between the two
       runs is whether `wordy.dll` was linked against the alias object.)*
-- [ ] **MW15-6** *(integration)* End-to-end isolation proof, gated/ignored when HWC
+- [x] **MW15-6** *(integration)* End-to-end isolation proof, gated/ignored when HWC
       is absent; record closure / any new decisions in SHIM-D19.
+      *(`tests/hwc_isolation.rs`: an `#[ignore]`d integration test that invokes
+      `hwcproof/run-hwcproof.ps1 -Variant isolated` and maps its exit code (0 PASS
+      / 1 FAIL / 2 SKIP). Skips cleanly when HWC is absent or the URL is unbindable,
+      so the default `cargo test` run never depends on host configuration (it
+      reports `1 ignored`). **Verified**: run directly with `--ignored`, the test
+      genuinely activates HWC, drives the add/get/delete round-trip over real HTTP,
+      and passes (live custom root never created on disk). Closure + the
+      isolate-the-module-not-the-host decision recorded in SHIM-D19.)*
 
 

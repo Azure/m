@@ -1,0 +1,20 @@
+{
+  "endpoints": ["http://127.0.0.1:8080", "http://[::1]:8080"],
+  "ip_version": "both",
+  "workers": 4,
+  "duration_secs": 2,
+  "max_requests": 0,
+  "request_timeout_ms": 1000,
+  "user": "talky",
+  "seed": 1,
+  "routes": [
+    { "name": "health", "weight": 1 },
+    { "name": "spellcheck", "weight": 4 },
+    { "name": "anagram", "weight": 2 },
+    { "name": "shared_enum", "weight": 2 },
+    { "name": "custom_add", "weight": 1 },
+    { "name": "custom_exists", "weight": 1 },
+    { "name": "custom_remove", "weight": 1 },
+    { "name": "custom_enum", "weight": 1 }
+  ]
+}

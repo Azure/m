@@ -1,0 +1,21 @@
+[package]
+name = "talky"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "A configurable HTTP stress client for wordy that talks over Microsoft-native web APIs (WinHTTP) and drives load on the Windows thread pool. Parameters come from a JSON config; IPv4 and IPv6 endpoints are supported. Designed to grow native authentication (Negotiate/NTLM/Basic) later — the native-API counterpart to the Rust-native `squeaky` client."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-threadpool = { path = "../windows-threadpool" }
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Networking_WinHttp",
+] }
+
+[lints]
+workspace = true

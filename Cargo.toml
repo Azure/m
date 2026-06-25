@@ -8,6 +8,7 @@ members = ["crates/windows-platform-isolation",
   "crates/windows-text-sys",
   "crates/windows-win32-shim",
   "crates/wordy",
+  "crates/talky",
 ]
 exclude = ["m"]
 

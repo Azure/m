@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A spec-conformant C++ `mwin32` persisted_state registry artifact, authored to
+  the shared on-disk schema the C++ shim's `save_xml` emits (mwin32 DESIGN-NOTES
+  D7 == windows-platform-isolation D18/D19). It is loaded *through the Rust shim*
+  (ShimSession::from_config persisted_state) to prove the shim reproduces the C++
+  shim's observable behavior on a real C++-dialect artifact:
+
+    * abbreviated (HKLM) and long-form (HKEY_CURRENT_USER) hive names;
+    * a `last_write_time` attribute on a key (ignored on load);
+    * every decodable REG_* type plus a default (empty-name) value;
+    * mixed-case hex `data` (the loader accepts both cases);
+    * a value tombstone and a key tombstone (both fold away);
+    * a mirrored (name-only) placeholder key (enumerates as empty);
+    * subkeys authored out of order (to prove ordinal sort on enumeration).
+
+  Per SHIM-D13 / SHIM-D5 the parity contract is the on-disk format; a literally
+  C++-binary-captured artifact is a future swap-in (see CHECKLIST MW7).
+
+  hex data is UTF-16LE for string types, little-endian for integers:
+    "Srv\0"            -> 5300720076000000
+    "%TMP%\0"          -> 250054004D00500025000000   (mixed-case hex)
+    "en\0fr\0\0"       -> 65006E0000006600720000000000
+    0x00001234 (4660)  -> 34120000
+    0x0000000000000001 -> 0100000000000000
+    0xCAFE             -> CAFE                        (upper-case hex)
+    "def\0" (default)  -> 6400650066000000
+    "vi\0"             -> 760069000000
+-->
+<Platform>
+  <Registry>
+    <Key name="HKLM">
+      <Key name="Software">
+        <Key name="Vendor" last_write_time="133600000000000000">
+          <Value name="Name" type="1" data="5300720076000000"/>
+          <Value name="Path" type="2" data="250054004D00500025000000"/>
+          <Value name="Langs" type="7" data="65006E0000006600720000000000"/>
+          <Value name="Count" type="4" data="34120000"/>
+          <Value name="Big" type="11" data="0100000000000000"/>
+          <Value name="Blob" type="3" data="CAFE"/>
+          <Value name="" type="1" data="6400650066000000"/>
+          <Value name="Stale" deleted="true"/>
+        </Key>
+        <Key name="Order">
+          <Key name="Zeta"/>
+          <Key name="_under"/>
+          <Key name="Alpha"/>
+          <Key name="beta"/>
+          <Key name="Beta2"/>
+          <Key name="Mir" mirrored="true"/>
+          <Key name="Del" deleted="true"/>
+        </Key>
+      </Key>
+    </Key>
+    <Key name="HKEY_CURRENT_USER">
+      <Key name="Environment">
+        <Value name="EDITOR" type="1" data="760069000000"/>
+      </Key>
+    </Key>
+  </Registry>
+</Platform>

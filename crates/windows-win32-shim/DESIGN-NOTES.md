@@ -739,3 +739,36 @@ isolated third-party module.
 Realized by **MW13** (synchronous service), **MW14** (asynchronous completion on
 the thread pool), and **MW15** (isolation proof — link-time `dumpbin` + genuine-HWC
 runtime harness with a native negative control). See CHECKLIST.md.
+
+
+## SHIM-D20 — C++ artifact parity is a shared on-disk contract, not a captured binary
+
+The `.pilcfg` sidecar (SHIM-D5) and the `persisted_state` registry snapshot are a
+format **shared** with the C++ `mwin32` shim: the two implementations interoperate
+by reading and writing the *same* bytes, not by sharing code. Per Design Autonomy,
+the parity contract this crate owns is therefore the **on-disk schema**
+(`<Platform><Registry>…`, documented at platform-isolation D18/D19, which is the
+same schema the C++ shim's `save_xml` emits — mwin32 DESIGN-NOTES D7), not "whatever
+the C++ binary happens to output." Two consequences:
+
+- **The C++ shim is registry-only.** Its M1–M4 cover the `.pilcfg` schema and
+  persisted *registry* snapshots; it has no filesystem persisted-state. So
+  "C++ artifact parity" is scoped to the **registry** snapshot. Filesystem
+  persisted-state *through the shim* remains the documented SHIM-D13 gap (there is
+  no C++ filesystem artifact to be parity with); the filesystem is isolated via
+  `buffer_updates` instead.
+
+- **Parity is proven against a golden artifact in the C++ dialect, loaded through
+  the shim.** `testdata/cpp_registry_artifact.xml` is authored to the C++ emission
+  dialect the shim never produces itself — abbreviated and long-form hive names, a
+  `last_write_time` attribute, every decodable `REG_*` type plus a default value,
+  mixed-case hex, value and key tombstones, a mirrored placeholder, and out-of-order
+  subkeys. `tests/cpp_parity.rs` drives it through `ShimSession::from_config` and
+  asserts the shim's *observable* behavior (decode, hive normalization, tombstone
+  fold, mirrored-as-empty, ordinal enumeration, write isolation, source artifact
+  read-only). Where `tests/pilcfg.rs` round-trips the shim's *own*
+  `save_registry_hive` output, this proves the shim consumes the foreign dialect.
+  A literally-C++-binary-captured artifact (driving the CMake/vcpkg C++ build to
+  emit a snapshot) is a future swap-in, not a blocker — exactly as the
+  platform-isolation golden artifacts already note. The on-disk schema is the
+  contract; the producer is interchangeable.

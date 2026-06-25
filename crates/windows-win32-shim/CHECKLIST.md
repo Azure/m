@@ -126,7 +126,7 @@ test. Sub-steps use decimal notation.
 > persisted-state *through the shim* stays a documented SHIM-D13 gap (no C++ FS
 > artifact exists to be parity with); MW7-3 isolates the filesystem via `buffer_updates`.
 
-- [ ] **MW7-1** Shim-level C++-**dialect** registry-artifact parity. Add a shim
+- [x] **MW7-1** Shim-level C++-**dialect** registry-artifact parity. Add a shim
       `testdata/` golden artifact authored to the C++ `mwin32` `save_xml` dialect
       (mwin32 D7 / platform-isolation D18): abbreviated hive names (`HKLM` / `HKCU`),
       `last_write_time` attributes, every decodable `REG_*` type plus a default
@@ -139,6 +139,13 @@ test. Sub-steps use decimal notation.
       enumerate in ordinal sort; a write lands in the overlay and the source artifact
       on disk is never mutated. Record the parity decision (golden = shared contract)
       in a SHIM design note.
+      *(`testdata/cpp_registry_artifact.xml` + `tests/cpp_parity.rs` (2 tests):
+      decode/enumerate parity — REG_SZ/EXPAND_SZ/MULTI_SZ/DWORD/QWORD/BINARY +
+      default value, `HKLM` abbreviation and long-form `HKEY_CURRENT_USER` both
+      normalize and open via reserved `HKEY` handles, value + key tombstones fold,
+      mirrored placeholder enumerates empty, `[Alpha, beta, Beta2, Mir, Zeta, _under]`
+      ordinal order, source artifact read-only — and write-isolation. Decision
+      recorded in SHIM-D20.)*
 - [ ] **MW7-2** Packaging / SDK considerations — **documented**. A concise SHIM
       design note capturing the deployment model the link/HWC proofs already embody
       (the alias `.obj` + the `windows_win32_shim.dll.lib` import library +

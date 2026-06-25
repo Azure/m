@@ -598,12 +598,27 @@ app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
       MW17-3 (they need the session-held `EgressBacking`); per SHIM-D22 the seam is
       request/response-buffered, so even passthrough reassembles-and-resends via
       `LiveEgress` rather than forwarding 1:1.)*
-- [ ] **MW17-3** Session `EgressBacking` enum (Passthrough / Buffered / Redirecting
+- [x] **MW17-3** Session `EgressBacking` enum (Passthrough / Buffered / Redirecting
       / Replay / Blocking), selected by `build_egress_backing(&Pilcfg)` and borrowed
       under a `Mutex` like the registry/filesystem backings; wire the front-ends
       through it (consumes M11). Unit tests assert each mode's observable effect
       through the front-ends.
-- [ ] **MW17-4** Alias roster: add the used `winhttp.dll` entry points to
+      *(`session.rs`: `EgressBacking` enum (itself an `EgressSurface` over
+      `LiveEgress`) + `EgressEngine` held as `Mutex<SessionEgress>` with
+      `with_egress`; `build_egress_backing` selects the mode and parses redirect
+      rules (`split_authority`/`parse_redirect_rule`) + loads/merges replay fixtures
+      from `replay_dir` (`load_replay_fixtures`, tolerant; added
+      `ReplaySet::extend` to platform-isolation). 6 unit/session tests: helper
+      parsing, mode selection, and Block/Buffer/Replay driven through the session
+      engine (no network). 212 unit tests pass. **Restructure:** the `extern "C"`
+      `mWinHttp*` exports move to MW17-4 — they are the raw-pointer marshaling that
+      the alias roster aliases to, so creating the exports and the `.def`/`.ndjson`
+      roster is one coherent unit.)*
+- [ ] **MW17-4** Expose the `mWinHttp*` C ABI front-ends (raw-pointer marshaling
+      over the session egress engine: `mWinHttpOpen`/`Connect`/`OpenRequest`/
+      `AddRequestHeaders`/`SendRequest`/`ReceiveResponse`/`QueryHeaders`/
+      `QueryDataAvailable`/`ReadData`/`CloseHandle` (+ `SetTimeouts`/`SetOption`
+      no-op)), then add the used `winhttp.dll` entry points to
       `windows_win32_shim_aliases.ndjson` + the `.def`, export the `m` forms, keep
       the `.def`↔`.ndjson` parity test green, and verify with `dumpbin /imports`
       that a relinked client binds the shim for the WinHTTP imports and leaves

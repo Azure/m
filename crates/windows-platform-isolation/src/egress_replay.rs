@@ -53,6 +53,13 @@ impl ReplaySet {
         self.fixtures.push((verb.to_ascii_uppercase(), path.to_string(), response));
     }
 
+    /// Absorb every fixture from `other`, appending them after this set's own
+    /// (so this set's fixtures keep match priority). Used to merge several
+    /// fixture artifacts loaded from a directory.
+    pub fn extend(&mut self, other: ReplaySet) {
+        self.fixtures.extend(other.fixtures);
+    }
+
     /// Number of fixtures.
     #[must_use]
     pub fn len(&self) -> usize {

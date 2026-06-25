@@ -22,22 +22,29 @@
 use std::sync::{Mutex, OnceLock};
 
 use windows_platform_isolation::{
-    Buffered, Filesystem, FilesystemResult, FsBuffered, FsRequest, FsResponse, FsSurface, Hive,
-    KeyPath, LiveFilesystem, LiveRegistry, OverlayTree, Registry, Request, Response, Session,
+    BlockingEgress, Buffered, BufferedEgress, EgressRequest, EgressResponse, EgressResult,
+    EgressSurface, Filesystem, FilesystemResult, FsBuffered, FsRequest, FsResponse, FsSurface,
+    Hive, KeyPath, LiveEgress, LiveFilesystem, LiveRegistry, OverlayTree, RedirectRule,
+    RedirectingEgress, Registry, ReplayEgress, ReplayMiss, ReplaySet, Request, Response, Session,
     Surface, TreeSurface, WellKnownRoot, Win32OrdinalCasing, load_registry_hive,
     save_registry_hive,
 };
 
 use crate::com::ComState;
+use crate::egress_engine::EgressEngine;
 use crate::handle_table::HandleTable;
 use crate::loader::LoaderState;
-use crate::pilcfg::{Pilcfg, load_pilcfg};
+use crate::pilcfg::{EgressMode, Pilcfg, load_pilcfg};
 use crate::web::WebState;
 
 /// The live filesystem provider the default session routes through: live
 /// passthrough over the real OS filesystem, keyed with the mandated production
 /// ordinal casing (`Win32OrdinalCasing`).
 type SessionFs = Filesystem<FilesystemBacking>;
+
+/// The egress engine the session routes WinHTTP through (MW17 / SHIM-D22): the
+/// reassembly engine over the [`EgressBacking`] selected from `.pilcfg`.
+type SessionEgress = EgressEngine<EgressBacking>;
 
 /// The registry surface the session routes through, selected from the `.pilcfg`
 /// configuration (SHIM-D13). A single concrete type keeps the handle table and
@@ -89,6 +96,36 @@ impl FsSurface for FilesystemBacking {
     }
 }
 
+/// The egress (outbound WinHTTP) surface the session routes through, selected
+/// from the `.pilcfg` `egress` block (MW17 / SHIM-D22). Each variant is itself an
+/// [`EgressSurface`] over the live WinHTTP provider, so the
+/// [`EgressEngine`](crate::egress_engine::EgressEngine) stays free of dynamic
+/// dispatch.
+pub enum EgressBacking {
+    /// Live passthrough — reassemble-and-resend via real WinHTTP (the default).
+    Passthrough(LiveEgress),
+    /// Capture mutating requests in memory; reads fall through to live.
+    Buffered(BufferedEgress<LiveEgress>),
+    /// Rewrite each request's destination by rule, then send live.
+    Redirecting(RedirectingEgress<LiveEgress>),
+    /// Serve preloaded fixtures; misses are denied (offline).
+    Replay(ReplayEgress<BlockingEgress>),
+    /// Deny every request.
+    Blocking(BlockingEgress),
+}
+
+impl EgressSurface for EgressBacking {
+    fn send(&mut self, req: &EgressRequest) -> EgressResult<EgressResponse> {
+        match self {
+            Self::Passthrough(surface) => surface.send(req),
+            Self::Buffered(surface) => surface.send(req),
+            Self::Redirecting(surface) => surface.send(req),
+            Self::Replay(surface) => surface.send(req),
+            Self::Blocking(surface) => surface.send(req),
+        }
+    }
+}
+
 /// The process-wide isolation session and its handle table.
 ///
 /// The registry and filesystem facades are each held behind a [`Mutex`] because
@@ -103,6 +140,7 @@ pub struct ShimSession {
     loader: Mutex<LoaderState>,
     com: Mutex<ComState>,
     web: Mutex<WebState>,
+    egress: Mutex<SessionEgress>,
     casing: Win32OrdinalCasing,
     capture_snapshot: String,
 }
@@ -134,6 +172,7 @@ impl ShimSession {
             loader: Mutex::new(LoaderState::new()),
             com: Mutex::new(ComState::new()),
             web: Mutex::new(WebState::new()),
+            egress: Mutex::new(EgressEngine::new(build_egress_backing(&cfg))),
             casing,
             capture_snapshot: cfg.capture_snapshot,
         }
@@ -173,6 +212,15 @@ impl ShimSession {
     /// Borrow the filesystem facade under the session lock.
     pub fn with_filesystem<R>(&self, f: impl FnOnce(&mut SessionFs) -> R) -> R {
         let mut guard = self.filesystem.lock().expect("session filesystem poisoned");
+        f(&mut guard)
+    }
+
+    /// Borrow the egress engine under the session lock (MW17 / SHIM-D22).
+    ///
+    /// The WinHTTP shims (`mWinHttp*`) route their `HINTERNET` handle table and
+    /// per-request transaction reassembly through here.
+    pub fn with_egress<R>(&self, f: impl FnOnce(&mut SessionEgress) -> R) -> R {
+        let mut guard = self.egress.lock().expect("session egress poisoned");
         f(&mut guard)
     }
 
@@ -259,6 +307,79 @@ fn build_filesystem_backing(cfg: &Pilcfg, casing: Win32OrdinalCasing) -> Filesys
         )));
     }
     FilesystemBacking::Live(LiveFilesystem::new(casing))
+}
+
+/// Compose the egress backing from `cfg.egress` (MW17 / SHIM-D22): the outbound
+/// network isolation mode, over the live WinHTTP provider. `passthrough`
+/// reassembles-and-resends via `LiveEgress`; `buffer` captures mutating requests;
+/// `redirect` rewrites destinations by rule; `replay` serves preloaded fixtures
+/// (misses denied — offline); `block` denies everything.
+fn build_egress_backing(cfg: &Pilcfg) -> EgressBacking {
+    match cfg.egress.mode {
+        EgressMode::Passthrough => EgressBacking::Passthrough(LiveEgress::new()),
+        EgressMode::Buffer => EgressBacking::Buffered(BufferedEgress::new(LiveEgress::new())),
+        EgressMode::Redirect => {
+            let mut redirect = RedirectingEgress::new(LiveEgress::new());
+            for (from, to) in &cfg.egress.redirections {
+                if let Some(rule) = parse_redirect_rule(from, to) {
+                    redirect.push_rule(rule);
+                }
+            }
+            EgressBacking::Redirecting(redirect)
+        }
+        EgressMode::Replay => EgressBacking::Replay(ReplayEgress::new(
+            BlockingEgress,
+            load_replay_fixtures(&cfg.egress.replay_dir),
+            ReplayMiss::ReadThrough,
+        )),
+        EgressMode::Block => EgressBacking::Blocking(BlockingEgress),
+    }
+}
+
+/// Split a `host` / `host:port` authority into its host and optional port.
+fn split_authority(authority: &str) -> (String, Option<u16>) {
+    match authority.rsplit_once(':') {
+        Some((host, port)) => match port.parse::<u16>() {
+            Ok(port) => (host.to_string(), Some(port)),
+            Err(_) => (authority.to_string(), None),
+        },
+        None => (authority.to_string(), None),
+    }
+}
+
+/// Parse a `.pilcfg` egress redirection `(from, to)` into a [`RedirectRule`].
+/// `from` matches `host` (any port) or `host:port`; `to`'s port defaults to the
+/// `from` port, else `80`. Empty endpoints yield no rule.
+fn parse_redirect_rule(from: &str, to: &str) -> Option<RedirectRule> {
+    if from.is_empty() || to.is_empty() {
+        return None;
+    }
+    let (from_host, from_port) = split_authority(from);
+    let (to_host, to_port) = split_authority(to);
+    let to_port = to_port.or(from_port).unwrap_or(80);
+    Some(RedirectRule::new(from_host, from_port, to_host, to_port))
+}
+
+/// Load and merge every replay-fixture artifact in `dir` into one [`ReplaySet`].
+/// Tolerant: an empty/absent/unreadable directory, and any unreadable or
+/// malformed file, are skipped (SHIM-D5).
+fn load_replay_fixtures(dir: &str) -> ReplaySet {
+    let mut set = ReplaySet::new();
+    if dir.is_empty() {
+        return set;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return set;
+    };
+    for entry in entries.flatten() {
+        let Ok(text) = std::fs::read_to_string(entry.path()) else {
+            continue;
+        };
+        if let Ok(parsed) = ReplaySet::from_artifact(&text) {
+            set.extend(parsed);
+        }
+    }
+    set
 }
 
 /// Load a `persisted_state` artifact into a [`RegistryBacking::Persisted`], or
@@ -411,5 +532,109 @@ mod tests {
             landed,
             "the default (unbuffered) backing must write through to the live filesystem"
         );
+    }
+
+    #[test]
+    fn split_authority_parses_host_and_port() {
+        assert_eq!(split_authority("h"), ("h".to_string(), None));
+        assert_eq!(split_authority("h:8019"), ("h".to_string(), Some(8019)));
+        assert_eq!(split_authority("h:bad"), ("h:bad".to_string(), None));
+    }
+
+    #[test]
+    fn parse_redirect_rule_handles_ports_and_empties() {
+        assert!(parse_redirect_rule("", "to:1").is_none());
+        assert!(parse_redirect_rule("from", "").is_none());
+        assert!(parse_redirect_rule("h:8019", "stub").is_some()); // 'to' port defaults to 'from'
+        assert!(parse_redirect_rule("h", "stub:9000").is_some());
+    }
+
+    #[test]
+    fn build_egress_backing_selects_the_configured_mode() {
+        use crate::pilcfg::EgressConfig;
+        let mk = |mode| Pilcfg {
+            egress: EgressConfig { mode, ..EgressConfig::default() },
+            ..Pilcfg::default()
+        };
+        assert!(matches!(
+            build_egress_backing(&mk(EgressMode::Passthrough)),
+            EgressBacking::Passthrough(_)
+        ));
+        assert!(matches!(build_egress_backing(&mk(EgressMode::Buffer)), EgressBacking::Buffered(_)));
+        assert!(matches!(
+            build_egress_backing(&mk(EgressMode::Redirect)),
+            EgressBacking::Redirecting(_)
+        ));
+        assert!(matches!(build_egress_backing(&mk(EgressMode::Replay)), EgressBacking::Replay(_)));
+        assert!(matches!(build_egress_backing(&mk(EgressMode::Block)), EgressBacking::Blocking(_)));
+    }
+
+    /// Drive one request lifecycle through the session's egress engine, returning
+    /// the response status (or the surface error).
+    fn drive_egress(
+        session: &ShimSession,
+        verb: &str,
+        host: &str,
+        port: u16,
+        path: &str,
+        body: &[u8],
+    ) -> EgressResult<u32> {
+        use windows_platform_isolation::Utf16;
+        session.with_egress(|engine| {
+            let s = engine.open();
+            let c = engine.connect(s, Utf16::from_utf8(host), port).expect("connect");
+            let r = engine
+                .open_request(c, Utf16::from_utf8(verb), Utf16::from_utf8(path), false)
+                .expect("open_request");
+            engine.send(r, Vec::new(), body.to_vec())?;
+            Ok(engine.status(r).expect("status after send"))
+        })
+    }
+
+    #[test]
+    fn egress_block_mode_denies_through_the_session() {
+        use crate::pilcfg::EgressConfig;
+        let session = ShimSession::from_config(Pilcfg {
+            egress: EgressConfig { mode: EgressMode::Block, ..EgressConfig::default() },
+            ..Pilcfg::default()
+        });
+        assert!(drive_egress(&session, "GET", "h", 80, "/", b"").is_err());
+    }
+
+    #[test]
+    fn egress_buffer_mode_captures_mutations_through_the_session() {
+        use crate::pilcfg::EgressConfig;
+        let session = ShimSession::from_config(Pilcfg {
+            egress: EgressConfig { mode: EgressMode::Buffer, ..EgressConfig::default() },
+            ..Pilcfg::default()
+        });
+        // A POST is buffered (202 ack); no live network is contacted.
+        let status = drive_egress(&session, "POST", "h", 80, "/w", b"data").expect("buffered send");
+        assert_eq!(status, 202);
+    }
+
+    #[test]
+    fn egress_replay_mode_serves_fixtures_through_the_session() {
+        use crate::pilcfg::EgressConfig;
+        let dir = unique_temp_dir("egress-replay");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            std::path::Path::new(&dir).join("fix.xml"),
+            r#"<Egress><Fixture verb="GET" path="/custom" status="200"><Body>{"ok":true}</Body></Fixture></Egress>"#,
+        )
+        .unwrap();
+
+        let session = ShimSession::from_config(Pilcfg {
+            egress: EgressConfig {
+                mode: EgressMode::Replay,
+                replay_dir: dir.clone(),
+                ..EgressConfig::default()
+            },
+            ..Pilcfg::default()
+        });
+        let status =
+            drive_egress(&session, "GET", "merriam", 80, "/custom", b"").expect("replay served");
+        assert_eq!(status, 200);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

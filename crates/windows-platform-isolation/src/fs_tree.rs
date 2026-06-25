@@ -228,6 +228,22 @@ enum Resolve<'a> {
     NotInOverlay,
 }
 
+/// The overlay's opinion of a path, used to layer the overlay over a *live*
+/// inner surface ([`FsBuffered`](crate::FsBuffered)). The public existence /
+/// metadata queries collapse "tombstoned" and "absent" against the (often empty)
+/// base, but a live-backed decorator must distinguish them: a tombstone shadows
+/// the live path, whereas an absent overlay entry must defer to it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OverlayPresence {
+    /// The overlay materialized this node (a created directory or written file).
+    Present,
+    /// The overlay tombstoned this node (or a containing directory): it must be
+    /// hidden even if the inner surface still has it.
+    Deleted,
+    /// The overlay says nothing about this path; defer to the inner surface.
+    Absent,
+}
+
 /// An overlay / copy-on-write view over an immutable [`FileTree`] base.
 pub struct OverlayFileTree<C: OrdinalCasing> {
     casing: C,
@@ -394,6 +410,39 @@ impl<C: OrdinalCasing> OverlayFileTree<C> {
                 Some(FileState::Set(_, md)) => Ok(*md),
                 Some(FileState::Deleted) => Err(FilesystemError::NotFound),
                 None => self.base_file(parent, &fkey).ok_or(FilesystemError::NotFound),
+            },
+        }
+    }
+
+    /// The overlay's opinion of the *directory* at `path`, ignoring the base
+    /// ([`OverlayPresence`]). A live-backed decorator uses this to decide whether
+    /// to answer from the overlay, hide the inner path, or defer to the inner.
+    #[must_use]
+    pub fn dir_presence(&self, path: &FilePath) -> OverlayPresence {
+        let comps = path.components();
+        match self.resolve(&comps) {
+            Resolve::Deleted => OverlayPresence::Deleted,
+            Resolve::Overlay(_) => OverlayPresence::Present,
+            Resolve::NotInOverlay => OverlayPresence::Absent,
+        }
+    }
+
+    /// The overlay's opinion of the *file* at `path`, ignoring the base
+    /// ([`OverlayPresence`]).
+    #[must_use]
+    pub fn file_presence(&self, path: &FilePath) -> OverlayPresence {
+        let comps = path.components();
+        let Some((parent, name)) = split_leaf(&comps) else {
+            return OverlayPresence::Absent;
+        };
+        let fkey = self.casing.sort_key(name.as_units());
+        match self.resolve(parent) {
+            Resolve::Deleted => OverlayPresence::Deleted,
+            Resolve::NotInOverlay => OverlayPresence::Absent,
+            Resolve::Overlay(node) => match node.files.get(&fkey) {
+                Some(FileState::Set(_, _)) => OverlayPresence::Present,
+                Some(FileState::Deleted) => OverlayPresence::Deleted,
+                None => OverlayPresence::Absent,
             },
         }
     }

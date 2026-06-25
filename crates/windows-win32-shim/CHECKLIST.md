@@ -410,7 +410,7 @@ Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
 > semantics, gated by the existing `buffer_updates` flag (now "buffer all
 > mutations: registry + filesystem").
 
-- [ ] **MW15-1** Add an `FsBuffered<S: FsSurface, C>` decorator to
+- [x] **MW15-1** Add an `FsBuffered<S: FsSurface, C>` decorator to
       `windows-platform-isolation` — the filesystem analogue of the registry
       `Buffered`: mutations land in an in-memory overlay (with tombstones that
       shadow inner/live paths) and never reach the inner surface; reads see the
@@ -418,6 +418,10 @@ Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
       journal. Unit-tested over a `LiveFilesystem` and/or `TreeFsSurface` base
       (create/remove/enumerate land in the overlay; inner untouched). Record the
       decision in the platform-isolation design notes.
+      *(Added `OverlayFileTree::{dir,file}_presence` → `OverlayPresence` so the
+      live-backed decorator distinguishes tombstoned from absent; `FsBuffered`
+      with read-your-writes + read_dir merge + `commit`/`rollback`/`journal`; 5
+      new unit tests; platform-isolation design note D30.)*
 - [ ] **MW15-2** Wire a `FilesystemBacking` enum (`Live` / `Buffered`) into the
       shim `ShimSession`, selected from `.pilcfg` (`buffer_updates` now buffers
       filesystem mutations too); change `session.filesystem` to the enum. Shim

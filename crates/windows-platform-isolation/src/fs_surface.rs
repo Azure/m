@@ -17,8 +17,8 @@
 //! onto an in-memory [`OverlayFileTree`].
 
 use crate::file_path::FilePath;
-use crate::fs_error::FilesystemResult;
-use crate::fs_tree::{DirEntry, FileMetadata, OverlayFileTree};
+use crate::fs_error::{FilesystemError, FilesystemResult};
+use crate::fs_tree::{DirEntry, FileMetadata, FileTree, OverlayFileTree, OverlayPresence};
 use crate::OrdinalCasing;
 
 /// A filesystem operation, modeled as data (D10). This is also the journaling
@@ -139,6 +139,184 @@ impl<S: FsSurface> FsPassThrough<S> {
 impl<S: FsSurface> FsSurface for FsPassThrough<S> {
     fn invoke(&mut self, req: &FsRequest) -> FilesystemResult<FsResponse> {
         self.inner.invoke(req)
+    }
+}
+
+/// A write-buffering filesystem decorator — the filesystem analogue of the
+/// registry [`Buffered`](crate::Buffered) (D4 / D10). Mutations land in an
+/// in-memory overlay (with tombstones that shadow the inner surface) and are
+/// **never** applied to the inner surface; reads see the overlay layered over
+/// the inner surface (read-your-writes), so a live inner surface is left
+/// untouched until [`commit`](FsBuffered::commit) replays the journal.
+///
+/// The journal is the [`FsRequest`] verb stream: each buffered mutation is the
+/// originating request, and `commit` replays them in order onto the inner
+/// surface. This is the isolation seam the `.pilcfg` `buffer_updates` flag
+/// selects for the filesystem (windows-win32-shim SHIM-D13).
+pub struct FsBuffered<S: FsSurface, C: OrdinalCasing + Clone> {
+    inner: S,
+    overlay: OverlayFileTree<C>,
+    casing: C,
+    journal: Vec<FsRequest>,
+}
+
+impl<S: FsSurface, C: OrdinalCasing + Clone> FsBuffered<S, C> {
+    /// Wrap an inner surface with an empty write overlay keyed by `casing`.
+    pub fn new(inner: S, casing: C) -> Self {
+        Self {
+            inner,
+            overlay: OverlayFileTree::new(casing.clone(), FileTree::new()),
+            casing,
+            journal: Vec::new(),
+        }
+    }
+
+    /// The pending verb stream (the buffered mutations, in order).
+    #[must_use]
+    pub fn journal(&self) -> &[FsRequest] {
+        &self.journal
+    }
+
+    /// Whether any mutations are buffered.
+    #[must_use]
+    pub fn is_dirty(&self) -> bool {
+        !self.journal.is_empty()
+    }
+
+    /// The write overlay (for inspection / proving the inner surface is
+    /// untouched).
+    #[must_use]
+    pub fn overlay(&self) -> &OverlayFileTree<C> {
+        &self.overlay
+    }
+
+    /// Replay the buffered mutations onto the inner surface in order, then clear
+    /// the buffer. After this the inner surface reflects all buffered writes.
+    pub fn commit(&mut self) -> FilesystemResult<()> {
+        for req in std::mem::take(&mut self.journal) {
+            self.inner.invoke(&req)?;
+        }
+        Ok(())
+    }
+
+    /// Discard all buffered mutations without touching the inner surface.
+    pub fn rollback(&mut self) {
+        self.journal.clear();
+        self.overlay = OverlayFileTree::new(self.casing.clone(), FileTree::new());
+    }
+
+    /// Recover the inner surface, discarding any uncommitted buffer.
+    pub fn into_inner(self) -> S {
+        self.inner
+    }
+
+    fn dir_exists(&mut self, path: &FilePath) -> FilesystemResult<bool> {
+        match self.overlay.dir_presence(path) {
+            OverlayPresence::Present => Ok(true),
+            OverlayPresence::Deleted => Ok(false),
+            OverlayPresence::Absent => match self
+                .inner
+                .invoke(&FsRequest::DirExists { path: path.clone() })?
+            {
+                FsResponse::Exists(found) => Ok(found),
+                _ => Ok(false),
+            },
+        }
+    }
+
+    fn file_exists(&mut self, path: &FilePath) -> FilesystemResult<bool> {
+        match self.overlay.file_presence(path) {
+            OverlayPresence::Present => Ok(true),
+            OverlayPresence::Deleted => Ok(false),
+            OverlayPresence::Absent => match self
+                .inner
+                .invoke(&FsRequest::FileExists { path: path.clone() })?
+            {
+                FsResponse::Exists(found) => Ok(found),
+                _ => Ok(false),
+            },
+        }
+    }
+
+    fn read_metadata(&mut self, path: &FilePath) -> FilesystemResult<FileMetadata> {
+        match self.overlay.file_presence(path) {
+            OverlayPresence::Present => self.overlay.file_metadata(path),
+            OverlayPresence::Deleted => Err(FilesystemError::NotFound),
+            OverlayPresence::Absent => match self
+                .inner
+                .invoke(&FsRequest::ReadMetadata { path: path.clone() })?
+            {
+                FsResponse::Metadata(metadata) => Ok(metadata),
+                _ => Err(FilesystemError::NotFound),
+            },
+        }
+    }
+
+    fn read_dir(&mut self, path: &FilePath) -> FilesystemResult<Vec<DirEntry>> {
+        match self.overlay.dir_presence(path) {
+            OverlayPresence::Deleted => Err(FilesystemError::NotFound),
+            OverlayPresence::Absent => match self
+                .inner
+                .invoke(&FsRequest::ReadDir { path: path.clone() })?
+            {
+                FsResponse::Entries(entries) => Ok(entries),
+                _ => Err(FilesystemError::NotFound),
+            },
+            OverlayPresence::Present => {
+                // Start with the overlay's materialized children, then merge any
+                // inner entries the overlay has neither materialized nor
+                // tombstoned (read-your-writes layered over the inner surface).
+                let mut entries = self.overlay.read_dir(path)?;
+                if let Ok(FsResponse::Entries(inner)) =
+                    self.inner.invoke(&FsRequest::ReadDir { path: path.clone() })
+                {
+                    for entry in inner {
+                        let child = path.join(&FilePath::from_value(entry.name.clone()));
+                        let shadowed = self.overlay.dir_presence(&child) != OverlayPresence::Absent
+                            || self.overlay.file_presence(&child) != OverlayPresence::Absent;
+                        if !shadowed {
+                            entries.push(entry);
+                        }
+                    }
+                    entries.sort_by(|a, b| {
+                        self.casing
+                            .compare_ignore_case(a.name.as_units(), b.name.as_units())
+                    });
+                }
+                Ok(entries)
+            }
+        }
+    }
+}
+
+impl<S: FsSurface, C: OrdinalCasing + Clone> FsSurface for FsBuffered<S, C> {
+    fn invoke(&mut self, req: &FsRequest) -> FilesystemResult<FsResponse> {
+        match req {
+            FsRequest::DirExists { path } => Ok(FsResponse::Exists(self.dir_exists(path)?)),
+            FsRequest::FileExists { path } => Ok(FsResponse::Exists(self.file_exists(path)?)),
+            FsRequest::ReadMetadata { path } => self.read_metadata(path).map(FsResponse::Metadata),
+            FsRequest::ReadDir { path } => self.read_dir(path).map(FsResponse::Entries),
+            FsRequest::CreateDir { path } => {
+                self.overlay.create_dir(path);
+                self.journal.push(req.clone());
+                Ok(FsResponse::Unit)
+            }
+            FsRequest::RemoveDir { path } => {
+                self.overlay.remove_dir(path);
+                self.journal.push(req.clone());
+                Ok(FsResponse::Unit)
+            }
+            FsRequest::WriteFile { path, metadata } => {
+                self.overlay.set_file(path, *metadata);
+                self.journal.push(req.clone());
+                Ok(FsResponse::Unit)
+            }
+            FsRequest::RemoveFile { path } => {
+                self.overlay.remove_file(path);
+                self.journal.push(req.clone());
+                Ok(FsResponse::Unit)
+            }
+        }
     }
 }
 
@@ -320,6 +498,144 @@ mod tests {
                 path: p("C:\\Windows\\System32"),
             }),
             Ok(FsResponse::Exists(true))
+        );
+    }
+
+    // --- FsBuffered (overlay-over-live write buffering) -------------------
+
+    #[test]
+    fn fs_buffered_writes_are_isolated_from_inner() {
+        let mut buf = FsBuffered::new(surface(), AsciiOrdinalCasing);
+        let f = p("C:\\Windows\\new.txt");
+        assert_eq!(
+            buf.invoke(&FsRequest::WriteFile {
+                path: f.clone(),
+                metadata: md(7),
+            }),
+            Ok(FsResponse::Unit)
+        );
+        // Read-your-writes through the decorator.
+        assert_eq!(
+            buf.invoke(&FsRequest::FileExists { path: f.clone() }),
+            Ok(FsResponse::Exists(true))
+        );
+        assert_eq!(
+            buf.invoke(&FsRequest::ReadMetadata { path: f.clone() }),
+            Ok(FsResponse::Metadata(md(7)))
+        );
+        assert!(buf.is_dirty());
+        assert_eq!(buf.journal().len(), 1);
+        // The inner surface never saw the write.
+        let mut inner = buf.into_inner();
+        assert_eq!(
+            inner.invoke(&FsRequest::FileExists { path: f }),
+            Ok(FsResponse::Exists(false))
+        );
+    }
+
+    #[test]
+    fn fs_buffered_reads_fall_through_to_inner() {
+        let mut buf = FsBuffered::new(surface(), AsciiOrdinalCasing);
+        assert_eq!(
+            buf.invoke(&FsRequest::FileExists {
+                path: p("C:\\Windows\\notepad.exe"),
+            }),
+            Ok(FsResponse::Exists(true))
+        );
+        assert_eq!(
+            buf.invoke(&FsRequest::DirExists {
+                path: p("C:\\Windows\\System32"),
+            }),
+            Ok(FsResponse::Exists(true))
+        );
+        assert_eq!(
+            buf.invoke(&FsRequest::ReadMetadata {
+                path: p("C:\\Windows\\notepad.exe"),
+            }),
+            Ok(FsResponse::Metadata(md(100)))
+        );
+    }
+
+    #[test]
+    fn fs_buffered_remove_shadows_inner_without_touching_it() {
+        let mut buf = FsBuffered::new(surface(), AsciiOrdinalCasing);
+        let f = p("C:\\Windows\\notepad.exe");
+        assert_eq!(
+            buf.invoke(&FsRequest::RemoveFile { path: f.clone() }),
+            Ok(FsResponse::Unit)
+        );
+        // Shadowed through the decorator (read-your-deletes).
+        assert_eq!(
+            buf.invoke(&FsRequest::FileExists { path: f.clone() }),
+            Ok(FsResponse::Exists(false))
+        );
+        // The inner surface still has it.
+        let mut inner = buf.into_inner();
+        assert_eq!(
+            inner.invoke(&FsRequest::FileExists { path: f }),
+            Ok(FsResponse::Exists(true))
+        );
+    }
+
+    #[test]
+    fn fs_buffered_read_dir_merges_overlay_over_inner() {
+        let mut buf = FsBuffered::new(surface(), AsciiOrdinalCasing);
+        // Overlay-create a new file in an inner-existing directory.
+        buf.invoke(&FsRequest::WriteFile {
+            path: p("C:\\Windows\\added.bin"),
+            metadata: md(3),
+        })
+        .unwrap();
+        match buf
+            .invoke(&FsRequest::ReadDir {
+                path: p("C:\\Windows"),
+            })
+            .unwrap()
+        {
+            FsResponse::Entries(entries) => {
+                let names: Vec<String> =
+                    entries.iter().map(|e| e.name.to_utf8().unwrap()).collect();
+                // added.bin (overlay) + notepad.exe + System32 (inner), ordinal.
+                assert_eq!(
+                    names,
+                    vec![
+                        "added.bin".to_string(),
+                        "notepad.exe".to_string(),
+                        "System32".to_string(),
+                    ]
+                );
+            }
+            other => panic!("expected Entries, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn fs_buffered_commit_replays_journal_onto_inner() {
+        let mut buf = FsBuffered::new(surface(), AsciiOrdinalCasing);
+        let f = p("C:\\Windows\\committed.txt");
+        buf.invoke(&FsRequest::WriteFile {
+            path: f.clone(),
+            metadata: md(9),
+        })
+        .unwrap();
+        buf.invoke(&FsRequest::RemoveFile {
+            path: p("C:\\Windows\\notepad.exe"),
+        })
+        .unwrap();
+        assert!(buf.is_dirty());
+        buf.commit().unwrap();
+        assert!(!buf.is_dirty());
+        // The inner now reflects the replayed writes.
+        let mut inner = buf.into_inner();
+        assert_eq!(
+            inner.invoke(&FsRequest::FileExists { path: f }),
+            Ok(FsResponse::Exists(true))
+        );
+        assert_eq!(
+            inner.invoke(&FsRequest::FileExists {
+                path: p("C:\\Windows\\notepad.exe"),
+            }),
+            Ok(FsResponse::Exists(false))
         );
     }
 }

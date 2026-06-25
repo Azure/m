@@ -44,8 +44,8 @@ pub use file_path::{FilePath, FileRoot, FileRootKind, PathSurface};
 pub use fs::{Filesystem, FsSession};
 pub use fs_error::{FilesystemError, FilesystemResult};
 pub use fs_serial::load_filesystem;
-pub use fs_surface::{FsPassThrough, FsRequest, FsResponse, FsSurface, TreeFsSurface};
-pub use fs_tree::{DirEntry, FileMetadata, FileTree, NodeKind, OverlayFileTree};
+pub use fs_surface::{FsBuffered, FsPassThrough, FsRequest, FsResponse, FsSurface, TreeFsSurface};
+pub use fs_tree::{DirEntry, FileMetadata, FileTree, NodeKind, OverlayFileTree, OverlayPresence};
 #[cfg(windows)]
 pub use live::LiveRegistry;
 #[cfg(windows)]

@@ -886,6 +886,33 @@ fires constantly, logging every occurrence is noise. The intent is a **known-saf
 occurrences, so the journal stays focused on data worth processing. The concrete
 policy is deferred until implementation shows which seams fire constantly.
 
+## D30 — Filesystem write-buffering decorator (`FsBuffered`)
+
+**Decision.** Ship `FsBuffered<S: FsSurface, C>` — the filesystem analogue of the
+registry `Buffered` (D4) — completing the FS half of the decorator stack (the
+filesystem previously had only `FsPassThrough`). Semantics are **overlay over a
+live inner surface**: every mutation lands in an in-memory `OverlayFileTree` and
+is appended to an `FsRequest` journal; the inner surface is **never** touched
+until `commit` replays the journal. Reads are **read-your-writes layered over the
+inner**: a path the overlay materialized answers from the overlay, a path the
+overlay tombstoned is hidden even if the inner still has it, and a path the
+overlay says nothing about defers to the inner. `read_dir` merges the overlay's
+children over the inner's, dropping inner entries the overlay materialized or
+tombstoned, re-sorted into ordinal order. `commit` / `rollback` / `is_dirty` /
+`journal` mirror the registry decorator.
+
+**Supporting API — `OverlayFileTree::{dir,file}_presence` → `OverlayPresence`.**
+The existing existence / metadata queries collapse *tombstoned* and *absent*
+against the (here empty) base, but a live-backed decorator must distinguish them
+(a tombstone shadows the live path; an absent overlay entry defers to it). The
+new three-way `OverlayPresence` (`Present` / `Deleted` / `Absent`) exposes the
+overlay's own opinion without consulting the base.
+
+**Why.** This is the seam the `windows-win32-shim` `.pilcfg` `buffer_updates`
+flag selects for the filesystem (closing the SHIM-D13 FS-buffering gap), so an
+unmodified consumer's namespace mutations land in the overlay and the live
+filesystem is left untouched until an explicit commit.
+
 ## Status
 
 The kickoff questions (relationship, surfaces, layering, interop) are resolved

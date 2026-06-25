@@ -23,6 +23,7 @@ pub mod decorator;
 pub mod egress;
 pub mod egress_decorator;
 pub mod egress_error;
+pub mod egress_replay;
 pub mod error;
 pub mod file_path;
 pub mod fs;
@@ -48,6 +49,7 @@ pub use egress_decorator::{
     ObservingEgress, RedirectRule, RedirectingEgress,
 };
 pub use egress_error::{EgressError, EgressResult};
+pub use egress_replay::{ReplayEgress, ReplayMiss, ReplaySet};
 pub use error::{RegistryError, Result};
 pub use file_path::{FilePath, FileRoot, FileRootKind, PathSurface};
 pub use fs::{Filesystem, FsSession};

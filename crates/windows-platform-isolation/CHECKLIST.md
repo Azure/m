@@ -416,10 +416,16 @@ HTTP only; SOAP/WWSAPI is reserved. See the design session
       `BufferedEgress<BlockingEgress>` is a fully offline buffer.
       `journal()`/`is_dirty()`/`commit()` (replay in order, preserve journal on
       inner error)/`rollback()`/`with_ack_status()`. 7 unit tests. 257 tests pass.)*
-- [ ] **M11-4** `ReplayEgress<S>` — serve canned `EgressResponse`s from a preloaded
+- [x] **M11-4** `ReplayEgress<S>` — serve canned `EgressResponse`s from a preloaded
       fixture set keyed by `(verb, path[, query])` (the "system state pre-loaded"
       mode, D15 ingress); miss policy = block or read-through. Fixtures load from an
       artifact (shared on-disk format, owned here per Design Autonomy). Unit-tested.
+      *(`src/egress_replay.rs`: `ReplaySet` (verb-ASCII-ci + exact-path match,
+      first-wins) + `ReplayMiss{Block,ReadThrough}` + `ReplayEgress<S>`;
+      `ReplaySet::from_artifact` parses `<Platform><Egress><Fixture verb path
+      status><Header/><Body/>` via `roxmltree` (accepts `<Egress>` root; absent =
+      empty; rejects malformed XML / missing attr / non-numeric status). 11 unit
+      tests. 268 tests pass.)*
 - [ ] **M11-5** `LiveEgress` over a dedicated `windows-*-sys` `unsafe` leaf
       (cfg windows): perform one real WinHTTP transaction from an `EgressRequest`
       (`WinHttpOpen`/`Connect`/`OpenRequest`/`AddRequestHeaders`/`SendRequest`/

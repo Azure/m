@@ -393,20 +393,48 @@ second seam" milestone.
       each response is correct, that no work ran on the host thread (thread-id
       observation), and that every work item joined cleanly.)*
 
-## MW15 — Isolation proof: force the redirection open — OUTLINE (detail when scheduled; isolation deferred)
+## MW15 — Isolation proof: force the redirection open (SHIM-D19)
 
 Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
 (SHIM-D19) and proves its namespace ops land in the overlay, not the live FS.
 
-- [ ] **MW15-1** Build `wordy` with the alias `.obj` + shim import lib injected via
+> **Re-plan note (scheduling, 2026-06-25):** detailing the outline revealed the
+> blocking prerequisite that the header's *"isolation deferred"* foreshadowed:
+> the shim's filesystem surface is hardcoded to `LiveFilesystem` passthrough —
+> there is no `FilesystemBacking` and `.pilcfg`-driven FS layering is the
+> documented SHIM-D13 gap. Since `wordy`'s custom store is filesystem-based, the
+> overlay proof cannot run until that gap is closed. The building blocks already
+> exist in `windows-platform-isolation` (`FsSurface`, `OverlayFileTree`,
+> `TreeFsSurface`), so closing it is bounded. The original four items are
+> renumbered MW15-3..6; MW15-1/2 are the prerequisite. Decision: overlay-over-live
+> semantics, gated by the existing `buffer_updates` flag (now "buffer all
+> mutations: registry + filesystem").
+
+- [ ] **MW15-1** Add an `FsBuffered<S: FsSurface, C>` decorator to
+      `windows-platform-isolation` — the filesystem analogue of the registry
+      `Buffered`: mutations land in an in-memory overlay (with tombstones that
+      shadow inner/live paths) and never reach the inner surface; reads see the
+      overlay layered over the inner (read-your-writes); `commit` replays the
+      journal. Unit-tested over a `LiveFilesystem` and/or `TreeFsSurface` base
+      (create/remove/enumerate land in the overlay; inner untouched). Record the
+      decision in the platform-isolation design notes.
+- [ ] **MW15-2** Wire a `FilesystemBacking` enum (`Live` / `Buffered`) into the
+      shim `ShimSession`, selected from `.pilcfg` (`buffer_updates` now buffers
+      filesystem mutations too); change `session.filesystem` to the enum. Shim
+      integration tests drive the FS C ABI through the buffered backing and assert
+      namespace ops land in the overlay with the live FS untouched. Update
+      SHIM-D13.
+- [ ] **MW15-3** Build `wordy` with the alias `.obj` + shim import lib injected via
       the generic `build.rs` env vars (no `wordy` source change); confirm via
       `dumpbin /imports` that the FS + thread-pool/loader imports bind the shim.
-- [ ] **MW15-2** `hwcproof/` harness (mirrors `linkproof/`): genuine HWC + a
-      buffered `.pilcfg` beside `wordy.dll`; real HTTP add/remove/enumerate of
-      custom words; assert the namespace ops land in the shim overlay, not the
-      live FS.
-- [ ] **MW15-3** Negative control: a non-aliased `wordy` hits the live FS; an
+      (Orchestration script mirroring `linkproof/run-linkproof.ps1`.)
+- [ ] **MW15-4** `hwcproof/` harness (mirrors `linkproof/`): genuine HWC + a
+      buffered `.pilcfg` beside the aliased `wordy.dll`; real HTTP add/remove/
+      enumerate of custom words; assert the namespace ops land in the shim
+      overlay, not the live FS.
+- [ ] **MW15-5** Negative control: a non-aliased `wordy` hits the live FS; an
       exit-code discriminator distinguishes the two builds.
-- [ ] **MW15-4** *(integration)* End-to-end isolation proof, gated/ignored when HWC
+- [ ] **MW15-6** *(integration)* End-to-end isolation proof, gated/ignored when HWC
       is absent; record closure / any new decisions in SHIM-D19.
+
 

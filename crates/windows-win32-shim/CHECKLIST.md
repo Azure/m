@@ -454,12 +454,35 @@ Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
       pool is intentionally not in the alias manifest (the shim does not virtualize
       it), so thread-pool calls remain native by design. `-ReportOnly` prints the
       findings; assertion mode exits 0 on success.)*
-- [ ] **MW15-4** `hwcproof/` harness (mirrors `linkproof/`): genuine HWC + a
+- [x] **MW15-4** `hwcproof/` harness (mirrors `linkproof/`): genuine HWC + a
       buffered `.pilcfg` beside the aliased `wordy.dll`; real HTTP add/remove/
       enumerate of custom words; assert the namespace ops land in the shim
       overlay, not the live FS.
-- [ ] **MW15-5** Negative control: a non-aliased `wordy` hits the live FS; an
+      *(`hwcproof/run-hwcproof.ps1 -Variant isolated`: stages a buffered host
+      sidecar (`wordy-host.exe.pilcfg = {"buffer_updates":true}` — keyed to the
+      host **process** exe, which `load_pilcfg` reads via `current_exe`), points
+      `WORDY_CUSTOM_ROOT` at a fresh live dir, then runs `wordy-host.exe` with
+      `WORDY_HOST_HTTP=1` to genuinely `WebCoreActivate` and drive POST/GET/DELETE
+      `/custom/widget` over real HTTP. **Verified end to end on this box**: HWC
+      activated (HRESULT 0), all 7 routes returned 200 including the custom
+      add/get/delete round-trip, yet the live custom root was never created on
+      disk — the aliased module's FS mutations stayed in the shim overlay
+      (read-your-writes held over real HTTP). Skips gracefully (exit 2) when HWC
+      is absent or the URL is unbindable. **Prerequisite found:** the host must
+      stay native, so `wordy/build.rs` was scoped to inject the alias object via
+      `rustc-link-arg-cdylib` (cdylib only) — an object is linked unconditionally,
+      so aliasing the host binary too would buffer its own config writes and break
+      activation; this mirrors production (native HWC worker, isolated module).)*
+- [x] **MW15-5** Negative control: a non-aliased `wordy` hits the live FS; an
       exit-code discriminator distinguishes the two builds.
+      *(`hwcproof/run-hwcproof.ps1 -Variant native`: rebuilds `wordy.dll` with no
+      alias injection (dumpbin confirms it does **not** import the shim), stages
+      the **same** buffered sidecar, and runs the identical round-trip. **Verified**:
+      the live custom root **was** created on disk (exit 0 = PASS for the native
+      variant), confirming the isolated run's absent root is a real overlay effect
+      and not an artifact. The script's per-variant exit code is the discriminator
+      (PASS=0 / FAIL=1 / SKIP=2); the only independent variable between the two
+      runs is whether `wordy.dll` was linked against the alias object.)*
 - [ ] **MW15-6** *(integration)* End-to-end isolation proof, gated/ignored when HWC
       is absent; record closure / any new decisions in SHIM-D19.
 

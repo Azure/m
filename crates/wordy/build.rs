@@ -18,8 +18,10 @@
 //! Recognized variables (all optional):
 //! - `WORDY_EXTRA_LINK_SEARCH` — one or more native library search directories
 //!   (platform path-list separated).
-//! - `WORDY_EXTRA_LINK_OBJ` — one or more object files to add to the link
-//!   (platform path-list separated); passed through as raw linker arguments.
+//! - `WORDY_EXTRA_LINK_OBJ` — one or more object files (or import libraries) to
+//!   add to the **cdylib** link (platform path-list separated); passed through
+//!   as raw linker arguments scoped to the cdylib artifact, so a host binary
+//!   that loads the cdylib stays an ordinary executable.
 //! - `WORDY_EXTRA_LINK_LIB` — one or more library names to link (`;`-separated).
 
 use std::env;
@@ -41,9 +43,15 @@ fn main() {
 
     if let Some(value) = non_empty(ENV_OBJ) {
         for obj in env::split_paths(&value) {
-            // An object file is added to the link as a raw linker argument; it is
-            // not a named library, so `rustc-link-lib` does not apply.
-            println!("cargo:rustc-link-arg={}", obj.display());
+            // An object file (or import library) is added to the link as a raw
+            // linker argument; it is not a named library, so `rustc-link-lib`
+            // does not apply. Scope it to the **cdylib**: an object file is
+            // linked unconditionally, so injecting it into a host *binary* that
+            // loads the cdylib would redirect that host's own IAT too. Isolating
+            // the loadable module (the cdylib) while leaving any host binary an
+            // ordinary executable mirrors production (a native host process
+            // loading an isolated module).
+            println!("cargo:rustc-link-arg-cdylib={}", obj.display());
         }
     }
 

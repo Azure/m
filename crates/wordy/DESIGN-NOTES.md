@@ -249,13 +249,24 @@ The generator (`wordy-host::application_host_config`) now emits the full standar
 `<configSections>` plus the core `inetsrv` pipeline modules (protocol support,
 anonymous auth, request filtering, custom errors, static file) and `WordyModule`.
 
-**Tooling** on the bin: `WORDY_HOST_ACTIVATE=1` (activate), `WORDY_HOST_HTTP=1`
-(drive localhost routes), `WORDY_HOST_DUMP=1` (dump raw responses),
-`WORDY_HOST_CONFIG=<path>` (use an external `applicationHost.config`), and
-`WORDY_HOST_FREB=1` (register the genuine `iisfreb.dll` Failed Request Tracing
-module). `iis.rs` carries a `WORDY_TRACE=<file>` gated trace through the boundary
-and per-slot `notify_slot::<N>` trampolines that self-identify any unexpected
-notification a future host might dispatch. The live-HTTP path is covered by the
+**The bin genuinely activates by default** (the directive: genuine is the
+default, emulated is opt-in). Because the site binds an HTTP.sys URL — which only
+an elevated process, or one granted a `netsh http add urlacl` reservation, may
+do — activation first *probes* the reservation via the HTTP Server API
+(`HttpCreateUrlGroup` + `HttpAddUrlToUrlGroup` on `http://localhost:8080/`,
+released immediately). On `ERROR_ACCESS_DENIED` it prints the exact `netsh`
+remediation to stderr and exits non-zero rather than failing opaquely.
+`WORDY_HOST_PREFLIGHT_ONLY=1` stops after config generation without touching the
+engine (the safe CI/report path).
+
+**Other tooling** on the bin: `WORDY_HOST_HTTP=1` (drive localhost routes),
+`WORDY_HOST_DUMP=1` (dump raw responses to stderr), `WORDY_HOST_CONFIG=<path>`
+(use an external `applicationHost.config`), `WORDY_HOST_PROBE=1` (load + resolve
+exports without activating), and `WORDY_HOST_FREB=1` (register the genuine
+`iisfreb.dll` Failed Request Tracing module). `iis.rs` carries a
+`WORDY_TRACE=<file>` gated trace through the boundary and per-slot
+`notify_slot::<N>` trampolines that self-identify any unexpected notification a
+future host might dispatch. The live-HTTP path is covered by the
 `hwc_genuine_http_dispatch_end_to_end` integration test, which exercises genuine
 HWC **by default** on a capable host; `WORDY_HWC_EMULATED_ONLY=1` opts out, and it
 skips its assertions when HWC is absent or the listener cannot bind without

@@ -196,10 +196,12 @@ fn custom_dictionary_at_integration_scale() {
 
 #[test]
 fn hwc_activator_preflight_runs_and_is_gated() {
-    // The `wordy-host` pre-flight is safe to run everywhere: it reports HWC
-    // readiness and exits 0 whether or not HWC is installed.
+    // The `wordy-host` pre-flight (WORDY_HOST_PREFLIGHT_ONLY) is safe to run
+    // everywhere: it reports HWC readiness and exits 0 whether or not HWC is
+    // installed, without touching the genuine engine or binding a URL.
     let exe = env!("CARGO_BIN_EXE_wordy-host");
     let output = Command::new(exe)
+        .env("WORDY_HOST_PREFLIGHT_ONLY", "1")
         .output()
         .expect("run wordy-host pre-flight");
     assert!(
@@ -254,7 +256,6 @@ fn hwc_genuine_http_dispatch_end_to_end() {
     // HTTP, dumps the raw responses, then WebCoreShutdowns and exits.
     let exe = env!("CARGO_BIN_EXE_wordy-host");
     let output = Command::new(exe)
-        .env("WORDY_HOST_ACTIVATE", "1")
         .env("WORDY_HOST_HTTP", "1")
         .env("WORDY_HOST_DUMP", "1")
         .output()

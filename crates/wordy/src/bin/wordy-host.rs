@@ -11,20 +11,24 @@
 //! 2. **Locate** the built `wordy.dll` next to this executable.
 //! 3. **Generate** an `applicationHost.config` + root `web.config` that register
 //!    `wordy.dll` as a global module and bind a site on a high local port.
-//! 4. **Report** an HWC readiness verdict and exit `0` (so it is safe to run in
-//!    CI and on machines without HWC).
+//! 4. **Activate** the genuine engine by default (see below). With
+//!    `WORDY_HOST_PREFLIGHT_ONLY=1` it instead stops after generating the config
+//!    and reporting an HWC readiness verdict, exiting `0` (safe in CI and on
+//!    machines without HWC).
 //!
 //! With `WORDY_HOST_PROBE=1` it additionally `LoadLibraryExW`s the real engine by
 //! absolute path with the `inetsrv` dependency directory and resolves its three
 //! exports, proving the dynamic-load seam, then frees it without activating.
 //!
-//! With `WORDY_HOST_ACTIVATE=1` it performs **genuine activation** (MW16-2):
-//! loads the engine, `WebCoreActivate`s it against the generated config (which
-//! loads the pinned `wordy.dll`), optionally drives a localhost HTTP smoke check
-//! (`WORDY_HOST_HTTP=1`, MW16-3), then `WebCoreShutdown`s. The IIS vtables are
-//! pinned to the real `httpserv.h` layout (MW16-1), so the genuine host's calls
-//! land on `wordy`'s methods. Activation is opt-in because it starts a real web
-//! server in-process.
+//! **By default it performs genuine activation** (MW16-2/3): loads the engine,
+//! `WebCoreActivate`s it against the generated config (which loads the pinned
+//! `wordy.dll`), optionally drives a localhost HTTP smoke check
+//! (`WORDY_HOST_HTTP=1`), then `WebCoreShutdown`s. The IIS vtables are pinned to
+//! the real `httpserv.h` layout (MW16-1), so the genuine host's calls land on
+//! `wordy`'s methods. Because the site binds an HTTP.sys URL, activation first
+//! checks that this process may reserve it (elevation, or a `netsh http add
+//! urlacl` grant); if not, it prints the exact remediation to stderr and exits
+//! non-zero. `WORDY_HOST_PREFLIGHT_ONLY=1` skips activation entirely.
 //!
 //! With `WORDY_HOST_FREB=1` the generated config additionally registers the
 //! genuine `iisfreb.dll` Failed Request Tracing module and captures every
@@ -111,23 +115,35 @@ mod hosted {
             }
         }
 
-        if std::env::var_os("WORDY_HOST_ACTIVATE").is_some() {
-            if !hwc_present {
-                println!("  [skip]    WORDY_HOST_ACTIVATE set but HWC engine is absent");
-                return ExitCode::SUCCESS;
-            }
-            let Some(config) = config else {
-                eprintln!("  [error]   cannot activate without generated config");
-                return ExitCode::FAILURE;
-            };
-            return match activate(&hwebcore, &inetsrv, &config) {
-                Ok(()) => ExitCode::SUCCESS,
-                Err(()) => ExitCode::FAILURE,
-            };
+        // Pre-flight-only mode: stop after generating the config and reporting
+        // readiness, without touching the genuine engine. The default is genuine
+        // activation.
+        if std::env::var_os("WORDY_HOST_PREFLIGHT_ONLY").is_some() {
+            println!("  [note]    pre-flight only; unset WORDY_HOST_PREFLIGHT_ONLY to activate.");
+            return ExitCode::SUCCESS;
         }
 
-        println!("  [note]    set WORDY_HOST_ACTIVATE=1 to start the genuine host (MW16-2/3).");
-        ExitCode::SUCCESS
+        // Default: genuine activation. It needs the engine, a generated config,
+        // and permission to bind the site's HTTP.sys URL.
+        if !hwc_present {
+            eprintln!("  [error]   cannot activate: the HWC engine is absent.");
+            eprintln!("  [hint]    install it from an elevated prompt, e.g.:");
+            eprintln!(
+                "  [hint]      dism /online /enable-feature /featurename:IIS-HostableWebCore /all"
+            );
+            return ExitCode::FAILURE;
+        }
+        let Some(config) = config else {
+            eprintln!("  [error]   cannot activate without generated config");
+            return ExitCode::FAILURE;
+        };
+        if let Err(code) = ensure_url_reservation(SITE_PORT) {
+            return code;
+        }
+        match activate(&hwebcore, &inetsrv, &config) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(()) => ExitCode::FAILURE,
+        }
     }
 
     /// Paths to the generated configuration files.
@@ -420,6 +436,92 @@ mod hosted {
         unsafe extern "system" fn(*const u16, *const u16, *const u16) -> i32;
     /// `WebCoreShutdown(DWORD fImmediate)`.
     type WebCoreShutdownFn = unsafe extern "system" fn(u32) -> i32;
+
+    /// Probe whether this process may reserve the site's URL with HTTP.sys.
+    ///
+    /// HTTP.sys lets a process register a URL only when it is elevated or when a
+    /// `netsh http add urlacl` reservation grants the current account. We learn
+    /// the answer authoritatively by attempting the reservation through the HTTP
+    /// Server API and immediately releasing it. Returns `Ok(())` when the URL can
+    /// be bound, or the failing Win32 error code (`ERROR_ACCESS_DENIED` when
+    /// neither elevation nor a reservation is present).
+    fn probe_url_reservation(port: u16) -> Result<(), u32> {
+        use windows_sys::Win32::Networking::HttpServer::{
+            HTTP_INITIALIZE_SERVER, HTTPAPI_VERSION, HttpAddUrlToUrlGroup, HttpCloseServerSession,
+            HttpCloseUrlGroup, HttpCreateServerSession, HttpCreateUrlGroup, HttpInitialize,
+            HttpTerminate,
+        };
+
+        let version = HTTPAPI_VERSION { HttpApiMajorVersion: 2, HttpApiMinorVersion: 0 };
+        // SAFETY: standard server-side HttpInitialize; the reserved pointer is null.
+        let rc = unsafe { HttpInitialize(version, HTTP_INITIALIZE_SERVER, std::ptr::null_mut()) };
+        if rc != 0 {
+            return Err(rc);
+        }
+
+        let mut session: u64 = 0;
+        let mut group: u64 = 0;
+        let url = wide(&format!("http://localhost:{port}/"));
+        let outcome = (|| {
+            // SAFETY: `session` is a valid out-pointer for the duration of the call.
+            let rc = unsafe { HttpCreateServerSession(version, &mut session, 0) };
+            if rc != 0 {
+                return Err(rc);
+            }
+            // SAFETY: `group` is a valid out-pointer; `session` is live.
+            let rc = unsafe { HttpCreateUrlGroup(session, &mut group, 0) };
+            if rc != 0 {
+                return Err(rc);
+            }
+            // SAFETY: `url` is a NUL-terminated wide string that outlives the call.
+            let rc = unsafe { HttpAddUrlToUrlGroup(group, url.as_ptr(), 0, 0) };
+            if rc != 0 {
+                return Err(rc);
+            }
+            Ok(())
+        })();
+
+        // Best-effort teardown of whatever we created, then balance HttpInitialize.
+        if group != 0 {
+            // SAFETY: `group` is a live URL-group handle.
+            unsafe { HttpCloseUrlGroup(group) };
+        }
+        if session != 0 {
+            // SAFETY: `session` is a live server-session handle.
+            unsafe { HttpCloseServerSession(session) };
+        }
+        // SAFETY: balances the HttpInitialize above; reserved pointer is null.
+        unsafe { HttpTerminate(HTTP_INITIALIZE_SERVER, std::ptr::null_mut()) };
+
+        outcome
+    }
+
+    /// Confirm the site URL can be reserved, or print actionable remediation to
+    /// stderr and return a non-zero exit code. HTTP.sys URL reservation requires
+    /// elevation or a one-time `netsh http add urlacl` grant for the current user.
+    fn ensure_url_reservation(port: u16) -> Result<(), ExitCode> {
+        match probe_url_reservation(port) {
+            Ok(()) => Ok(()),
+            Err(code) => {
+                let url = format!("http://localhost:{port}/");
+                eprintln!("  [error]   cannot reserve {url} with HTTP.sys (Win32 error {code}).");
+                if code == windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED {
+                    let user = std::env::var("USERDOMAIN")
+                        .ok()
+                        .zip(std::env::var("USERNAME").ok())
+                        .map(|(domain, name)| format!("{domain}\\{name}"))
+                        .or_else(|| std::env::var("USERNAME").ok())
+                        .unwrap_or_else(|| "DOMAIN\\user".to_string());
+                    eprintln!("  [hint]    HTTP.sys only lets administrators reserve a URL. Either run");
+                    eprintln!("  [hint]    this host elevated, or grant your account a one-time");
+                    eprintln!("  [hint]    reservation from an elevated prompt:");
+                    eprintln!("  [hint]      netsh http add urlacl url={url} user={user}");
+                    eprintln!("  [hint]    (remove it later with: netsh http delete urlacl url={url})");
+                }
+                Err(ExitCode::FAILURE)
+            }
+        }
+    }
 
     /// Genuinely activate the host: load the engine, `WebCoreActivate` against the
     /// generated config (loading `wordy.dll`), optionally drive an HTTP smoke

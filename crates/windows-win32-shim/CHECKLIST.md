@@ -331,23 +331,29 @@ subset (peer of `mwinweb`), never depending on this crate.
       `IModuleAllocator`).** Bin gates: `WORDY_HOST_ACTIVATE` / `WORDY_HOST_HTTP` /
       `WORDY_HOST_DUMP` / `WORDY_HOST_CONFIG`; `iis.rs` gains a `WORDY_TRACE` gated
       trace.
-- [ ] **MW16-3** *(integration)* Drive every route end-to-end over **real HTTP**
+- [x] **MW16-3** *(integration)* Drive every route end-to-end over **real HTTP**
       against the activated host; assert dictionary behaviors; gated/ignored when
       HWC is absent. Reconciles the modeled-vs-genuine boundary and unblocks
       MW15-2.
 
-      > **⚠ OPEN — dispatch blocker (see wordy WD-D11).** Activation and per-request
-      > module creation work, but the genuine host invokes **no** `CHttpModule`
-      > notification (not `OnBeginRequest`, not any stub slot) and returns a bare
-      > `500`. Ruled out: vtable layout (slot-0 address verified == `OnBeginRequest`),
-      > registration (`S_OK`, correct `RQ_BEGIN_REQUEST` mask), allocation (heap +
-      > request-pool), config completeness (minimal / core / ProtocolSupport-only /
-      > IIS-Express-template), earlier-module interference, and the trace mechanism
-      > (unconditional hard-coded write also never fires). Needs Failed Request
-      > Tracing or a debugger on the worker to diagnose; the system
-      > `applicationHost.config` is admin-locked. `wordy`'s decode→dispatch→write
-      > path is proven correct against the pinned vtables by the emulated-host unit
-      > tests, so the gap is in the genuine-host binding, not `wordy`'s logic.
+      > **✅ RESOLVED (see wordy WD-D11).** Genuine HWC now dispatches every route
+      > into `wordy` end-to-end (`GET /healthz` → `200 {"status":"ok"}`,
+      > `POST /spellcheck` → `200 {"results":[…]}`, all 7 routes → `200`). The
+      > earlier bare-`500` was **HTTP 500.19** (`sc-win32-status 1168`,
+      > `ERROR_NOT_FOUND`): the hand-rolled `applicationHost.config` declared only
+      > a *subset* of the standard `<configSections>`, so IIS aborted each request
+      > at config resolution — before the notification pipeline — when a loaded
+      > module read an undeclared section (`staticContent`, `httpProtocol`, …).
+      > `wordy`'s binding was correct all along (as the emulated-host unit tests
+      > showed). Fix: `wordy-host::application_host_config` now emits the
+      > **complete** standard section set + the core `inetsrv` pipeline modules.
+      > Covered by the `hwc_genuine_http_dispatch_end_to_end` integration test,
+      > which drives genuine HWC **by default** on a capable host
+      > (`WORDY_HWC_EMULATED_ONLY=1` opts out; skips when HWC is absent or the
+      > listener cannot bind without elevation). Diagnosis aids:
+      > W3C site logging surfaced the sub-status; `custerr.dll` +
+      > `errorMode="Detailed"` named the offending section; per-slot trace
+      > trampolines confirmed no notification was dispatched.
 
 ## MW14 — Asynchronous request completion on the Windows thread pool (SHIM-D19)
 

@@ -206,47 +206,57 @@ substantial, SDK-dependent, crash-sensitive effort shared with MW15-2's
 `hwcproof/` harness, so it is its own milestone; MW13-5 lands the runnable
 integration harness + load-seam proof, and MW16 carries the genuine activation.
 
-## WD-D11 — Genuine HWC activation: what works, and the dispatch blocker (MW16)
+## WD-D11 — Genuine HWC activation, and the 500.19 config-resolution root cause (MW16)
 
 MW16-1 pinned the real `httpserv.h` vtables (WD-D3). MW16-2 made `wordy-host`
-genuinely activate Hostable Web Core. The following is **verified working** on a
-machine with `IIS-HostableWebCore` installed:
+genuinely activate Hostable Web Core. MW16-3 drove every route end-to-end over
+**real HTTP** into `wordy` under the genuine host. The full path is **verified
+working** on a machine with `IIS-HostableWebCore` installed:
 
 - `WebCoreActivate` succeeds (`HRESULT 0x00000000`) against the generated
-  `applicationHost.config`, and `WebCoreShutdown` cleanly stops it. The activate
-  / shutdown FFI, config generation, and well-known error-code mapping are
-  correct.
+  `applicationHost.config`, and `WebCoreShutdown` cleanly stops it.
 - The genuine engine loads `wordy.dll`; IIS calls its exported `RegisterModule`;
   `SetRequestNotifications(RQ_BEGIN_REQUEST)` returns `S_OK`.
-- For **every** request, IIS builds the per-request module list by calling
-  `wordy`'s `IHttpModuleFactory::GetHttpModule` (verified: once per request),
-  which allocates the module from the host's request pool via the supplied
-  `IModuleAllocator` (the IIS contract; `Dispose` frees only heap-minted modules).
+- Per request, IIS instantiates the module via `IHttpModuleFactory::GetHttpModule`
+  (from the request pool via the supplied `IModuleAllocator`), dispatches
+  `CHttpModule::OnBeginRequest` (slot 0), and `wordy` decodes the request,
+  dispatches it through `routes::Service`, writes the JSON response, and finishes
+  the request — `GET /healthz` → `200 {"status":"ok"}`, `POST /spellcheck` →
+  `200 {"results":[…]}`, and so on for all seven routes.
 
-**The blocker:** after creating the module, the genuine host invokes **no**
-`CHttpModule` method — not `OnBeginRequest` (slot 0), not any of the 28 stub
-slots — and returns a bare `500`. This was established conclusively: the
-`CHttpModule` vtable slot 0 address equals `module_on_begin_request` (logged at
-runtime), yet an *unconditional* write at the very first line of every vtable
-method never fires under the genuine host (while `RegisterModule` / `GetHttpModule`
-tracing does). It is **not** a vtable-layout, registration, allocation, config,
-earlier-module, or tracing-mechanism problem — each was ruled out across minimal,
-core-module, ProtocolSupport-only, and full IIS-Express-template-derived configs.
+**The root cause of the earlier dispatch failure was the generated config, not
+`wordy`.** A hand-rolled `applicationHost.config` that declares only a *subset*
+of the standard `<configSections>` is invalid: IIS core and the loaded modules
+read sections such as `system.webServer/staticContent`, `httpProtocol`, and
+`serverRuntime` while resolving each request, and when a section a loaded module
+reads is **undeclared**, IIS aborts the *entire request* at config resolution
+with **HTTP 500.19** (`ERROR_NOT_FOUND`, `0x80070490`) — *before* the request
+notification pipeline runs. That produced the exact signature observed: IIS
+instantiated the module per request (`GetHttpModule`) and disposed it at request
+end, but dispatched **no** `CHttpModule` notification, returning a bare `500`
+(empty because no `CustomErrorModule` was loaded to render a detailed body).
 
-The behavior — IIS creating the module but dispatching no notification — points
-at an IIS-internal pipeline detail that needs Failed Request Tracing or a
-debugger attached to the worker to resolve; the system `applicationHost.config`
-that might reveal the difference is admin-locked (unreadable unelevated). The
-emulated-host unit tests prove `wordy`'s decode→dispatch→write path is correct
-against the pinned vtables, so the gap is in the genuine-host *binding*, not in
-`wordy`'s logic.
+The diagnosis path (preserved here because hand-rolled HWC configs are an easy
+trap): per-slot trace trampolines proved no notification slot was invoked;
+Failed Request Tracing wrote nothing and the Windows event log was empty (both
+consistent with a *pre-pipeline* abort); enabling W3C site logging surfaced
+`sc-status 500`, `sc-substatus 19`, `sc-win32-status 1168`; and loading
+`custerr.dll` with `errorMode="Detailed"` made IIS name the offending section in
+the response body. Declaring the **complete** standard section set resolved it in
+one shot.
 
-**Tooling left in place** for the next attempt: a `WORDY_TRACE=<file>` gated
-trace through the IIS boundary; `WORDY_HOST_ACTIVATE=1` (activate), `WORDY_HOST_HTTP=1`
-(drive localhost routes), `WORDY_HOST_DUMP=1` (dump raw responses), and
-`WORDY_HOST_CONFIG=<path>` (use an external `applicationHost.config`) on the bin.
-The generated config now includes the core IIS pipeline modules from `inetsrv`
-(protocol support, anonymous auth, request filtering, static file) plus
-`WordyModule`, which activates and drives the pipeline through to per-request
-module creation. **MW16-3 (live-HTTP assertions) remains open** pending
-resolution of the dispatch blocker.
+The generator (`wordy-host::application_host_config`) now emits the full standard
+`<configSections>` plus the core `inetsrv` pipeline modules (protocol support,
+anonymous auth, request filtering, custom errors, static file) and `WordyModule`.
+
+**Tooling** on the bin: `WORDY_HOST_ACTIVATE=1` (activate), `WORDY_HOST_HTTP=1`
+(drive localhost routes), `WORDY_HOST_DUMP=1` (dump raw responses),
+`WORDY_HOST_CONFIG=<path>` (use an external `applicationHost.config`), and
+`WORDY_HOST_FREB=1` (register the genuine `iisfreb.dll` Failed Request Tracing
+module). `iis.rs` carries a `WORDY_TRACE=<file>` gated trace through the boundary
+and per-slot `notify_slot::<N>` trampolines that self-identify any unexpected
+notification a future host might dispatch. The live-HTTP path is covered by the
+`hwc_genuine_http_dispatch_end_to_end` integration test, which exercises genuine
+HWC **by default** on a capable host; `WORDY_HWC_EMULATED_ONLY=1` opts out, and it
+skips its assertions when HWC is absent or the listener cannot bind without
+elevation.

@@ -25,6 +25,13 @@
 //! pinned to the real `httpserv.h` layout (MW16-1), so the genuine host's calls
 //! land on `wordy`'s methods. Activation is opt-in because it starts a real web
 //! server in-process.
+//!
+//! With `WORDY_HOST_FREB=1` the generated config additionally registers the
+//! genuine `iisfreb.dll` Failed Request Tracing module and captures every
+//! request (status 200-999) to per-request XML logs, so the host's
+//! notification-by-notification pipeline decisions — including whether
+//! `OnBeginRequest` is dispatched to `WordyModule` — are written to disk for
+//! inspection.
 
 #[cfg(windows)]
 fn main() -> std::process::ExitCode {
@@ -85,6 +92,9 @@ mod hosted {
             Ok(paths) => {
                 println!("  [wrote]   applicationHost.config: {}", paths.app_host.display());
                 println!("  [wrote]   web.config:             {}", paths.web.display());
+                if let Some(freb) = &paths.freb_dir {
+                    println!("  [freb]    Failed Request Tracing logs: {}", freb.display());
+                }
                 Some(paths)
             }
             Err(e) => {
@@ -124,6 +134,8 @@ mod hosted {
     struct ConfigPaths {
         app_host: PathBuf,
         web: PathBuf,
+        /// Failed Request Tracing log directory, when `WORDY_HOST_FREB` is set.
+        freb_dir: Option<PathBuf>,
     }
 
     /// Locate `wordy.dll` next to the running executable (the cargo target dir).
@@ -146,47 +158,168 @@ mod hosted {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "wordy.dll".to_string());
 
+        let freb_dir = if std::env::var_os("WORDY_HOST_FREB").is_some() {
+            let freb = dir.join("FailedReqLogFiles");
+            std::fs::create_dir_all(&freb)?;
+            Some(freb)
+        } else {
+            None
+        };
+
         let app_host = dir.join("applicationHost.config");
-        std::fs::write(&app_host, application_host_config(&image, &site_root, inetsrv))?;
+        std::fs::write(
+            &app_host,
+            application_host_config(&image, &site_root, inetsrv, freb_dir.as_deref()),
+        )?;
 
         let web = dir.join("web.config");
         std::fs::write(&web, WEB_CONFIG)?;
 
-        Ok(ConfigPaths { app_host, web })
+        Ok(ConfigPaths { app_host, web, freb_dir })
     }
 
-    /// Render an `applicationHost.config` for HWC: declares the config sections,
-    /// an unmanaged application pool, the HTTP listener adapter, a site bound on
-    /// [`SITE_PORT`], the core IIS pipeline modules loaded from `inetsrv`
-    /// (protocol support, anonymous auth, request filtering, static file), and
-    /// `wordy.dll` as the final global + enabled module. This config is accepted
-    /// by `WebCoreActivate` and drives the request pipeline through to per-request
-    /// module creation.
-    fn application_host_config(image: &str, site_root: &Path, inetsrv: &Path) -> String {
+    /// Render an `applicationHost.config` for HWC: declares the **complete**
+    /// standard set of configuration sections, an unmanaged application pool, the
+    /// HTTP listener adapter, a site bound on [`SITE_PORT`], the core IIS pipeline
+    /// modules loaded from `inetsrv` (protocol support, anonymous auth, request
+    /// filtering, custom errors, static file), and `wordy.dll` as the final
+    /// global + enabled module.
+    ///
+    /// The full section declaration is required, not cosmetic: IIS core and the
+    /// loaded modules read sections such as `system.webServer/staticContent`,
+    /// `httpProtocol`, and `serverRuntime` while resolving each request. If any
+    /// section a loaded module reads is undeclared, IIS aborts the request at
+    /// config resolution with HTTP 500.19 (`ERROR_NOT_FOUND`) — before the module
+    /// notification pipeline runs — so `OnBeginRequest` is never dispatched. With
+    /// the complete set declared, the genuine host drives every route end-to-end
+    /// into `wordy`.
+    fn application_host_config(
+        image: &str,
+        site_root: &Path,
+        inetsrv: &Path,
+        freb_dir: Option<&Path>,
+    ) -> String {
         let image = xml_escape(image);
         let site_root = xml_escape(&site_root.display().to_string());
         let bin = xml_escape(&inetsrv.display().to_string());
+
+        // Failed Request Tracing (opt-in via WORDY_HOST_FREB): registers the
+        // genuine iisfreb.dll module, declares the WWW Server trace provider, and
+        // captures every request (status 200-999) so the genuine host's
+        // per-notification pipeline decisions are written to disk. This is how we
+        // observe whether IIS dispatches OnBeginRequest to WordyModule.
+        let (freb_globalmodule, freb_module, freb_site_logging, freb_tracing) =
+            if let Some(dir) = freb_dir {
+                let dir = xml_escape(&dir.display().to_string());
+                (
+                    format!("      <add name=\"FailedRequestsTracingModule\" image=\"{bin}\\iisfreb.dll\" />\n"),
+                    "      <add name=\"FailedRequestsTracingModule\" />\n".to_string(),
+                    format!("        <traceFailedRequestsLogging enabled=\"true\" directory=\"{dir}\" maxLogFiles=\"50\" />\n"),
+                    r#"    <tracing>
+      <traceFailedRequests>
+        <add path="*">
+          <traceAreas>
+            <add provider="WWW Server" areas="Authentication,Security,Filter,StaticFile,CGI,Compression,Cache,RequestNotifications,Module,FastCGI,WebSocket" verbosity="Verbose" />
+          </traceAreas>
+          <failureDefinitions statusCodes="200-999" />
+        </add>
+      </traceFailedRequests>
+      <traceProviderDefinitions>
+        <add name="WWW Server" guid="{3a2a4e84-4c21-4981-ae10-3fda0d9b0f83}">
+          <areas>
+            <clear />
+            <add name="Authentication" value="2" />
+            <add name="Security" value="4" />
+            <add name="Filter" value="8" />
+            <add name="StaticFile" value="16" />
+            <add name="CGI" value="32" />
+            <add name="Compression" value="64" />
+            <add name="Cache" value="128" />
+            <add name="RequestNotifications" value="256" />
+            <add name="Module" value="512" />
+            <add name="FastCGI" value="4096" />
+            <add name="WebSocket" value="16384" />
+          </areas>
+        </add>
+      </traceProviderDefinitions>
+    </tracing>
+"#
+                    .to_string(),
+                )
+            } else {
+                (
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                )
+            };
+
         format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <configuration>
   <configSections>
     <sectionGroup name="system.applicationHost">
       <section name="applicationPools" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
+      <section name="configHistory" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
+      <section name="customMetadata" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
       <section name="listenerAdapters" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
+      <section name="log" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
+      <section name="serviceAutoStartProviders" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
       <section name="sites" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
       <section name="webLimits" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
     </sectionGroup>
     <sectionGroup name="system.webServer">
+      <section name="asp" overrideModeDefault="Deny" />
+      <section name="caching" overrideModeDefault="Allow" />
+      <section name="cgi" overrideModeDefault="Deny" />
+      <section name="defaultDocument" overrideModeDefault="Allow" />
+      <section name="directoryBrowse" overrideModeDefault="Allow" />
+      <section name="fastCgi" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
       <section name="globalModules" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
-      <section name="handlers" overrideModeDefault="Allow" />
-      <section name="modules" allowDefinition="MachineToApplication" overrideModeDefault="Allow" />
+      <section name="handlers" overrideModeDefault="Deny" />
+      <section name="httpCompression" overrideModeDefault="Allow" />
+      <section name="httpErrors" overrideModeDefault="Allow" />
+      <section name="httpLogging" overrideModeDefault="Deny" />
       <section name="httpProtocol" overrideModeDefault="Allow" />
+      <section name="httpRedirect" overrideModeDefault="Allow" />
+      <section name="httpTracing" overrideModeDefault="Deny" />
+      <section name="isapiFilters" allowDefinition="MachineToApplication" overrideModeDefault="Deny" />
+      <section name="modules" allowDefinition="MachineToApplication" overrideModeDefault="Deny" />
+      <section name="applicationInitialization" allowDefinition="MachineToApplication" overrideModeDefault="Allow" />
+      <section name="odbcLogging" overrideModeDefault="Deny" />
       <sectionGroup name="security">
-        <section name="authentication">
-          <section name="anonymousAuthentication" overrideModeDefault="Allow" />
-        </section>
+        <section name="access" overrideModeDefault="Deny" />
+        <section name="applicationDependencies" overrideModeDefault="Deny" />
+        <sectionGroup name="authentication">
+          <section name="anonymousAuthentication" overrideModeDefault="Deny" />
+          <section name="basicAuthentication" overrideModeDefault="Deny" />
+          <section name="clientCertificateMappingAuthentication" overrideModeDefault="Deny" />
+          <section name="digestAuthentication" overrideModeDefault="Deny" />
+          <section name="iisClientCertificateMappingAuthentication" overrideModeDefault="Deny" />
+          <section name="windowsAuthentication" overrideModeDefault="Deny" />
+        </sectionGroup>
+        <section name="authorization" overrideModeDefault="Allow" />
+        <section name="ipSecurity" overrideModeDefault="Deny" />
+        <section name="dynamicIpSecurity" overrideModeDefault="Deny" />
+        <section name="isapiCgiRestriction" allowDefinition="AppHostOnly" overrideModeDefault="Deny" />
         <section name="requestFiltering" overrideModeDefault="Allow" />
       </sectionGroup>
+      <section name="serverRuntime" overrideModeDefault="Deny" />
+      <section name="serverSideInclude" overrideModeDefault="Deny" />
+      <section name="staticContent" overrideModeDefault="Allow" />
+      <sectionGroup name="tracing">
+        <section name="traceFailedRequests" overrideModeDefault="Allow" />
+        <section name="traceProviderDefinitions" overrideModeDefault="Deny" />
+      </sectionGroup>
+      <section name="urlCompression" overrideModeDefault="Allow" />
+      <section name="validation" overrideModeDefault="Allow" />
+      <sectionGroup name="webdav">
+        <section name="globalSettings" overrideModeDefault="Deny" />
+        <section name="authoring" overrideModeDefault="Deny" />
+        <section name="authoringRules" overrideModeDefault="Deny" />
+      </sectionGroup>
+      <section name="webSocket" overrideModeDefault="Deny" />
     </sectionGroup>
   </configSections>
   <system.applicationHost>
@@ -204,21 +337,23 @@ mod hosted {
         <bindings>
           <binding protocol="http" bindingInformation="*:{SITE_PORT}:localhost" />
         </bindings>
-      </site>
+{freb_site_logging}      </site>
     </sites>
   </system.applicationHost>
   <system.webServer>
     <globalModules>
-      <add name="ProtocolSupportModule" image="{bin}\protsup.dll" />
+{freb_globalmodule}      <add name="ProtocolSupportModule" image="{bin}\protsup.dll" />
       <add name="AnonymousAuthenticationModule" image="{bin}\authanon.dll" />
       <add name="RequestFilteringModule" image="{bin}\modrqflt.dll" />
+      <add name="CustomErrorModule" image="{bin}\custerr.dll" />
       <add name="StaticFileModule" image="{bin}\static.dll" />
       <add name="WordyModule" image="{image}" />
     </globalModules>
     <modules>
-      <add name="ProtocolSupportModule" />
+{freb_module}      <add name="ProtocolSupportModule" />
       <add name="AnonymousAuthenticationModule" />
       <add name="RequestFilteringModule" />
+      <add name="CustomErrorModule" />
       <add name="StaticFileModule" />
       <add name="WordyModule" />
     </modules>
@@ -227,7 +362,7 @@ mod hosted {
         <anonymousAuthentication enabled="true" userName="" />
       </authentication>
     </security>
-  </system.webServer>
+{freb_tracing}  </system.webServer>
 </configuration>
 "#
         )

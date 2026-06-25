@@ -285,14 +285,43 @@ static WORDY_MODULE_FACTORY_VTBL: IHttpModuleFactoryVtbl = IHttpModuleFactoryVtb
 
 /// The single shared module vtable every [`WordyHttpModule`] points at: slot 0
 /// is `OnBeginRequest`, slot 29 is `Dispose`, and the other 28 notification
-/// slots are safe stubs (`wordy` registers only `RQ_BEGIN_REQUEST`).
-static WORDY_HTTP_MODULE_VTBL: CHttpModuleVtbl = {
-    let mut notifications: [NotifyFn; 29] = [module_notification_stub; 29];
-    notifications[0] = module_on_begin_request;
-    CHttpModuleVtbl {
-        notifications,
-        dispose: module_dispose,
-    }
+/// slots are per-slot diagnostic trampolines ([`notify_slot`]) that record the
+/// exact slot index the host dispatches. `wordy` registers only
+/// `RQ_BEGIN_REQUEST`, so in correct operation only slot 0 is ever invoked; the
+/// instrumented stubs exist to diagnose a genuine host that dispatches nothing.
+static WORDY_HTTP_MODULE_VTBL: CHttpModuleVtbl = CHttpModuleVtbl {
+    notifications: [
+        module_on_begin_request, // [0] OnBeginRequest (real)
+        notify_slot::<1>,
+        notify_slot::<2>,
+        notify_slot::<3>,
+        notify_slot::<4>,
+        notify_slot::<5>,
+        notify_slot::<6>,
+        notify_slot::<7>,
+        notify_slot::<8>,
+        notify_slot::<9>,
+        notify_slot::<10>,
+        notify_slot::<11>,
+        notify_slot::<12>,
+        notify_slot::<13>,
+        notify_slot::<14>,
+        notify_slot::<15>,
+        notify_slot::<16>,
+        notify_slot::<17>,
+        notify_slot::<18>,
+        notify_slot::<19>,
+        notify_slot::<20>,
+        notify_slot::<21>,
+        notify_slot::<22>,
+        notify_slot::<23>,
+        notify_slot::<24>,
+        notify_slot::<25>,
+        notify_slot::<26>,
+        notify_slot::<27>,
+        notify_slot::<28>,
+    ],
+    dispose: module_dispose,
 };
 
 /// Mint a `wordy` module factory, returning a heap pointer the host releases via
@@ -361,19 +390,14 @@ unsafe fn decode_request(context: *mut c_void) -> routes::HttpRequest {
     }
     // SAFETY: request is a live IHttpRequest; read its vtable pointer.
     let req_vtbl = unsafe { *request.cast::<*const IHttpRequestVtbl>() };
-    trace("decode: got request");
     // SAFETY: req_vtbl is the host request vtable; GetHttpMethod returns a PCSTR.
     let method = unsafe { pcstr_to_string(((*req_vtbl).get_http_method)(request)) };
-    trace(&format!("decode: method={method}"));
     // SAFETY: as above.
     let url = unsafe { read_raw_url(req_vtbl, request) };
-    trace(&format!("decode: url={url}"));
     // SAFETY: as above.
     let body = unsafe { read_entity_body(req_vtbl, request) };
-    trace(&format!("decode: body_len={}", body.len()));
     // SAFETY: as above.
     let user = unsafe { read_user_header(req_vtbl, request) };
-    trace("decode: header read");
     routes::HttpRequest {
         method,
         url,
@@ -593,13 +617,17 @@ unsafe extern "system" fn module_on_begin_request(
     }
 }
 
-/// A safe stub for the `CHttpModule` notification slots `wordy` does not
-/// register for. These are never invoked by the host; the body is defensive.
-unsafe extern "system" fn module_notification_stub(
+/// A per-slot diagnostic trampoline for the `CHttpModule` notification slots
+/// `wordy` does not register for. `wordy` registers only `RQ_BEGIN_REQUEST`, so
+/// the host should never invoke any of these; each records the slot index it was
+/// dispatched at (via `WORDY_TRACE`) to diagnose a genuine host that fails to
+/// dispatch `OnBeginRequest` (slot 0).
+unsafe extern "system" fn notify_slot<const N: usize>(
     _this: *mut c_void,
     _context: *mut c_void,
     _provider: *mut c_void,
 ) -> i32 {
+    trace(&format!("notify-slot {N} dispatched"));
     RQ_NOTIFICATION_CONTINUE
 }
 
@@ -610,6 +638,7 @@ unsafe extern "system" fn module_dispose(this: *mut c_void) {
     if this.is_null() {
         return;
     }
+    trace("module dispose");
     // SAFETY: this is a live WordyHttpModule; read whether the host pool owns it.
     let pool_allocated = unsafe { (*this.cast::<WordyHttpModule>()).pool_allocated };
     if !pool_allocated {

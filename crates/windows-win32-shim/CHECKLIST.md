@@ -743,6 +743,30 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
       remains shim-unaware (only ordinary WinHTTP calls). Update the `wordy` design
       notes + amend SHIM-D19 to record the split. Tests: the relay client unit-tested
       against a stub `merriam`; `wordy`'s CPU routes unchanged.
+
+      > **Re-plan (2026-06-25, execution-driven):** two dependency-ordered units.
+      > The WinHTTP transport + `MerriamClient` relay is a standalone, independently
+      > testable piece (drive it against a `TcpListener` stub speaking HTTP/1.1);
+      > the routes rewrite (abstract the custom store behind a `CustomStore` trait,
+      > make `Service` generic, swap in `MerriamClient` for production and an
+      > in-memory store for the existing route tests, delete the FS store) is the
+      > integration. Splitting lands a tested relay before disturbing the routes.
+
+  - [ ] **MW18-3.1** `wordy` WinHTTP relay client: a `#[allow(unsafe_code)]`
+        `winhttp` boundary module (`WinHttpOpen`/`Connect`/`OpenRequest`/
+        `SendRequest`/`ReceiveResponse`/`QueryHeaders`/`QueryDataAvailable`/`ReadData`/
+        `CloseHandle` → `(status, body)`) and a safe `MerriamClient` (`from_env`
+        `MERRIAM_HOST`/`MERRIAM_PORT`) with inherent `add`/`remove`/`contains`/`list`
+        building the `merriam` REST calls + parsing the JSON. **Ordinary** WinHTTP
+        calls (so the shim's MW17 seam can alias them). Tested against a `TcpListener`
+        stub serving canned JSON. `wordy` routes untouched (still on `custom.rs`).
+  - [ ] **MW18-3.2** Abstract the custom store behind a `CustomStore` trait; make
+        `Service` generic over it; route handlers call the trait. `MerriamClient`
+        impls it (production, via `iis.rs`/bin `from_env`); an in-memory
+        `MemoryStore` impls it for the existing route unit tests. Delete the FS
+        store (`custom.rs`), moving the identity types (`Principal`/`UserId`/
+        `X-Wordy-User`) to an `identity` module. Update `wordy` `DESIGN-NOTES.md` +
+        amend SHIM-D19 to record the split.
 - [ ] **MW18-4** *(integration)* End-to-end egress isolation against a real service:
       run aliased `wordy` + `merriam` and prove the three owner-requested modes via
       the `.pilcfg` `egress` section — **redirect** (`wordy`'s `merriam` URL

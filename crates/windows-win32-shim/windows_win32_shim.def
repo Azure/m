@@ -282,3 +282,24 @@ mSetFileAttributesA
 ;mWebCoreActivate
 ;mWebCoreSetMetadata
 ;mWebCoreShutdown
+
+
+; ============================================================================
+; WinHTTP egress (mwinhttp.rs)
+; ============================================================================
+; The outbound-relay seam (MW17 / SHIM-D22). Every name auto-redirects so a
+; relinked client's WinHTTP imports flow through the shim's egress engine and
+; the `.pilcfg`-selected backing. HTTP only; WWSAPI/SOAP is a deferred peer seam.
+
+ mWinHttpOpen
+ mWinHttpConnect
+ mWinHttpOpenRequest
+ mWinHttpAddRequestHeaders
+ mWinHttpSendRequest
+ mWinHttpReceiveResponse
+ mWinHttpQueryHeaders
+ mWinHttpQueryDataAvailable
+ mWinHttpReadData
+ mWinHttpCloseHandle
+ mWinHttpSetTimeouts
+ mWinHttpSetOption

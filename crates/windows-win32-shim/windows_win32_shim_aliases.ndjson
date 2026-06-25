@@ -280,3 +280,25 @@
 # {"win32":"WebCoreActivate","shim":"mWebCoreActivate"}
 # {"win32":"WebCoreSetMetadata","shim":"mWebCoreSetMetadata"}
 # {"win32":"WebCoreShutdown","shim":"mWebCoreShutdown"}
+
+
+# ============================================================================
+# WinHTTP egress (mwinhttp.rs)
+# ============================================================================
+# The outbound-relay seam (MW17 / SHIM-D22). Every record auto-redirects so a
+# relinked client's WinHTTP imports flow through the shim's egress engine and
+# the `.pilcfg`-selected backing (passthrough / redirect / buffer / replay /
+# block). HTTP only; WWSAPI/SOAP (webservices.dll) is a deferred peer seam
+# intercepted at the `Ws*` boundary.
+{"win32":"WinHttpOpen","shim":"mWinHttpOpen"}
+{"win32":"WinHttpConnect","shim":"mWinHttpConnect"}
+{"win32":"WinHttpOpenRequest","shim":"mWinHttpOpenRequest"}
+{"win32":"WinHttpAddRequestHeaders","shim":"mWinHttpAddRequestHeaders"}
+{"win32":"WinHttpSendRequest","shim":"mWinHttpSendRequest"}
+{"win32":"WinHttpReceiveResponse","shim":"mWinHttpReceiveResponse"}
+{"win32":"WinHttpQueryHeaders","shim":"mWinHttpQueryHeaders"}
+{"win32":"WinHttpQueryDataAvailable","shim":"mWinHttpQueryDataAvailable"}
+{"win32":"WinHttpReadData","shim":"mWinHttpReadData"}
+{"win32":"WinHttpCloseHandle","shim":"mWinHttpCloseHandle"}
+{"win32":"WinHttpSetTimeouts","shim":"mWinHttpSetTimeouts"}
+{"win32":"WinHttpSetOption","shim":"mWinHttpSetOption"}

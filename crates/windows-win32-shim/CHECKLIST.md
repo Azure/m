@@ -614,7 +614,7 @@ app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
       `mWinHttp*` exports move to MW17-4 — they are the raw-pointer marshaling that
       the alias roster aliases to, so creating the exports and the `.def`/`.ndjson`
       roster is one coherent unit.)*
-- [ ] **MW17-4** Expose the `mWinHttp*` C ABI front-ends (raw-pointer marshaling
+- [x] **MW17-4** Expose the `mWinHttp*` C ABI front-ends (raw-pointer marshaling
       over the session egress engine: `mWinHttpOpen`/`Connect`/`OpenRequest`/
       `AddRequestHeaders`/`SendRequest`/`ReceiveResponse`/`QueryHeaders`/
       `QueryDataAvailable`/`ReadData`/`CloseHandle` (+ `SetTimeouts`/`SetOption`
@@ -623,6 +623,15 @@ app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
       the `.def`↔`.ndjson` parity test green, and verify with `dumpbin /imports`
       that a relinked client binds the shim for the WinHTTP imports and leaves
       `kernel32` etc. untouched (extend the alias-proof script).
+      *(`mwinhttp.rs`: 12 `pub extern "system" fn mWinHttp*` exports (`#[unsafe(no_mangle)]`,
+      inner derefs in `unsafe` blocks, mirroring `mwinfile`) marshaling raw
+      WinHTTP pointers/wide-strings into `session().with_egress(|engine| …)` over the
+      `EgressEngine`; two-call buffer convention for `QueryHeaders`, chunked
+      `ReadData`, `SetTimeouts`/`SetOption` no-op. Roster grows 99→111 aliased
+      (`.def` + `.ndjson`, parity test green); count guards updated (exports 100→112,
+      aliased 99→111). `build-aliased-wordy.ps1` confirms a relinked `wordy.dll`
+      binds all 12 `mWinHttp*` to `windows_win32_shim.dll` with 0 FS leaks to
+      `kernel32`. 212 unit tests pass; clippy clean.)*
 - [ ] **MW17-5** *(integration)* `egressproof/` harness (mirrors `linkproof/`): a
       synthetic relinked client doing a real `WinHttpSendRequest`; assert
       **redirect** diverts it to a localhost echo (live target never contacted),

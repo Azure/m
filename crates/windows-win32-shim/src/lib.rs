@@ -77,6 +77,9 @@ pub mod mwincom;
 pub mod mwinfile;
 
 #[cfg(windows)]
+pub mod mwinhttp;
+
+#[cfg(windows)]
 pub mod mwinload;
 
 #[cfg(windows)]

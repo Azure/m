@@ -840,6 +840,18 @@ first egress seam aliases **WinHTTP** and routes it through the
   real; `buffer` captures mutations and returns a synthetic ack (the network peer of
   `buffer_updates`); `replay` serves preloaded fixtures (the owner's "system state
   pre-loaded").
+- **Cross-toolchain proof (`egressproof/`, MW17-5).** The network-seam analogue of
+  `linkproof/`: a synthetic C++ client making genuine `WinHttp*` calls, linked
+  against the alias COFF object, exercised under each mode against a **closed**
+  loopback port (so a genuine send fails fast). `redirect` diverts that dead target
+  to a live loopback echo (200 + marker); `buffer` POSTs and gets the synthetic 202
+  with no listener anywhere; `replay` serves a 203 fixture with no listener; a
+  non-aliased control reaches the real (dead) target and fails. **Verdict travels
+  only in the process exit code**, because the alias roster also aliases
+  `WriteFile`/`ReadFile`, so the aliased build's CRT `printf` → `WriteFile(stdout)`
+  is itself rerouted into the shim's `mWriteFile` and its stdout is **swallowed**
+  (the same reason `linkproof` is exit-code-driven). The control build, linking
+  genuine `winhttp.lib`, keeps working stdout.
 - **WWSAPI deferred (owned scope).** SOAP egress is a later peer seam at the app's
   `Ws*` import boundary — it **cannot** be reached by aliasing `winhttp.dll`, since
   WWSAPI's own WinHTTP calls are internal to `webservices.dll` and outside the

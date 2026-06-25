@@ -632,12 +632,23 @@ app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
       aliased 99→111). `build-aliased-wordy.ps1` confirms a relinked `wordy.dll`
       binds all 12 `mWinHttp*` to `windows_win32_shim.dll` with 0 FS leaks to
       `kernel32`. 212 unit tests pass; clippy clean.)*
-- [ ] **MW17-5** *(integration)* `egressproof/` harness (mirrors `linkproof/`): a
+- [x] **MW17-5** *(integration)* `egressproof/` harness (mirrors `linkproof/`): a
       synthetic relinked client doing a real `WinHttpSendRequest`; assert
       **redirect** diverts it to a localhost echo (live target never contacted),
       **buffer** contacts nothing and captures the request, and **replay** serves a
       fixture with no listener; a non-aliased negative control hits the real target.
       Exit-code discriminator (PASS/FAIL/SKIP). Record SHIM-D22.
+      *(`egressproof/egressproof_main.cpp` + `run-egressproof.ps1`: a genuine-WinHTTP
+      C++ client linked against the alias COFF object, run under each `.pilcfg`
+      egress mode against a CLOSED loopback port (genuine send fails fast).
+      redirect -> live loopback echo (200 + marker); buffer -> POST gets synthetic
+      202 with no listener; replay -> 203 fixture with no listener; non-aliased
+      control -> real (dead) target, fails. **The verdict travels only in the EXIT
+      CODE**: the alias roster aliases `WriteFile`/`ReadFile`, so the aliased build's
+      `printf`->`WriteFile(stdout)` is rerouted into `mWriteFile` and stdout is
+      swallowed (same reason `linkproof` is exit-code-driven); the EXE asserts
+      against an `<expect>` arg internally. Driver exit code: 0 PASS / 1 FAIL / 2 SKIP
+      (no MSVC, or no free port). 4/4 scenarios pass. SHIM-D22 updated.)*
 
 ## MW18 — Validation tier: dictionary-store service + `wordy` split (SHIM-D23)
 

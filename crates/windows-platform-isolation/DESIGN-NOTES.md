@@ -913,6 +913,40 @@ flag selects for the filesystem (closing the SHIM-D13 FS-buffering gap), so an
 unmodified consumer's namespace mutations land in the overlay and the live
 filesystem is left untouched until an explicit commit.
 
+## D31 — Egress (network-client) isolation surface
+
+**Decision.** Add a first-class **egress** surface — the concrete realization of
+**D27** ("network is the majority of the surface") using the D24 alias technique
+and the D25 mode stack. The surface trades in **whole request/response values**
+(`EgressSurface::send(&EgressRequest) -> EgressResponse`), and the modes are D4/D25
+decorators: **passthrough** (true identity, D25 off), **redirect** (rewrite
+scheme/host/port/path by rule, then send), **buffer** (capture mutating requests
+in memory, return a synthetic ack — the network peer of `FsBuffered`/registry
+`Buffered`, D30), **replay** (serve canned responses from preloaded fixtures — D15
+ingress, the owner's "system state pre-loaded"), **block** (synthetic deny), and
+**observe** (record `(verb, host, path, status)` to the D29 sink, PII-first per
+D28, then forward). The network bottom is `LiveEgress`, a real WinHTTP transaction
+confined to a dedicated `unsafe` `-sys` leaf (D1/D13); every decorator above it is
+pure safe-half.
+
+**Boundary — the shim owns lifecycle reassembly.** This surface deliberately knows
+nothing about `HINTERNET` handles or the multi-call `WinHttpOpen → … → ReadData`
+lifecycle. The `windows-win32-shim` WinHTTP front-end (SHIM-D22) accumulates that
+lifecycle into one `EgressRequest` at the send boundary and drains the chosen
+`EgressResponse` back across the read calls; when no egress mode is configured it
+forwards 1:1 without ever building a surface, so passthrough stays a perfect
+link-time identity (D25).
+
+**Scope.** First pass is **HTTP only** (covers the WinHTTP REST forwarders);
+`EgressTransport::Soap` is reserved for the deferred WWSAPI seam — which must be
+intercepted at the app's `Ws*` import boundary, since WWSAPI's own WinHTTP calls
+are internal to `webservices.dll` and an app-level `winhttp.dll` alias cannot see
+them. This is **not** a learning proxy: replay is fixture-driven only. The D27
+"one coordinated recorded world" (shared journal across network/fs/registry) is
+the long-term shape; the first cut keeps egress as its own surface. Recorded in
+`design-sessions/DESIGN-SESSION-2026-06-25-egress-surface-and-validation-tier.md`;
+realized by **M11** and consumed by `windows-win32-shim` **MW17** / **MW18**.
+
 ## Status
 
 The kickoff questions (relationship, surfaces, layering, interop) are resolved

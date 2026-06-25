@@ -552,3 +552,92 @@ Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
       isolate-the-module-not-the-host decision recorded in SHIM-D19.)*
 
 
+## MW17 — WinHTTP egress seam (outbound relay isolation, SHIM-D22)
+
+The outbound counterpart of the registry/filesystem seams: alias an unmodified
+app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
+`HINTERNET` request lifecycle into one `EgressRequest`, run it through a session
+`EgressBacking` selected from `.pilcfg` (passthrough / redirect / buffer / replay
+/ block), and drain the chosen `EgressResponse` back. Consumes
+`windows-platform-isolation` **M11** (D31). HTTP only; WWSAPI/SOAP deferred. See
+`../windows-platform-isolation/design-sessions/DESIGN-SESSION-2026-06-25-egress-surface-and-validation-tier.md`.
+
+> **CROSS-COMPONENT PREREQUISITE:** `windows-platform-isolation` **M11**
+> (`EgressSurface` + redirect/buffer/replay/block/observe decorators + `LiveEgress`)
+> must land first. See
+> [`../windows-platform-isolation/CHECKLIST.md`](../windows-platform-isolation/CHECKLIST.md).
+
+- [ ] **MW17-1** `.pilcfg` `egress` section: `mode`
+      (`passthrough`|`redirect`|`buffer`|`replay`|`block`), `redirections:
+      [{from,to}]` (host[:port] / prefix rewrite rules), `replay_dir`. Strict parse
+      (unknown shape = error) + tolerant `load_pilcfg` (absent/malformed = default
+      passthrough), mirroring SHIM-D5. Unit tests for the schema + env-expansion of
+      `replay_dir`.
+- [ ] **MW17-2** `HINTERNET` handle table + per-handle transaction state: the `m`
+      WinHTTP front-ends (`mWinHttpOpen`/`Connect`/`OpenRequest`/`AddRequestHeaders`/
+      `SendRequest`/`ReceiveResponse`/`QueryHeaders`/`QueryDataAvailable`/`ReadData`/
+      `CloseHandle`, `SetTimeouts`/`SetOption` accepted) accumulate scheme/host/port/
+      verb/path/headers/body, capture one `EgressRequest` at `SendRequest`, and drain
+      the response across the read calls (replay-state-in-a-handle, SHIM-D14 shape).
+      Default = transparent 1:1 passthrough to real WinHTTP. Unit-tested over a fake
+      sender + a recording sender (no live network).
+- [ ] **MW17-3** Session `EgressBacking` enum (Passthrough / Buffered / Redirecting
+      / Replay / Blocking), selected by `build_egress_backing(&Pilcfg)` and borrowed
+      under a `Mutex` like the registry/filesystem backings; wire the front-ends
+      through it (consumes M11). Unit tests assert each mode's observable effect
+      through the front-ends.
+- [ ] **MW17-4** Alias roster: add the used `winhttp.dll` entry points to
+      `windows_win32_shim_aliases.ndjson` + the `.def`, export the `m` forms, keep
+      the `.def`↔`.ndjson` parity test green, and verify with `dumpbin /imports`
+      that a relinked client binds the shim for the WinHTTP imports and leaves
+      `kernel32` etc. untouched (extend the alias-proof script).
+- [ ] **MW17-5** *(integration)* `egressproof/` harness (mirrors `linkproof/`): a
+      synthetic relinked client doing a real `WinHttpSendRequest`; assert
+      **redirect** diverts it to a localhost echo (live target never contacted),
+      **buffer** contacts nothing and captures the request, and **replay** serves a
+      fixture with no listener; a non-aliased negative control hits the real target.
+      Exit-code discriminator (PASS/FAIL/SKIP). Record SHIM-D22.
+
+## MW18 — Validation tier: dictionary-store service + `wordy` split (SHIM-D23)
+
+Make the egress seam testable against a *real* dependent service. Carve `wordy`'s
+on-disk custom dictionary into a separate REST service (`wordstore`), backed by
+native async Win32 file I/O; `wordy` keeps its CPU work and **relays** the custom-
+dict ops to `wordstore` over WinHTTP — which becomes the egress MW17 isolates.
+`wordy` stays shim-unaware (SHIM-D19). See the design session above.
+
+> **CROSS-COMPONENT PREREQUISITE:** MW17 (WinHTTP egress seam) provides the
+> isolation the MW18-4 proof exercises; MW18-1..3 (building `wordstore` + the relay)
+> may proceed in parallel with MW17 since they are ordinary networking.
+
+- [ ] **MW18-1** Scaffold crate `windows-file-io` (+ its `-sys` `unsafe` leaf):
+      native async Win32 file I/O — overlapped `CreateFile`/`ReadFile`/`WriteFile`
+      with completion via the Windows thread pool (`CreateThreadpoolIo` /
+      `StartThreadpoolIo`, over `windows-threadpool`'s IOCP reactor). The public API
+      is **async/completion-shaped even though small ops usually complete
+      synchronously** — handle the synchronous-completion fast path, but write the
+      code as if completion is always deferred. Its own `COMPONENT.md`/`CHECKLIST.md`/
+      `DESIGN-NOTES.md`/`PLANS.md`; unit + a stress integration test.
+- [ ] **MW18-2** Scaffold crate `wordstore`: a REST dictionary-store service owning
+      the custom dictionary on disk (add / update / store / remove / enumerate) via
+      `windows-file-io`, with a **listener-independent dispatch core** (testable like
+      `wordy::routes::Service`) and an inbound edge over the **HTTP Server API
+      (http.sys)** (async receives + thread-pool dispatch). Its own checklist/notes;
+      core unit tests + a gated listener integration test (urlacl preflight reused).
+- [ ] **MW18-3** Gut `wordy`: remove the local filesystem custom store
+      (`custom.rs`); replace the custom-dict ops (add/remove/contains/list) with a
+      **WinHTTP client** that relays to `wordstore` (configurable base URL); keep the
+      shared-dictionary spell-check / match / anagram / `fst` work unchanged. `wordy`
+      remains shim-unaware (only ordinary WinHTTP calls). Update the `wordy` design
+      notes + amend SHIM-D19 to record the split. Tests: the relay client unit-tested
+      against a stub `wordstore`; `wordy`'s CPU routes unchanged.
+- [ ] **MW18-4** *(integration)* End-to-end egress isolation against a real service:
+      run aliased `wordy` + `wordstore` and prove the three owner-requested modes via
+      the `.pilcfg` `egress` section — **redirect** (`wordy`'s `wordstore` URL
+      rewritten to a second instance, asserted by where the words land), **buffer**
+      (dict mutations captured in the egress overlay, `wordstore` untouched), and
+      **replay** (`wordy` serves dict reads from egress fixtures with `wordstore`
+      offline). Gated/ignored when the listener URL is unbindable. Record SHIM-D23
+      closure.
+
+

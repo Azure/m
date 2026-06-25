@@ -810,3 +810,68 @@ oversight; none is queued as work):
 - **Filesystem persisted-state through the shim** (SHIM-D13): there is no C++
   filesystem artifact to be parity with, and the shim has no `FilesystemBacking::
   Persisted`; the filesystem is isolated via `buffer_updates`.
+
+
+## SHIM-D22 — WinHTTP egress seam (outbound relay isolation)
+
+The registry/filesystem/loader/COM seams isolate a process's *local* host calls;
+reading the real WireServer showed that a relay service's defining behavior is
+**egress**, over two client stacks — **WinHTTP** (`winhttp.dll`, the REST
+forwarders) and **WWSAPI** (`webservices.dll`, the typed SOAP control-plane). The
+first egress seam aliases **WinHTTP** and routes it through the
+`windows-platform-isolation` egress surface (D31).
+
+- **Same technique, new imports.** The seam reuses the alias mechanism (SHIM-D4 /
+  D24) pointed at `winhttp.dll`: an unmodified relinked client's `WinHttp*` imports
+  bind `m`-prefixed exports. No application change.
+- **The shim owns lifecycle reassembly.** Unlike the mostly-stateless reg/fs calls,
+  egress is a stateful, handle-based, multi-call transaction (`WinHttpOpen →
+  Connect → OpenRequest → AddRequestHeaders → SendRequest → ReceiveResponse →
+  QueryHeaders → QueryDataAvailable → ReadData → CloseHandle`). The shim keeps an
+  `HINTERNET` handle table whose per-handle state accumulates the request, captures
+  one `EgressRequest` at the send boundary, and drains the chosen `EgressResponse`
+  back across the read calls — the same replay-state-in-a-handle shape as the
+  `FindFirstFile`/`FindNext` enumeration (SHIM-D14). The surface (D31) trades only
+  in whole request/response values; reassembly never leaks into it.
+- **Modes from `.pilcfg`.** An `egress` section selects an `EgressBacking`
+  (passthrough / redirect / buffer / replay / block); absent config = transparent
+  1:1 passthrough that never builds a surface, so passthrough is a perfect
+  link-time identity (D25). `redirect` rewrites scheme/host/port/path then sends for
+  real; `buffer` captures mutations and returns a synthetic ack (the network peer of
+  `buffer_updates`); `replay` serves preloaded fixtures (the owner's "system state
+  pre-loaded").
+- **WWSAPI deferred (owned scope).** SOAP egress is a later peer seam at the app's
+  `Ws*` import boundary — it **cannot** be reached by aliasing `winhttp.dll`, since
+  WWSAPI's own WinHTTP calls are internal to `webservices.dll` and outside the
+  app's import table. Recorded so the gap is intentional. Realized by **MW17**,
+  consuming platform-isolation **M11**; see
+  `../windows-platform-isolation/design-sessions/DESIGN-SESSION-2026-06-25-egress-surface-and-validation-tier.md`.
+
+## SHIM-D23 — Validation tier: dictionary-store service + `wordy` split
+
+To exercise the egress seam (SHIM-D22) against a *real* dependent service rather
+than a synthetic stub, `wordy`'s on-disk custom dictionary is carved into a
+separate web service, turning `wordy`'s calls to it into the egress we isolate.
+
+- **`wordstore` (new crate).** A REST dictionary-store service owning the custom
+  dictionary on disk — add / update / store / remove / enumerate — with a
+  listener-independent dispatch core (testable like `wordy::routes::Service`) and an
+  inbound edge over the **HTTP Server API (http.sys)**. http.sys is chosen over a
+  third HWC/IIS-native-module to avoid that duplication and to keep `wordstore`
+  self-hosting and lightly testable; the core is tested off the listener, the
+  listener edge is a gated integration test.
+- **`windows-file-io` (new crate).** `wordstore`'s disk I/O uses **native async
+  Win32**: overlapped `CreateFile`/`ReadFile`/`WriteFile` with completion via the
+  Windows thread pool (`CreateThreadpoolIo` / `StartThreadpoolIo`, over
+  `windows-threadpool`). The API is written **async/completion-shaped even though
+  small ops usually complete synchronously** (owner's directive): the synchronous
+  fast path is handled, but the code does not assume it. `unsafe` confined to a
+  `-sys` leaf (D1/D13 discipline).
+- **`wordy` split.** `wordy` drops its local filesystem custom store and **relays**
+  the custom-dict ops to `wordstore` over WinHTTP, keeping its shared-dictionary
+  spell-check / match / anagram / `fst` work. `wordy` stays shim-unaware (SHIM-D19):
+  it makes ordinary WinHTTP calls; the egress seam isolates them from the outside.
+- **Proof.** End-to-end, the three owner-requested modes are demonstrated against
+  the real `wordstore`: redirect (URL rewritten to a second instance), buffer
+  (mutations captured, `wordstore` untouched), replay (reads served from fixtures,
+  `wordstore` offline). Realized by **MW18**; see the design session above.

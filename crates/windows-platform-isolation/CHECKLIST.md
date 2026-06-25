@@ -371,3 +371,48 @@ heavy-traffic optimization, not the scheduled entry path.
       > (module bootstrap + activation-seam interception) → **MW12** (per-request
       > vtable bridge + pass-through wiring + integration). See
       > [`crates/windows-win32-shim/CHECKLIST.md`](../windows-win32-shim/CHECKLIST.md).
+
+### M11 — Egress (network-client) isolation surface (realizes D27; D31)
+
+The outbound network surface — the realization of **D27** ("network is the
+majority of the surface"). A safe `EgressSurface` (whole request/response values)
+plus the **D25** mode stack as decorators (passthrough / redirect / buffer /
+replay / block / observe), with a `LiveEgress` WinHTTP bottom in its own `unsafe`
+leaf (D1/D13). Reassembly of the multi-call WinHTTP handle lifecycle into one
+`EgressRequest` is the **shim's** job (MW17), not this surface's. First pass is
+HTTP only; SOAP/WWSAPI is reserved. See the design session
+`design-sessions/DESIGN-SESSION-2026-06-25-egress-surface-and-validation-tier.md`.
+
+- [ ] **M11-1** `EgressRequest` / `EgressResponse` value model + `EgressTransport`
+      (`Http`; `Soap` reserved) + `EgressError` (one hand-rolled error type, D14)
+      + the `EgressSurface` trait (`send(&mut, &EgressRequest) -> EgressResult<
+      EgressResponse>`). Pure, `#![forbid(unsafe_code)]`; unit-tested data types.
+- [ ] **M11-2** Pure decorators over an in-memory inner: `RedirectingEgress<S>`
+      (rule-based scheme/host/port/path rewrite, then delegate),
+      `ObservingEgress<S>` (record `(verb, host, path, status)` to the D29 sink,
+      PII-first per D28, then forward), `BlockingEgress` (deny with a synthetic
+      error). Unit-tested.
+- [ ] **M11-3** `BufferedEgress<S>` — capture mutating requests (non-idempotent
+      verbs) in an in-memory journal and return a synthetic ack; idempotent reads
+      optionally read through to the inner. `journal()` / `commit()` / `rollback()`
+      mirror the registry/`FsBuffered` write-buffer (D30). Unit-tested (mutations
+      captured; inner untouched; read-your-writes where configured).
+- [ ] **M11-4** `ReplayEgress<S>` — serve canned `EgressResponse`s from a preloaded
+      fixture set keyed by `(verb, path[, query])` (the "system state pre-loaded"
+      mode, D15 ingress); miss policy = block or read-through. Fixtures load from an
+      artifact (shared on-disk format, owned here per Design Autonomy). Unit-tested.
+- [ ] **M11-5** `LiveEgress` over a dedicated `windows-*-sys` `unsafe` leaf
+      (cfg windows): perform one real WinHTTP transaction from an `EgressRequest`
+      (`WinHttpOpen`/`Connect`/`OpenRequest`/`AddRequestHeaders`/`SendRequest`/
+      `ReceiveResponse`/`QueryHeaders`/`QueryDataAvailable`/`ReadData`/`CloseHandle`).
+      All `unsafe` confined to the leaf; the safe crate stays `forbid(unsafe)`.
+      *(integration)* gated localhost round-trip (skips when unbindable).
+- [ ] **M11-6** *(integration)* `Egress` facade + composition test: drive a request
+      through a `Redirecting`→`Observing`→(in-memory inner) stack and a
+      `Replay`-over-`Blocking` stack; assert redirect rewrites the target, observe
+      records without altering, buffer isolates mutations, replay serves the
+      fixture, and passthrough is byte-identical to the bare inner.
+      > **➡ CROSS-COMPONENT HANDOFF:** the WinHTTP handle-lifecycle reassembly, the
+      > `.pilcfg` `egress` section, and the link-time alias of `winhttp.dll` are
+      > `windows-win32-shim` → **MW17**. See
+      > [`crates/windows-win32-shim/CHECKLIST.md`](../windows-win32-shim/CHECKLIST.md).

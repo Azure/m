@@ -314,9 +314,19 @@ Supporting facts (each a genuine-ABI or Rust-safety constraint, not incidental):
 - **Fallbacks.** A null context or a `submit_once` failure is handled
   synchronously (compute, write, finish) so the request always completes.
 
-The shared dictionary is immutable and `Sync`, so concurrent dispatch is safe;
-hardening the per-user custom-store filesystem operations for concurrency is
-MW14-4. The async path is unit-tested through an emulated suspend/resume harness
-(MW14-3): drive `OnBeginRequest` → assert `PENDING`, spin on the atomic
+The shared dictionary is immutable and `Sync` (a `&'static` `LazyLock` singleton,
+which satisfies the "read-only shared dictionary" intent more strongly than an
+`Arc` — `'static` lifetime, no refcount), so concurrent dispatch is safe. The
+per-user custom store is the only mutable state crossing the pool boundary. Its
+**mutations** (`add` / `remove`) are serialized by a per-store `Arc<Mutex<()>>` —
+the simplest robust guard against the Windows concurrent-create `ACCESS_DENIED`
+race (which retrying did not reliably clear under contention on a quirky
+filesystem); mutations are infrequent namespace ops, so the lock is off the read
+hot path. Within that serialization the ops stay atomic and minimal:
+exactly-one-creator `create_new`, exactly-one-remover `remove_file`, lock-free
+tolerant reads (`contains` / `list`), no file handle outliving an op, and no
+shared in-memory state. Proven under contention by a deterministic concurrency
+test (MW14-4). The async path is unit-tested through an emulated suspend/resume
+harness (MW14-3): drive `OnBeginRequest` → assert `PENDING`, spin on the atomic
 completion signal, then dispatch `OnAsyncCompletion` and assert the finalized
 response.

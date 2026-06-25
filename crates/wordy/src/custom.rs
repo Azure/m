@@ -36,6 +36,7 @@
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use crate::words::Locale;
 
@@ -112,13 +113,21 @@ impl Principal {
 #[derive(Clone, Debug)]
 pub struct CustomDictionary {
     root: PathBuf,
+    /// Serializes store mutations (`add` / `remove`) for this store so that
+    /// concurrent first-`add`s for a new user cannot race on directory creation
+    /// — a race Windows surfaces as `ACCESS_DENIED` (MW14-4). Cloning shares the
+    /// same lock; reads (`contains` / `list`) never take it.
+    mutation_lock: Arc<Mutex<()>>,
 }
 
 impl CustomDictionary {
     /// Create a store rooted at `root`. The directory tree is created lazily on
     /// the first `add`.
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        CustomDictionary { root: root.into() }
+        CustomDictionary {
+            root: root.into(),
+            mutation_lock: Arc::new(Mutex::new(())),
+        }
     }
 
     /// The directory holding `user`'s words for `locale`.
@@ -138,6 +147,11 @@ impl CustomDictionary {
     /// if the word was newly added, `Ok(false)` if it was already present.
     pub fn add(&self, locale: Locale, user: &Principal, word: &str) -> io::Result<bool> {
         let path = self.word_path(locale, user, word)?;
+        // Serialize mutations for this store: concurrent first-`add`s for a new
+        // user otherwise race on directory creation, which Windows surfaces as a
+        // transient `ACCESS_DENIED` (MW14-4). Mutations are infrequent namespace
+        // ops, so the lock is off the read hot path (`spellcheck`/`anagram`).
+        let _guard = self.mutation_lock.lock().unwrap_or_else(|e| e.into_inner());
         // `word_path` validated the word, so the parent always exists here.
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
@@ -165,6 +179,8 @@ impl CustomDictionary {
     /// `Ok(true)` if the word existed and was removed, `Ok(false)` otherwise.
     pub fn remove(&self, locale: Locale, user: &Principal, word: &str) -> io::Result<bool> {
         let path = self.word_path(locale, user, word)?;
+        // Serialized with `add` (MW14-4) so concurrent mutations never collide.
+        let _guard = self.mutation_lock.lock().unwrap_or_else(|e| e.into_inner());
         match fs::remove_file(&path) {
             Ok(()) => Ok(true),
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
@@ -274,7 +290,7 @@ fn hex_value(byte: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
     /// A unique scratch directory under the OS temp dir, removed on drop so the
     /// suite leaves no artifacts behind.
@@ -470,5 +486,71 @@ mod tests {
         store.add(EN, &user, "word").unwrap();
         let expected_dir = tmp.path.join("en-US").join("alice");
         assert!(expected_dir.is_dir());
+    }
+
+    // --- concurrency (MW14-4) ---------------------------------------------
+
+    #[test]
+    fn concurrent_add_and_remove_are_atomic_and_consistent() {
+        // The custom store is the only mutable per-request state crossing the
+        // async thread-pool boundary (WD-D12). Its FS ops must be
+        // concurrency-tolerant: `create_dir_all` is idempotent, `create_new`
+        // gives exactly-one-creator semantics, and `remove_file` gives
+        // exactly-one-remover semantics — no in-memory shared mutable state and no
+        // file handle outlives an op. This test drives them under contention.
+        let (_tmp, store) = store();
+        let user = Principal::from_header(Some("race-user"));
+        const THREADS: usize = 8;
+        const PER_THREAD: usize = 50;
+
+        // Phase 1: each thread adds a disjoint set of words concurrently. With no
+        // lost writes or directory-creation races, the listing holds them all.
+        std::thread::scope(|scope| {
+            for t in 0..THREADS {
+                let store = &store;
+                let user = &user;
+                scope.spawn(move || {
+                    for i in 0..PER_THREAD {
+                        assert!(store.add(EN, user, &format!("t{t}w{i}")).unwrap());
+                    }
+                });
+            }
+        });
+        assert_eq!(store.list(EN, &user).unwrap().len(), THREADS * PER_THREAD);
+
+        // Phase 2: every thread races to add the SAME word; `create_new`
+        // guarantees exactly one creator observes `added == true`.
+        let added = AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            for _ in 0..THREADS {
+                let store = &store;
+                let user = &user;
+                let added = &added;
+                scope.spawn(move || {
+                    if store.add(EN, user, "shared").unwrap() {
+                        added.fetch_add(1, Ordering::Relaxed);
+                    }
+                });
+            }
+        });
+        assert_eq!(added.load(Ordering::Relaxed), 1);
+
+        // Phase 3: every thread races to remove it; `remove_file` guarantees
+        // exactly one remover observes `removed == true`.
+        let removed = AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            for _ in 0..THREADS {
+                let store = &store;
+                let user = &user;
+                let removed = &removed;
+                scope.spawn(move || {
+                    if store.remove(EN, user, "shared").unwrap() {
+                        removed.fetch_add(1, Ordering::Relaxed);
+                    }
+                });
+            }
+        });
+        assert_eq!(removed.load(Ordering::Relaxed), 1);
+        assert!(!store.contains(EN, &user, "shared").unwrap());
     }
 }

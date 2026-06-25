@@ -376,9 +376,14 @@ second seam" milestone.
 - [x] **MW14-3** Extend the emulated-host harness to model **suspend/resume**
       (deliver `PENDING`, run the completion, finalize) so async routes are
       testable without HWC. *(Landed with MW14-2; see WD-D12.)*
-- [ ] **MW14-4** Concurrency hardening: shared dictionary as a read-only `Arc`;
+- [x] **MW14-4** Concurrency hardening: shared dictionary as a read-only `Arc`;
       per-user custom-store FS ops serialized or concurrency-tolerant; verify no
       data races or handle-lifetime issues across the pool boundary.
+      *(Shared dict is a `&'static` `LazyLock` singleton — read-only + `Sync`,
+      stronger than `Arc`. The concurrency test exposed a real Windows
+      concurrent-create `ACCESS_DENIED` race that retrying did not reliably clear,
+      so custom-store mutations are now serialized by a per-store `Arc<Mutex<()>>`
+      (reads stay lock-free). Pool-boundary safety per WD-D12. See WD-D12.)*
 - [ ] **MW14-5** *(integration)* Async end-to-end: many concurrent requests across
       routes; assert correctness, that work ran off the host thread (observation
       marker), and clean completion. (`windows-threadpool-executor` async/await

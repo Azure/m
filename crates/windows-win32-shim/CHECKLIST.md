@@ -361,7 +361,7 @@ Make **every** route async via IIS asynchronous completion, offloaded to our
 `windows-threadpool` crate — the deliberate "force the redirection open across a
 second seam" milestone.
 
-- [ ] **MW14-1** Extend `wordy`'s IIS-ABI boundary with the async-completion
+- [x] **MW14-1** Extend `wordy`'s IIS-ABI boundary with the async-completion
       subset: `IHttpContext::PostCompletion` (and the `RQ_NOTIFICATION_PENDING`
       return); boundary module only, unit-modeled.
 - [ ] **MW14-2** Async dispatch: `OnBeginRequest` submits the route's work to

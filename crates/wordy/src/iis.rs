@@ -59,6 +59,11 @@ use crate::words::Locale;
 const RQ_NOTIFICATION_CONTINUE: i32 = 0;
 /// `RQ_NOTIFICATION_FINISH_REQUEST`: stop the pipeline; the request is complete.
 const RQ_NOTIFICATION_FINISH_REQUEST: i32 = 2;
+/// `RQ_NOTIFICATION_PENDING`: suspend the request; the host resumes the pipeline
+/// when the module later calls `IHttpContext::PostCompletion`. Consumed by the
+/// async request path in MW14-2.
+#[allow(dead_code)]
+const RQ_NOTIFICATION_PENDING: i32 = 1;
 /// `RQ_BEGIN_REQUEST`: the begin-request notification flag.
 const RQ_BEGIN_REQUEST: u32 = 0x0000_0001;
 
@@ -180,7 +185,8 @@ struct IHttpModuleRegistrationInfoVtbl {
     set_priority_for_global_notification: VtSlot,  // [5]
 }
 
-/// The `IHttpContext` vtable head (`wordy` calls `[3]` / `[4]`).
+/// The `IHttpContext` vtable head (`wordy` calls `[3]`, `[4]`, and `[9]` for
+/// asynchronous completion, MW14).
 #[repr(C)]
 struct IHttpContextVtbl {
     get_site: VtSlot,                                                  // [0]
@@ -188,6 +194,30 @@ struct IHttpContextVtbl {
     get_connection: VtSlot,                                            // [2]
     get_request: unsafe extern "system" fn(*mut c_void) -> *mut c_void, // [3]
     get_response: unsafe extern "system" fn(*mut c_void) -> *mut c_void, // [4]
+    get_response_headers_sent: VtSlot,                                 // [5]
+    get_user: VtSlot,                                                  // [6]
+    get_module_context_container: VtSlot,                             // [7]
+    indicate_completion: VtSlot,                                      // [8]
+    post_completion: unsafe extern "system" fn(*mut c_void, u32) -> HRESULT, // [9]
+}
+
+// Guard `PostCompletion` at its genuine `httpserv.h` slot (the 10th method).
+const _: () = {
+    assert!(
+        core::mem::offset_of!(IHttpContextVtbl, post_completion)
+            == 9 * core::mem::size_of::<*const c_void>()
+    );
+};
+
+/// Signal the host that asynchronous work for a suspended request has finished
+/// via `IHttpContext::PostCompletion(cbBytes)`, so it resumes the pipeline.
+/// Consumed by the async request path in MW14-2.
+#[allow(dead_code)]
+unsafe fn post_completion(context: *mut c_void, bytes: u32) -> HRESULT {
+    // SAFETY: the caller guarantees `context` is a live `IHttpContext`.
+    let ctx_vtbl = unsafe { *context.cast::<*const IHttpContextVtbl>() };
+    // SAFETY: `ctx_vtbl` is the host context vtable; `PostCompletion` is slot 9.
+    unsafe { ((*ctx_vtbl).post_completion)(context, bytes) }
 }
 
 /// The `IHttpRequest` vtable head (`wordy` calls `[0]`, `[2]`, `[8]`, `[16]`,
@@ -924,6 +954,7 @@ mod tests {
         vtable: *const IHttpContextVtbl,
         request: *mut c_void,
         response: *mut c_void,
+        completion_bytes: Cell<Option<u32>>,
     }
 
     unsafe extern "system" fn fake_get_request(this: *mut c_void) -> *mut c_void {
@@ -934,6 +965,11 @@ mod tests {
         // SAFETY: this is a live FakeContext.
         unsafe { (*this.cast::<FakeContext>()).response }
     }
+    unsafe extern "system" fn fake_post_completion(this: *mut c_void, bytes: u32) -> HRESULT {
+        // SAFETY: this is a live FakeContext.
+        unsafe { (*this.cast::<FakeContext>()).completion_bytes.set(Some(bytes)) };
+        S_OK
+    }
 
     static FAKE_CONTEXT_VTBL: IHttpContextVtbl = IHttpContextVtbl {
         get_site: vt_stub,
@@ -941,6 +977,11 @@ mod tests {
         get_connection: vt_stub,
         get_request: fake_get_request,
         get_response: fake_get_response,
+        get_response_headers_sent: vt_stub,
+        get_user: vt_stub,
+        get_module_context_container: vt_stub,
+        indicate_completion: vt_stub,
+        post_completion: fake_post_completion,
     };
 
     /// Build an emulated host context for the given method, raw URL, body, and
@@ -991,8 +1032,19 @@ mod tests {
             vtable: &FAKE_CONTEXT_VTBL,
             request: (request.as_mut() as *mut FakeRequest).cast(),
             response: (response.as_mut() as *mut FakeResponse).cast(),
+            completion_bytes: Cell::new(None),
         });
         (raw, request, response, context)
+    }
+
+    #[test]
+    fn post_completion_reaches_the_host_context() {
+        let (_raw, _req, _resp, context) = make_context(b"GET\0", b"/healthz\0", b"", None);
+        let ctx_ptr = (context.as_ref() as *const FakeContext as *mut FakeContext).cast();
+        // SAFETY: ctx_ptr is the live emulated context for the duration of the call.
+        let hr = unsafe { post_completion(ctx_ptr, 4096) };
+        assert_eq!(hr, S_OK);
+        assert_eq!(context.completion_bytes.get(), Some(4096));
     }
 
     /// Drive `OnBeginRequest` for the given request, returning the captured

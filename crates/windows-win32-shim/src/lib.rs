@@ -53,6 +53,11 @@ pub mod web;
 #[cfg(windows)]
 pub mod ansi;
 
+/// The WinHTTP request-lifecycle reassembly engine (MW17 / SHIM-D22): interns
+/// `HINTERNET` handles, accumulates one transaction across the WinHTTP lifecycle,
+/// and drains the response from an [`EgressSurface`] backing.
+pub mod egress_engine;
+
 #[cfg(windows)]
 pub mod error_map;
 
@@ -115,6 +120,7 @@ pub use com::{
 pub use web::{NullWebSink, WebEvent, WebMode, WebObservationSink, WebState};
 
 #[cfg(windows)]
+pub use egress_engine::{EgressEngine, EgressHandle};
 pub use pilcfg::{
     EgressConfig, EgressMode, Pilcfg, PilcfgError, expand_environment_path, load_pilcfg,
     parse_pilcfg,

@@ -579,7 +579,7 @@ app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
       top-level registry ones; `replay_dir` `%VAR%`-expanded; unknown mode / wrong
       shapes are errors). Re-exported from `lib.rs`. 7 unit tests. 198 unit tests
       pass.)*
-- [ ] **MW17-2** `HINTERNET` handle table + per-handle transaction state: the `m`
+- [x] **MW17-2** `HINTERNET` handle table + per-handle transaction state: the `m`
       WinHTTP front-ends (`mWinHttpOpen`/`Connect`/`OpenRequest`/`AddRequestHeaders`/
       `SendRequest`/`ReceiveResponse`/`QueryHeaders`/`QueryDataAvailable`/`ReadData`/
       `CloseHandle`, `SetTimeouts`/`SetOption` accepted) accumulate scheme/host/port/
@@ -587,6 +587,17 @@ app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
       the response across the read calls (replay-state-in-a-handle, SHIM-D14 shape).
       Default = transparent 1:1 passthrough to real WinHTTP. Unit-tested over a fake
       sender + a recording sender (no live network).
+      *(`src/egress_engine.rs`: `EgressEngine<S: EgressSurface>` — interns
+      `HINTERNET` sentinels (session→connection→request hierarchy), accumulates the
+      transaction (`open`/`connect`/`open_request`/`add_headers`), captures one
+      `EgressRequest` at `send` → `backing.send`, drains via `status`/
+      `response_headers`/`data_available`/`read_data` (chunked)/`close`. Surface-
+      generic; 8 unit tests with a canned sender + composed Redirecting/Buffered/
+      Blocking backings. 206 unit tests pass. **Note:** the `extern "C"` `mWinHttp*`
+      pointer marshaling and the passthrough-vs-isolation handle dispatch fold into
+      MW17-3 (they need the session-held `EgressBacking`); per SHIM-D22 the seam is
+      request/response-buffered, so even passthrough reassembles-and-resends via
+      `LiveEgress` rather than forwarding 1:1.)*
 - [ ] **MW17-3** Session `EgressBacking` enum (Passthrough / Buffered / Redirecting
       / Replay / Blocking), selected by `build_egress_backing(&Pilcfg)` and borrowed
       under a `Mutex` like the registry/filesystem backings; wire the front-ends

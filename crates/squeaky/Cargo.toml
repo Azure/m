@@ -1,0 +1,16 @@
+[package]
+name = "squeaky"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "A configurable HTTP stress client for wordy built on the native Rust async web stack (Tokio + reqwest). Parameters come from a JSON config; IPv4 and IPv6 endpoints are supported. The Rust-native counterpart to the WinHTTP-based `talky` client."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+[lints]
+workspace = true

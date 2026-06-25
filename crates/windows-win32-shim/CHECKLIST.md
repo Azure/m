@@ -680,7 +680,7 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
       `read_to_end`, `size`/`set_len`; owned `FileError`. 13 unit + 3 stress
       integration tests (256 KiB chunked round-trip, 300-file round-trip, truncating
       rewrite) pass; clippy clean. Component docs + `D-FIO-1..6`.)*
-- [ ] **MW18-2** Scaffold crate `merriam`: a REST dictionary-store service owning
+- [x] **MW18-2** Scaffold crate `merriam`: a REST dictionary-store service owning
       the custom dictionary on disk (add / update / store / remove / enumerate) via
       `windows-file-io`, with a **listener-independent dispatch core** (testable like
       `wordy::routes::Service`) and an inbound edge over the **HTTP Server API
@@ -721,12 +721,21 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
         `wordy::routes`; `X-Wordy-User`/`X-Wordy-Locale` headers, `?pattern=`
         full-match regex filter, byte-identical JSON; URL helpers mirrored from
         `wordy`. 13 route unit tests (27 total in `merriam`); clippy clean. MER-D4.)*
-  - [ ] **MW18-2.3** http.sys listener edge (`#[allow(unsafe_code)]` boundary
+  - [x] **MW18-2.3** http.sys listener edge (`#[allow(unsafe_code)]` boundary
         module): HTTP Server API inbound (`HttpInitialize` /
         `HttpCreateRequestQueue` / url-group + `HttpAddUrlToUrlGroup` /
         `HttpReceiveHttpRequest` loop → thread-pool dispatch → `HttpSendHttpResponse`),
         a `merriam` server bin, and a **gated** listener integration test
         (urlacl/bind preflight; skips when unbindable). Record `MER-D*` closure.
+        *(`http_sys.rs`: `Server::bind`/`serve`/`Drop` over the v2 HTTP Server API
+        (init → session → url-group → request-queue → binding → add-url); receive→
+        decode→dispatch→send loop; **synchronous** dispatch (MER-D5 — async file I/O
+        is in the store, so no inbound offload). No request body parsing.
+        `merriam-host` bin (env-configured `MERRIAM_URL`/`MERRIAM_PORT`/`MERRIAM_ROOT`).
+        Gated `tests/listener.rs`: binds a free loopback port, drives every route
+        over real TCP/HTTP (verified all routes 200/404 + user isolation over the
+        wire), SKIPs on `ERROR_ACCESS_DENIED`. clippy clean. **Bug caught in review:**
+        `HttpVerb*` consts must be compared by value, not used as `match` patterns.)*
 - [ ] **MW18-3** Gut `wordy`: remove the local filesystem custom store
       (`custom.rs`); replace the custom-dict ops (add/remove/contains/list) with a
       **WinHTTP client** that relays to `merriam` (configurable base URL); keep the

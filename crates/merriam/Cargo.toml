@@ -17,6 +17,13 @@ serde_json = "1"
 [target.'cfg(windows)'.dependencies]
 windows-file-io = { path = "../windows-file-io" }
 windows-threadpool-executor = { path = "../windows-threadpool-executor" }
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_IO",
+  "Win32_Networking_HttpServer",
+  "Win32_Networking_WinSock",
+] }
 
 [lints]
 workspace = true

@@ -60,3 +60,35 @@ substitution, not a protocol translation. The shared-dictionary spell-check /
 anagram / suggestion routes stay in `wordy` (its CPU work); only the *storage*
 moves here. The dispatch core is synchronous (over the MER-D3 sync store) and
 carries no listener types, so every route is unit-tested off any listener.
+
+## MER-D5 — http.sys inbound edge; synchronous dispatch
+
+`merriam`'s inbound edge is the HTTP Server API (http.sys), chosen over a third
+HWC/IIS-native-module to avoid that duplication and keep the listener small and
+self-hosting. `Server::bind` runs the v2 lifecycle (`HttpInitialize` →
+`HttpCreateServerSession` → `HttpCreateUrlGroup` → `HttpCreateRequestQueue` →
+`HttpSetUrlGroupProperty(HttpServerBindingProperty)` → `HttpAddUrlToUrlGroup`);
+`serve` runs a `HttpReceiveHttpRequest` → decode → dispatch → `HttpSendHttpResponse`
+loop. All `unsafe` is confined to `http_sys.rs` (the peer of `wordy::iis`); no
+http.sys type escapes it.
+
+- **Synchronous dispatch (re-scope from "thread-pool dispatch").** The receive
+  loop dispatches each request inline rather than offloading to a pool work item.
+  The headline async requirement — native async overlapped Win32 file I/O — is
+  already met inside the store (MER-D3, `windows-file-io`), so an additional
+  inbound offload would only enlarge the `unsafe` surface for no behavioral gain
+  on a validation service. (`windows-threadpool`'s `submit_once` joins on drop,
+  so a faithful non-blocking offload would also need handle reaping — extra
+  machinery the proof does not need.) Recorded as a deliberate simplification.
+- **No request body.** None of `merriam`'s routes read a body (word + scope come
+  from the path/headers), so the listener never touches entity chunks — a large
+  simplification of the http.sys decode.
+- **Verb consts are values, not patterns.** The `HttpVerb*` bindings are
+  bare-identifier consts; they must be compared by value (`verb == HttpVerbGET`),
+  because a `match` arm would *bind* the name and match everything (a real bug
+  caught in review).
+- **Binding is gated.** `HttpAddUrlToUrlGroup` returns `ERROR_ACCESS_DENIED`
+  without a urlacl reservation/elevation; `Server::bind` surfaces it so the
+  integration test SKIPs. On a capable host the test binds a free loopback port
+  and drives every route over real TCP/HTTP (verified here: all routes 200/404,
+  user isolation held over the wire).

@@ -39,3 +39,10 @@ pub use routes::{
     Outcome, STATUS_BAD_REQUEST, STATUS_INTERNAL_ERROR, STATUS_OK, Service, USER_HEADER, path_of,
     query_of,
 };
+
+#[cfg(windows)]
+#[allow(unsafe_code)]
+mod http_sys;
+
+#[cfg(windows)]
+pub use http_sys::{ERROR_ACCESS_DENIED, Server};

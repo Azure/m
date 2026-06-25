@@ -262,7 +262,7 @@ subset (peer of `mwinweb`), never depending on this crate.
       `DESIGN-NOTES.md` (shim-unaware contract). Proven via an emulated-host unit
       test (mirrors `mwinweb`) — no HWC dependency. The genuine-HWC activator is
       MW13-5.
-- [ ] **MW13-2** Word-domain core (pure Rust, no IIS, no FS): in-memory shared
+- [x] **MW13-2** Word-domain core (pure Rust, no IIS, no FS): in-memory shared
       dictionary loaded from the vendored SCOWL `en-US` list (+ its license file);
       `Locale` enum (only `en-US` populated); spell-check **membership**; `regex`
       enumeration; **anagram** solver (positional template fixes length, fixed

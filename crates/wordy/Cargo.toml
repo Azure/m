@@ -9,6 +9,14 @@ description = "A shim-unaware Rust IIS native-module REST 'shared dictionary' se
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[dependencies]
+# Word-domain core (MW13-2): regex enumeration over the shared dictionary and
+# `fst`-backed edit-distance suggestions. Both are pure, platform-independent
+# crates; the word-domain core carries no IIS, filesystem, or isolation
+# awareness (windows-win32-shim SHIM-D19).
+fst = { version = "0.4", features = ["levenshtein"] }
+regex = "1"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
   "Win32_Foundation",

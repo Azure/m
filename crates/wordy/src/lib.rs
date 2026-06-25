@@ -14,12 +14,16 @@
 //! windows-win32-shim SHIM-D19 for the surrounding design.
 //!
 //! The crate is split into:
+//! - [`words`] — the pure, safe, platform-independent word-domain core: the
+//!   shared dictionary plus spell-check, regex enumeration, the anagram solver,
+//!   and edit-distance suggestions.
 //! - [`routes`] — the pure, safe, platform-independent request → outcome logic.
 //! - `iis` (Windows only) — the `#[allow(unsafe_code)]` native-module ABI
 //!   boundary that bridges the IIS host into [`routes`]. It is a peer of
 //!   windows-win32-shim's `mwinweb` and never depends on that crate.
 
 pub mod routes;
+pub mod words;
 
 #[cfg(windows)]
 #[allow(unsafe_code)]

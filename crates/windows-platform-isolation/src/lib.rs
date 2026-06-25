@@ -34,6 +34,8 @@ pub mod fs_tree;
 #[cfg(windows)]
 pub mod live;
 #[cfg(windows)]
+pub mod live_egress;
+#[cfg(windows)]
 pub mod live_fs;
 pub mod path;
 pub mod registry;
@@ -59,6 +61,8 @@ pub use fs_surface::{FsBuffered, FsPassThrough, FsRequest, FsResponse, FsSurface
 pub use fs_tree::{DirEntry, FileMetadata, FileTree, NodeKind, OverlayFileTree, OverlayPresence};
 #[cfg(windows)]
 pub use live::LiveRegistry;
+#[cfg(windows)]
+pub use live_egress::LiveEgress;
 #[cfg(windows)]
 pub use live_fs::LiveFilesystem;
 pub use path::KeyPath;

@@ -426,12 +426,20 @@ HTTP only; SOAP/WWSAPI is reserved. See the design session
       status><Header/><Body/>` via `roxmltree` (accepts `<Egress>` root; absent =
       empty; rejects malformed XML / missing attr / non-numeric status). 11 unit
       tests. 268 tests pass.)*
-- [ ] **M11-5** `LiveEgress` over a dedicated `windows-*-sys` `unsafe` leaf
+- [x] **M11-5** `LiveEgress` over a dedicated `windows-*-sys` `unsafe` leaf
       (cfg windows): perform one real WinHTTP transaction from an `EgressRequest`
       (`WinHttpOpen`/`Connect`/`OpenRequest`/`AddRequestHeaders`/`SendRequest`/
       `ReceiveResponse`/`QueryHeaders`/`QueryDataAvailable`/`ReadData`/`CloseHandle`).
       All `unsafe` confined to the leaf; the safe crate stays `forbid(unsafe)`.
       *(integration)* gated localhost round-trip (skips when unbindable).
+      *(`windows-platform-isolation-sys/src/http.rs`: `http_send` — full WinHTTP
+      transaction over RAII `HINTERNET` guards, owned slice-in/owned-out, status +
+      raw-CRLF headers + body, WIN32_ERROR mapping; `Win32_Networking_WinHttp`
+      feature added. `windows-platform-isolation/src/live_egress.rs`: `LiveEgress`
+      (no `unsafe`) maps `EgressRequest` ↔ `http_send`, builds the wide header blob
+      + parses raw response headers. 4 tests incl. a self-hosted `TcpListener`
+      round-trip (200 + body + Content-Type; skips on a WinHTTP connect error).
+      272 tests pass.)*
 - [ ] **M11-6** *(integration)* `Egress` facade + composition test: drive a request
       through a `Redirecting`→`Observing`→(in-memory inner) stack and a
       `Replay`-over-`Blocking` stack; assert redirect rewrites the target, observe

@@ -36,3 +36,9 @@ pub use file::{
     FileAccess, FileHandle, FileInfo, FindEntry, FsError, create_directory, delete_file,
     file_attributes, read_directory, remove_directory, set_file_attributes,
 };
+
+#[cfg(windows)]
+mod http;
+
+#[cfg(windows)]
+pub use http::{HttpError, HttpReply, http_send};

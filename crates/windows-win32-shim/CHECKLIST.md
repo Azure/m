@@ -364,13 +364,18 @@ second seam" milestone.
 - [x] **MW14-1** Extend `wordy`'s IIS-ABI boundary with the async-completion
       subset: `IHttpContext::PostCompletion` (and the `RQ_NOTIFICATION_PENDING`
       return); boundary module only, unit-modeled.
-- [ ] **MW14-2** Async dispatch: `OnBeginRequest` submits the route's work to
+- [x] **MW14-2** Async dispatch: `OnBeginRequest` submits the route's work to
       `windows_threadpool::submit_once`, returns `RQ_NOTIFICATION_PENDING`; the
       pool work item computes, writes the response, and calls `PostCompletion`.
       Route every endpoint through it (add the `windows-threadpool` path dep).
-- [ ] **MW14-3** Extend the emulated-host harness to model **suspend/resume**
+      *(Landed with MW14-3 — the async `OnBeginRequest` returns `PENDING` and
+      writes nothing synchronously, so it cannot be tested without the
+      suspend/resume harness; the two are coupled. Design refinement per WD-D12:
+      the response is realized in `OnAsyncCompletion` on the host thread, not the
+      pool work item, so all `IHttpResponse` calls stay on the host thread.)*
+- [x] **MW14-3** Extend the emulated-host harness to model **suspend/resume**
       (deliver `PENDING`, run the completion, finalize) so async routes are
-      testable without HWC.
+      testable without HWC. *(Landed with MW14-2; see WD-D12.)*
 - [ ] **MW14-4** Concurrency hardening: shared dictionary as a read-only `Arc`;
       per-user custom-store FS ops serialized or concurrency-tolerant; verify no
       data races or handle-lifetime issues across the pool boundary.

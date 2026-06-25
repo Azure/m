@@ -26,6 +26,9 @@ windows-sys = { version = "0.59", features = [
   "Win32_Networking_HttpServer",
   "Win32_System_LibraryLoader",
 ] }
+# Offload each route's work to the OS thread pool via our own safe wrapper
+# (MW14): `OnBeginRequest` suspends the request and a pool work item resumes it.
+windows-threadpool = { path = "../windows-threadpool" }
 
 [lints]
 workspace = true

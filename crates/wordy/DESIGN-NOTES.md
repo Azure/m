@@ -271,3 +271,52 @@ future host might dispatch. The live-HTTP path is covered by the
 HWC **by default** on a capable host; `WORDY_HWC_EMULATED_ONLY=1` opts out, and it
 skips its assertions when HWC is absent or the listener cannot bind without
 elevation.
+
+## WD-D12 — Asynchronous request completion on the Windows thread pool (MW14)
+
+Every route is served asynchronously. `OnBeginRequest` decodes the request,
+allocates a per-request `AsyncState` (hung off the module instance), offloads a
+work item to the OS thread pool via `windows_threadpool::submit_once`, and
+returns `RQ_NOTIFICATION_PENDING`. The work item runs the **pure** dictionary
+computation (`routes::Service::dispatch`), stores the `Outcome` in the state, and
+calls `IHttpContext::PostCompletion(0)`. The host then dispatches
+`OnAsyncCompletion` (slot 28), which realizes the response and returns
+`RQ_NOTIFICATION_FINISH_REQUEST` (or `CONTINUE` when `wordy` declined the route),
+then reclaims the state.
+
+**Decision — write the response in `OnAsyncCompletion`, not the work item.** The
+checklist's first phrasing had the pool work item write the response. We instead
+keep all `IHttpResponse` calls on the host thread (`OnAsyncCompletion`); the pool
+thread does pure computation only. This is the safe, canonical IIS async shape:
+the response APIs are touched exactly where the host expects them, and the pool
+boundary carries only owned Rust data (`HttpRequest` in, `HttpResponse` out).
+
+Supporting facts (each a genuine-ABI or Rust-safety constraint, not incidental):
+
+- **Slot 28 has a distinct signature.** `OnAsyncCompletion` is
+  `(this, IHttpContext*, dwNotification, fPostNotification, IHttpEventProvider*,
+  IHttpCompletionInfo*)`, unlike the 3-argument notifications. The homogeneous
+  `[NotifyFn; 29]` vtable was restructured to `on_begin_request` + `[NotifyFn;
+  27]` + `on_async_completion` + `dispose`, with compile-time offset guards.
+- **`submit_once` returns a `Work` that joins on drop.** Dropping it in
+  `OnBeginRequest` would block (defeating async), so the `Work` is stashed in
+  `AsyncState` and released in `OnAsyncCompletion`, where the join returns
+  immediately (the item already finished) and the OS handle is closed.
+- **Raw pointer across the pool boundary.** `AsyncState*` is carried in a
+  `SendState` newtype with `unsafe impl Send`; the pointee outlives the work item
+  because the host serializes `OnAsyncCompletion` after `PostCompletion`. Edition
+  2024 disjoint closure captures grab `SendState.0` (the non-`Send` pointer)
+  rather than the whole struct, so the closure re-binds `let carried = carried;`
+  to force a whole-value capture.
+- **Synchronization.** `result` lives behind a `Mutex`; the emulated host's
+  completion signal is an `AtomicI64` (`-1` until posted) whose
+  Release/Acquire pairing publishes the computed result to the resuming thread.
+- **Fallbacks.** A null context or a `submit_once` failure is handled
+  synchronously (compute, write, finish) so the request always completes.
+
+The shared dictionary is immutable and `Sync`, so concurrent dispatch is safe;
+hardening the per-user custom-store filesystem operations for concurrency is
+MW14-4. The async path is unit-tested through an emulated suspend/resume harness
+(MW14-3): drive `OnBeginRequest` → assert `PENDING`, spin on the atomic
+completion signal, then dispatch `OnAsyncCompletion` and assert the finalized
+response.

@@ -41,7 +41,7 @@
 use core::ffi::c_void;
 use core::ptr::null_mut;
 use std::path::PathBuf;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 use windows_sys::Win32::Foundation::{E_POINTER, S_OK};
 use windows_sys::core::HRESULT;
@@ -60,9 +60,7 @@ const RQ_NOTIFICATION_CONTINUE: i32 = 0;
 /// `RQ_NOTIFICATION_FINISH_REQUEST`: stop the pipeline; the request is complete.
 const RQ_NOTIFICATION_FINISH_REQUEST: i32 = 2;
 /// `RQ_NOTIFICATION_PENDING`: suspend the request; the host resumes the pipeline
-/// when the module later calls `IHttpContext::PostCompletion`. Consumed by the
-/// async request path in MW14-2.
-#[allow(dead_code)]
+/// when the module later calls `IHttpContext::PostCompletion`.
 const RQ_NOTIFICATION_PENDING: i32 = 1;
 /// `RQ_BEGIN_REQUEST`: the begin-request notification flag.
 const RQ_BEGIN_REQUEST: u32 = 0x0000_0001;
@@ -145,18 +143,41 @@ type NotifyFn = unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_void)
 /// `CHttpModule::Dispose` — `(this) -> VOID`.
 type DisposeFn = unsafe extern "system" fn(*mut c_void);
 
+/// `CHttpModule::OnAsyncCompletion` (slot 28). Its genuine `httpserv.h`
+/// signature differs from the other notifications: `(this, IHttpContext*,
+/// dwNotification, fPostNotification, IHttpEventProvider*,
+/// IHttpCompletionInfo*) -> REQUEST_NOTIFICATION_STATUS`.
+type AsyncCompletionFn =
+    unsafe extern "system" fn(*mut c_void, *mut c_void, u32, i32, *mut c_void, *mut c_void) -> i32;
+
 /// An opaque vtable slot `wordy` never calls (host-implemented methods it skips,
 /// or its own stub slots). Modeled as a bare function pointer for layout only.
 type VtSlot = unsafe extern "system" fn();
 
-/// The full `CHttpModule` vtable: 29 notification slots then `Dispose`.
+/// The full `CHttpModule` vtable: 29 notification slots then `Dispose`. Slot
+/// `[0]` is `OnBeginRequest` and slot `[28]` is `OnAsyncCompletion` (which has a
+/// distinct 6-argument signature); slots `[1..28)` are notifications `wordy`
+/// does not register for.
 #[repr(C)]
 struct CHttpModuleVtbl {
-    /// Slots `[0..29)`; `[0]` = `OnBeginRequest`, `[24]` = `OnSendResponse`.
-    notifications: [NotifyFn; 29],
+    /// Slot `[0]` = `OnBeginRequest`.
+    on_begin_request: NotifyFn,
+    /// Slots `[1..28)` — unregistered notifications.
+    notifications: [NotifyFn; 27],
+    /// Slot `[28]` = `OnAsyncCompletion`.
+    on_async_completion: AsyncCompletionFn,
     /// Slot `[29]` = `Dispose`.
     dispose: DisposeFn,
 }
+
+// Guard the genuine `httpserv.h` `CHttpModule` slot offsets.
+const _: () = {
+    let ptr = core::mem::size_of::<*const c_void>();
+    assert!(core::mem::offset_of!(CHttpModuleVtbl, on_begin_request) == 0);
+    assert!(core::mem::offset_of!(CHttpModuleVtbl, on_async_completion) == 28 * ptr);
+    assert!(core::mem::offset_of!(CHttpModuleVtbl, dispose) == 29 * ptr);
+    assert!(core::mem::size_of::<CHttpModuleVtbl>() == 30 * ptr);
+};
 
 /// The `IHttpModuleFactory` vtable.
 #[repr(C)]
@@ -211,8 +232,6 @@ const _: () = {
 
 /// Signal the host that asynchronous work for a suspended request has finished
 /// via `IHttpContext::PostCompletion(cbBytes)`, so it resumes the pipeline.
-/// Consumed by the async request path in MW14-2.
-#[allow(dead_code)]
 unsafe fn post_completion(context: *mut c_void, bytes: u32) -> HRESULT {
     // SAFETY: the caller guarantees `context` is a live `IHttpContext`.
     let ctx_vtbl = unsafe { *context.cast::<*const IHttpContextVtbl>() };
@@ -287,15 +306,40 @@ struct WordyModuleFactory {
 }
 
 /// A `wordy` per-request module. The dictionary state lives in the process-wide
-/// [`SERVICE`]; the module itself is stateless. Its first field is the vtable
-/// pointer so a `*mut WordyHttpModule` is ABI-identical to the host's
-/// `CHttpModule*`; the `pool_allocated` flag records whether the host's request
-/// pool owns the memory (so `Dispose` frees a `Box` only when it does not).
+/// [`SERVICE`]; the module itself carries only the per-request async state. Its
+/// first field is the vtable pointer so a `*mut WordyHttpModule` is ABI-identical
+/// to the host's `CHttpModule*`; the `pool_allocated` flag records whether the
+/// host's request pool owns the memory (so `Dispose` frees a `Box` only when it
+/// does not).
 #[repr(C)]
 struct WordyHttpModule {
     vtable: *const CHttpModuleVtbl,
     pool_allocated: bool,
+    /// Per-request async state, allocated in `OnBeginRequest` when the route is
+    /// offloaded to the thread pool and reclaimed in `OnAsyncCompletion` (or
+    /// defensively in `Dispose`); null when handled synchronously.
+    async_state: *mut AsyncState,
 }
+
+/// Per-request state carried from `OnBeginRequest` across the thread-pool work
+/// item to `OnAsyncCompletion`: the decoded request, the host context, the
+/// computed result, and the live pool work item (kept alive so it is not joined
+/// synchronously; released when the state is reclaimed).
+struct AsyncState {
+    request: routes::HttpRequest,
+    context: *mut c_void,
+    result: Mutex<Option<routes::HttpResponse>>,
+    work: Mutex<Option<windows_threadpool::Work>>,
+}
+
+/// A raw `*mut AsyncState` carried into the thread-pool closure. The pointee
+/// outlives the work item: `OnAsyncCompletion` (which frees it) runs only after
+/// the work item calls `PostCompletion`, and the host serializes the two.
+struct SendState(*mut AsyncState);
+// SAFETY: the work item only reads `request`/`context` (immutable for its
+// lifetime) and writes `result` under its mutex; ownership and the free happen on
+// the host thread strictly after the work item signals completion.
+unsafe impl Send for SendState {}
 
 /// The process-wide service: the shared dictionary plus a per-user custom
 /// dictionary rooted under [`CUSTOM_ROOT_ENV`] (default: a per-process directory
@@ -314,14 +358,15 @@ static WORDY_MODULE_FACTORY_VTBL: IHttpModuleFactoryVtbl = IHttpModuleFactoryVtb
 };
 
 /// The single shared module vtable every [`WordyHttpModule`] points at: slot 0
-/// is `OnBeginRequest`, slot 29 is `Dispose`, and the other 28 notification
-/// slots are per-slot diagnostic trampolines ([`notify_slot`]) that record the
-/// exact slot index the host dispatches. `wordy` registers only
-/// `RQ_BEGIN_REQUEST`, so in correct operation only slot 0 is ever invoked; the
-/// instrumented stubs exist to diagnose a genuine host that dispatches nothing.
+/// is `OnBeginRequest`, slot 28 is `OnAsyncCompletion`, slot 29 is `Dispose`,
+/// and the 27 notification slots in between are per-slot diagnostic trampolines
+/// ([`notify_slot`]) that record the exact slot index the host dispatches.
+/// `wordy` registers only `RQ_BEGIN_REQUEST` (resumed via `OnAsyncCompletion`),
+/// so in correct operation only slots 0 and 28 are invoked; the instrumented
+/// stubs exist to diagnose a genuine host that dispatches an unexpected slot.
 static WORDY_HTTP_MODULE_VTBL: CHttpModuleVtbl = CHttpModuleVtbl {
+    on_begin_request: module_on_begin_request,
     notifications: [
-        module_on_begin_request, // [0] OnBeginRequest (real)
         notify_slot::<1>,
         notify_slot::<2>,
         notify_slot::<3>,
@@ -349,8 +394,8 @@ static WORDY_HTTP_MODULE_VTBL: CHttpModuleVtbl = CHttpModuleVtbl {
         notify_slot::<25>,
         notify_slot::<26>,
         notify_slot::<27>,
-        notify_slot::<28>,
     ],
+    on_async_completion: module_on_async_completion,
     dispose: module_dispose,
 };
 
@@ -369,6 +414,7 @@ fn mint_http_module() -> *mut c_void {
     let module = Box::new(WordyHttpModule {
         vtable: &WORDY_HTTP_MODULE_VTBL,
         pool_allocated: false,
+        async_state: null_mut(),
     });
     Box::into_raw(module).cast::<c_void>()
 }
@@ -604,6 +650,7 @@ unsafe extern "system" fn factory_get_http_module(
             let slot = mem.cast::<WordyHttpModule>();
             (*slot).vtable = &WORDY_HTTP_MODULE_VTBL;
             (*slot).pool_allocated = true;
+            (*slot).async_state = null_mut();
             mem
         }
     };
@@ -625,23 +672,120 @@ unsafe extern "system" fn factory_terminate(this: *mut c_void) {
 /// `CHttpModule::OnBeginRequest`: decode the request, dispatch, and realize the
 /// outcome against the host response.
 unsafe extern "system" fn module_on_begin_request(
-    _this: *mut c_void,
+    this: *mut c_void,
     context: *mut c_void,
     _provider: *mut c_void,
 ) -> i32 {
     trace("begin-request");
-    // SAFETY: context is the host request context (tolerates null).
+    if context.is_null() {
+        // No context to drive asynchronous work against; decline synchronously.
+        return RQ_NOTIFICATION_CONTINUE;
+    }
+    // SAFETY: context is the live host request context.
     let request = unsafe { decode_request(context) };
-    match SERVICE.dispatch(&request) {
-        Outcome::Respond(response) => {
-            trace(&format!("respond status={}", response.status));
-            // SAFETY: context is the host request context (tolerates null).
+
+    // Allocate per-request async state and hang it off the module instance so
+    // `OnAsyncCompletion` can find it.
+    let state = Box::into_raw(Box::new(AsyncState {
+        request,
+        context,
+        result: Mutex::new(None),
+        work: Mutex::new(None),
+    }));
+    // SAFETY: `this` is a live WordyHttpModule.
+    unsafe { (*this.cast::<WordyHttpModule>()).async_state = state };
+
+    let carried = SendState(state);
+    let submitted = windows_threadpool::submit_once(move || {
+        // Force the whole `SendState` (which is `Send`) to be captured, rather
+        // than its inner raw pointer field (disjoint closure capture otherwise
+        // grabs `carried.0`, which is not `Send`).
+        let carried = carried;
+        // SAFETY: `state` outlives this closure; it is freed only by
+        // `OnAsyncCompletion`, which the host runs after our `PostCompletion`.
+        let state = carried.0;
+        let outcome = SERVICE.dispatch(unsafe { &(*state).request });
+        let response = match outcome {
+            Outcome::Respond(r) => Some(r),
+            Outcome::Continue => None,
+        };
+        // SAFETY: `result` is written here, before signaling completion.
+        if let Ok(mut slot) = unsafe { (*state).result.lock() } {
+            *slot = response;
+        }
+        trace("async work computed");
+        // SAFETY: `context` is the live host context captured at submit time and
+        // valid until the request completes (gated on this `PostCompletion`).
+        let ctx = unsafe { (*state).context };
+        unsafe { post_completion(ctx, 0) };
+    });
+
+    match submitted {
+        Ok(work) => {
+            // Keep the work item alive (dropping it joins synchronously); it is
+            // released in `OnAsyncCompletion`.
+            // SAFETY: `state` is live; `work` is set once here before returning.
+            if let Ok(mut slot) = unsafe { (*state).work.lock() } {
+                *slot = Some(work);
+            }
+            RQ_NOTIFICATION_PENDING
+        }
+        Err(_) => {
+            // Could not offload; finish synchronously so the request still
+            // completes.
+            // SAFETY: `state` is live and unshared (no work item was submitted);
+            // reclaim it and clear the module's pointer.
+            let state = unsafe { Box::from_raw(state) };
+            // SAFETY: `this` is a live WordyHttpModule.
+            unsafe { (*this.cast::<WordyHttpModule>()).async_state = null_mut() };
+            match SERVICE.dispatch(&state.request) {
+                Outcome::Respond(response) => {
+                    // SAFETY: `context` is the live host context.
+                    unsafe { write_response(context, &response) };
+                    RQ_NOTIFICATION_FINISH_REQUEST
+                }
+                Outcome::Continue => RQ_NOTIFICATION_CONTINUE,
+            }
+        }
+    }
+}
+
+/// `CHttpModule::OnAsyncCompletion` (slot 28): the host resumes a suspended
+/// request here after the pool work item called `PostCompletion`. Realize the
+/// computed outcome against the response and finish (or continue when `wordy`
+/// declined the route), then reclaim the per-request async state.
+unsafe extern "system" fn module_on_async_completion(
+    this: *mut c_void,
+    context: *mut c_void,
+    _dw_notification: u32,
+    _f_post_notification: i32,
+    _provider: *mut c_void,
+    _completion_info: *mut c_void,
+) -> i32 {
+    trace("async completion");
+    // SAFETY: `this` is a live WordyHttpModule.
+    let state_ptr = unsafe { (*this.cast::<WordyHttpModule>()).async_state };
+    if state_ptr.is_null() {
+        return RQ_NOTIFICATION_CONTINUE;
+    }
+    // SAFETY: `state_ptr` was created in OnBeginRequest and not yet reclaimed; the
+    // work item has completed (the host calls us only after `PostCompletion`).
+    let state = unsafe { Box::from_raw(state_ptr) };
+    // SAFETY: clear the now-dangling pointer on the module.
+    unsafe { (*this.cast::<WordyHttpModule>()).async_state = null_mut() };
+    let AsyncState { result, work, .. } = *state;
+    // Joining the work item now returns immediately (it already completed) and
+    // releases the OS thread-pool handle.
+    drop(work.into_inner().ok().flatten());
+    match result.into_inner().ok().flatten() {
+        Some(response) => {
+            trace(&format!("async respond status={}", response.status));
+            // SAFETY: `context` is the live host context.
             unsafe { write_response(context, &response) };
-            trace("response written");
             RQ_NOTIFICATION_FINISH_REQUEST
         }
-        Outcome::Continue => {
-            trace("continue");
+        None => {
+            trace("async continue");
             RQ_NOTIFICATION_CONTINUE
         }
     }
@@ -669,12 +813,24 @@ unsafe extern "system" fn module_dispose(this: *mut c_void) {
         return;
     }
     trace("module dispose");
-    // SAFETY: this is a live WordyHttpModule; read whether the host pool owns it.
-    let pool_allocated = unsafe { (*this.cast::<WordyHttpModule>()).pool_allocated };
+    let module = this.cast::<WordyHttpModule>();
+    // Defensively reclaim any async state `OnAsyncCompletion` did not consume
+    // (the host's ordering guarantees this is normally already null). Dropping it
+    // joins the by-now-finished pool work item.
+    // SAFETY: `this` is a live WordyHttpModule.
+    let async_state = unsafe { (*module).async_state };
+    if !async_state.is_null() {
+        // SAFETY: created in OnBeginRequest; reclaim it.
+        drop(unsafe { Box::from_raw(async_state) });
+        // SAFETY: clear the dangling pointer before the module memory is freed.
+        unsafe { (*module).async_state = null_mut() };
+    }
+    // SAFETY: read whether the host pool owns the module memory.
+    let pool_allocated = unsafe { (*module).pool_allocated };
     if !pool_allocated {
         // SAFETY: this is a heap module minted by mint_http_module; the host calls
         // Dispose exactly once.
-        drop(unsafe { Box::from_raw(this.cast::<WordyHttpModule>()) });
+        drop(unsafe { Box::from_raw(module) });
     }
 }
 
@@ -716,6 +872,7 @@ mod tests {
     use super::*;
     use core::cell::Cell;
     use core::ptr::{null, null_mut};
+    use core::sync::atomic::{AtomicI64, Ordering};
 
     /// A no-op stub for any pinned vtable slot the tests do not exercise.
     unsafe extern "system" fn vt_stub() {}
@@ -954,7 +1111,9 @@ mod tests {
         vtable: *const IHttpContextVtbl,
         request: *mut c_void,
         response: *mut c_void,
-        completion_bytes: Cell<Option<u32>>,
+        /// `PostCompletion`'s `cbBytes`, or `-1` until the pool work item posts
+        /// completion (atomic because the work item runs on another thread).
+        completion_bytes: AtomicI64,
     }
 
     unsafe extern "system" fn fake_get_request(this: *mut c_void) -> *mut c_void {
@@ -967,7 +1126,11 @@ mod tests {
     }
     unsafe extern "system" fn fake_post_completion(this: *mut c_void, bytes: u32) -> HRESULT {
         // SAFETY: this is a live FakeContext.
-        unsafe { (*this.cast::<FakeContext>()).completion_bytes.set(Some(bytes)) };
+        unsafe {
+            (*this.cast::<FakeContext>())
+                .completion_bytes
+                .store(i64::from(bytes), Ordering::Release)
+        };
         S_OK
     }
 
@@ -1032,7 +1195,7 @@ mod tests {
             vtable: &FAKE_CONTEXT_VTBL,
             request: (request.as_mut() as *mut FakeRequest).cast(),
             response: (response.as_mut() as *mut FakeResponse).cast(),
-            completion_bytes: Cell::new(None),
+            completion_bytes: AtomicI64::new(-1),
         });
         (raw, request, response, context)
     }
@@ -1044,7 +1207,7 @@ mod tests {
         // SAFETY: ctx_ptr is the live emulated context for the duration of the call.
         let hr = unsafe { post_completion(ctx_ptr, 4096) };
         assert_eq!(hr, S_OK);
-        assert_eq!(context.completion_bytes.get(), Some(4096));
+        assert_eq!(context.completion_bytes.load(Ordering::Acquire), 4096);
     }
 
     /// Drive `OnBeginRequest` for the given request, returning the captured
@@ -1062,8 +1225,21 @@ mod tests {
         let (_raw, _req, response, context) = make_context(method, raw_url, body, user);
         let ctx_ptr = (context.as_ref() as *const FakeContext as *mut FakeContext).cast();
 
+        // Suspend: OnBeginRequest offloads to the pool and returns PENDING.
         // SAFETY: invoke OnBeginRequest (slot 0) on the live emulated context.
-        let status = unsafe { (mvtbl.notifications[0])(module, ctx_ptr, null_mut()) };
+        let begin = unsafe { (mvtbl.on_begin_request)(module, ctx_ptr, null_mut()) };
+        let status = if begin == RQ_NOTIFICATION_PENDING {
+            // Wait for the pool work item to compute and post completion.
+            while context.completion_bytes.load(Ordering::Acquire) < 0 {
+                std::thread::yield_now();
+            }
+            // Resume: the host dispatches OnAsyncCompletion (slot 28) to finalize.
+            // SAFETY: invoke OnAsyncCompletion on the live emulated context.
+            unsafe { (mvtbl.on_async_completion)(module, ctx_ptr, 0, 0, null_mut(), null_mut()) }
+        } else {
+            // Synchronous path (e.g. null context or a submit failure).
+            begin
+        };
         // SAFETY: release the module via Dispose (slot 29) exactly once.
         unsafe { (mvtbl.dispose)(module) };
         (response, status)
@@ -1162,8 +1338,40 @@ mod tests {
         // SAFETY: module is a live WordyHttpModule.
         let mvtbl = unsafe { &*(*module.cast::<*const CHttpModuleVtbl>()) };
         // SAFETY: a null context is explicitly handled; the dispatcher declines.
-        let status = unsafe { (mvtbl.notifications[0])(module, null_mut(), null_mut()) };
+        let status = unsafe { (mvtbl.on_begin_request)(module, null_mut(), null_mut()) };
         assert_eq!(status, RQ_NOTIFICATION_CONTINUE);
+        // SAFETY: release the module exactly once.
+        unsafe { (mvtbl.dispose)(module) };
+    }
+
+    #[test]
+    fn async_route_suspends_on_begin_then_finishes_on_completion() {
+        let module = mint_http_module();
+        // SAFETY: module is a live WordyHttpModule.
+        let mvtbl = unsafe { &*(*module.cast::<*const CHttpModuleVtbl>()) };
+        let (_raw, _req, response, context) = make_context(b"GET\0", b"/healthz\0", b"", None);
+        let ctx_ptr = (context.as_ref() as *const FakeContext as *mut FakeContext).cast();
+
+        // Suspend: begin-request offloads to the pool and returns PENDING; nothing
+        // is written to the response yet.
+        // SAFETY: invoke OnBeginRequest on the live emulated context.
+        let begin = unsafe { (mvtbl.on_begin_request)(module, ctx_ptr, null_mut()) };
+        assert_eq!(begin, RQ_NOTIFICATION_PENDING);
+
+        // The pool work item computes off the host thread and posts completion.
+        while context.completion_bytes.load(Ordering::Acquire) < 0 {
+            std::thread::yield_now();
+        }
+        assert_eq!(context.completion_bytes.load(Ordering::Acquire), 0);
+        assert_eq!(response.captured_status, 0, "no response is written before resume");
+
+        // Resume: OnAsyncCompletion writes the response and finishes the request.
+        // SAFETY: invoke OnAsyncCompletion on the live emulated context.
+        let done =
+            unsafe { (mvtbl.on_async_completion)(module, ctx_ptr, 0, 0, null_mut(), null_mut()) };
+        assert_eq!(done, RQ_NOTIFICATION_FINISH_REQUEST);
+        assert_eq!(response.captured_status, routes::STATUS_OK);
+
         // SAFETY: release the module exactly once.
         unsafe { (mvtbl.dispose)(module) };
     }

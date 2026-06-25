@@ -44,10 +44,16 @@ Tracks CHECKLIST.md files in this source-component and their status.
   offloaded to `windows-threadpool::submit_once`; emulated host extended to model
   suspend/resume. Deliberately forces the redirection open across a second seam
   beyond the filesystem (SHIM-D19).
-- **MW15 — Isolation proof harness (outline; isolation deferred):** apply the
-  alias `.obj` + `.pilcfg` to the *unmodified* `wordy` from the outside and prove
-  its namespace ops land in the overlay, not the live FS (`hwcproof/`, mirrors
-  `linkproof/`); negative control + exit-code discriminator (SHIM-D19).
+- **MW15 — Isolation proof (done):** apply the alias `.obj` + `.pilcfg` to the
+  *unmodified* `wordy` from the outside and prove its namespace ops land in the
+  overlay, not the live FS. `FsBuffered` overlay-over-live decorator
+  (platform-isolation D30) + a `FilesystemBacking` enum wired into the shim
+  session so `buffer_updates` now buffers the filesystem too (SHIM-D13).
+  `hwcproof/build-aliased-wordy.ps1` proves link-time redirection statically
+  (`dumpbin`); `hwcproof/run-hwcproof.ps1` proves it at runtime under **genuine
+  HWC** (isolated variant: live custom root never created on disk; native
+  control: it is), gated by `tests/hwc_isolation.rs` (`#[ignore]`d, skips when
+  HWC absent / URL unbindable). Closure recorded in SHIM-D19.
 
 First cut keeps the loader/COM substitution registries and observation sink
 **shim-local**; no new `windows-platform-isolation` surface is introduced (the

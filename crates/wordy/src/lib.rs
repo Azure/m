@@ -30,4 +30,11 @@ pub mod words;
 
 #[cfg(windows)]
 #[allow(unsafe_code)]
+mod winhttp;
+
+#[cfg(windows)]
+pub mod relay;
+
+#[cfg(windows)]
+#[allow(unsafe_code)]
 mod iis;

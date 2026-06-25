@@ -330,3 +330,34 @@ test (MW14-4). The async path is unit-tested through an emulated suspend/resume
 harness (MW14-3): drive `OnBeginRequest` → assert `PENDING`, spin on the atomic
 completion signal, then dispatch `OnAsyncCompletion` and assert the finalized
 response.
+
+## WD-D13 — Custom dictionary relayed to `merriam` over ordinary WinHTTP (MW18-3)
+
+The per-user custom dictionary's *storage* is carved out of `wordy` into the
+`merriam` service (windows-win32-shim SHIM-D23); `wordy` keeps its shared-
+dictionary CPU work (spell-check / anagram / regex / `fst`) and **relays** the
+custom-dict operations (`add` / `remove` / `contains` / `list`) to `merriam`.
+
+- **Ordinary WinHTTP (the whole point).** The relay transport (`src/winhttp.rs`,
+  the `#[allow(unsafe_code)]` peer of `iis.rs`) makes plain `WinHttp*` calls —
+  `WinHttpOpen`/`Connect`/`OpenRequest`/`SendRequest`/`ReceiveResponse`/
+  `QueryHeaders`/`QueryDataAvailable`/`ReadData`/`CloseHandle` — and returns
+  `(status, body)`. `wordy` stays shim-unaware (WD-D1): it knows nothing about
+  isolation, so when relinked against the shim's alias object (MW17) these
+  imports are transparently rerouted into the egress seam, with no `wordy`
+  change. This is the inbound (IIS, WD-D3) seam's outbound counterpart.
+- **`MerriamClient` (`src/relay.rs`, safe).** Builds each `merriam` REST call
+  (`POST`/`DELETE`/`GET /custom[/{word}]` with `X-Wordy-User` / `X-Wordy-Locale`
+  headers; the word percent-encoded into the path), sends it via the transport,
+  and parses the JSON (`{added}`/`{removed}`/`{exists}`/`{matches}`). A non-200
+  is surfaced as `RelayError::Upstream { status, body }`, a connect/transport
+  failure as `RelayError::Transport(code)`. `from_env` reads
+  `MERRIAM_HOST`/`MERRIAM_PORT`.
+- **Tested off `merriam`.** The relay is unit-tested against a one-shot
+  `TcpListener` stub that captures the request and returns canned JSON — proving
+  the genuine WinHTTP transport, header/path construction, percent-encoding,
+  JSON parsing, and the upstream/transport error paths, with no `merriam` (or
+  urlacl) needed.
+- **Swap-in is MW18-3.2.** The route handlers move onto a `CustomStore` trait
+  (`MerriamClient` for production, an in-memory store for the existing route
+  tests) and the local FS store (`custom.rs`) is deleted then.

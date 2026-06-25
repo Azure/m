@@ -752,7 +752,7 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
       > in-memory store for the existing route tests, delete the FS store) is the
       > integration. Splitting lands a tested relay before disturbing the routes.
 
-  - [ ] **MW18-3.1** `wordy` WinHTTP relay client: a `#[allow(unsafe_code)]`
+  - [x] **MW18-3.1** `wordy` WinHTTP relay client: a `#[allow(unsafe_code)]`
         `winhttp` boundary module (`WinHttpOpen`/`Connect`/`OpenRequest`/
         `SendRequest`/`ReceiveResponse`/`QueryHeaders`/`QueryDataAvailable`/`ReadData`/
         `CloseHandle` → `(status, body)`) and a safe `MerriamClient` (`from_env`
@@ -760,6 +760,11 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
         building the `merriam` REST calls + parsing the JSON. **Ordinary** WinHTTP
         calls (so the shim's MW17 seam can alias them). Tested against a `TcpListener`
         stub serving canned JSON. `wordy` routes untouched (still on `custom.rs`).
+        *(`src/winhttp.rs` (ordinary WinHTTP transport, RAII `Internet` guard) +
+        `src/relay.rs` (`MerriamClient`/`RelayError`, percent-encoded word path,
+        `X-Wordy-User`/`X-Wordy-Locale` headers, JSON parse, `Upstream`/`Transport`
+        errors). 8 relay unit tests vs. a one-shot `TcpListener` stub (genuine
+        WinHTTP); 74 wordy unit + 6 host tests pass; clippy clean. WD-D13.)*
   - [ ] **MW18-3.2** Abstract the custom store behind a `CustomStore` trait; make
         `Service` generic over it; route handlers call the trait. `MerriamClient`
         impls it (production, via `iis.rs`/bin `from_env`); an in-memory

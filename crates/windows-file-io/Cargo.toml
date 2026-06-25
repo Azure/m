@@ -1,0 +1,17 @@
+# Copyright (c) Microsoft Corporation.
+[package]
+name = "windows-file-io"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Native async Win32 file I/O: overlapped CreateFile/ReadFile/WriteFile with completion delivered by the Windows thread pool. Async-first even when operations complete synchronously. No unsafe (the FFI lives in windows-file-io-sys)."
+
+[target.'cfg(windows)'.dependencies]
+windows-file-io-sys = { path = "../windows-file-io-sys" }
+windows-threadpool = { path = "../windows-threadpool" }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-threadpool-executor = { path = "../windows-threadpool-executor" }
+
+[lints]
+workspace = true

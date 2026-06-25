@@ -662,7 +662,7 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
 > isolation the MW18-4 proof exercises; MW18-1..3 (building `merriam` + the relay)
 > may proceed in parallel with MW17 since they are ordinary networking.
 
-- [ ] **MW18-1** Scaffold crate `windows-file-io` (+ its `-sys` `unsafe` leaf):
+- [x] **MW18-1** Scaffold crate `windows-file-io` (+ its `-sys` `unsafe` leaf):
       native async Win32 file I/O — overlapped `CreateFile`/`ReadFile`/`WriteFile`
       with completion via the Windows thread pool (`CreateThreadpoolIo` /
       `StartThreadpoolIo`, over `windows-threadpool`'s IOCP reactor). The public API
@@ -670,6 +670,16 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
       synchronously** — handle the synchronous-completion fast path, but write the
       code as if completion is always deferred. Its own `COMPONENT.md`/`CHECKLIST.md`/
       `DESIGN-NOTES.md`/`PLANS.md`; unit + a stress integration test.
+      *(`windows-file-io-sys` unsafe leaf: RAII overlapped `FileHandle`
+      (`AsRawHandle`), `open`/`file_size`/`set_end_of_file`, `OverlappedOp` issuing
+      one overlapped `ReadFile`/`WriteFile` → `Issue::{Pending,Eof,Failed}` — a
+      pool-bound handle (no `FILE_SKIP_COMPLETION_PORT_ON_SUCCESS`) so even sync
+      success posts a completion and is awaited. Safe `windows-file-io`
+      (`#![forbid(unsafe_code)]`): `File` over the `windows-threadpool` `Io` reactor
+      — `open`/`create`/`open_read_write`, async `read_at`/`write_at`/`write_all_at`/
+      `read_to_end`, `size`/`set_len`; owned `FileError`. 13 unit + 3 stress
+      integration tests (256 KiB chunked round-trip, 300-file round-trip, truncating
+      rewrite) pass; clippy clean. Component docs + `D-FIO-1..6`.)*
 - [ ] **MW18-2** Scaffold crate `merriam`: a REST dictionary-store service owning
       the custom dictionary on disk (add / update / store / remove / enumerate) via
       `windows-file-io`, with a **listener-independent dispatch core** (testable like

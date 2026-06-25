@@ -1,0 +1,18 @@
+# Copyright (c) Microsoft Corporation.
+[package]
+name = "windows-file-io-sys"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Unsafe FFI leaf for windows-file-io: RAII overlapped file handles + raw overlapped ReadFile/WriteFile issue primitives over the Win32 file API."
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+] }
+
+[lints]
+workspace = true

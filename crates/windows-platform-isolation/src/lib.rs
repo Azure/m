@@ -45,7 +45,7 @@ pub mod tree;
 pub mod web;
 
 pub use decorator::{Buffered, PassThrough};
-pub use egress::{EgressRequest, EgressResponse, EgressSurface, EgressTransport, Scheme};
+pub use egress::{Egress, EgressRequest, EgressResponse, EgressSurface, EgressTransport, Scheme};
 pub use egress_decorator::{
     BlockingEgress, BufferedEgress, EgressObservation, EgressObserver, EgressOutcome,
     ObservingEgress, RedirectRule, RedirectingEgress,
@@ -86,3 +86,4 @@ pub use windows_text::Win32OrdinalCasing;
 
 #[cfg(test)]
 mod integration_tests;
+mod egress_integration_tests;

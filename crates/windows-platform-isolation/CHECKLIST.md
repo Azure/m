@@ -440,11 +440,16 @@ HTTP only; SOAP/WWSAPI is reserved. See the design session
       + parses raw response headers. 4 tests incl. a self-hosted `TcpListener`
       round-trip (200 + body + Content-Type; skips on a WinHTTP connect error).
       272 tests pass.)*
-- [ ] **M11-6** *(integration)* `Egress` facade + composition test: drive a request
+- [x] **M11-6** *(integration)* `Egress` facade + composition test: drive a request
       through a `Redirecting`→`Observing`→(in-memory inner) stack and a
       `Replay`-over-`Blocking` stack; assert redirect rewrites the target, observe
       records without altering, buffer isolates mutations, replay serves the
       fixture, and passthrough is byte-identical to the bare inner.
+      *(`Egress<S>` facade in `src/egress.rs` (peer of `Registry`/`Filesystem`);
+      `src/egress_integration_tests.rs` (5 tests): passthrough identity,
+      redirect-then-observe (leaf sees rewritten, observer sees original, response
+      unaltered), buffer isolates-then-commits, replay-over-block (offline: fixtures
+      served, rest blocked), and replay-from-artifact. 277 tests pass.)*
       > **➡ CROSS-COMPONENT HANDOFF:** the WinHTTP handle-lifecycle reassembly, the
       > `.pilcfg` `egress` section, and the link-time alias of `winhttp.dll` are
       > `windows-win32-shim` → **MW17**. See

@@ -164,6 +164,42 @@ pub trait EgressSurface {
     fn send(&mut self, req: &EgressRequest) -> EgressResult<EgressResponse>;
 }
 
+/// A thin facade over a composed [`EgressSurface`] — the egress peer of the
+/// registry [`Registry`](crate::Registry) and filesystem
+/// [`Filesystem`](crate::Filesystem) facades. It holds whatever decorator stack
+/// the session composed (passthrough / redirect / buffer / replay / block /
+/// observe over a `LiveEgress` bottom) and forwards [`send`](Egress::send),
+/// keeping call sites free of the concrete surface type.
+pub struct Egress<S: EgressSurface> {
+    surface: S,
+}
+
+impl<S: EgressSurface> Egress<S> {
+    /// Wrap a composed surface.
+    pub fn new(surface: S) -> Self {
+        Self { surface }
+    }
+
+    /// Send one request through the composed surface.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the surface's [`EgressError`](crate::EgressError).
+    pub fn send(&mut self, req: &EgressRequest) -> EgressResult<EgressResponse> {
+        self.surface.send(req)
+    }
+
+    /// Borrow the underlying surface (e.g. to inspect a buffer's journal).
+    pub fn surface(&mut self) -> &mut S {
+        &mut self.surface
+    }
+
+    /// Recover the underlying surface.
+    pub fn into_surface(self) -> S {
+        self.surface
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

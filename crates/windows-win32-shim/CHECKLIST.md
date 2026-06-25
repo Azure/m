@@ -107,13 +107,54 @@ test. Sub-steps use decimal notation.
       + buffered `test_mwinreg_value_ops`): a buffered fixture isolates writes
       from the live registry; `capture_snapshot` writes state on teardown.
 
-## MW7 — End-to-end / C++ artifact parity — OUTLINE (detail when scheduled)
+## MW7 — End-to-end / C++ registry-artifact parity (SHIM-D13 / SHIM-D5)
 
-- [ ] **MW7-1** Load a C++-produced `.pilcfg` + `persisted_state` artifact and
-      assert the Rust shim reproduces the C++ shim's observable behavior.
-- [ ] **MW7-2** Packaging / SDK considerations (or record as out of scope).
-- [ ] **MW7-3** *(integration)* Full end-to-end scenario: registry + filesystem
-      through the shim under a single `.pilcfg`.
+> **Re-plan (2026-06-25):** the outline is detailed into concrete, dependency-ordered
+> items. Findings that shaped it: (1) the C++ `mwin32` shim is **registry-only**
+> (its M1–M4 cover `.pilcfg` + persisted registry snapshots; it has no filesystem
+> persisted-state), so "C++ artifact parity" is fundamentally about the **registry**
+> snapshot. (2) The existing `tests/pilcfg.rs` `persisted_state` tests load the Rust
+> shim's **own** `save_registry_hive` output, so they prove round-trip but *not* that
+> the shim consumes the C++ emission **dialect** (abbreviated hive names, `last_write_time`
+> attrs, mixed-case hex, mirrored placeholders, tombstones). (3) The shared on-disk
+> schema is the parity contract (platform-isolation D18/D19 == mwin32 D7), and the
+> `windows-platform-isolation` loader already accepts that dialect. **Decision:** the
+> golden artifact is the **shared on-disk contract** (the same bytes the C++ shim
+> emits); a literally-C++-binary-captured artifact is a future swap-in (it needs the
+> CMake/vcpkg C++ build driven to emit a snapshot — heavy, deferred), not a blocker —
+> exactly as the platform-isolation golden artifacts already note. Filesystem
+> persisted-state *through the shim* stays a documented SHIM-D13 gap (no C++ FS
+> artifact exists to be parity with); MW7-3 isolates the filesystem via `buffer_updates`.
+
+- [ ] **MW7-1** Shim-level C++-**dialect** registry-artifact parity. Add a shim
+      `testdata/` golden artifact authored to the C++ `mwin32` `save_xml` dialect
+      (mwin32 D7 / platform-isolation D18): abbreviated hive names (`HKLM` / `HKCU`),
+      `last_write_time` attributes, every decodable `REG_*` type plus a default
+      (empty-name) value, mixed-case hex, a value tombstone and a key tombstone, a
+      mirrored (name-only) placeholder, and out-of-order subkeys. Drive it through
+      `ShimSession::from_config(persisted_state = …)` and assert `reg_ops` reproduce
+      the C++ shim's **observable** behavior: every type decodes; abbreviations
+      normalize to the canonical predefined hives the shim opens via reserved `HKEY`
+      handles; tombstones fold away; the mirrored key enumerates as empty; subkeys
+      enumerate in ordinal sort; a write lands in the overlay and the source artifact
+      on disk is never mutated. Record the parity decision (golden = shared contract)
+      in a SHIM design note.
+- [ ] **MW7-2** Packaging / SDK considerations — **documented**. A concise SHIM
+      design note capturing the deployment model the link/HWC proofs already embody
+      (the alias `.obj` + the `windows_win32_shim.dll.lib` import library +
+      `windows_win32_shim.dll` + a `<host>.pilcfg`, co-located beside the host;
+      build-time injection via the generic `WORDY_EXTRA_LINK_*`-style `build.rs`
+      vars), and recording the remaining items — a real SDK packaging story, a
+      literally-C++-binary-captured artifact, and filesystem persisted-state through
+      the shim — as explicitly **out of scope for now** with rationale. Doc-only; no
+      code.
+- [ ] **MW7-3** *(integration)* Full end-to-end single-`.pilcfg` scenario: one config
+      carrying **both** `persisted_state` (a C++-dialect registry snapshot) **and**
+      `buffer_updates` drives the registry **and** filesystem through one
+      `ShimSession` — `reg_ops` observe the snapshot and isolate writes to the
+      overlay; `fs_ops` buffer namespace ops off the live filesystem — asserting both
+      surfaces isolate under a single sidecar, the registry honoring a C++ artifact.
+      The capstone parity/integration test.
 
 ## MW9 — Dynamic-loader shims (`mLoadLibrary*` / `mGetProcAddress` / module handles, SHIM-D16)
 

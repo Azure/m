@@ -58,6 +58,14 @@ pub enum Locale {
 }
 
 impl Locale {
+    /// A stable, path-safe directory slug for this locale, used to namespace
+    /// per-locale storage such as the custom-dictionary FS store.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Locale::EnUs => "en-US",
+        }
+    }
+
     /// The compile-time-embedded source word list for this locale, one word per
     /// line. The license for the data lives beside it in `wordlist/COPYING.SCOWL`.
     fn source(self) -> &'static str {

@@ -109,3 +109,27 @@ notice travels beside it in `wordlist/COPYING.SCOWL` (the "+ its license file" o
 MW13-2); the data is embedded into the binary with `include_str!`. A `Locale`
 enum namespaces the data so additional locales drop in without a schema change;
 only `EnUs` is populated today.
+
+## WD-D8 — Custom-dictionary FS store (`src/custom.rs`)
+
+The mutable, per-user custom dictionary (MW13-3) is a directory tree
+`{root}/{locale}/{user}/` in which **each word is an empty marker file whose name
+encodes the word**. Every operation is a namespace / metadata act — `create_new`
+to add, `try_exists` to test, `remove_file` to delete, `read_dir` to enumerate —
+and never reads or writes file content, keeping `wordy`'s mutable state inside
+exactly the filesystem surface windows-win32-shim isolates (SHIM-D6 alignment).
+
+Word ↔ filename uses an owned, reversible encoding ([`encode_token`] /
+[`decode_token`]): lowercase, then percent-encode every byte outside `a`–`z`.
+The encoded name contains only `[a-z]` and `%XX` escapes, so it can never be a
+path separator, `.`, or `..` — hostile input (e.g. `../../escape`) is neutralized
+into a single safe filename inside the user directory. The **same** encoder
+sanitizes the user component, so an `X-Wordy-User` header value is always a safe
+single directory name. Case is folded by the encoding, so the custom dictionary
+is case-insensitive, consistent with the shared dictionary (WD-D6).
+
+Identity is modeled forward-compatibly: a `UserId` newtype wrapped in a
+`Principal`, resolved from the `X-Wordy-User` header and defaulting to a single
+built-in user (`"default"`) when absent — the "app reads its own claims" posture
+of a real HWC application, threaded through every store operation even though no
+real logon exists yet.

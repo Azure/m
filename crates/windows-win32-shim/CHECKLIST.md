@@ -270,7 +270,7 @@ subset (peer of `mwinweb`), never depending on this crate.
       optional **wildcard tiles**); `fst` edit-distance **suggestions** over the
       shared list. Extensive unit tests (≥10 normal + edge cases) — proves the
       business logic runs with **zero host** (the no-HWC end-goal in miniature).
-- [ ] **MW13-3** Custom-dictionary FS store: per-`{locale}/{user}` directory of
+- [x] **MW13-3** Custom-dictionary FS store: per-`{locale}/{user}` directory of
       **name-encoded empty word files**; add / exists / remove / enumerate via
       `std::fs` **namespace/metadata ops only** (no content — SHIM-D6 aligned);
       reversible, path-escape-proof word↔filename encoding (lowercase +

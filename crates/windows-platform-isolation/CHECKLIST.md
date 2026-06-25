@@ -383,10 +383,16 @@ leaf (D1/D13). Reassembly of the multi-call WinHTTP handle lifecycle into one
 HTTP only; SOAP/WWSAPI is reserved. See the design session
 `design-sessions/DESIGN-SESSION-2026-06-25-egress-surface-and-validation-tier.md`.
 
-- [ ] **M11-1** `EgressRequest` / `EgressResponse` value model + `EgressTransport`
+- [x] **M11-1** `EgressRequest` / `EgressResponse` value model + `EgressTransport`
       (`Http`; `Soap` reserved) + `EgressError` (one hand-rolled error type, D14)
       + the `EgressSurface` trait (`send(&mut, &EgressRequest) -> EgressResult<
       EgressResponse>`). Pure, `#![forbid(unsafe_code)]`; unit-tested data types.
+      *(`src/egress_error.rs` (`EgressError`/`EgressResult`) + `src/egress.rs`
+      (`Scheme`, `EgressTransport`, `EgressRequest` with `http()`/`authority()`/
+      `is_safe_verb()`/`is_mutating()`, `EgressResponse` with `new()`/`empty()`,
+      object-safe `EgressSurface`); re-exported from `lib.rs`. 12 unit tests
+      (verb classification incl. ASCII-case + ill-formed UTF-16, authority,
+      object-safe trait dispatch + error propagation). 240 tests pass.)*
 - [ ] **M11-2** Pure decorators over an in-memory inner: `RedirectingEgress<S>`
       (rule-based scheme/host/port/path rewrite, then delegate),
       `ObservingEgress<S>` (record `(verb, host, path, status)` to the D29 sink,

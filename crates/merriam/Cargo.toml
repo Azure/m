@@ -1,0 +1,14 @@
+# Copyright (c) Microsoft Corporation.
+[package]
+name = "merriam"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "A REST dictionary-store service owning a per-(locale,user) custom dictionary on disk via native async Win32 file I/O (windows-file-io), with a listener-independent dispatch core and an HTTP Server API (http.sys) inbound edge."
+
+[target.'cfg(windows)'.dependencies]
+windows-file-io = { path = "../windows-file-io" }
+windows-threadpool-executor = { path = "../windows-threadpool-executor" }
+
+[lints]
+workspace = true

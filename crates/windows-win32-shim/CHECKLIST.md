@@ -696,7 +696,7 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
       > listener. `merriam` owns its `COMPONENT.md`/`CHECKLIST.md`/`DESIGN-NOTES.md`/
       > `PLANS.md`; decisions recorded as `MER-D*`.
 
-  - [ ] **MW18-2.1** `merriam` crate scaffold + async **content** store
+  - [x] **MW18-2.1** `merriam` crate scaffold + async **content** store
         (`store.rs`): each `(locale, user)` is one on-disk word-list file
         (newline-delimited, sorted) read/written through `windows-file-io` (a
         content store, vs. `wordy`'s name-encoded empty files — this is what
@@ -704,6 +704,13 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
         with path-safe `(locale, user)` slugs, word normalization (trim + lower,
         reject empty / embedded newline), and per-key mutation serialization.
         Unit tests over a scratch dir.
+        *(`merriam` crate (`store.rs`): `Store` over `windows-file-io` — one
+        `{root}/{locale-slug}/{user-slug}.dict` newline file per pair; sync
+        `add`/`remove`/`contains`/`list` driving the async overlapped read/write
+        via thread-pool `block_on` under a per-key `Mutex` (never held across an
+        `.await`, MER-D3); `normalize_word` + path-safe `slug` (traversal-proof,
+        MER-D2); content store, not namespace (MER-D1). 14 unit tests pass; clippy
+        clean. Component docs + `MER-D1..3`.)*
   - [ ] **MW18-2.2** Dispatch core (`routes.rs`) mirroring the `wordy` custom-dict
         routes 1:1 so the MW18-3 relay maps directly: `GET /healthz`,
         `GET /custom[?pattern=]`, `GET /custom/{word}`, `POST /custom/{word}`,

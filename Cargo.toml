@@ -12,6 +12,7 @@ members = ["crates/windows-platform-isolation",
   "crates/wordy",
   "crates/talky",
   "crates/squeaky",
+  "crates/merriam",
 ]
 exclude = ["m"]
 

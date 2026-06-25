@@ -303,3 +303,92 @@ fn hwc_genuine_http_dispatch_end_to_end() {
         "spellcheck JSON body.\n{combined}"
     );
 }
+
+/// Async end-to-end at integration scale (MW14-5): drive many concurrent
+/// requests across every route through the real OS thread pool — the same pool
+/// the IIS async boundary offloads to — and assert each response is correct, that
+/// the work ran off the host thread, and that every work item completed cleanly.
+#[cfg(windows)]
+#[test]
+fn async_routes_run_concurrently_off_the_host_thread() {
+    use std::collections::HashSet;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    let tmp = TempDir::new();
+    let svc = Arc::new(service(&tmp));
+    let host_thread = std::thread::current().id();
+    let worker_threads = Arc::new(Mutex::new(HashSet::new()));
+    let correct = Arc::new(AtomicUsize::new(0));
+
+    const N: usize = 240;
+    let mut works = Vec::with_capacity(N);
+    for i in 0..N {
+        let svc = Arc::clone(&svc);
+        let worker_threads = Arc::clone(&worker_threads);
+        let correct = Arc::clone(&correct);
+        let work = windows_threadpool::submit_once(move || {
+            worker_threads
+                .lock()
+                .unwrap()
+                .insert(std::thread::current().id());
+            // Spread requests across every route; custom adds use a unique word
+            // per item for a shared user (exercising the serialized mutations).
+            let (method, url, body, user, expect): (&str, String, &str, Option<&str>, &str) =
+                match i % 5 {
+                    0 => ("GET", "/healthz".into(), "", None, "\"status\""),
+                    1 => (
+                        "POST",
+                        "/spellcheck".into(),
+                        r#"{"words":["hello","helo"]}"#,
+                        None,
+                        "\"correct\"",
+                    ),
+                    2 => (
+                        "POST",
+                        "/anagram".into(),
+                        r#"{"template":"c.t","tray":"a","wildcards":0}"#,
+                        None,
+                        "cat",
+                    ),
+                    3 => ("GET", "/shared?pattern=c.t".into(), "", None, "cat"),
+                    _ => (
+                        "POST",
+                        format!("/custom/w{i}"),
+                        "",
+                        Some("scale"),
+                        "\"added\":true",
+                    ),
+                };
+            let request = req(method, &url, body, user);
+            let ok = match svc.dispatch(&request) {
+                Outcome::Respond(resp) => resp.status == STATUS_OK && resp.body.contains(expect),
+                Outcome::Continue => false,
+            };
+            if ok {
+                correct.fetch_add(1, Ordering::Relaxed);
+            }
+        })
+        .expect("submit work to the thread pool");
+        works.push(work);
+    }
+    // Clean completion: join every work item.
+    for work in works {
+        work.wait();
+    }
+
+    assert_eq!(
+        correct.load(Ordering::Relaxed),
+        N,
+        "every concurrent request produced the correct response"
+    );
+    let worker_threads = worker_threads.lock().unwrap();
+    assert!(
+        !worker_threads.contains(&host_thread),
+        "work ran off the host thread"
+    );
+    assert!(
+        !worker_threads.is_empty(),
+        "at least one pool thread recorded work"
+    );
+}

@@ -30,5 +30,10 @@ windows-sys = { version = "0.59", features = [
 # (MW14): `OnBeginRequest` suspends the request and a pool work item resumes it.
 windows-threadpool = { path = "../windows-threadpool" }
 
+[target.'cfg(windows)'.dev-dependencies]
+# The async pool boundary's concurrency is proven at integration scale (MW14-5)
+# by driving the OS thread pool directly against the shared service.
+windows-threadpool = { path = "../windows-threadpool" }
+
 [lints]
 workspace = true

@@ -384,10 +384,14 @@ second seam" milestone.
       concurrent-create `ACCESS_DENIED` race that retrying did not reliably clear,
       so custom-store mutations are now serialized by a per-store `Arc<Mutex<()>>`
       (reads stay lock-free). Pool-boundary safety per WD-D12. See WD-D12.)*
-- [ ] **MW14-5** *(integration)* Async end-to-end: many concurrent requests across
+- [x] **MW14-5** *(integration)* Async end-to-end: many concurrent requests across
       routes; assert correctness, that work ran off the host thread (observation
       marker), and clean completion. (`windows-threadpool-executor` async/await
       variant noted as a follow-on, not required here.)
+      *(Drives 240 concurrent requests across every route through the real OS
+      thread pool — the same pool the IIS async boundary offloads to — asserting
+      each response is correct, that no work ran on the host thread (thread-id
+      observation), and that every work item joined cleanly.)*
 
 ## MW15 — Isolation proof: force the redirection open — OUTLINE (detail when scheduled; isolation deferred)
 

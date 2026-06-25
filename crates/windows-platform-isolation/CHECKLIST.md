@@ -393,11 +393,18 @@ HTTP only; SOAP/WWSAPI is reserved. See the design session
       object-safe `EgressSurface`); re-exported from `lib.rs`. 12 unit tests
       (verb classification incl. ASCII-case + ill-formed UTF-16, authority,
       object-safe trait dispatch + error propagation). 240 tests pass.)*
-- [ ] **M11-2** Pure decorators over an in-memory inner: `RedirectingEgress<S>`
+- [x] **M11-2** Pure decorators over an in-memory inner: `RedirectingEgress<S>`
       (rule-based scheme/host/port/path rewrite, then delegate),
       `ObservingEgress<S>` (record `(verb, host, path, status)` to the D29 sink,
       PII-first per D28, then forward), `BlockingEgress` (deny with a synthetic
       error). Unit-tested.
+      *(`src/egress_decorator.rs`: `RedirectRule` (authority match incl. any-port +
+      ASCII-case + ill-formed-host guard; scheme/host/port rewrite, path preserved)
+      + `RedirectingEgress<S>` (first-match-wins, non-match passthrough);
+      `EgressObservation`/`EgressOutcome`/`EgressObserver` (PII-first: verb +
+      authority + path + status/error only, no headers/body) + `ObservingEgress<S,O>`
+      (forwards unchanged); `BlockingEgress`. 10 unit tests incl. a compose test
+      (observe sees original target, inner sees redirected). 250 tests pass.)*
 - [ ] **M11-3** `BufferedEgress<S>` — capture mutating requests (non-idempotent
       verbs) in an in-memory journal and return a synthetic ack; idempotent reads
       optionally read through to the inner. `journal()` / `commit()` / `rollback()`

@@ -21,6 +21,7 @@
 
 pub mod decorator;
 pub mod egress;
+pub mod egress_decorator;
 pub mod egress_error;
 pub mod error;
 pub mod file_path;
@@ -42,6 +43,10 @@ pub mod web;
 
 pub use decorator::{Buffered, PassThrough};
 pub use egress::{EgressRequest, EgressResponse, EgressSurface, EgressTransport, Scheme};
+pub use egress_decorator::{
+    BlockingEgress, EgressObservation, EgressObserver, EgressOutcome, ObservingEgress,
+    RedirectRule, RedirectingEgress,
+};
 pub use egress_error::{EgressError, EgressResult};
 pub use error::{RegistryError, Result};
 pub use file_path::{FilePath, FileRoot, FileRootKind, PathSurface};

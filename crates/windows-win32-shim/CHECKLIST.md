@@ -686,6 +686,36 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
       `wordy::routes::Service`) and an inbound edge over the **HTTP Server API
       (http.sys)** (async receives + thread-pool dispatch). Its own checklist/notes;
       core unit tests + a gated listener integration test (urlacl preflight reused).
+
+      > **Re-plan (2026-06-25, execution-driven):** MW18-2 is three independently
+      > testable units in strict dependency order — the on-disk store (consumes
+      > `windows-file-io`, no HTTP), the dispatch core (consumes the store, no
+      > listener), and the http.sys listener edge (large `unsafe` inbound + a server
+      > bin + a gated integration test). Splitting keeps each commit tractable and
+      > each unit independently verified; the store/core land runnable before the
+      > listener. `merriam` owns its `COMPONENT.md`/`CHECKLIST.md`/`DESIGN-NOTES.md`/
+      > `PLANS.md`; decisions recorded as `MER-D*`.
+
+  - [ ] **MW18-2.1** `merriam` crate scaffold + async **content** store
+        (`store.rs`): each `(locale, user)` is one on-disk word-list file
+        (newline-delimited, sorted) read/written through `windows-file-io` (a
+        content store, vs. `wordy`'s name-encoded empty files — this is what
+        exercises the async overlapped path); `add`/`remove`/`contains`/`list`
+        with path-safe `(locale, user)` slugs, word normalization (trim + lower,
+        reject empty / embedded newline), and per-key mutation serialization.
+        Unit tests over a scratch dir.
+  - [ ] **MW18-2.2** Dispatch core (`routes.rs`) mirroring the `wordy` custom-dict
+        routes 1:1 so the MW18-3 relay maps directly: `GET /healthz`,
+        `GET /custom[?pattern=]`, `GET /custom/{word}`, `POST /custom/{word}`,
+        `DELETE /custom/{word}` (`X-Wordy-User` header → principal, optional
+        locale). Host-agnostic `HttpRequest`/`HttpResponse`/`Outcome`; JSON bodies
+        identical to `wordy`'s. Unit tests for every route off any listener.
+  - [ ] **MW18-2.3** http.sys listener edge (`#[allow(unsafe_code)]` boundary
+        module): HTTP Server API inbound (`HttpInitialize` /
+        `HttpCreateRequestQueue` / url-group + `HttpAddUrlToUrlGroup` /
+        `HttpReceiveHttpRequest` loop → thread-pool dispatch → `HttpSendHttpResponse`),
+        a `merriam` server bin, and a **gated** listener integration test
+        (urlacl/bind preflight; skips when unbindable). Record `MER-D*` closure.
 - [ ] **MW18-3** Gut `wordy`: remove the local filesystem custom store
       (`custom.rs`); replace the custom-dict ops (add/remove/contains/list) with a
       **WinHTTP client** that relays to `merriam` (configurable base URL); keep the

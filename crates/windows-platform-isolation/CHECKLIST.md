@@ -405,11 +405,17 @@ HTTP only; SOAP/WWSAPI is reserved. See the design session
       authority + path + status/error only, no headers/body) + `ObservingEgress<S,O>`
       (forwards unchanged); `BlockingEgress`. 10 unit tests incl. a compose test
       (observe sees original target, inner sees redirected). 250 tests pass.)*
-- [ ] **M11-3** `BufferedEgress<S>` — capture mutating requests (non-idempotent
+- [x] **M11-3** `BufferedEgress<S>` — capture mutating requests (non-idempotent
       verbs) in an in-memory journal and return a synthetic ack; idempotent reads
       optionally read through to the inner. `journal()` / `commit()` / `rollback()`
       mirror the registry/`FsBuffered` write-buffer (D30). Unit-tested (mutations
       captured; inner untouched; read-your-writes where configured).
+      *(`BufferedEgress<S>` in `src/egress_decorator.rs`: mutating verbs captured
+      in the journal + synthetic `202` ack (inner never contacted); safe verbs
+      fall through to the inner, so composition controls reads —
+      `BufferedEgress<BlockingEgress>` is a fully offline buffer.
+      `journal()`/`is_dirty()`/`commit()` (replay in order, preserve journal on
+      inner error)/`rollback()`/`with_ack_status()`. 7 unit tests. 257 tests pass.)*
 - [ ] **M11-4** `ReplayEgress<S>` — serve canned `EgressResponse`s from a preloaded
       fixture set keyed by `(verb, path[, query])` (the "system state pre-loaded"
       mode, D15 ingress); miss policy = block or read-through. Fixtures load from an

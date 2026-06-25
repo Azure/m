@@ -220,6 +220,93 @@ impl EgressSurface for BlockingEgress {
     }
 }
 
+// ------------------------------------------------------------------ Buffer
+
+/// The default synthetic status returned for a buffered (captured-but-not-sent)
+/// mutation: `202 Accepted`.
+const DEFAULT_ACK_STATUS: u32 = 202;
+
+/// A write-buffering decorator (D30 peer): **mutating** requests (non-safe
+/// verbs) are captured in an in-memory journal and answered with a synthetic
+/// ack — the inner surface (and thus the destination) is **never** contacted
+/// for them until [`commit`](BufferedEgress::commit). **Safe** requests
+/// (`GET`/`HEAD`/`OPTIONS`/`TRACE`) fall through to the inner surface, so the
+/// inner choice controls read behavior: `BufferedEgress<LiveEgress>` buffers
+/// writes while reads hit the live network, whereas `BufferedEgress<BlockingEgress>`
+/// buffers writes and denies reads (a fully offline "memory buffered" service).
+///
+/// The journal *is* the request verb stream (D4): `commit` replays the captured
+/// mutations onto the inner surface in order; `rollback` discards them.
+pub struct BufferedEgress<S: EgressSurface> {
+    inner: S,
+    journal: Vec<EgressRequest>,
+    ack_status: u32,
+}
+
+impl<S: EgressSurface> BufferedEgress<S> {
+    /// Wrap an inner surface, acking buffered mutations with `202 Accepted`.
+    pub fn new(inner: S) -> Self {
+        Self { inner, journal: Vec::new(), ack_status: DEFAULT_ACK_STATUS }
+    }
+
+    /// Builder: use `status` as the synthetic ack for buffered mutations.
+    #[must_use]
+    pub fn with_ack_status(mut self, status: u32) -> Self {
+        self.ack_status = status;
+        self
+    }
+
+    /// The captured (not-yet-committed) mutating requests, in order.
+    #[must_use]
+    pub fn journal(&self) -> &[EgressRequest] {
+        &self.journal
+    }
+
+    /// Whether any mutation is buffered and uncommitted.
+    #[must_use]
+    pub fn is_dirty(&self) -> bool {
+        !self.journal.is_empty()
+    }
+
+    /// Replay every buffered mutation onto the inner surface in order, clearing
+    /// the journal. Stops at and returns the first inner error (the remaining
+    /// journal is left intact for inspection / retry).
+    pub fn commit(&mut self) -> EgressResult<()> {
+        let pending = core::mem::take(&mut self.journal);
+        let mut remaining = pending.into_iter();
+        for req in remaining.by_ref() {
+            if let Err(e) = self.inner.send(&req) {
+                // Put back the failing request and the rest, then report.
+                self.journal.push(req);
+                self.journal.extend(remaining);
+                return Err(e);
+            }
+        }
+        Ok(())
+    }
+
+    /// Discard the buffered mutations without touching the inner surface.
+    pub fn rollback(&mut self) {
+        self.journal.clear();
+    }
+
+    /// Recover the inner surface (dropping any uncommitted journal).
+    pub fn into_inner(self) -> S {
+        self.inner
+    }
+}
+
+impl<S: EgressSurface> EgressSurface for BufferedEgress<S> {
+    fn send(&mut self, req: &EgressRequest) -> EgressResult<EgressResponse> {
+        if req.is_mutating() {
+            self.journal.push(req.clone());
+            Ok(EgressResponse::empty(self.ack_status))
+        } else {
+            self.inner.send(req)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,5 +484,79 @@ mod tests {
         let seen = &redirect.into_inner().seen[0];
         assert_eq!(seen.host.to_utf8().unwrap(), "127.0.0.1");
         assert_eq!(seen.port, 18019);
+    }
+
+    #[test]
+    fn buffered_mutation_is_captured_not_sent() {
+        let mut surface = BufferedEgress::new(RecordingSurface::new(200));
+        let resp = surface.send(&req("h", 80, "POST", "/w")).unwrap();
+        assert_eq!(resp.status, 202); // synthetic ack
+        assert!(resp.body.is_empty());
+        assert!(surface.is_dirty());
+        assert_eq!(surface.journal().len(), 1);
+        assert_eq!(surface.journal()[0].verb.to_utf8().unwrap(), "POST");
+        // The inner surface was never contacted.
+        assert!(surface.into_inner().seen.is_empty());
+    }
+
+    #[test]
+    fn buffered_read_falls_through_to_inner() {
+        let mut surface = BufferedEgress::new(RecordingSurface::new(200));
+        let resp = surface.send(&req("h", 80, "GET", "/r")).unwrap();
+        assert_eq!(resp.status, 200); // inner's response
+        assert!(!surface.is_dirty()); // reads are not buffered
+        assert_eq!(surface.into_inner().seen.len(), 1);
+    }
+
+    #[test]
+    fn buffered_read_over_block_denies() {
+        // BufferedEgress<BlockingEgress>: writes buffered, reads denied — a fully
+        // offline "memory buffered" service.
+        let mut surface = BufferedEgress::new(BlockingEgress);
+        assert!(surface.send(&req("h", 80, "POST", "/w")).is_ok()); // buffered ack
+        assert_eq!(surface.send(&req("h", 80, "GET", "/r")), Err(EgressError::Blocked));
+        assert_eq!(surface.journal().len(), 1);
+    }
+
+    #[test]
+    fn commit_replays_mutations_onto_inner_in_order() {
+        let mut surface = BufferedEgress::new(RecordingSurface::new(200));
+        surface.send(&req("h", 80, "POST", "/a")).unwrap();
+        surface.send(&req("h", 80, "DELETE", "/b")).unwrap();
+        assert_eq!(surface.journal().len(), 2);
+        surface.commit().expect("commit");
+        assert!(!surface.is_dirty());
+        let seen = &surface.into_inner().seen;
+        assert_eq!(seen.len(), 2);
+        assert_eq!(seen[0].path.to_utf8().unwrap(), "/a");
+        assert_eq!(seen[1].path.to_utf8().unwrap(), "/b");
+    }
+
+    #[test]
+    fn rollback_discards_without_touching_inner() {
+        let mut surface = BufferedEgress::new(RecordingSurface::new(200));
+        surface.send(&req("h", 80, "POST", "/a")).unwrap();
+        surface.rollback();
+        assert!(!surface.is_dirty());
+        assert!(surface.into_inner().seen.is_empty());
+    }
+
+    #[test]
+    fn ack_status_is_configurable() {
+        let mut surface = BufferedEgress::new(RecordingSurface::new(200)).with_ack_status(200);
+        let resp = surface.send(&req("h", 80, "PUT", "/x")).unwrap();
+        assert_eq!(resp.status, 200);
+    }
+
+    #[test]
+    fn commit_propagates_inner_error_and_preserves_journal() {
+        // FailingSurface errors on every send, so commit fails replaying the first
+        // mutation and the journal is preserved for inspection/retry.
+        let mut surface = BufferedEgress::new(FailingSurface);
+        surface.send(&req("h", 80, "POST", "/a")).unwrap();
+        surface.send(&req("h", 80, "POST", "/b")).unwrap();
+        assert_eq!(surface.commit(), Err(EgressError::Os(12029)));
+        assert_eq!(surface.journal().len(), 2); // both preserved
+        assert!(surface.is_dirty());
     }
 }

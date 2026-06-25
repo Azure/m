@@ -44,8 +44,8 @@ pub mod web;
 pub use decorator::{Buffered, PassThrough};
 pub use egress::{EgressRequest, EgressResponse, EgressSurface, EgressTransport, Scheme};
 pub use egress_decorator::{
-    BlockingEgress, EgressObservation, EgressObserver, EgressOutcome, ObservingEgress,
-    RedirectRule, RedirectingEgress,
+    BlockingEgress, BufferedEgress, EgressObservation, EgressObserver, EgressOutcome,
+    ObservingEgress, RedirectRule, RedirectingEgress,
 };
 pub use egress_error::{EgressError, EgressResult};
 pub use error::{RegistryError, Result};

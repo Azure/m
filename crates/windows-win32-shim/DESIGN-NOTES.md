@@ -772,3 +772,41 @@ the C++ binary happens to output." Two consequences:
   emit a snapshot) is a future swap-in, not a blocker — exactly as the
   platform-isolation golden artifacts already note. The on-disk schema is the
   contract; the producer is interchangeable.
+
+
+## SHIM-D21 — Deployment model: link inputs + a sidecar, co-located beside the host
+
+Isolating an unmodified application with this shim is a **packaging** act performed
+from the outside; the application's source and build are never edited (SHIM-D19).
+The deployment unit, proven end to end by `linkproof/` (synthetic C++ client) and
+`hwcproof/` (genuine HWC + `wordy`), is four co-located artifacts:
+
+1. **`windows_win32_shim.dll`** — the shim cdylib (the `m`-prefixed exports).
+2. **`windows_win32_shim.dll.lib`** — its import library, a *build-time* input.
+3. **The alias object** — emitted by `gen-alias-obj` from the checked-in
+   `windows_win32_shim_aliases.ndjson` (SHIM-D4); a *build-time* input that rewrites
+   the application's `__imp_*` IAT slots to the shim's `m*` exports.
+4. **`<host-executable>.pilcfg`** — the runtime sidecar (SHIM-D5/D13), read via
+   `current_exe` (so it is keyed to the **host process**, not the module — see
+   MW15's "isolate the module, not the host" decision).
+
+The two build-time inputs (2, 3) are injected into the application's link **without
+touching its sources** through generic, env-driven `build.rs` glue — `wordy`'s
+`WORDY_EXTRA_LINK_{SEARCH,OBJ}` is the reference pattern — scoped to the loadable
+**cdylib** so a host binary stays ordinary. At runtime the loader resolves the
+shim DLL from the host's directory (where all four artifacts are co-located), and
+the shim composes its isolation stack from the sidecar.
+
+**Explicitly out of scope for now** (recorded so the absence is intentional, not an
+oversight; none is queued as work):
+
+- **A productized SDK packaging story** — a NuGet/MSI/redist layout, a versioned
+  import-lib + headers bundle, and a supported `build.rs`/MSBuild integration story
+  for third parties. Today the injection is demonstrated by the in-repo proofs; a
+  shippable SDK is a separate effort gated on an actual consumer.
+- **A literally-C++-binary-captured `persisted_state` artifact** (SHIM-D20): the
+  golden artifact is the shared on-disk contract; capturing one from the C++ build
+  is deferred.
+- **Filesystem persisted-state through the shim** (SHIM-D13): there is no C++
+  filesystem artifact to be parity with, and the shim has no `FilesystemBacking::
+  Persisted`; the filesystem is isolated via `buffer_updates`.

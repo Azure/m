@@ -146,7 +146,7 @@ test. Sub-steps use decimal notation.
       mirrored placeholder enumerates empty, `[Alpha, beta, Beta2, Mir, Zeta, _under]`
       ordinal order, source artifact read-only — and write-isolation. Decision
       recorded in SHIM-D20.)*
-- [ ] **MW7-2** Packaging / SDK considerations — **documented**. A concise SHIM
+- [x] **MW7-2** Packaging / SDK considerations — **documented**. A concise SHIM
       design note capturing the deployment model the link/HWC proofs already embody
       (the alias `.obj` + the `windows_win32_shim.dll.lib` import library +
       `windows_win32_shim.dll` + a `<host>.pilcfg`, co-located beside the host;
@@ -155,6 +155,9 @@ test. Sub-steps use decimal notation.
       literally-C++-binary-captured artifact, and filesystem persisted-state through
       the shim — as explicitly **out of scope for now** with rationale. Doc-only; no
       code.
+      *(Recorded in SHIM-D21: the four co-located deployment artifacts (shim DLL +
+      import lib + alias object + `<host>.pilcfg`), cdylib-scoped build-time
+      injection, and the three out-of-scope items each with rationale.)*
 - [ ] **MW7-3** *(integration)* Full end-to-end single-`.pilcfg` scenario: one config
       carrying **both** `persisted_state` (a C++-dialect registry snapshot) **and**
       `buffer_updates` drives the registry **and** filesystem through one

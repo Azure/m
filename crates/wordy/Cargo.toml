@@ -16,6 +16,9 @@ crate-type = ["cdylib", "rlib"]
 # awareness (windows-win32-shim SHIM-D19).
 fst = { version = "0.4", features = ["levenshtein"] }
 regex = "1"
+# JSON request/response models for the REST surface (MW13-4).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

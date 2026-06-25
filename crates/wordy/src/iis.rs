@@ -14,19 +14,26 @@
 //! Flow: IIS loads `wordy.dll` and calls its exported [`RegisterModule`], which
 //! installs a module factory for the begin-request and send-response
 //! notifications. For each request the factory vends a [`WordyHttpModule`] whose
-//! `OnBeginRequest` decodes the method + URL, asks the safe
-//! [`crate::routes`] dispatcher for an outcome, and realizes it against the host
-//! response.
+//! `OnBeginRequest` decodes the method, URL, body, and `X-Wordy-User` header
+//! into a [`crate::routes::HttpRequest`], asks the process-wide
+//! [`Service`](crate::routes::Service) to dispatch it, and realizes the
+//! resulting [`Outcome`](crate::routes::Outcome) against the host response —
+//! clearing it, setting the status, writing the `Content-Type`, and writing the
+//! JSON body (MW13-4).
 //!
 //! All `unsafe` is confined to this boundary; every block carries a `SAFETY`
 //! note. The crate root denies `unsafe_code` and opts this module in explicitly.
 
 use core::ffi::c_void;
+use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use windows_sys::Win32::Foundation::{E_POINTER, S_OK};
 use windows_sys::core::{GUID, HRESULT};
 
-use crate::routes::{self, Outcome};
+use crate::custom::CustomDictionary;
+use crate::routes::{self, Outcome, Service};
+use crate::words::Locale;
 
 // --- Notification status codes and flags (IIS `httpserv.h`) ----------------
 //
@@ -41,6 +48,10 @@ const RQ_NOTIFICATION_FINISH_REQUEST: i32 = 2;
 const RQ_BEGIN_REQUEST: u32 = 0x0000_0001;
 /// `RQ_SEND_RESPONSE`: the send-response notification.
 const RQ_SEND_RESPONSE: u32 = 0x0000_0020;
+
+/// The environment variable that overrides where the custom-dictionary store is
+/// rooted; absent, a per-process directory under the OS temp dir is used.
+const CUSTOM_ROOT_ENV: &str = "WORDY_CUSTOM_ROOT";
 
 // --- Modeled vtables -------------------------------------------------------
 
@@ -83,21 +94,41 @@ struct IHttpContextVtbl {
 }
 
 /// Modeled subset of `IHttpRequest`'s vtable.
+///
+/// The body- and header-read methods are modeled simplifications of the genuine
+/// `ReadEntityBody` / `GetHeader` surface; the precise layouts are pinned when a
+/// real host is bound (MW13-5).
 #[repr(C)]
 struct IHttpRequestVtbl {
     /// `GetHttpMethod` returns an ASCII `PCSTR`.
     get_http_method: unsafe extern "system" fn(*mut c_void) -> *const u8,
     /// `GetHttpUrl` returns a UTF-16 `PCWSTR`.
     get_http_url: unsafe extern "system" fn(*mut c_void) -> *const u16,
+    /// Modeled header read: given a NUL-terminated `PCSTR` name, returns the
+    /// header value as a `PCSTR`, or null if the header is absent.
+    get_header: unsafe extern "system" fn(*mut c_void, *const u8) -> *const u8,
+    /// Modeled entity-body read: returns a pointer to the request body bytes and
+    /// writes their length through `out_len` (null / zero when there is no body).
+    get_entity_body: unsafe extern "system" fn(*mut c_void, *mut u32) -> *const u8,
 }
 
 /// Modeled subset of `IHttpResponse`'s vtable.
+///
+/// `set_header` and `write_body` are modeled simplifications of the genuine
+/// `SetHeader` / `WriteEntityChunks` surface; the precise layouts are pinned
+/// when a real host is bound (MW13-5).
 #[repr(C)]
 struct IHttpResponseVtbl {
+    /// `Clear()` — discard any buffered response state.
+    clear: unsafe extern "system" fn(*mut c_void) -> HRESULT,
     /// `SetStatus(USHORT, PCSTR reason)` — the status and reason-phrase write.
     /// The genuine method takes additional optional parameters; the modeled
     /// subset carries only the two `wordy` sets.
     set_status: unsafe extern "system" fn(*mut c_void, u16, *const u8) -> HRESULT,
+    /// Modeled header write: a NUL-terminated `PCSTR` name and value.
+    set_header: unsafe extern "system" fn(*mut c_void, *const u8, *const u8) -> HRESULT,
+    /// Modeled body write: a pointer to `len` bytes appended to the response.
+    write_body: unsafe extern "system" fn(*mut c_void, *const u8, u32) -> HRESULT,
 }
 
 // --- `wordy`'s module objects ----------------------------------------------
@@ -109,12 +140,22 @@ struct WordyModuleFactory {
     vtable: *const IHttpModuleFactoryVtbl,
 }
 
-/// A `wordy` per-request module. Stateless for the health surface; later
-/// milestones attach the dictionary stores here.
+/// A `wordy` per-request module. The dictionary state lives in the process-wide
+/// [`SERVICE`]; the module itself is stateless.
 #[repr(C)]
 struct WordyHttpModule {
     vtable: *const CHttpModuleVtbl,
 }
+
+/// The process-wide service: the shared dictionary plus a per-user custom
+/// dictionary rooted under [`CUSTOM_ROOT_ENV`] (default: a per-process directory
+/// under the OS temp dir). Built once on first request.
+static SERVICE: LazyLock<Service> = LazyLock::new(|| {
+    let root = std::env::var_os(CUSTOM_ROOT_ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("wordy-custom"));
+    Service::new(CustomDictionary::new(root), Locale::EnUs)
+});
 
 /// The single shared factory vtable every [`WordyModuleFactory`] points at.
 static WORDY_MODULE_FACTORY_VTBL: IHttpModuleFactoryVtbl = IHttpModuleFactoryVtbl {
@@ -180,24 +221,25 @@ fn pcwstr_to_string(p: *const u16) -> String {
     String::from_utf16_lossy(units)
 }
 
-/// Decode the request method and URL from the host context.
+/// Decode the request method, URL, body, and `X-Wordy-User` header from the host
+/// context into an [`HttpRequest`](routes::HttpRequest).
 ///
-/// Tolerates a null context or any null interface pointer by yielding empty
-/// strings (the dispatcher then declines the request).
+/// Tolerates a null context or any null interface pointer by yielding a default
+/// (empty) request, which the dispatcher then declines.
 ///
 /// # Safety
 /// `context`, when non-null, must point at a live `IHttpContext` whose modeled
 /// request vtable is valid for the duration of the call.
-unsafe fn decode_request(context: *mut c_void) -> (String, String) {
+unsafe fn decode_request(context: *mut c_void) -> routes::HttpRequest {
     if context.is_null() {
-        return (String::new(), String::new());
+        return routes::HttpRequest::default();
     }
     // SAFETY: context is a live IHttpContext; read its vtable pointer.
     let ctx_vtbl = unsafe { *context.cast::<*const IHttpContextVtbl>() };
     // SAFETY: ctx_vtbl is the host context vtable; fetch the request interface.
     let request = unsafe { ((*ctx_vtbl).get_request)(context) };
     if request.is_null() {
-        return (String::new(), String::new());
+        return routes::HttpRequest::default();
     }
     // SAFETY: request is a live IHttpRequest; read its vtable pointer.
     let req_vtbl = unsafe { *request.cast::<*const IHttpRequestVtbl>() };
@@ -205,36 +247,99 @@ unsafe fn decode_request(context: *mut c_void) -> (String, String) {
     let method = unsafe { pcstr_to_string(((*req_vtbl).get_http_method)(request)) };
     // SAFETY: as above.
     let url = unsafe { pcwstr_to_string(((*req_vtbl).get_http_url)(request)) };
-    (method, url)
+    // SAFETY: as above; read the (possibly empty) entity body.
+    let body = unsafe { read_entity_body(req_vtbl, request) };
+    // SAFETY: as above; read the optional X-Wordy-User header.
+    let user = unsafe { read_user_header(req_vtbl, request) };
+    routes::HttpRequest {
+        method,
+        url,
+        body,
+        user,
+    }
 }
 
-/// Write a status + reason to the host response.
+/// Read the request entity body as a UTF-8 (lossy) string.
+///
+/// # Safety
+/// `req_vtbl` must be `request`'s live modeled request vtable.
+unsafe fn read_entity_body(req_vtbl: *const IHttpRequestVtbl, request: *mut c_void) -> String {
+    let mut len: u32 = 0;
+    // SAFETY: get_entity_body writes the length through `len` and returns a
+    // pointer to that many bytes (or null when there is no body).
+    let ptr = unsafe { ((*req_vtbl).get_entity_body)(request, &mut len) };
+    if ptr.is_null() || len == 0 {
+        return String::new();
+    }
+    // SAFETY: ptr points at `len` initialized bytes for the duration of the call.
+    let bytes = unsafe { core::slice::from_raw_parts(ptr, len as usize) };
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// Read the `X-Wordy-User` header, if present.
+///
+/// # Safety
+/// `req_vtbl` must be `request`'s live modeled request vtable.
+unsafe fn read_user_header(
+    req_vtbl: *const IHttpRequestVtbl,
+    request: *mut c_void,
+) -> Option<String> {
+    let name = b"X-Wordy-User\0";
+    // SAFETY: name is a NUL-terminated PCSTR; get_header returns a PCSTR value or
+    // null if the header is absent.
+    let value = unsafe { ((*req_vtbl).get_header)(request, name.as_ptr()) };
+    if value.is_null() {
+        None
+    } else {
+        Some(pcstr_to_string(value))
+    }
+}
+
+/// Realize an [`HttpResponse`](routes::HttpResponse) against the host response:
+/// clear, set status, set `Content-Type`, write the body.
 ///
 /// Tolerates a null context or response by doing nothing.
 ///
 /// # Safety
 /// `context`, when non-null, must point at a live `IHttpContext` whose modeled
 /// response vtable is valid for the duration of the call.
-unsafe fn write_status(context: *mut c_void, status: u16, reason: &str) {
+unsafe fn write_response(context: *mut c_void, response: &routes::HttpResponse) {
     if context.is_null() {
         return;
     }
     // SAFETY: context is a live IHttpContext; read its vtable pointer.
     let ctx_vtbl = unsafe { *context.cast::<*const IHttpContextVtbl>() };
     // SAFETY: ctx_vtbl is the host context vtable; fetch the response interface.
-    let response = unsafe { ((*ctx_vtbl).get_response)(context) };
-    if response.is_null() {
+    let resp = unsafe { ((*ctx_vtbl).get_response)(context) };
+    if resp.is_null() {
         return;
     }
-    // SAFETY: response is a live IHttpResponse; read its vtable pointer.
-    let resp_vtbl = unsafe { *response.cast::<*const IHttpResponseVtbl>() };
-    // The host expects a NUL-terminated reason phrase; build one that outlives
-    // the call.
-    let mut reason_c: Vec<u8> = reason.as_bytes().to_vec();
+    // SAFETY: resp is a live IHttpResponse; read its vtable pointer.
+    let resp_vtbl = unsafe { *resp.cast::<*const IHttpResponseVtbl>() };
+
+    // SAFETY: clear any buffered response state before writing ours.
+    unsafe { ((*resp_vtbl).clear)(resp) };
+
+    // The host expects NUL-terminated C strings for the reason phrase and header
+    // values; build buffers that outlive each call.
+    let mut reason_c: Vec<u8> = response.reason.as_bytes().to_vec();
     reason_c.push(0);
     // SAFETY: resp_vtbl is the host response vtable; reason_c is a valid
     // NUL-terminated C string alive for the duration of the call.
-    unsafe { ((*resp_vtbl).set_status)(response, status, reason_c.as_ptr()) };
+    unsafe { ((*resp_vtbl).set_status)(resp, response.status, reason_c.as_ptr()) };
+
+    let header_name = b"Content-Type\0";
+    let mut header_value: Vec<u8> = response.content_type.as_bytes().to_vec();
+    header_value.push(0);
+    // SAFETY: header_name and header_value are NUL-terminated C strings alive for
+    // the duration of the call.
+    unsafe { ((*resp_vtbl).set_header)(resp, header_name.as_ptr(), header_value.as_ptr()) };
+
+    let body = response.body.as_bytes();
+    if !body.is_empty() {
+        // SAFETY: body points at body.len() initialized bytes alive for the call.
+        unsafe { ((*resp_vtbl).write_body)(resp, body.as_ptr(), body.len() as u32) };
+    }
 }
 
 // --- Module / factory entry points -----------------------------------------
@@ -272,19 +377,19 @@ unsafe extern "system" fn module_on_begin_request(
     _provider: *mut c_void,
 ) -> i32 {
     // SAFETY: context is the host request context (tolerates null).
-    let (method, url) = unsafe { decode_request(context) };
-    match routes::dispatch(&method, &url) {
-        Outcome::Respond { status, reason } => {
+    let request = unsafe { decode_request(context) };
+    match SERVICE.dispatch(&request) {
+        Outcome::Respond(response) => {
             // SAFETY: context is the host request context (tolerates null).
-            unsafe { write_status(context, status, reason) };
+            unsafe { write_response(context, &response) };
             RQ_NOTIFICATION_FINISH_REQUEST
         }
         Outcome::Continue => RQ_NOTIFICATION_CONTINUE,
     }
 }
 
-/// `CHttpModule::OnSendResponse`: `wordy` does not post-process responses on the
-/// health surface; pass through.
+/// `CHttpModule::OnSendResponse`: `wordy` does not post-process responses; pass
+/// through.
 unsafe extern "system" fn module_on_send_response(
     _this: *mut c_void,
     _context: *mut c_void,
@@ -406,20 +511,27 @@ mod tests {
         set_priority_for_global_notification: fake_set_pri_glob,
     };
 
-    /// An emulated `IHttpRequest` carrying a method and URL.
+    /// An emulated `IHttpRequest` carrying a method, URL, body, and optional
+    /// `X-Wordy-User` header.
     #[repr(C)]
     struct FakeRequest {
         vtable: *const IHttpRequestVtbl,
         method: *const u8,
         url: *const u16,
+        body: *const u8,
+        body_len: u32,
+        user: *const u8,
     }
 
-    /// An emulated `IHttpResponse` capturing the last `SetStatus` call.
+    /// An emulated `IHttpResponse` capturing the realized response.
     #[repr(C)]
     struct FakeResponse {
         vtable: *const IHttpResponseVtbl,
+        cleared: bool,
         captured_status: u16,
         captured_reason: *const u8,
+        captured_content_type: Vec<u8>,
+        captured_body: Vec<u8>,
     }
 
     /// An emulated `IHttpContext` vending a request and response.
@@ -446,6 +558,27 @@ mod tests {
         // SAFETY: this is a live FakeRequest.
         unsafe { (*this.cast::<FakeRequest>()).url }
     }
+    unsafe extern "system" fn fake_get_header(this: *mut c_void, _name: *const u8) -> *const u8 {
+        // The emulated host only carries the one header `wordy` reads.
+        // SAFETY: this is a live FakeRequest.
+        unsafe { (*this.cast::<FakeRequest>()).user }
+    }
+    unsafe extern "system" fn fake_get_entity_body(
+        this: *mut c_void,
+        out_len: *mut u32,
+    ) -> *const u8 {
+        // SAFETY: this is a live FakeRequest and out_len is a valid u32 slot.
+        unsafe {
+            let req = &*this.cast::<FakeRequest>();
+            *out_len = req.body_len;
+            req.body
+        }
+    }
+    unsafe extern "system" fn fake_clear(this: *mut c_void) -> HRESULT {
+        // SAFETY: this is a live FakeResponse the test owns.
+        unsafe { (*this.cast::<FakeResponse>()).cleared = true };
+        S_OK
+    }
     unsafe extern "system" fn fake_set_status(
         this: *mut c_void,
         status: u16,
@@ -459,6 +592,45 @@ mod tests {
         }
         S_OK
     }
+    unsafe extern "system" fn fake_set_header(
+        this: *mut c_void,
+        _name: *const u8,
+        value: *const u8,
+    ) -> HRESULT {
+        let resp = this.cast::<FakeResponse>();
+        // SAFETY: this is a live FakeResponse; copy the NUL-terminated value.
+        unsafe {
+            (*resp).captured_content_type = c_string_bytes(value);
+        }
+        S_OK
+    }
+    unsafe extern "system" fn fake_write_body(
+        this: *mut c_void,
+        data: *const u8,
+        len: u32,
+    ) -> HRESULT {
+        let resp = this.cast::<FakeResponse>();
+        // SAFETY: data points at `len` bytes; copy them into the capture buffer.
+        unsafe {
+            let bytes = core::slice::from_raw_parts(data, len as usize);
+            (*resp).captured_body.extend_from_slice(bytes);
+        }
+        S_OK
+    }
+
+    /// Copy a NUL-terminated `PCSTR` into an owned byte vector (excluding the NUL).
+    fn c_string_bytes(p: *const u8) -> Vec<u8> {
+        if p.is_null() {
+            return Vec::new();
+        }
+        let mut len = 0usize;
+        // SAFETY: p is a NUL-terminated C string the caller owns.
+        while unsafe { *p.add(len) } != 0 {
+            len += 1;
+        }
+        // SAFETY: p points at `len` initialized bytes.
+        unsafe { core::slice::from_raw_parts(p, len) }.to_vec()
+    }
 
     static FAKE_CONTEXT_VTBL: IHttpContextVtbl = IHttpContextVtbl {
         get_request: fake_get_request,
@@ -467,26 +639,39 @@ mod tests {
     static FAKE_REQUEST_VTBL: IHttpRequestVtbl = IHttpRequestVtbl {
         get_http_method: fake_get_http_method,
         get_http_url: fake_get_http_url,
+        get_header: fake_get_header,
+        get_entity_body: fake_get_entity_body,
     };
     static FAKE_RESPONSE_VTBL: IHttpResponseVtbl = IHttpResponseVtbl {
+        clear: fake_clear,
         set_status: fake_set_status,
+        set_header: fake_set_header,
+        write_body: fake_write_body,
     };
 
-    /// Build an emulated host context for the given method + URL, returning the
-    /// owned request/response/context the caller must keep alive.
+    /// Build an emulated host context for the given method, URL, body, and
+    /// optional user header, returning the owned objects the caller keeps alive.
     fn make_context(
         method: &'static [u8],
         url: &[u16],
+        body: &'static [u8],
+        user: Option<&'static [u8]>,
     ) -> (Box<FakeRequest>, Box<FakeResponse>, Box<FakeContext>) {
         let mut request = Box::new(FakeRequest {
             vtable: &FAKE_REQUEST_VTBL,
             method: method.as_ptr(),
             url: url.as_ptr(),
+            body: body.as_ptr(),
+            body_len: body.len() as u32,
+            user: user.map_or(null(), <[u8]>::as_ptr),
         });
         let mut response = Box::new(FakeResponse {
             vtable: &FAKE_RESPONSE_VTBL,
+            cleared: false,
             captured_status: 0,
             captured_reason: null(),
+            captured_content_type: Vec::new(),
+            captured_body: Vec::new(),
         });
         let context = Box::new(FakeContext {
             vtable: &FAKE_CONTEXT_VTBL,
@@ -494,6 +679,29 @@ mod tests {
             response: (response.as_mut() as *mut FakeResponse).cast(),
         });
         (request, response, context)
+    }
+
+    /// Drive `OnBeginRequest` for the given request, returning the captured
+    /// response and the notification status.
+    fn drive(
+        method: &'static [u8],
+        url: &str,
+        body: &'static [u8],
+        user: Option<&'static [u8]>,
+    ) -> (Box<FakeResponse>, i32) {
+        let module = mint_http_module();
+        // SAFETY: module is a live WordyHttpModule.
+        let mvtbl = unsafe { *module.cast::<*const CHttpModuleVtbl>() };
+
+        let url16: Vec<u16> = url.encode_utf16().chain(core::iter::once(0)).collect();
+        let (_req, response, context) = make_context(method, &url16, body, user);
+        let ctx_ptr = (context.as_ref() as *const FakeContext as *mut FakeContext).cast();
+
+        // SAFETY: ctx_ptr is a live emulated context exposing the modeled vtables.
+        let status = unsafe { ((*mvtbl).on_begin_request)(module, ctx_ptr, null_mut()) };
+        // SAFETY: release the module exactly once.
+        unsafe { ((*mvtbl).dispose)(module) };
+        (response, status)
     }
 
     #[test]
@@ -527,43 +735,39 @@ mod tests {
     }
 
     #[test]
-    fn health_request_finishes_with_status_200() {
-        // Drive a full RegisterModule → GetHttpModule → OnBeginRequest cycle for
-        // a GET /healthz request and assert the module finishes with status 200.
-        let module = mint_http_module();
-        // SAFETY: module is a live WordyHttpModule.
-        let mvtbl = unsafe { *module.cast::<*const CHttpModuleVtbl>() };
-
-        let url: Vec<u16> = "/healthz\0".encode_utf16().collect();
-        let (_req, response, context) = make_context(b"GET\0", &url);
-        let ctx_ptr = (context.as_ref() as *const FakeContext as *mut FakeContext).cast();
-
-        // SAFETY: ctx_ptr is a live emulated context exposing the modeled vtables.
-        let status = unsafe { ((*mvtbl).on_begin_request)(module, ctx_ptr, null_mut()) };
+    fn health_request_finishes_with_a_json_status_body() {
+        let (response, status) = drive(b"GET\0", "/healthz", b"", None);
         assert_eq!(status, RQ_NOTIFICATION_FINISH_REQUEST);
         assert_eq!(response.captured_status, routes::STATUS_OK);
+        assert!(response.cleared);
+        assert_eq!(
+            response.captured_content_type.as_slice(),
+            routes::CONTENT_TYPE_JSON.as_bytes()
+        );
+        let body = String::from_utf8(response.captured_body.clone()).unwrap();
+        assert!(body.contains("\"status\""));
+        assert!(body.contains("ok"));
+    }
 
-        // SAFETY: release the module exactly once.
-        unsafe { ((*mvtbl).dispose)(module) };
+    #[test]
+    fn spellcheck_request_flows_through_to_a_json_body() {
+        // A JSON body is read at the boundary, dispatched, and written back.
+        let body = br#"{"words":["hello","helo"]}"#;
+        let (response, status) = drive(b"POST\0", "/spellcheck", body, None);
+        assert_eq!(status, RQ_NOTIFICATION_FINISH_REQUEST);
+        assert_eq!(response.captured_status, routes::STATUS_OK);
+        let text = String::from_utf8(response.captured_body.clone()).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(value["results"][0]["correct"], true);
+        assert_eq!(value["results"][1]["correct"], false);
     }
 
     #[test]
     fn unknown_request_continues_without_writing_status() {
-        let module = mint_http_module();
-        // SAFETY: module is a live WordyHttpModule.
-        let mvtbl = unsafe { *module.cast::<*const CHttpModuleVtbl>() };
-
-        let url: Vec<u16> = "/words\0".encode_utf16().collect();
-        let (_req, response, context) = make_context(b"GET\0", &url);
-        let ctx_ptr = (context.as_ref() as *const FakeContext as *mut FakeContext).cast();
-
-        // SAFETY: ctx_ptr is a live emulated context exposing the modeled vtables.
-        let status = unsafe { ((*mvtbl).on_begin_request)(module, ctx_ptr, null_mut()) };
+        let (response, status) = drive(b"GET\0", "/words", b"", None);
         assert_eq!(status, RQ_NOTIFICATION_CONTINUE);
         assert_eq!(response.captured_status, 0);
-
-        // SAFETY: release the module exactly once.
-        unsafe { ((*mvtbl).dispose)(module) };
+        assert!(!response.cleared);
     }
 
     #[test]

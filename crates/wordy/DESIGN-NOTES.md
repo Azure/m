@@ -133,3 +133,29 @@ Identity is modeled forward-compatibly: a `UserId` newtype wrapped in a
 built-in user (`"default"`) when absent — the "app reads its own claims" posture
 of a real HWC application, threaded through every store operation even though no
 real logon exists yet.
+
+## WD-D9 — REST surface, JSON models, and the body-write path (MW13-4)
+
+The full synchronous REST surface is owned by `src/routes.rs` via a `Service`
+(shared dictionary + a `CustomDictionary`) whose `dispatch(&HttpRequest) ->
+Outcome` maps every route to the domain core / FS store: `GET /healthz`,
+`POST /spellcheck`, `POST /anagram`, `GET /shared?pattern=`,
+`GET /custom?pattern=`, and `POST` / `DELETE` / `GET /custom/{word}`. Unknown
+method/path pairs return `Outcome::Continue` so the host pipeline proceeds.
+Request/response bodies are modeled as `serde`/`serde_json` structs; malformed
+JSON, bad regex, and invalid anagram templates become `400` JSON errors, custom
+I/O failures `500`. Enumeration/anagram/suggestion result counts are capped to
+bound response size. The dispatcher stays pure and host-free (WD-D5), so the
+entire surface is unit-tested without a host.
+
+The IIS boundary (`src/iis.rs`) is extended to **read** the request body and the
+`X-Wordy-User` header and to **write** a response: the modeled `IHttpResponse`
+gains `Clear` / `SetHeader` / a body-write alongside `SetStatus`, and the modeled
+`IHttpRequest` gains header and entity-body reads. These additions are modeled
+simplifications of the genuine `httpserv.h` surface (`WriteEntityChunks`,
+`ReadEntityBody`, `GetHeader`), whose exact layouts are pinned when a real host
+is bound (MW13-5). The process-wide `Service` is a `LazyLock` rooted at
+`WORDY_CUSTOM_ROOT` (default: a temp-dir subdirectory). The emulated-host unit
+tests are extended to supply a body + header and capture the cleared flag,
+status, content type, and written body, proving a JSON route flows end-to-end
+through the boundary.

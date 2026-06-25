@@ -277,7 +277,7 @@ subset (peer of `mwinweb`), never depending on this crate.
       percent-encode outside `[a-z]`); `Principal`/`UserId` newtype threaded,
       resolved from an `X-Wordy-User` header with a single default user.
       Unit-tested over a scratch temp dir (RAII cleanup).
-- [ ] **MW13-4** Response **body** write path + route dispatcher: extend `wordy`'s
+- [x] **MW13-4** Response **body** write path + route dispatcher: extend `wordy`'s
       IIS boundary to clear/set-status/write a JSON body (`IHttpResponse`); JSON
       request/response models; map every route — `POST /spellcheck`,
       `POST /anagram`, `GET /shared?pattern=`, `GET /custom?pattern=`,

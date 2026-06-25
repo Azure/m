@@ -204,7 +204,7 @@ fn hwc_activator_preflight_runs_and_is_gated() {
         output.status
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("readiness pre-flight"));
+    assert!(stdout.contains("Hostable Web Core host for wordy"));
 
     // When HWC is genuinely present, the engine is discovered; otherwise the
     // assertion is skipped (gated).

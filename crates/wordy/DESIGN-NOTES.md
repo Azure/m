@@ -205,3 +205,48 @@ the modeled subset would mis-dispatch. Pinning the real `httpserv.h` layout is a
 substantial, SDK-dependent, crash-sensitive effort shared with MW15-2's
 `hwcproof/` harness, so it is its own milestone; MW13-5 lands the runnable
 integration harness + load-seam proof, and MW16 carries the genuine activation.
+
+## WD-D11 — Genuine HWC activation: what works, and the dispatch blocker (MW16)
+
+MW16-1 pinned the real `httpserv.h` vtables (WD-D3). MW16-2 made `wordy-host`
+genuinely activate Hostable Web Core. The following is **verified working** on a
+machine with `IIS-HostableWebCore` installed:
+
+- `WebCoreActivate` succeeds (`HRESULT 0x00000000`) against the generated
+  `applicationHost.config`, and `WebCoreShutdown` cleanly stops it. The activate
+  / shutdown FFI, config generation, and well-known error-code mapping are
+  correct.
+- The genuine engine loads `wordy.dll`; IIS calls its exported `RegisterModule`;
+  `SetRequestNotifications(RQ_BEGIN_REQUEST)` returns `S_OK`.
+- For **every** request, IIS builds the per-request module list by calling
+  `wordy`'s `IHttpModuleFactory::GetHttpModule` (verified: once per request),
+  which allocates the module from the host's request pool via the supplied
+  `IModuleAllocator` (the IIS contract; `Dispose` frees only heap-minted modules).
+
+**The blocker:** after creating the module, the genuine host invokes **no**
+`CHttpModule` method — not `OnBeginRequest` (slot 0), not any of the 28 stub
+slots — and returns a bare `500`. This was established conclusively: the
+`CHttpModule` vtable slot 0 address equals `module_on_begin_request` (logged at
+runtime), yet an *unconditional* write at the very first line of every vtable
+method never fires under the genuine host (while `RegisterModule` / `GetHttpModule`
+tracing does). It is **not** a vtable-layout, registration, allocation, config,
+earlier-module, or tracing-mechanism problem — each was ruled out across minimal,
+core-module, ProtocolSupport-only, and full IIS-Express-template-derived configs.
+
+The behavior — IIS creating the module but dispatching no notification — points
+at an IIS-internal pipeline detail that needs Failed Request Tracing or a
+debugger attached to the worker to resolve; the system `applicationHost.config`
+that might reveal the difference is admin-locked (unreadable unelevated). The
+emulated-host unit tests prove `wordy`'s decode→dispatch→write path is correct
+against the pinned vtables, so the gap is in the genuine-host *binding*, not in
+`wordy`'s logic.
+
+**Tooling left in place** for the next attempt: a `WORDY_TRACE=<file>` gated
+trace through the IIS boundary; `WORDY_HOST_ACTIVATE=1` (activate), `WORDY_HOST_HTTP=1`
+(drive localhost routes), `WORDY_HOST_DUMP=1` (dump raw responses), and
+`WORDY_HOST_CONFIG=<path>` (use an external `applicationHost.config`) on the bin.
+The generated config now includes the core IIS pipeline modules from `inetsrv`
+(protocol support, anonymous auth, request filtering, static file) plus
+`WordyModule`, which activates and drives the pipeline through to per-request
+module creation. **MW16-3 (live-HTTP assertions) remains open** pending
+resolution of the dispatch blocker.

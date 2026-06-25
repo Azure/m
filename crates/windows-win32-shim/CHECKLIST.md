@@ -321,14 +321,33 @@ subset (peer of `mwinweb`), never depending on this crate.
       `CHttpModule` — all notification slots, `IHttpContext`, `IHttpRequest`,
       `IHttpResponse`), with the unmodeled `CHttpModule` notifications defaulting
       to a safe pass-through, verified against the SDK header.
-- [ ] **MW16-2** Genuine activation in `wordy-host`: `WebCoreActivate` the real
+- [x] **MW16-2** Genuine activation in `wordy-host`: `WebCoreActivate` the real
       `hwebcore.dll` with the generated applicationHost/web.config loading the
       pinned `wordy.dll`, then `WebCoreShutdown`; single-activation-per-process
-      and error-code semantics handled per the HWC notes.
+      and error-code semantics handled per the HWC notes. **Verified on a machine
+      with IIS-HostableWebCore: `WebCoreActivate` → `HRESULT 0`, `wordy.dll`
+      loads, `RegisterModule` runs, `SetRequestNotifications` → `S_OK`, and IIS
+      calls `GetHttpModule` once per request (allocating from the request pool via
+      `IModuleAllocator`).** Bin gates: `WORDY_HOST_ACTIVATE` / `WORDY_HOST_HTTP` /
+      `WORDY_HOST_DUMP` / `WORDY_HOST_CONFIG`; `iis.rs` gains a `WORDY_TRACE` gated
+      trace.
 - [ ] **MW16-3** *(integration)* Drive every route end-to-end over **real HTTP**
       against the activated host; assert dictionary behaviors; gated/ignored when
       HWC is absent. Reconciles the modeled-vs-genuine boundary and unblocks
       MW15-2.
+
+      > **⚠ OPEN — dispatch blocker (see wordy WD-D11).** Activation and per-request
+      > module creation work, but the genuine host invokes **no** `CHttpModule`
+      > notification (not `OnBeginRequest`, not any stub slot) and returns a bare
+      > `500`. Ruled out: vtable layout (slot-0 address verified == `OnBeginRequest`),
+      > registration (`S_OK`, correct `RQ_BEGIN_REQUEST` mask), allocation (heap +
+      > request-pool), config completeness (minimal / core / ProtocolSupport-only /
+      > IIS-Express-template), earlier-module interference, and the trace mechanism
+      > (unconditional hard-coded write also never fires). Needs Failed Request
+      > Tracing or a debugger on the worker to diagnose; the system
+      > `applicationHost.config` is admin-locked. `wordy`'s decode→dispatch→write
+      > path is proven correct against the pinned vtables by the emulated-host unit
+      > tests, so the gap is in the genuine-host binding, not `wordy`'s logic.
 
 ## MW14 — Asynchronous request completion on the Windows thread pool (SHIM-D19)
 

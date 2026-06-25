@@ -72,6 +72,21 @@ const CUSTOM_ROOT_ENV: &str = "WORDY_CUSTOM_ROOT";
 /// Upper bound on the entity body `wordy` will read from a request.
 const MAX_BODY_BYTES: usize = 1 << 20;
 
+/// Append a diagnostic line to the file named by the `WORDY_TRACE` env var, if
+/// set. A no-op otherwise. Used to diagnose behavior under a genuine host, where
+/// stdout is not visible.
+fn trace(message: &str) {
+    use std::io::Write;
+    if let Some(path) = std::env::var_os("WORDY_TRACE")
+        && let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+    {
+        let _ = writeln!(file, "{message}");
+    }
+}
+
 // --- Pinned `http.h` structs ------------------------------------------------
 
 /// The head of `HTTP_REQUEST` (`http.h`) up to and including `pRawUrl`.
@@ -144,6 +159,13 @@ struct IHttpModuleFactoryVtbl {
     get_http_module:
         unsafe extern "system" fn(*mut c_void, *mut *mut c_void, *mut c_void) -> HRESULT,
     terminate: unsafe extern "system" fn(*mut c_void),
+}
+
+/// The `IModuleAllocator` vtable — `wordy` calls `[0]AllocateMemory` to allocate
+/// each per-request module from the host's request memory pool.
+#[repr(C)]
+struct IModuleAllocatorVtbl {
+    allocate_memory: unsafe extern "system" fn(*mut c_void, u32) -> *mut c_void,
 }
 
 /// The `IHttpModuleRegistrationInfo` vtable (`wordy` calls `[2]`).
@@ -237,10 +259,12 @@ struct WordyModuleFactory {
 /// A `wordy` per-request module. The dictionary state lives in the process-wide
 /// [`SERVICE`]; the module itself is stateless. Its first field is the vtable
 /// pointer so a `*mut WordyHttpModule` is ABI-identical to the host's
-/// `CHttpModule*`.
+/// `CHttpModule*`; the `pool_allocated` flag records whether the host's request
+/// pool owns the memory (so `Dispose` frees a `Box` only when it does not).
 #[repr(C)]
 struct WordyHttpModule {
     vtable: *const CHttpModuleVtbl,
+    pool_allocated: bool,
 }
 
 /// The process-wide service: the shared dictionary plus a per-user custom
@@ -285,6 +309,7 @@ fn mint_module_factory() -> *mut c_void {
 fn mint_http_module() -> *mut c_void {
     let module = Box::new(WordyHttpModule {
         vtable: &WORDY_HTTP_MODULE_VTBL,
+        pool_allocated: false,
     });
     Box::into_raw(module).cast::<c_void>()
 }
@@ -336,14 +361,19 @@ unsafe fn decode_request(context: *mut c_void) -> routes::HttpRequest {
     }
     // SAFETY: request is a live IHttpRequest; read its vtable pointer.
     let req_vtbl = unsafe { *request.cast::<*const IHttpRequestVtbl>() };
+    trace("decode: got request");
     // SAFETY: req_vtbl is the host request vtable; GetHttpMethod returns a PCSTR.
     let method = unsafe { pcstr_to_string(((*req_vtbl).get_http_method)(request)) };
+    trace(&format!("decode: method={method}"));
     // SAFETY: as above.
     let url = unsafe { read_raw_url(req_vtbl, request) };
+    trace(&format!("decode: url={url}"));
     // SAFETY: as above.
     let body = unsafe { read_entity_body(req_vtbl, request) };
+    trace(&format!("decode: body_len={}", body.len()));
     // SAFETY: as above.
     let user = unsafe { read_user_header(req_vtbl, request) };
+    trace("decode: header read");
     routes::HttpRequest {
         method,
         url,
@@ -491,16 +521,38 @@ unsafe fn write_response(context: *mut c_void, response: &routes::HttpResponse) 
 
 // --- Module / factory entry points -----------------------------------------
 
-/// `IHttpModuleFactory::GetHttpModule`: vend a `wordy` `CHttpModule`.
+/// `IHttpModuleFactory::GetHttpModule`: vend a `wordy` `CHttpModule`, allocated
+/// from the host's request memory pool when an allocator is supplied (the IIS
+/// contract) and otherwise from the heap.
 unsafe extern "system" fn factory_get_http_module(
     _this: *mut c_void,
     pp_module: *mut *mut c_void,
-    _allocator: *mut c_void,
+    allocator: *mut c_void,
 ) -> HRESULT {
     if pp_module.is_null() {
         return E_POINTER;
     }
-    let module = mint_http_module();
+    trace("factory: GetHttpModule");
+    let module = if allocator.is_null() {
+        mint_http_module()
+    } else {
+        // SAFETY: allocator is a live IModuleAllocator; allocate request-pool
+        // memory for the module and place the vtable pointer + ownership flag.
+        unsafe {
+            let alloc_vtbl = *allocator.cast::<*const IModuleAllocatorVtbl>();
+            let mem = ((*alloc_vtbl).allocate_memory)(
+                allocator,
+                core::mem::size_of::<WordyHttpModule>() as u32,
+            );
+            if mem.is_null() {
+                return E_POINTER;
+            }
+            let slot = mem.cast::<WordyHttpModule>();
+            (*slot).vtable = &WORDY_HTTP_MODULE_VTBL;
+            (*slot).pool_allocated = true;
+            mem
+        }
+    };
     // SAFETY: pp_module is non-null (checked above); write the out-param.
     unsafe { *pp_module = module };
     S_OK
@@ -523,15 +575,21 @@ unsafe extern "system" fn module_on_begin_request(
     context: *mut c_void,
     _provider: *mut c_void,
 ) -> i32 {
+    trace("begin-request");
     // SAFETY: context is the host request context (tolerates null).
     let request = unsafe { decode_request(context) };
     match SERVICE.dispatch(&request) {
         Outcome::Respond(response) => {
+            trace(&format!("respond status={}", response.status));
             // SAFETY: context is the host request context (tolerates null).
             unsafe { write_response(context, &response) };
+            trace("response written");
             RQ_NOTIFICATION_FINISH_REQUEST
         }
-        Outcome::Continue => RQ_NOTIFICATION_CONTINUE,
+        Outcome::Continue => {
+            trace("continue");
+            RQ_NOTIFICATION_CONTINUE
+        }
     }
 }
 
@@ -545,14 +603,20 @@ unsafe extern "system" fn module_notification_stub(
     RQ_NOTIFICATION_CONTINUE
 }
 
-/// `CHttpModule::Dispose`: reclaim the module allocation.
+/// `CHttpModule::Dispose`: reclaim the module allocation. Heap-minted modules
+/// are freed here; request-pool modules are freed by the host, so this is a
+/// no-op for them.
 unsafe extern "system" fn module_dispose(this: *mut c_void) {
     if this.is_null() {
         return;
     }
-    // SAFETY: this is a live WordyHttpModule minted by mint_http_module; the host
-    // calls Dispose exactly once.
-    drop(unsafe { Box::from_raw(this.cast::<WordyHttpModule>()) });
+    // SAFETY: this is a live WordyHttpModule; read whether the host pool owns it.
+    let pool_allocated = unsafe { (*this.cast::<WordyHttpModule>()).pool_allocated };
+    if !pool_allocated {
+        // SAFETY: this is a heap module minted by mint_http_module; the host calls
+        // Dispose exactly once.
+        drop(unsafe { Box::from_raw(this.cast::<WordyHttpModule>()) });
+    }
 }
 
 /// `RegisterModule`: the IIS native-module entry point IIS calls when it loads
@@ -568,6 +632,7 @@ pub extern "system" fn RegisterModule(
     if p_module_info.is_null() {
         return E_POINTER;
     }
+    trace("RegisterModule: called");
     let factory = mint_module_factory();
     // SAFETY: p_module_info points at a live IHttpModuleRegistrationInfo whose
     // first field is its vtable pointer (the host owns it for the call).
@@ -577,6 +642,7 @@ pub extern "system" fn RegisterModule(
     let hr = unsafe {
         ((*vtbl).set_request_notifications)(p_module_info, factory, RQ_BEGIN_REQUEST, 0)
     };
+    trace(&format!("RegisterModule: set_request_notifications hr=0x{:08X}", hr as u32));
     if hr < 0 {
         // Registration refused; reclaim our factory and propagate the failure.
         // SAFETY: factory is the Box we just minted and never handed off.

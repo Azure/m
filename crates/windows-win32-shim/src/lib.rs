@@ -115,7 +115,10 @@ pub use com::{
 pub use web::{NullWebSink, WebEvent, WebMode, WebObservationSink, WebState};
 
 #[cfg(windows)]
-pub use pilcfg::{Pilcfg, PilcfgError, expand_environment_path, load_pilcfg, parse_pilcfg};
+pub use pilcfg::{
+    EgressConfig, EgressMode, Pilcfg, PilcfgError, expand_environment_path, load_pilcfg,
+    parse_pilcfg,
+};
 
 #[cfg(windows)]
 pub use reg_ops::{KeyInfo, QueryBuffer, apply_query_buffer};

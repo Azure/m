@@ -8,8 +8,10 @@
 //! consume interchangeable artifacts (SHIM-D1): the recognized members are
 //! `buffer_updates`, `record_modifications`, `redirections`, `persisted_state`,
 //! `capture_snapshot`, `diagnostic_log`, and `fault_script`; the `webcore`
-//! block is ignored here. The all-default value is **passthrough** — calls flow
-//! straight through to the live OS registry.
+//! block is ignored here. The `egress` block (MW17 / SHIM-D22) is owned by this
+//! shim (no C++ antecedent) and selects the outbound-network isolation mode. The
+//! all-default value is **passthrough** — calls flow straight through to the live
+//! OS registry / network.
 //!
 //! Parsing is **strict** (a malformed document or a recognized member of the
 //! wrong type is an error), but *loading* is **tolerant**: an absent,
@@ -36,6 +38,45 @@ mod member {
     pub const CAPTURE_SNAPSHOT: &str = "capture_snapshot";
     pub const DIAGNOSTIC_LOG: &str = "diagnostic_log";
     pub const FAULT_SCRIPT: &str = "fault_script";
+    pub const EGRESS: &str = "egress";
+    pub const MODE: &str = "mode";
+    pub const REPLAY_DIR: &str = "replay_dir";
+}
+
+/// The egress (outbound network-client) isolation mode selected by the `.pilcfg`
+/// `egress.mode` member (MW17 / SHIM-D22). The all-default value is
+/// [`Passthrough`](EgressMode::Passthrough): WinHTTP calls flow straight through
+/// to the live network.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EgressMode {
+    /// Forward every request to the real WinHTTP client unchanged (D25 off).
+    #[default]
+    Passthrough,
+    /// Capture mutating requests in memory and ack them without sending; reads
+    /// fall through (the network peer of `buffer_updates`).
+    Buffer,
+    /// Rewrite each request's destination by `egress.redirections`, then send.
+    Redirect,
+    /// Serve canned responses from `egress.replay_dir` fixtures; the live network
+    /// is not contacted.
+    Replay,
+    /// Deny every request with a synthetic error.
+    Block,
+}
+
+/// The `egress` block of a `.pilcfg`: the outbound-relay isolation policy (MW17 /
+/// SHIM-D22). The all-default value is passthrough.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EgressConfig {
+    /// The egress isolation mode.
+    pub mode: EgressMode,
+    /// Destination rewrite rules for [`EgressMode::Redirect`], each mapping a
+    /// `from` authority (`host` or `host:port`) to a `to` authority. Taken
+    /// literally (no `%VAR%` expansion). Empty by default.
+    pub redirections: Vec<(String, String)>,
+    /// Directory of replay fixtures for [`EgressMode::Replay`] (`%VAR%`-expanded).
+    /// Empty by default.
+    pub replay_dir: String,
 }
 
 /// The parsed contents of a `.pilcfg` sidecar. Each field maps onto a layer the
@@ -71,6 +112,10 @@ pub struct Pilcfg {
     /// Path to a fault-script artifact layered on top of the base stack. Empty
     /// by default (no fault injection).
     pub fault_script: String,
+
+    /// The outbound-network (egress) isolation policy (MW17 / SHIM-D22). The
+    /// all-default value is passthrough.
+    pub egress: EgressConfig,
 }
 
 /// A `.pilcfg` parse failure. The JSON text is not valid JSON, is not a JSON
@@ -130,6 +175,7 @@ pub fn parse_pilcfg(json_text: &str) -> Result<Pilcfg, PilcfgError> {
         capture_snapshot: read_path(&object, member::CAPTURE_SNAPSHOT)?,
         diagnostic_log: read_path(&object, member::DIAGNOSTIC_LOG)?,
         fault_script: read_path(&object, member::FAULT_SCRIPT)?,
+        egress: read_egress(&object)?,
     })
 }
 
@@ -192,6 +238,43 @@ fn read_redirections(object: &Object) -> Result<Vec<(String, String)>, PilcfgErr
         redirections.push((from, to));
     }
     Ok(redirections)
+}
+
+/// Read the optional `egress` block: absent yields the default (passthrough);
+/// present-but-not-object, or a malformed member, is an error. The egress
+/// `redirections` are read from the nested object (distinct from the top-level
+/// registry redirections), and `replay_dir` undergoes `%VAR%` expansion.
+fn read_egress(object: &Object) -> Result<EgressConfig, PilcfgError> {
+    let Some(value) = object.get(member::EGRESS) else {
+        return Ok(EgressConfig::default());
+    };
+    let JsonValue::Object(egress) = value else {
+        return Err(PilcfgError::new("'egress' must be an object"));
+    };
+    Ok(EgressConfig {
+        mode: read_egress_mode(egress)?,
+        redirections: read_redirections(egress)?,
+        replay_dir: read_path(egress, member::REPLAY_DIR)?,
+    })
+}
+
+/// Read the optional `egress.mode` member: absent yields passthrough; an
+/// unrecognized value (or a non-string) is an error (strict parse).
+fn read_egress_mode(object: &Object) -> Result<EgressMode, PilcfgError> {
+    match object.get(member::MODE) {
+        None => Ok(EgressMode::Passthrough),
+        Some(JsonValue::String(value)) => match value.as_str() {
+            "passthrough" => Ok(EgressMode::Passthrough),
+            "buffer" => Ok(EgressMode::Buffer),
+            "redirect" => Ok(EgressMode::Redirect),
+            "replay" => Ok(EgressMode::Replay),
+            "block" => Ok(EgressMode::Block),
+            other => {
+                Err(PilcfgError::new(format!("'egress.mode' has unknown value {other:?}")))
+            }
+        },
+        Some(_) => Err(PilcfgError::new("'egress.mode' must be a string")),
+    }
 }
 
 /// Expand Windows `%VAR%` environment-variable references in a host-path value.
@@ -492,5 +575,85 @@ mod tests {
         // The test harness executable has no adjacent `.pilcfg`, so the tolerant
         // loader must yield the default passthrough configuration.
         assert_eq!(load_pilcfg(), Pilcfg::default());
+    }
+
+    #[test]
+    fn egress_absent_is_passthrough() {
+        let cfg = parse_pilcfg("{}").unwrap();
+        assert_eq!(cfg.egress, EgressConfig::default());
+        assert_eq!(cfg.egress.mode, EgressMode::Passthrough);
+        assert!(cfg.egress.redirections.is_empty());
+        assert!(cfg.egress.replay_dir.is_empty());
+    }
+
+    #[test]
+    fn egress_modes_parse() {
+        for (text, mode) in [
+            ("passthrough", EgressMode::Passthrough),
+            ("buffer", EgressMode::Buffer),
+            ("redirect", EgressMode::Redirect),
+            ("replay", EgressMode::Replay),
+            ("block", EgressMode::Block),
+        ] {
+            let json = format!(r#"{{ "egress": {{ "mode": "{text}" }} }}"#);
+            assert_eq!(parse_pilcfg(&json).unwrap().egress.mode, mode);
+        }
+    }
+
+    #[test]
+    fn egress_redirections_and_replay_dir_parse() {
+        let json = r#"{ "egress": {
+            "mode": "redirect",
+            "redirections": [
+                { "from": "localhost:8019", "to": "127.0.0.1:18019" },
+                { "from": "imds", "to": "stub:9000" }
+            ]
+        } }"#;
+        let egress = parse_pilcfg(json).unwrap().egress;
+        assert_eq!(egress.mode, EgressMode::Redirect);
+        assert_eq!(
+            egress.redirections,
+            vec![
+                ("localhost:8019".to_string(), "127.0.0.1:18019".to_string()),
+                ("imds".to_string(), "stub:9000".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn egress_replay_dir_is_var_expanded() {
+        let system_root = std::env::var("SystemRoot").expect("SystemRoot is set on Windows");
+        let json = r#"{ "egress": { "mode": "replay", "replay_dir": "%SystemRoot%\\fixtures" } }"#;
+        let egress = parse_pilcfg(json).unwrap().egress;
+        assert_eq!(egress.mode, EgressMode::Replay);
+        assert_eq!(egress.replay_dir, format!("{system_root}\\fixtures"));
+    }
+
+    #[test]
+    fn egress_is_independent_of_top_level_redirections() {
+        // The top-level (registry) redirections and the egress redirections are
+        // distinct members.
+        let json = r#"{
+            "redirections": [ { "from": "HKLM\\A", "to": "HKLM\\B" } ],
+            "egress": { "redirections": [ { "from": "h", "to": "stub:1" } ] }
+        }"#;
+        let cfg = parse_pilcfg(json).unwrap();
+        assert_eq!(cfg.redirections, vec![("HKLM\\A".to_string(), "HKLM\\B".to_string())]);
+        assert_eq!(cfg.egress.redirections, vec![("h".to_string(), "stub:1".to_string())]);
+    }
+
+    #[test]
+    fn egress_unknown_mode_is_an_error() {
+        assert!(parse_pilcfg(r#"{ "egress": { "mode": "frobnicate" } }"#).is_err());
+    }
+
+    #[test]
+    fn egress_wrong_shapes_are_errors() {
+        assert!(parse_pilcfg(r#"{ "egress": "nope" }"#).is_err()); // not an object
+        assert!(parse_pilcfg(r#"{ "egress": { "mode": 7 } }"#).is_err()); // mode not a string
+        assert!(parse_pilcfg(r#"{ "egress": { "redirections": 1 } }"#).is_err()); // not an array
+        assert!(
+            parse_pilcfg(r#"{ "egress": { "redirections": [ { "from": "h" } ] } }"#).is_err()
+        ); // missing 'to'
     }
 }

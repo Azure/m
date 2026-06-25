@@ -567,12 +567,18 @@ app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
 > must land first. See
 > [`../windows-platform-isolation/CHECKLIST.md`](../windows-platform-isolation/CHECKLIST.md).
 
-- [ ] **MW17-1** `.pilcfg` `egress` section: `mode`
+- [x] **MW17-1** `.pilcfg` `egress` section: `mode`
       (`passthrough`|`redirect`|`buffer`|`replay`|`block`), `redirections:
       [{from,to}]` (host[:port] / prefix rewrite rules), `replay_dir`. Strict parse
       (unknown shape = error) + tolerant `load_pilcfg` (absent/malformed = default
       passthrough), mirroring SHIM-D5. Unit tests for the schema + env-expansion of
       `replay_dir`.
+      *(`pilcfg.rs`: `EgressMode{Passthrough,Buffer,Redirect,Replay,Block}` +
+      `EgressConfig{mode,redirections,replay_dir}` + `Pilcfg.egress` field;
+      `read_egress`/`read_egress_mode` (nested `redirections` distinct from the
+      top-level registry ones; `replay_dir` `%VAR%`-expanded; unknown mode / wrong
+      shapes are errors). Re-exported from `lib.rs`. 7 unit tests. 198 unit tests
+      pass.)*
 - [ ] **MW17-2** `HINTERNET` handle table + per-handle transaction state: the `m`
       WinHTTP front-ends (`mWinHttpOpen`/`Connect`/`OpenRequest`/`AddRequestHeaders`/
       `SendRequest`/`ReceiveResponse`/`QueryHeaders`/`QueryDataAvailable`/`ReadData`/

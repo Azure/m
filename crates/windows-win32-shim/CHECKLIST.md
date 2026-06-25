@@ -711,12 +711,16 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
         `.await`, MER-D3); `normalize_word` + path-safe `slug` (traversal-proof,
         MER-D2); content store, not namespace (MER-D1). 14 unit tests pass; clippy
         clean. Component docs + `MER-D1..3`.)*
-  - [ ] **MW18-2.2** Dispatch core (`routes.rs`) mirroring the `wordy` custom-dict
+  - [x] **MW18-2.2** Dispatch core (`routes.rs`) mirroring the `wordy` custom-dict
         routes 1:1 so the MW18-3 relay maps directly: `GET /healthz`,
         `GET /custom[?pattern=]`, `GET /custom/{word}`, `POST /custom/{word}`,
         `DELETE /custom/{word}` (`X-Wordy-User` header → principal, optional
         locale). Host-agnostic `HttpRequest`/`HttpResponse`/`Outcome`; JSON bodies
         identical to `wordy`'s. Unit tests for every route off any listener.
+        *(`routes.rs`: `Service`/`HttpRequest`/`HttpResponse`/`Outcome` peer of
+        `wordy::routes`; `X-Wordy-User`/`X-Wordy-Locale` headers, `?pattern=`
+        full-match regex filter, byte-identical JSON; URL helpers mirrored from
+        `wordy`. 13 route unit tests (27 total in `merriam`); clippy clean. MER-D4.)*
   - [ ] **MW18-2.3** http.sys listener edge (`#[allow(unsafe_code)]` boundary
         module): HTTP Server API inbound (`HttpInitialize` /
         `HttpCreateRequestQueue` / url-group + `HttpAddUrlToUrlGroup` /

@@ -44,3 +44,19 @@ reader racing a rewrite — are serialized. The dispatch core (MW18-2.2) is
 therefore synchronous too, mirroring `wordy::routes::Service`; the http.sys
 listener (MW18-2.3) offloads each request to a pool work item, so the inbound
 receive loop is never blocked by a store operation.
+
+## MER-D4 — Dispatch core is a 1:1 subset of `wordy`'s custom-dict routes
+
+`merriam`'s routing surface (`routes.rs`) is the listener-independent peer of
+`wordy::routes::Service`, deliberately exposing **only** the custom-dictionary
+operations with **byte-identical JSON bodies**: `GET /healthz`,
+`GET /custom[?pattern=]` (`{"matches":[…]}`), `GET /custom/{word}`
+(`{"word","exists"}`), `POST /custom/{word}` (`{"word","added"}`), and
+`DELETE /custom/{word}` (`{"word","removed"}`). The `X-Wordy-User` /
+`X-Wordy-Locale` headers and the `?pattern=` full-match regex filter match
+`wordy` exactly. This is what lets the MW18-3 relay map a `wordy` custom-dict
+call straight onto the matching `merriam` call — the relay is a transport
+substitution, not a protocol translation. The shared-dictionary spell-check /
+anagram / suggestion routes stay in `wordy` (its CPU work); only the *storage*
+moves here. The dispatch core is synchronous (over the MER-D3 sync store) and
+carries no listener types, so every route is unit-tested off any listener.

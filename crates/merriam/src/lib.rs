@@ -29,3 +29,13 @@ mod store;
 
 #[cfg(windows)]
 pub use store::{Store, StoreError, StoreResult};
+
+#[cfg(windows)]
+mod routes;
+
+#[cfg(windows)]
+pub use routes::{
+    CONTENT_TYPE_JSON, DEFAULT_LOCALE, DEFAULT_USER, HttpRequest, HttpResponse, LOCALE_HEADER,
+    Outcome, STATUS_BAD_REQUEST, STATUS_INTERNAL_ERROR, STATUS_OK, Service, USER_HEADER, path_of,
+    query_of,
+};

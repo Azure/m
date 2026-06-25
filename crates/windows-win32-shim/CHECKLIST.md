@@ -158,13 +158,19 @@ test. Sub-steps use decimal notation.
       *(Recorded in SHIM-D21: the four co-located deployment artifacts (shim DLL +
       import lib + alias object + `<host>.pilcfg`), cdylib-scoped build-time
       injection, and the three out-of-scope items each with rationale.)*
-- [ ] **MW7-3** *(integration)* Full end-to-end single-`.pilcfg` scenario: one config
+- [x] **MW7-3** *(integration)* Full end-to-end single-`.pilcfg` scenario: one config
       carrying **both** `persisted_state` (a C++-dialect registry snapshot) **and**
       `buffer_updates` drives the registry **and** filesystem through one
       `ShimSession` — `reg_ops` observe the snapshot and isolate writes to the
       overlay; `fs_ops` buffer namespace ops off the live filesystem — asserting both
       surfaces isolate under a single sidecar, the registry honoring a C++ artifact.
       The capstone parity/integration test.
+      *(`tests/cpp_parity.rs::single_pilcfg_isolates_both_registry_and_filesystem_end_to_end`:
+      one `Pilcfg { persisted_state, buffer_updates: true }` yields a Persisted
+      registry (observes the C++ snapshot's `Name=Srv`, isolates an `E2E` write) and
+      a Buffered filesystem (a `create_directory` is read-your-writes yet leaves the
+      live disk untouched), both under a single session; the source artifact stays
+      read-only.)*
 
 ## MW9 — Dynamic-loader shims (`mLoadLibrary*` / `mGetProcAddress` / module handles, SHIM-D16)
 

@@ -20,11 +20,11 @@
 
 use std::path::PathBuf;
 
-use windows_platform_isolation::{KeyPath, Utf16};
+use windows_platform_isolation::{FilePath, KeyPath, NodeKind, Utf16};
 use windows_sys::Win32::System::Registry::{
     REG_BINARY, REG_DWORD, REG_EXPAND_SZ, REG_MULTI_SZ, REG_QWORD, REG_SZ,
 };
-use windows_win32_shim::{Pilcfg, RawHandle, ShimSession, reg_ops};
+use windows_win32_shim::{Pilcfg, RawHandle, ShimSession, fs_ops, reg_ops};
 
 /// Reserved predefined `HKEY` values (bare 32-bit form), matching the registry
 /// integration suite.
@@ -41,6 +41,17 @@ fn key(s: &str) -> KeyPath {
 
 fn artifact_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata").join("cpp_registry_artifact.xml")
+}
+
+/// A unique, not-yet-existing path under the OS temp directory, for the buffered
+/// filesystem assertions (which require the live path to be absent).
+fn unique_temp_dir(tag: &str) -> String {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let mut dir = std::env::temp_dir();
+    dir.push(format!("{tag}-{}-{n}", std::process::id()));
+    dir.to_string_lossy().into_owned()
 }
 
 /// Decode UTF-16LE `bytes` to text, trimming trailing NULs so the assertion is
@@ -195,4 +206,55 @@ fn cpp_dialect_artifact_writes_are_isolated_in_the_overlay() {
     // The isolated write never reaches the source artifact on disk.
     let after = std::fs::read(&artifact).expect("re-read golden artifact");
     assert_eq!(before, after, "an overlay write must not touch the source artifact");
+}
+
+#[test]
+fn single_pilcfg_isolates_both_registry_and_filesystem_end_to_end() {
+    // One sidecar carries BOTH a C++-dialect persisted registry snapshot AND
+    // `buffer_updates`: the registry runs against the snapshot (the layer flags
+    // are ignored for it, SHIM-D13) while the filesystem is overlay-buffered.
+    // A single `ShimSession` then isolates both surfaces at once.
+    let artifact = artifact_path();
+    let before = std::fs::read(&artifact).expect("read golden artifact");
+
+    let cfg = Pilcfg {
+        persisted_state: artifact.to_string_lossy().into_owned(),
+        buffer_updates: true,
+        ..Pilcfg::default()
+    };
+    let session = ShimSession::from_config(cfg);
+
+    // --- Registry: observes the C++ snapshot, isolates a write to the overlay. -
+    session.with_registry(|reg| {
+        let handles = session.handles();
+        let vendor = reg_ops::open_key(reg, handles, HKLM, &key("Software\\Vendor"))
+            .expect("the persisted snapshot key opens");
+        let (ty, bytes) = reg_ops::query_value(reg, handles, vendor, &w("Name")).expect("Name");
+        assert_eq!(ty, REG_SZ);
+        assert_eq!(utf16le_text(&bytes), "Srv");
+
+        reg_ops::set_value(reg, handles, vendor, &w("E2E"), REG_DWORD, &7u32.to_le_bytes())
+            .expect("registry overlay write");
+        let (_, e2e) =
+            reg_ops::query_value(reg, handles, vendor, &w("E2E")).expect("registry read-your-writes");
+        assert_eq!(e2e, 7u32.to_le_bytes());
+    });
+
+    // --- Filesystem: a namespace mutation lands in the overlay, not on disk. ---
+    let dir = unique_temp_dir("mw7-e2e-fsbuf");
+    let path = FilePath::from_utf8(&dir);
+    assert!(!std::path::Path::new(&dir).exists());
+
+    session.with_filesystem(|fs| fs_ops::create_directory(fs, &path)).expect("buffered create");
+    let (_, kind) =
+        session.with_filesystem(|fs| fs_ops::stat_path(fs, &path)).expect("filesystem read-your-writes");
+    assert_eq!(kind, NodeKind::Directory);
+    assert!(
+        !std::path::Path::new(&dir).exists(),
+        "the buffered filesystem mutation must not reach the live disk"
+    );
+
+    // Neither surface's writes touched the source registry artifact on disk.
+    let after = std::fs::read(&artifact).expect("re-read golden artifact");
+    assert_eq!(before, after, "the source artifact must stay read-only");
 }

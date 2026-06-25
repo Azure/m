@@ -39,12 +39,27 @@ flags to sibling crates.
 ## WD-D3 — `wordy` declares its own IIS ABI (peer of `mwinweb`)
 
 The IIS `httpserv.h` native-module interfaces are not part of `windows-sys`, so
-the ABI is modeled as hand-rolled `#[repr(C)]` vtables. `wordy` declares its
-**own** copy of the minimal subset it uses (`src/iis.rs`) rather than reusing the
-shim's `mwinweb` module — reusing `mwinweb` would couple `wordy` to the shim and
-break WD-D1. The modest duplication is intentional and acceptable; extracting a
-neutral `iis-native-module` crate that both could share is deferred. The modeled
-vtable layouts are pinned precisely when a genuine host is bound (MW13-5).
+the ABI is hand-rolled as `#[repr(C)]` vtables. `wordy` declares its **own** copy
+(`src/iis.rs`) rather than reusing the shim's `mwinweb` module — reusing
+`mwinweb` would couple `wordy` to the shim and break WD-D1. The modest
+duplication is intentional and acceptable; extracting a neutral
+`iis-native-module` crate that both could share is deferred.
+
+As of **MW16-1** these vtables are **pinned to the real `httpserv.h` layout**
+(Windows SDK 10.0.26100), not a self-consistent modeled subset: every interface
+`wordy` touches is laid out at the genuine slot offsets, so a real host's calls
+land on the right methods and `wordy`'s calls invoke the right host methods. In
+particular `CHttpModule` is the full 30-slot vtable (`[0]OnBeginRequest`,
+`[29]Dispose`; the other 28 slots are safe pass-through stubs, since `wordy`
+registers only `RQ_BEGIN_REQUEST`), and `IHttpContext` / `IHttpRequest` /
+`IHttpResponse` are laid out through the slots `wordy` calls. Request decoding
+uses the genuine methods (`GetRawHttpRequest` for the URL, `GetHttpMethod`,
+`GetHeader`, `ReadEntityBody`); response writing uses `Clear` / `SetStatus` /
+`SetHeader` / `WriteEntityChunks`. Two `http.h` structs (`HTTP_REQUEST`,
+`HTTP_DATA_CHUNK`) are pinned for the data read/written, guarded by compile-time
+`offset_of!` assertions. The emulated-host unit tests construct these
+real-shaped vtables, so the boundary is exercised off-host; genuine activation
+is MW16-2/MW16-3.
 
 ## WD-D4 — `RegisterModule` is exported under its real name
 

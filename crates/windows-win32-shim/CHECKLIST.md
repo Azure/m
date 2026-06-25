@@ -316,7 +316,7 @@ subset (peer of `mwinweb`), never depending on this crate.
 > prerequisite of MW13-5's genuine path and MW15-2's `hwcproof/` harness. It was
 > separated out of MW13-5 during execution so the rest of MW13 could land runnable.
 
-- [ ] **MW16-1** Pin the genuine `httpserv.h` vtable layouts for every interface
+- [x] **MW16-1** Pin the genuine `httpserv.h` vtable layouts for every interface
       `wordy` touches (`IHttpModuleRegistrationInfo`, `IHttpModuleFactory`,
       `CHttpModule` — all notification slots, `IHttpContext`, `IHttpRequest`,
       `IHttpResponse`), with the unmodeled `CHttpModule` notifications defaulting

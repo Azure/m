@@ -153,20 +153,20 @@ making `wordy`'s calls to that service the egress we isolate:
   completion-based even though small ops often complete synchronously** — the
   synchronous-completion fast path is handled, but the code is shaped as if it does
   not (owner's directive). Its own `-sys` leaf for the `unsafe`.
-- **New crate `wordstore`** — a REST dictionary-store service owning the custom
+- **New crate `merriam`** — a REST dictionary-store service owning the custom
   dictionary on disk (add / update / store / remove / enumerate) via
   `windows-file-io`. Inbound via the **HTTP Server API (http.sys)** — a second,
   simpler inbound stack than HWC, async-friendly, no IIS config — with a pure
   request-dispatch core testable off the listener (mirroring `wordy::routes`).
 - **Gut `wordy`** — remove the local filesystem custom store; the custom-dict ops
-  (add/remove/contains/list) become a **WinHTTP client** relaying to `wordstore`.
+  (add/remove/contains/list) become a **WinHTTP client** relaying to `merriam`.
   `wordy` keeps the shared-dictionary spell-check / match / anagram / `fst` work.
   `wordy` stays shim-unaware (SHIM-D19): it just makes ordinary WinHTTP calls.
-- **End-to-end isolation proof**: run aliased `wordy` + `wordstore` and prove the
+- **End-to-end isolation proof**: run aliased `wordy` + `merriam` and prove the
   three requested modes against a real service — **redirect** (`wordy`'s
-  `wordstore` URL rewritten to a second instance), **buffer** (dict mutations
-  captured, `wordstore` untouched), **replay** (dict reads served from egress
-  fixtures with `wordstore` offline).
+  `merriam` URL rewritten to a second instance), **buffer** (dict mutations
+  captured, `merriam` untouched), **replay** (dict reads served from egress
+  fixtures with `merriam` offline).
 
 ---
 
@@ -179,13 +179,13 @@ making `wordy`'s calls to that service the egress we isolate:
   deferred peer seam at the `Ws*` import boundary (it cannot be reached by aliasing
   `winhttp.dll` because WWSAPI's WinHTTP calls are internal to `webservices.dll`).
 - **D-EGRESS-3 (→ SHIM-D23).** The validation tier splits `wordy`: a new
-  `wordstore` REST service owns the on-disk dictionary; `wordy` relays to it over
+  `merriam` REST service owns the on-disk dictionary; `wordy` relays to it over
   WinHTTP. This makes the egress seam testable against a *real* dependent service,
   not a synthetic stub.
-- **D-EGRESS-4 (→ SHIM-D23).** `wordstore` disk I/O uses **native async Win32**
+- **D-EGRESS-4 (→ SHIM-D23).** `merriam` disk I/O uses **native async Win32**
   (overlapped + thread-pool I/O completion) in a reusable `windows-file-io` crate,
   written async-first even though completions are usually synchronous.
-- **D-EGRESS-5 (→ SHIM-D23).** `wordstore` inbound uses the **HTTP Server API
+- **D-EGRESS-5 (→ SHIM-D23).** `merriam` inbound uses the **HTTP Server API
   (http.sys)** with a listener-independent dispatch core, chosen over HWC to avoid
   a third IIS-native-module duplication and to keep its tests light.
 
@@ -193,9 +193,10 @@ making `wordy`'s calls to that service the egress we isolate:
 
 - **`windows-file-io` vs. extending `windows-threadpool-executor`.** A dedicated
   file-I/O crate is proposed; if the executor should own this instead, say so.
-- **http.sys urlacl.** `wordstore`'s listener needs a URL reservation (same
+- **http.sys urlacl.** `merriam`'s listener needs a URL reservation (same
   constraint as HWC); its core is tested without the listener, and the listener
   edge is a gated integration test (reuses the urlacl preflight tooling).
-- **Naming.** `wordstore` / `windows-file-io` are placeholders; rename freely.
+- **Naming.** The dictionary-store service is **`merriam`** (owner-chosen,
+  2026-06-25). `windows-file-io` is still a placeholder; rename freely.
 - **WWSAPI timing.** Deferred for now; revisit once the WinHTTP seam + validation
   tier land, or sooner if a SOAP-egress consumer becomes the priority.

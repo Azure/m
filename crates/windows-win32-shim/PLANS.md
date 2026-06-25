@@ -62,9 +62,9 @@ Tracks CHECKLIST.md files in this source-component and their status.
   `windows-platform-isolation` **M11** (D31). HTTP only; WWSAPI/SOAP deferred.
   Proven by an `egressproof/` harness + negative control.
 - **MW18 — Validation tier (planned, SHIM-D23):** split `wordy` so its on-disk
-  custom dictionary lives in a new **`wordstore`** REST service (HTTP Server API
+  custom dictionary lives in a new **`merriam`** REST service (HTTP Server API
   inbound) backed by a new **`windows-file-io`** crate (native async Win32 overlapped
-  I/O + thread-pool completion); `wordy` relays custom-dict ops to `wordstore` over
+  I/O + thread-pool completion); `wordy` relays custom-dict ops to `merriam` over
   WinHTTP (staying shim-unaware), making that relay the egress MW17 isolates. End-to-
   end proof of redirect / buffer / replay against the real service.
 

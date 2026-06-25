@@ -853,14 +853,14 @@ To exercise the egress seam (SHIM-D22) against a *real* dependent service rather
 than a synthetic stub, `wordy`'s on-disk custom dictionary is carved into a
 separate web service, turning `wordy`'s calls to it into the egress we isolate.
 
-- **`wordstore` (new crate).** A REST dictionary-store service owning the custom
+- **`merriam` (new crate).** A REST dictionary-store service owning the custom
   dictionary on disk — add / update / store / remove / enumerate — with a
   listener-independent dispatch core (testable like `wordy::routes::Service`) and an
   inbound edge over the **HTTP Server API (http.sys)**. http.sys is chosen over a
-  third HWC/IIS-native-module to avoid that duplication and to keep `wordstore`
+  third HWC/IIS-native-module to avoid that duplication and to keep `merriam`
   self-hosting and lightly testable; the core is tested off the listener, the
   listener edge is a gated integration test.
-- **`windows-file-io` (new crate).** `wordstore`'s disk I/O uses **native async
+- **`windows-file-io` (new crate).** `merriam`'s disk I/O uses **native async
   Win32**: overlapped `CreateFile`/`ReadFile`/`WriteFile` with completion via the
   Windows thread pool (`CreateThreadpoolIo` / `StartThreadpoolIo`, over
   `windows-threadpool`). The API is written **async/completion-shaped even though
@@ -868,10 +868,10 @@ separate web service, turning `wordy`'s calls to it into the egress we isolate.
   fast path is handled, but the code does not assume it. `unsafe` confined to a
   `-sys` leaf (D1/D13 discipline).
 - **`wordy` split.** `wordy` drops its local filesystem custom store and **relays**
-  the custom-dict ops to `wordstore` over WinHTTP, keeping its shared-dictionary
+  the custom-dict ops to `merriam` over WinHTTP, keeping its shared-dictionary
   spell-check / match / anagram / `fst` work. `wordy` stays shim-unaware (SHIM-D19):
   it makes ordinary WinHTTP calls; the egress seam isolates them from the outside.
 - **Proof.** End-to-end, the three owner-requested modes are demonstrated against
-  the real `wordstore`: redirect (URL rewritten to a second instance), buffer
-  (mutations captured, `wordstore` untouched), replay (reads served from fixtures,
-  `wordstore` offline). Realized by **MW18**; see the design session above.
+  the real `merriam`: redirect (URL rewritten to a second instance), buffer
+  (mutations captured, `merriam` untouched), replay (reads served from fixtures,
+  `merriam` offline). Realized by **MW18**; see the design session above.

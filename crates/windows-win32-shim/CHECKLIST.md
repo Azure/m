@@ -601,13 +601,13 @@ app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
 ## MW18 — Validation tier: dictionary-store service + `wordy` split (SHIM-D23)
 
 Make the egress seam testable against a *real* dependent service. Carve `wordy`'s
-on-disk custom dictionary into a separate REST service (`wordstore`), backed by
+on-disk custom dictionary into a separate REST service (`merriam`), backed by
 native async Win32 file I/O; `wordy` keeps its CPU work and **relays** the custom-
-dict ops to `wordstore` over WinHTTP — which becomes the egress MW17 isolates.
+dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
 `wordy` stays shim-unaware (SHIM-D19). See the design session above.
 
 > **CROSS-COMPONENT PREREQUISITE:** MW17 (WinHTTP egress seam) provides the
-> isolation the MW18-4 proof exercises; MW18-1..3 (building `wordstore` + the relay)
+> isolation the MW18-4 proof exercises; MW18-1..3 (building `merriam` + the relay)
 > may proceed in parallel with MW17 since they are ordinary networking.
 
 - [ ] **MW18-1** Scaffold crate `windows-file-io` (+ its `-sys` `unsafe` leaf):
@@ -618,7 +618,7 @@ dict ops to `wordstore` over WinHTTP — which becomes the egress MW17 isolates.
       synchronously** — handle the synchronous-completion fast path, but write the
       code as if completion is always deferred. Its own `COMPONENT.md`/`CHECKLIST.md`/
       `DESIGN-NOTES.md`/`PLANS.md`; unit + a stress integration test.
-- [ ] **MW18-2** Scaffold crate `wordstore`: a REST dictionary-store service owning
+- [ ] **MW18-2** Scaffold crate `merriam`: a REST dictionary-store service owning
       the custom dictionary on disk (add / update / store / remove / enumerate) via
       `windows-file-io`, with a **listener-independent dispatch core** (testable like
       `wordy::routes::Service`) and an inbound edge over the **HTTP Server API
@@ -626,17 +626,17 @@ dict ops to `wordstore` over WinHTTP — which becomes the egress MW17 isolates.
       core unit tests + a gated listener integration test (urlacl preflight reused).
 - [ ] **MW18-3** Gut `wordy`: remove the local filesystem custom store
       (`custom.rs`); replace the custom-dict ops (add/remove/contains/list) with a
-      **WinHTTP client** that relays to `wordstore` (configurable base URL); keep the
+      **WinHTTP client** that relays to `merriam` (configurable base URL); keep the
       shared-dictionary spell-check / match / anagram / `fst` work unchanged. `wordy`
       remains shim-unaware (only ordinary WinHTTP calls). Update the `wordy` design
       notes + amend SHIM-D19 to record the split. Tests: the relay client unit-tested
-      against a stub `wordstore`; `wordy`'s CPU routes unchanged.
+      against a stub `merriam`; `wordy`'s CPU routes unchanged.
 - [ ] **MW18-4** *(integration)* End-to-end egress isolation against a real service:
-      run aliased `wordy` + `wordstore` and prove the three owner-requested modes via
-      the `.pilcfg` `egress` section — **redirect** (`wordy`'s `wordstore` URL
+      run aliased `wordy` + `merriam` and prove the three owner-requested modes via
+      the `.pilcfg` `egress` section — **redirect** (`wordy`'s `merriam` URL
       rewritten to a second instance, asserted by where the words land), **buffer**
-      (dict mutations captured in the egress overlay, `wordstore` untouched), and
-      **replay** (`wordy` serves dict reads from egress fixtures with `wordstore`
+      (dict mutations captured in the egress overlay, `merriam` untouched), and
+      **replay** (`wordy` serves dict reads from egress fixtures with `merriam`
       offline). Gated/ignored when the listener URL is unbindable. Record SHIM-D23
       closure.
 

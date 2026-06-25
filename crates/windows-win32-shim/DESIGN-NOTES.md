@@ -294,6 +294,18 @@ separately owned concerns:
   live passthrough rather than failing the host — an owned tolerance choice
   consistent with SHIM-D5 (the C++ ctor would throw; we do not).
 
+- **Filesystem backing composition (`session`).** `ShimSession::from_config`
+  selects one concrete `FilesystemBacking` (a local enum that is itself an
+  `FsSurface`, so `fs_ops` and the handle table stay surface-generic with no
+  dynamic dispatch): `buffer_updates` interposes an overlay-over-live write
+  buffer (`FsBuffered`, platform-isolation D30) so an unmodified consumer's
+  namespace mutations land in the in-memory overlay and the live filesystem is
+  left untouched until an explicit commit; else live passthrough
+  (`FilesystemBacking::Live`). `buffer_updates` thus now buffers **both** the
+  registry and the filesystem with a single sidecar flag, matching the C++
+  shim's single-knob intent. The large `Buffered` variant is boxed so the enum
+  is not dominated by the overlay/journal footprint of the buffered case.
+
 - **`capture_snapshot` on teardown.** `ShimSession::capture_snapshot` is
   best-effort and explicit: with no configured path it is a no-op; with a
   persisted backing it folds the live `OverlayTree` (base snapshot plus the
@@ -310,9 +322,11 @@ not an oversight — each is queued as a later MW item where applicable):
   are parsed and preserved but **not yet honored**: `windows-platform-isolation`
   exposes no journaling-to-file, key-redirection, or fault-injection decorator to
   route them through. They are gaps, not errors.
-- The **filesystem** surface is always live passthrough; there is no buffered or
-  persisted filesystem decorator, so `persisted_state` / `buffer_updates` affect
-  the **registry only**.
+- The **filesystem** surface honors `buffer_updates` (overlay-over-live
+  `FsBuffered`, platform-isolation D30) but not `persisted_state`: there is no
+  persisted or capturable filesystem snapshot yet, so a buffered filesystem's
+  overlay is discarded at teardown (no filesystem analogue of
+  `capture_snapshot`). `persisted_state` therefore affects the **registry only**.
 - A live or buffered registry backing **cannot** be serialized, so
   `capture_snapshot` returns `false` for those backings (only a persisted backing
   is captured).

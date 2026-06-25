@@ -5,14 +5,13 @@
 //! A single [`ShimSession`] holds the isolation stack the C ABI routes through.
 //! It is created lazily on first use and lives for the rest of the process. On
 //! first access the session reads the `<host-executable>.pilcfg` sidecar
-//! ([`crate::pilcfg`]) and composes its **registry** backing accordingly
-//! (SHIM-D13): `persisted_state` runs entirely against a loaded snapshot,
-//! `buffer_updates` interposes a write-buffering layer over the live registry,
-//! and the all-default configuration is live passthrough ([`LiveRegistry`]). The
-//! filesystem surface is always live passthrough ([`LiveFilesystem`]) for this
-//! milestone; `.pilcfg`-driven filesystem layering is a documented gap
-//! (SHIM-D13). Tests construct a session directly from a [`Pilcfg`] via
-//! [`ShimSession::from_config`].
+//! ([`crate::pilcfg`]) and composes its **registry** and **filesystem** backings
+//! accordingly (SHIM-D13): `persisted_state` runs the registry entirely against a
+//! loaded snapshot, `buffer_updates` interposes a write-buffering layer over the
+//! live registry **and** the live filesystem (overlay-over-live, platform-isolation
+//! D30), and the all-default configuration is live passthrough
+//! ([`LiveRegistry`] / [`LiveFilesystem`]). Tests construct a session directly
+//! from a [`Pilcfg`] via [`ShimSession::from_config`].
 //!
 //! Hive roots are vended through the held isolation [`Session`], so a path built
 //! from this session resolves against the configured registry stack. Predefined
@@ -23,9 +22,10 @@
 use std::sync::{Mutex, OnceLock};
 
 use windows_platform_isolation::{
-    Buffered, Filesystem, Hive, KeyPath, LiveFilesystem, LiveRegistry, OverlayTree, Registry,
-    Request, Response, Session, Surface, TreeSurface, WellKnownRoot, Win32OrdinalCasing,
-    load_registry_hive, save_registry_hive,
+    Buffered, Filesystem, FilesystemResult, FsBuffered, FsRequest, FsResponse, FsSurface, Hive,
+    KeyPath, LiveFilesystem, LiveRegistry, OverlayTree, Registry, Request, Response, Session,
+    Surface, TreeSurface, WellKnownRoot, Win32OrdinalCasing, load_registry_hive,
+    save_registry_hive,
 };
 
 use crate::com::ComState;
@@ -37,7 +37,7 @@ use crate::web::WebState;
 /// The live filesystem provider the default session routes through: live
 /// passthrough over the real OS filesystem, keyed with the mandated production
 /// ordinal casing (`Win32OrdinalCasing`).
-type LiveFs = Filesystem<LiveFilesystem<Win32OrdinalCasing>>;
+type SessionFs = Filesystem<FilesystemBacking>;
 
 /// The registry surface the session routes through, selected from the `.pilcfg`
 /// configuration (SHIM-D13). A single concrete type keeps the handle table and
@@ -64,6 +64,31 @@ impl Surface for RegistryBacking {
     }
 }
 
+/// The filesystem surface the session routes through, selected from the
+/// `.pilcfg` configuration (SHIM-D13): live passthrough by default, or an
+/// overlay-over-live write buffer when `buffer_updates` is set (which now
+/// buffers filesystem mutations as well as registry writes). A single concrete
+/// type keeps the handle table and the surface-generic [`fs_ops`](crate::fs_ops)
+/// free of dynamic dispatch: each variant is itself an [`FsSurface`], and this
+/// enum dispatches across them.
+pub enum FilesystemBacking {
+    /// Live passthrough over the real OS filesystem (the default).
+    Live(LiveFilesystem<Win32OrdinalCasing>),
+    /// An overlay-over-live write buffer: namespace mutations are captured in an
+    /// in-memory overlay and never written through (`buffer_updates`). Boxed
+    /// because the overlay/journal make this variant much larger than `Live`.
+    Buffered(Box<FsBuffered<LiveFilesystem<Win32OrdinalCasing>, Win32OrdinalCasing>>),
+}
+
+impl FsSurface for FilesystemBacking {
+    fn invoke(&mut self, req: &FsRequest) -> FilesystemResult<FsResponse> {
+        match self {
+            Self::Live(surface) => surface.invoke(req),
+            Self::Buffered(surface) => surface.invoke(req),
+        }
+    }
+}
+
 /// The process-wide isolation session and its handle table.
 ///
 /// The registry and filesystem facades are each held behind a [`Mutex`] because
@@ -73,7 +98,7 @@ impl Surface for RegistryBacking {
 pub struct ShimSession {
     isolation: Session,
     registry: Mutex<Registry<RegistryBacking>>,
-    filesystem: Mutex<LiveFs>,
+    filesystem: Mutex<SessionFs>,
     handles: HandleTable,
     loader: Mutex<LoaderState>,
     com: Mutex<ComState>,
@@ -94,17 +119,17 @@ impl ShimSession {
 
     /// Build a session whose registry backing is composed from `cfg` (SHIM-D13).
     ///
-    /// `persisted_state` (when it loads) wins and runs entirely against the
-    /// snapshot; otherwise `buffer_updates` selects the buffering layer; failing
-    /// both, the backing is live passthrough. The filesystem surface is always
-    /// live passthrough for this milestone.
+    /// `persisted_state` (when it loads) wins and runs the registry entirely
+    /// against the snapshot; otherwise `buffer_updates` selects the buffering
+    /// layer (for both the registry and the filesystem); failing both, the
+    /// backings are live passthrough.
     #[must_use]
     pub fn from_config(cfg: Pilcfg) -> Self {
         let casing = Win32OrdinalCasing;
         Self {
             isolation: Session::new(),
             registry: Mutex::new(Registry::new(build_registry_backing(&cfg, casing))),
-            filesystem: Mutex::new(Filesystem::new(LiveFilesystem::new(casing))),
+            filesystem: Mutex::new(Filesystem::new(build_filesystem_backing(&cfg, casing))),
             handles: HandleTable::new(),
             loader: Mutex::new(LoaderState::new()),
             com: Mutex::new(ComState::new()),
@@ -146,7 +171,7 @@ impl ShimSession {
     }
 
     /// Borrow the filesystem facade under the session lock.
-    pub fn with_filesystem<R>(&self, f: impl FnOnce(&mut LiveFs) -> R) -> R {
+    pub fn with_filesystem<R>(&self, f: impl FnOnce(&mut SessionFs) -> R) -> R {
         let mut guard = self.filesystem.lock().expect("session filesystem poisoned");
         f(&mut guard)
     }
@@ -219,6 +244,21 @@ fn build_registry_backing(cfg: &Pilcfg, casing: Win32OrdinalCasing) -> RegistryB
         return RegistryBacking::Buffered(Buffered::new(LiveRegistry::new(), casing));
     }
     RegistryBacking::Live(LiveRegistry::new())
+}
+
+/// Compose the filesystem backing from `cfg` (SHIM-D13): an overlay-over-live
+/// write buffer when `buffer_updates` is set (so an unmodified consumer's
+/// namespace mutations land in the in-memory overlay and the live filesystem is
+/// left untouched until an explicit commit), else live passthrough. `buffer_updates`
+/// thus now buffers *both* the registry and the filesystem.
+fn build_filesystem_backing(cfg: &Pilcfg, casing: Win32OrdinalCasing) -> FilesystemBacking {
+    if cfg.buffer_updates {
+        return FilesystemBacking::Buffered(Box::new(FsBuffered::new(
+            LiveFilesystem::new(casing),
+            casing,
+        )));
+    }
+    FilesystemBacking::Live(LiveFilesystem::new(casing))
 }
 
 /// Load a `persisted_state` artifact into a [`RegistryBacking::Persisted`], or
@@ -300,5 +340,76 @@ mod tests {
     fn handle_table_is_reachable_from_session() {
         let s = ShimSession::new();
         assert!(s.handles().is_empty());
+    }
+
+    /// A unique, not-yet-existing path under the OS temp directory, tagged for
+    /// readability and made unique across processes and calls.
+    fn unique_temp_dir(tag: &str) -> String {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("{tag}-{}-{n}", std::process::id()));
+        dir.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn buffer_updates_isolates_filesystem_mutations_from_the_live_fs() {
+        use crate::fs_ops;
+        use windows_platform_isolation::{FilePath, NodeKind};
+
+        // A unique live path that must never appear on disk.
+        let dir = unique_temp_dir("shim-fsbuf");
+        let path = FilePath::from_utf8(&dir);
+
+        let session = ShimSession::from_config(Pilcfg {
+            buffer_updates: true,
+            ..Pilcfg::default()
+        });
+
+        // Precondition: the directory does not exist before the buffered create.
+        assert!(!std::path::Path::new(&dir).exists());
+
+        // Create it through the buffered session filesystem.
+        session
+            .with_filesystem(|fs| fs_ops::create_directory(fs, &path))
+            .expect("buffered create_directory");
+
+        // Read-your-writes: the buffered session observes the new directory.
+        let (_, kind) = session
+            .with_filesystem(|fs| fs_ops::stat_path(fs, &path))
+            .expect("buffered stat_path");
+        assert_eq!(kind, NodeKind::Directory);
+
+        // The live filesystem was never touched: the path is absent on disk.
+        assert!(
+            !std::path::Path::new(&dir).exists(),
+            "a buffered mutation must not reach the live filesystem"
+        );
+    }
+
+    #[test]
+    fn default_config_passes_filesystem_mutations_through_to_the_live_fs() {
+        use crate::fs_ops;
+        use windows_platform_isolation::FilePath;
+
+        // A unique live path the passthrough session will really create.
+        let dir = unique_temp_dir("shim-fspass");
+        let path = FilePath::from_utf8(&dir);
+
+        let session = ShimSession::from_config(Pilcfg::default());
+        assert!(!std::path::Path::new(&dir).exists());
+
+        session
+            .with_filesystem(|fs| fs_ops::create_directory(fs, &path))
+            .expect("passthrough create_directory");
+
+        // The default backing is live passthrough: the directory landed on disk.
+        let landed = std::path::Path::new(&dir).exists();
+        let _ = std::fs::remove_dir(&dir);
+        assert!(
+            landed,
+            "the default (unbuffered) backing must write through to the live filesystem"
+        );
     }
 }

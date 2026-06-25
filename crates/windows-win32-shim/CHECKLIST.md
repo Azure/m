@@ -422,12 +422,22 @@ Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
       live-backed decorator distinguishes tombstoned from absent; `FsBuffered`
       with read-your-writes + read_dir merge + `commit`/`rollback`/`journal`; 5
       new unit tests; platform-isolation design note D30.)*
-- [ ] **MW15-2** Wire a `FilesystemBacking` enum (`Live` / `Buffered`) into the
+- [x] **MW15-2** Wire a `FilesystemBacking` enum (`Live` / `Buffered`) into the
       shim `ShimSession`, selected from `.pilcfg` (`buffer_updates` now buffers
       filesystem mutations too); change `session.filesystem` to the enum. Shim
       integration tests drive the FS C ABI through the buffered backing and assert
       namespace ops land in the overlay with the live FS untouched. Update
       SHIM-D13.
+      *(Added `FilesystemBacking::{Live,Buffered}` — itself an `FsSurface`, the
+      `Buffered` variant boxed to satisfy `large_enum_variant`; renamed the alias
+      to `SessionFs = Filesystem<FilesystemBacking>`; `build_filesystem_backing`
+      selects buffered/live from `buffer_updates`. Two session tests prove a
+      buffered session's `create_directory` is read-your-writes yet leaves the
+      live FS untouched, while the default session writes through to disk. The C
+      ABI exports use the process-global `session()` and cannot take a per-test
+      config, so the genuine-C-ABI-through-buffered proof is MW15-4 (`hwcproof/`);
+      these tests drive the same `fs_ops` core the C ABI marshals into. Updated
+      SHIM-D13 with a "Filesystem backing composition" bullet + narrowed gap.)*
 - [ ] **MW15-3** Build `wordy` with the alias `.obj` + shim import lib injected via
       the generic `build.rs` env vars (no `wordy` source change); confirm via
       `dumpbin /imports` that the FS + thread-pool/loader imports bind the shim.

@@ -21,15 +21,20 @@
 //! Modules land across milestones AJ-C..AJ-E:
 //! - `sink` (AJ-C1): the output abstraction.
 //! - `model` (AJ-C2): the OpenAPI 3.1 document model.
-//! - `load` (AJ-C3): reading specs from JSON or YAML.
+//! - `format` (AJ-C3): reading and writing specs as JSON or YAML.
 //! - `schema` (AJ-C4): rendering [`api_journal`] body shapes to OpenAPI schemas.
 //! - validation (AJ-D) and synthesis (AJ-E) follow.
 
 #![forbid(unsafe_code)]
 
+pub mod format;
 pub mod model;
 pub mod sink;
 
+pub use format::{
+    LoadError, LoadOutcome, LoadedSpec, SpecFormat, load_path, parse_auto, parse_document,
+    serialize_document,
+};
 pub use model::{
     Components, Content, Document, Info, MediaType, Operation, Parameter, ParameterIn, PathItem,
     Paths, RequestBody, Response, ResponseHeader, Responses, Schema, SchemaType, Server, SimpleType,

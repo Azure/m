@@ -54,7 +54,7 @@ Component: `crates/cartographer` (new bin+lib; depends on `api-journal`).
 
 - [x] AJ-C1: Scaffold `crates/cartographer` — bin + lib, deps `api-journal` + `serde` + `serde_json` + a maintained YAML crate, copyright + `DESIGN-NOTES.md` + `PLANS.md`, workspace member. Introduce the single output-sink trait NOW (one `write` site abstraction per the repo "one output site" rule) so all later diagnostics/spec output route through it. Clean build.
 - [x] AJ-C2: OAS 3.1 model subset — serde types `Document` (openapi/info/servers?/paths/components?), `Info`, `PathItem`, `Operation` (operationId/summary?/parameters/requestBody?/responses), `Parameter` (name/in/required/schema), `RequestBody` (content map), `Response` (description/content), `Schema` (JSON-Schema-2020-12 subset: type incl. type-array nullability, properties, required, items, format, anyOf, `$ref`). Unit tests (serde round-trip of a hand-written doc).
-- [ ] AJ-C3: Spec loader — ingest a file or directory of specs, JSON or YAML (auto-detected), tolerant with a diagnostic per unparseable spec (never panic). Unit tests with JSON + YAML fixtures.
+- [x] AJ-C3: Spec loader — ingest a file or directory of specs, JSON or YAML (auto-detected), tolerant with a diagnostic per unparseable spec (never panic). Unit tests with JSON + YAML fixtures.
 - [ ] AJ-C4: `BodyShape` → OAS `Schema` renderer — map the api-journal shape model to a JSON-Schema-2020-12 `Schema` (Union → `anyOf`, null member → type-array, Object → properties+required, Array → items). Unit tests.
 - [ ] AJ-C5: Milestone integration — load a fixture spec (both YAML and JSON forms), render sample shapes to schemas, round-trip write to YAML and JSON. Implicit end-of-milestone steps (clean build debug+release, in-scope tests, sync + push).
 

@@ -29,9 +29,11 @@
 
 pub mod format;
 pub mod model;
+pub mod path;
 pub mod schema;
 pub mod sink;
 
+pub use path::{PathMatch, PathTemplate, best_match};
 pub use schema::render_schema;
 pub use format::{
     LoadError, LoadOutcome, LoadedSpec, SpecFormat, load_path, parse_auto, parse_document,

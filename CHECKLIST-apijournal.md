@@ -64,7 +64,7 @@ Component: `crates/cartographer` (new bin+lib; depends on `api-journal`).
 
 Component: `crates/cartographer`.
 
-- [ ] AJ-D1: Path matcher — match a concrete observed path against spec path templates (`{param}` segments), choosing the most-specific template; report no-match. Unit tests (literal vs templated, `/custom` vs `/custom/{word}`, trailing slash, ambiguous).
+- [x] AJ-D1: Path matcher — match a concrete observed path against spec path templates (`{param}` segments), choosing the most-specific template; report no-match. Unit tests (literal vs templated, `/custom` vs `/custom/{word}`, trailing slash, ambiguous).
 - [ ] AJ-D2: Diagnostic model + rendering — `Diagnostic { severity, code, location (path/method/status), message }` rendered through the output sink in `text` and `ndjson` report modes. Unit tests.
 - [ ] AJ-D3: Validation rules — `UndocumentedPath`, `UndocumentedOperation` (method not in PathItem), `UndeclaredStatus`, `UndeclaredParameter` (query), `UndeclaredHeader` (excluding standard headers), `RequestSchemaMismatch`, `ResponseSchemaMismatch`, `TypeMismatch`. One unit test per rule.
 - [ ] AJ-D4: Stream aggregation — validate a whole journal stream, deduplicating repeated identical violations with an observation count. Unit tests.

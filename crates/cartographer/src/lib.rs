@@ -29,12 +29,14 @@
 
 pub mod diagnostics;
 pub mod format;
+pub mod infer;
 pub mod model;
 pub mod path;
 pub mod schema;
 pub mod sink;
 pub mod validate;
 
+pub use infer::TemplateSet;
 pub use validate::{SpecIndex, validate_record, validate_stream};
 pub use diagnostics::{
     Diagnostic, DiagnosticCode, Location, ReportFormat, Severity, render as render_diagnostics,

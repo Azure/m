@@ -28,7 +28,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
       server binding is allowed — bindings are optional evidence).
 - [x] **EM-B3** Attach observed evidence (interaction counts, first/last
       timestamps) to bindings and actors.
-- [ ] **EM-B4** Tests: a small synthetic egress+inbound journal yields the
+- [x] **EM-B4** Tests: a small synthetic egress+inbound journal yields the
       expected actor set, bindings, and counts.
 
 ## Milestone EM-C — Role & channel derivation + contract linkage

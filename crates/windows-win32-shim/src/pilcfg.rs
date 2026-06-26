@@ -41,7 +41,18 @@ mod member {
     pub const EGRESS: &str = "egress";
     pub const MODE: &str = "mode";
     pub const REPLAY_DIR: &str = "replay_dir";
+    pub const API_JOURNAL: &str = "api_journal";
+    pub const ENABLED: &str = "enabled";
+    pub const PATH: &str = "path";
+    pub const BODIES: &str = "bodies";
+    pub const SEAMS: &str = "seams";
+    pub const INBOUND: &str = "inbound";
+    pub const MAX_BODY_BYTES: &str = "max_body_bytes";
 }
+
+/// The default value of `api_journal.max_body_bytes`: bodies larger than this are
+/// truncated before a shape is derived or full bytes are captured.
+const DEFAULT_MAX_BODY_BYTES: usize = 64 * 1024;
 
 /// The egress (outbound network-client) isolation mode selected by the `.pilcfg`
 /// `egress.mode` member (MW17 / SHIM-D22). The all-default value is
@@ -77,6 +88,58 @@ pub struct EgressConfig {
     /// Directory of replay fixtures for [`EgressMode::Replay`] (`%VAR%`-expanded).
     /// Empty by default.
     pub replay_dir: String,
+}
+
+/// How much of a request/response body the API journal captures (the `bodies`
+/// member of the `api_journal` block). The default is
+/// [`Shapes`](BodyCapture::Shapes): a JSON schema skeleton carrying no literal
+/// scalar values.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BodyCapture {
+    /// Capture a shapes-only skeleton (field names, JSON types, nesting) with no
+    /// literal scalar values. The privacy-preserving default.
+    #[default]
+    Shapes,
+    /// Capture full body bytes, truncated at `max_body_bytes`.
+    Full,
+    /// Capture no body content at all (metadata only).
+    None,
+}
+
+/// The `api_journal` block of a `.pilcfg` (AJ-B). When `enabled`, the shim
+/// appends one NDJSON record per observed HTTP interaction to `path` for later
+/// off-machine post-processing by the `cartographer` tool. Disabled by default,
+/// so a host that does not opt in pays nothing and writes nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ApiJournalConfig {
+    /// Whether journaling is on. Default `false`.
+    pub enabled: bool,
+    /// Destination NDJSON file (`%VAR%`-expanded). Empty when unset.
+    pub path: String,
+    /// How much of each body to capture. Default [`BodyCapture::Shapes`].
+    pub bodies: BodyCapture,
+    /// Capture inbound (IIS) requests — the service's own exposed API. Default
+    /// `true`.
+    pub capture_inbound: bool,
+    /// Capture outbound (WinHTTP egress) requests — the APIs the service
+    /// consumes. Default `true`.
+    pub capture_egress: bool,
+    /// Maximum body bytes to inspect when deriving a shape or capturing full
+    /// bytes. Default 64 KiB.
+    pub max_body_bytes: usize,
+}
+
+impl Default for ApiJournalConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            path: String::new(),
+            bodies: BodyCapture::Shapes,
+            capture_inbound: true,
+            capture_egress: true,
+            max_body_bytes: DEFAULT_MAX_BODY_BYTES,
+        }
+    }
 }
 
 /// The parsed contents of a `.pilcfg` sidecar. Each field maps onto a layer the
@@ -116,6 +179,9 @@ pub struct Pilcfg {
     /// The outbound-network (egress) isolation policy (MW17 / SHIM-D22). The
     /// all-default value is passthrough.
     pub egress: EgressConfig,
+
+    /// The API-interaction journaling policy (AJ-B). Disabled by default.
+    pub api_journal: ApiJournalConfig,
 }
 
 /// A `.pilcfg` parse failure. The JSON text is not valid JSON, is not a JSON
@@ -176,6 +242,7 @@ pub fn parse_pilcfg(json_text: &str) -> Result<Pilcfg, PilcfgError> {
         diagnostic_log: read_path(&object, member::DIAGNOSTIC_LOG)?,
         fault_script: read_path(&object, member::FAULT_SCRIPT)?,
         egress: read_egress(&object)?,
+        api_journal: read_api_journal(&object)?,
     })
 }
 
@@ -274,6 +341,82 @@ fn read_egress_mode(object: &Object) -> Result<EgressMode, PilcfgError> {
             }
         },
         Some(_) => Err(PilcfgError::new("'egress.mode' must be a string")),
+    }
+}
+
+/// Read the optional `api_journal` block: absent yields the default (disabled);
+/// present-but-not-object, or a malformed member, is an error (strict parse).
+fn read_api_journal(object: &Object) -> Result<ApiJournalConfig, PilcfgError> {
+    let Some(value) = object.get(member::API_JOURNAL) else {
+        return Ok(ApiJournalConfig::default());
+    };
+    let JsonValue::Object(journal) = value else {
+        return Err(PilcfgError::new("'api_journal' must be an object"));
+    };
+    let (capture_inbound, capture_egress) = read_seams(journal)?;
+    Ok(ApiJournalConfig {
+        enabled: read_bool(journal, member::ENABLED)?,
+        path: read_path(journal, member::PATH)?,
+        bodies: read_body_capture(journal)?,
+        capture_inbound,
+        capture_egress,
+        max_body_bytes: read_usize(journal, member::MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES)?,
+    })
+}
+
+/// Read the optional `api_journal.bodies` member: absent yields
+/// [`BodyCapture::Shapes`]; an unrecognized value (or a non-string) is an error.
+fn read_body_capture(object: &Object) -> Result<BodyCapture, PilcfgError> {
+    match object.get(member::BODIES) {
+        None => Ok(BodyCapture::Shapes),
+        Some(JsonValue::String(value)) => match value.as_str() {
+            "shapes" => Ok(BodyCapture::Shapes),
+            "full" => Ok(BodyCapture::Full),
+            "none" => Ok(BodyCapture::None),
+            other => Err(PilcfgError::new(format!(
+                "'api_journal.bodies' has unknown value {other:?}"
+            ))),
+        },
+        Some(_) => Err(PilcfgError::new("'api_journal.bodies' must be a string")),
+    }
+}
+
+/// Read the optional `api_journal.seams` block as `(inbound, egress)`: an absent
+/// block (or an omitted member) defaults each seam to `true`; a non-object block,
+/// or a non-boolean member, is an error.
+fn read_seams(object: &Object) -> Result<(bool, bool), PilcfgError> {
+    let Some(value) = object.get(member::SEAMS) else {
+        return Ok((true, true));
+    };
+    let JsonValue::Object(seams) = value else {
+        return Err(PilcfgError::new("'api_journal.seams' must be an object"));
+    };
+    let inbound = read_bool_default(seams, member::INBOUND, true)?;
+    let egress = read_bool_default(seams, member::EGRESS, true)?;
+    Ok((inbound, egress))
+}
+
+/// Read an optional boolean member with a caller-specified default for absence;
+/// present-but-not-boolean is an error.
+fn read_bool_default(object: &Object, name: &str, default: bool) -> Result<bool, PilcfgError> {
+    match object.get(name) {
+        None => Ok(default),
+        Some(JsonValue::Boolean(value)) => Ok(*value),
+        Some(_) => Err(PilcfgError::new(format!("'{name}' must be a boolean"))),
+    }
+}
+
+/// Read an optional non-negative integer member with a default for absence;
+/// present-but-not-a-non-negative-number is an error.
+fn read_usize(object: &Object, name: &str, default: usize) -> Result<usize, PilcfgError> {
+    match object.get(name) {
+        None => Ok(default),
+        Some(JsonValue::Number(value)) if value.is_finite() && *value >= 0.0 => {
+            Ok(*value as usize)
+        }
+        Some(_) => Err(PilcfgError::new(format!(
+            "'{name}' must be a non-negative number"
+        ))),
     }
 }
 
@@ -655,5 +798,91 @@ mod tests {
         assert!(
             parse_pilcfg(r#"{ "egress": { "redirections": [ { "from": "h" } ] } }"#).is_err()
         ); // missing 'to'
+    }
+
+    #[test]
+    fn api_journal_absent_is_disabled_default() {
+        let cfg = parse_pilcfg("{}").unwrap();
+        let journal = cfg.api_journal;
+        assert!(!journal.enabled);
+        assert!(journal.path.is_empty());
+        assert_eq!(journal.bodies, BodyCapture::Shapes);
+        assert!(journal.capture_inbound);
+        assert!(journal.capture_egress);
+        assert_eq!(journal.max_body_bytes, DEFAULT_MAX_BODY_BYTES);
+    }
+
+    #[test]
+    fn api_journal_enabled_with_path_and_bodies() {
+        let json = r#"{ "api_journal": {
+            "enabled": true,
+            "path": "C:/logs/api.ndjson",
+            "bodies": "full",
+            "max_body_bytes": 4096
+        } }"#;
+        let journal = parse_pilcfg(json).unwrap().api_journal;
+        assert!(journal.enabled);
+        assert_eq!(journal.path, "C:/logs/api.ndjson");
+        assert_eq!(journal.bodies, BodyCapture::Full);
+        assert_eq!(journal.max_body_bytes, 4096);
+        // Seams default on when the block is omitted.
+        assert!(journal.capture_inbound);
+        assert!(journal.capture_egress);
+    }
+
+    #[test]
+    fn api_journal_path_is_var_expanded() {
+        let system_root = std::env::var("SystemRoot").expect("SystemRoot is set on Windows");
+        let json = r#"{ "api_journal": { "enabled": true, "path": "%SystemRoot%/api.ndjson" } }"#;
+        let journal = parse_pilcfg(json).unwrap().api_journal;
+        assert_eq!(journal.path, format!("{system_root}/api.ndjson"));
+    }
+
+    #[test]
+    fn api_journal_bodies_variants() {
+        for (text, expected) in [
+            ("shapes", BodyCapture::Shapes),
+            ("full", BodyCapture::Full),
+            ("none", BodyCapture::None),
+        ] {
+            let json = format!(r#"{{ "api_journal": {{ "bodies": "{text}" }} }}"#);
+            assert_eq!(parse_pilcfg(&json).unwrap().api_journal.bodies, expected);
+        }
+    }
+
+    #[test]
+    fn api_journal_seams_selectively_disabled() {
+        let inbound_only =
+            parse_pilcfg(r#"{ "api_journal": { "seams": { "egress": false } } }"#).unwrap();
+        assert!(inbound_only.api_journal.capture_inbound);
+        assert!(!inbound_only.api_journal.capture_egress);
+
+        let egress_only =
+            parse_pilcfg(r#"{ "api_journal": { "seams": { "inbound": false } } }"#).unwrap();
+        assert!(!egress_only.api_journal.capture_inbound);
+        assert!(egress_only.api_journal.capture_egress);
+    }
+
+    #[test]
+    fn api_journal_unknown_members_ignored() {
+        let cfg =
+            parse_pilcfg(r#"{ "api_journal": { "enabled": true, "future_knob": 5 } }"#).unwrap();
+        assert!(cfg.api_journal.enabled);
+    }
+
+    #[test]
+    fn api_journal_wrong_shapes_are_errors() {
+        assert!(parse_pilcfg(r#"{ "api_journal": "nope" }"#).is_err()); // not an object
+        assert!(parse_pilcfg(r#"{ "api_journal": { "enabled": 1 } }"#).is_err()); // not a bool
+        assert!(parse_pilcfg(r#"{ "api_journal": { "bodies": "huge" } }"#).is_err()); // unknown
+        assert!(parse_pilcfg(r#"{ "api_journal": { "bodies": 7 } }"#).is_err()); // not a string
+        assert!(parse_pilcfg(r#"{ "api_journal": { "seams": 3 } }"#).is_err()); // not an object
+        assert!(
+            parse_pilcfg(r#"{ "api_journal": { "seams": { "inbound": "yes" } } }"#).is_err()
+        ); // seam not a bool
+        assert!(parse_pilcfg(r#"{ "api_journal": { "max_body_bytes": -1 } }"#).is_err()); // negative
+        assert!(
+            parse_pilcfg(r#"{ "api_journal": { "max_body_bytes": "big" } }"#).is_err()
+        ); // not a number
     }
 }

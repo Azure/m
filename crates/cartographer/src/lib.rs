@@ -36,6 +36,7 @@
 #![forbid(unsafe_code)]
 
 pub mod cli;
+pub mod derive;
 pub mod diagnostics;
 pub mod environment;
 pub mod format;
@@ -49,6 +50,7 @@ pub mod synth;
 pub mod validate;
 
 pub use infer::TemplateSet;
+pub use derive::{LOCAL_ACTOR, derive_actors};
 pub use environment::{
     Actor, Actors, Binding, Channel, Channels, ContractRef, Environment, Observed, Provenance,
     ProvenanceTier, Role, RolePart, Roles, Security, Transport,

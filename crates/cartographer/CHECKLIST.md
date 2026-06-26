@@ -21,7 +21,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 
 ## Milestone EM-B — Actor & binding derivation from journals
 
-- [ ] **EM-B1** Derive egress actors keyed by `(scheme, host, port)` with a
+- [x] **EM-B1** Derive egress actors keyed by `(scheme, host, port)` with a
       `Binding`; the observed process becomes a single local actor.
 - [ ] **EM-B2** Derive inbound actors: the local process is the server actor;
       remote callers default to one `client` actor per inbound seam (an unknown

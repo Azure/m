@@ -58,7 +58,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
       (METHOD + inferred path template); when ≥2 distinct operations appear, create one additive
       child role per operation with a deterministic id, retaining the parent as a group
       (`parent.children` = union of children).
-- [ ] **EM-D2** Record the subdivision-axis decision in DESIGN-NOTES: behavior is the active
+- [x] **EM-D2** Record the subdivision-axis decision in DESIGN-NOTES: behavior is the active
       axis; transport/auth and identity axes are deferred (identity gated on PII-A, never keying
       on a raw principal identity).
       > ⛔ **PREREQUISITE — PII-A:** the transport/auth and identity axes must not key on a raw

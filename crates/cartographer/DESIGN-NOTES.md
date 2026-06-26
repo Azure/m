@@ -94,6 +94,20 @@ cartographer also synthesizes an **environment descriptor** that maps the
   off by default). Splits are **additive**: the parent role persists as a group
   (= union of its children) so existing downstream test configs do not break;
   renames are breaking and avoided.
+- **EM-D realization — behavioral subdivision is population-level, not per-caller.**
+  Inbound callers are anonymous (one `inbound-client` actor, no identity), so
+  requests cannot be attributed to distinct *principals*. Behavioral subdivision is
+  therefore a **population-level partition** of a client role's traffic by operation
+  (`METHOD` + the inferred path template, so `/custom/cat` and `/custom/dog` group as
+  `/custom/{id}`): a client role whose traffic spans ≥2 operations gains one
+  *candidate* child role per operation (`derived` provenance, deterministic id
+  `{parent}#{METHOD}{template}`), with the parent retained as the group. Each child
+  is a hint the maintainer refines — move/merge/rename — and those `asserted` edits
+  survive re-synthesis. The **transport/auth and identity axes both require
+  per-participant attribution** (a way to group requests by participant), which
+  anonymity does not provide, so they are **deferred**; the identity axis is gated on
+  PII-A (`../../CHECKLIST-pii-tokenization.md`) and must never key on a raw principal
+  identity. So today the **behavior axis is the only one that fires**.
 - **Three-tier provenance enables later feedback learning.** Every element is
   `observed` (immutable fact), `derived` (our interpretation, carrying its
   `basis`), or `asserted` (human override, authoritative). Re-synthesis preserves

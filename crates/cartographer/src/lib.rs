@@ -18,6 +18,14 @@
 //! through a single [`OutputSink`] (the repository's "one output site" rule), so
 //! the output target is separable from the code that produces content.
 //!
+//! To see capture + synthesis end to end, run the bundled example, which writes a
+//! sample `wordy` journal alongside the OpenAPI spec synthesized from it (see the
+//! crate README for details):
+//!
+//! ```text
+//! cargo run -p cartographer --example wordy -- <out_dir>
+//! ```
+//!
 //! Modules land across milestones AJ-C..AJ-E:
 //! - `sink` (AJ-C1): the output abstraction.
 //! - `model` (AJ-C2): the OpenAPI 3.1 document model.

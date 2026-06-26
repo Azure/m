@@ -4,6 +4,7 @@ name = "cartographer"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
+readme = "README.md"
 description = "Offline tool that reads journaled HTTP API interactions (api-journal NDJSON) plus existing OpenAPI specs, reports violations against them as diagnostics, and synthesizes/merges updated OpenAPI 3.1 specs. Pure data; no Win32, no unsafe."
 
 [dependencies]

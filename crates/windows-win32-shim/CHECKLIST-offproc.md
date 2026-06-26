@@ -30,7 +30,7 @@ persisted journal is unchanged — only *where* the work runs moves.
       item that runs `handle_interaction` then signals the `WaitGate` → `wait` → return the reply.
 - [x] **OT-5** Wire `JournalingEgress::send` to marshal + dispatch off-thread instead of the
       inline `sink.record`.
-- [ ] **OT-6** Wire `JournalingHandler` (inbound) to marshal + dispatch off-thread.
+- [x] **OT-6** Wire `JournalingHandler` (inbound) to marshal + dispatch off-thread.
 - [ ] **OT-7** Tests: the off-thread path produces the same journal records as the inline path;
       the `WaitGate` blocks then wakes; the marshaled request/reply round-trips.
 

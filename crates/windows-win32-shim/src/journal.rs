@@ -449,16 +449,18 @@ pub fn dispatch_off_thread(sink: &Arc<JournalSink>, interaction: Interaction) ->
 
 // === Inbound journaling decorator (AJ-B4) ===
 
-/// The request half captured at `on_begin_request`, held until the matching
-/// `on_send_response` so a single [`Seam::Inbound`] record describes the whole
-/// exchange.
+/// The raw request half captured at `on_begin_request`, held until the matching
+/// `on_send_response` so a single [`Seam::Inbound`] interaction describes the whole
+/// exchange. No reduction happens here — the literal headers and body bytes are
+/// carried so the off-thread worker can reduce them (SHIM-D25).
 struct PendingInbound {
     method: String,
-    path: String,
-    query: Vec<QueryParam>,
-    request_headers: Vec<HeaderField>,
-    request_body: BodyShape,
-    request_body_example: Option<serde_json::Value>,
+    /// The raw request target (path plus any `?query`), unsplit.
+    target: String,
+    request_headers: Vec<RawHeader>,
+    request_body: Vec<u8>,
+    /// Interception time (ms since the Unix epoch), sampled when the request began.
+    timestamp_ms: u64,
 }
 
 /// A [`RequestHandler`] decorator that journals each inbound (IIS) exchange as a
@@ -488,15 +490,13 @@ impl JournalingHandler {
 
 impl RequestHandler for JournalingHandler {
     fn on_begin_request(&mut self, request: &HttpRequest) -> Disposition {
-        let (path, query) = split_path_query(request.url());
-        let (request_headers, request_ct) = http_header_fields(request.headers());
+        // Marshal the raw request half; the worker (not this thread) reduces it.
         self.pending = Some(PendingInbound {
             method: request.method().to_string(),
-            path,
-            query,
-            request_headers,
-            request_body: self.sink.body_shape(request.body(), request_ct.as_deref()),
-            request_body_example: self.sink.body_example(request.body(), request_ct.as_deref()),
+            target: request.url().to_string(),
+            request_headers: raw_http_headers(request.headers()),
+            request_body: request.body().to_vec(),
+            timestamp_ms: now_ms(),
         });
         self.inner.on_begin_request(request)
     }
@@ -506,49 +506,40 @@ impl RequestHandler for JournalingHandler {
         // downstream mutation (the identity stack mutates nothing).
         let disposition = self.inner.on_send_response(response);
         if let Some(pending) = self.pending.take() {
-            let (response_headers, response_ct) = http_header_fields(response.headers());
-            self.sink.record(JournalRecord {
+            // Off-thread (SHIM-D25): assemble the raw interaction and hand it to the
+            // worker, blocking until it finishes. Inbound has no destination
+            // authority — the service is the host.
+            let interaction = Interaction {
                 seam: Seam::Inbound,
                 method: pending.method,
-                // Inbound: no destination authority — the service is the host.
-                path: pending.path,
-                query: pending.query,
+                scheme: None,
+                host: None,
+                port: None,
+                target: pending.target,
                 request_headers: pending.request_headers,
                 request_body: pending.request_body,
-                request_body_example: pending.request_body_example,
                 status: response.status(),
-                response_headers,
-                response_body: self.sink.body_shape(response.body(), response_ct.as_deref()),
-                response_body_example: self
-                    .sink
-                    .body_example(response.body(), response_ct.as_deref()),
-                ..Default::default()
-            });
+                response_headers: raw_http_headers(response.headers()),
+                response_body: response.body().to_vec(),
+                timestamp_ms: pending.timestamp_ms,
+            };
+            let _ = dispatch_off_thread(&self.sink, interaction);
         }
         disposition
     }
 }
 
-/// Convert inbound [`Header`] values into journal [`HeaderField`]s, retaining
-/// literal values only for content-negotiation headers, and return the observed
-/// `Content-Type` (used to key body-shape derivation).
-fn http_header_fields(headers: &[Header]) -> (Vec<HeaderField>, Option<String>) {
-    let mut fields = Vec::with_capacity(headers.len());
-    let mut content_type = None;
-    for header in headers {
-        let name = header.name().to_string();
-        let lower = name.to_ascii_lowercase();
-        let retained = if CONTENT_NEGOTIATION_HEADERS.contains(&lower.as_str()) {
-            Some(header.value().to_string())
-        } else {
-            None
-        };
-        if lower == "content-type" {
-            content_type = retained.clone();
-        }
-        fields.push(HeaderField { name, value: retained });
-    }
-    (fields, content_type)
+/// Convert raw inbound [`Header`]s into position-independent [`RawHeader`]s,
+/// preserving every header and its literal value (the safelist is applied later,
+/// in the worker).
+fn raw_http_headers(headers: &[Header]) -> Vec<RawHeader> {
+    headers
+        .iter()
+        .map(|header| RawHeader {
+            name: header.name().to_string(),
+            value: header.value().to_string(),
+        })
+        .collect()
 }
 
 #[cfg(test)]

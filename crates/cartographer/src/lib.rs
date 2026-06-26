@@ -50,8 +50,8 @@ pub mod validate;
 
 pub use infer::TemplateSet;
 pub use environment::{
-    Actor, Actors, Binding, Channel, Channels, ContractRef, Environment, Observed, Role, RolePart,
-    Roles, Security, Transport,
+    Actor, Actors, Binding, Channel, Channels, ContractRef, Environment, Observed, Provenance,
+    ProvenanceTier, Role, RolePart, Roles, Security, Transport,
 };
 pub use merge::merge;
 pub use synth::synthesize;

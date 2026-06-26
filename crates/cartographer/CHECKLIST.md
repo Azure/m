@@ -12,7 +12,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
       `plays`), `Binding` (scheme/host/port + observed counts), `Role` (id,
       `plays`, `presents`/`requires` security, `children`), `Channel` (from/to
       role, protocol, `contract` ref, transport, observations). Serde derive.
-- [ ] **EM-A2** Add the `Provenance` annotation (`observed` | `derived` { basis }
+- [x] **EM-A2** Add the `Provenance` annotation (`observed` | `derived` { basis }
       | `asserted`) and attach it to actors, roles, and channels.
 - [ ] **EM-A3** Serialize/deserialize the descriptor through the existing `format`
       machinery (default YAML, also JSON), reusing the serde model.

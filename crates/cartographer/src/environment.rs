@@ -83,6 +83,69 @@ impl Default for Environment {
     }
 }
 
+/// The provenance of a descriptor element (D-CART-4) — how it came to be. This is
+/// what makes the hand-tuning feedback loop possible: a `derived` element carries
+/// the heuristic `basis`, and because a human `asserted` value is stored
+/// distinctly, the diff between "what cartographer would derive fresh" and what an
+/// expert kept is always computable.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Provenance {
+    /// Which tier produced this element.
+    pub tier: ProvenanceTier,
+    /// For `derived` elements, the heuristic that produced it (why). Empty otherwise.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub basis: String,
+}
+
+impl Provenance {
+    /// An `observed` provenance (an immutable fact).
+    #[must_use]
+    pub fn observed() -> Self {
+        Self {
+            tier: ProvenanceTier::Observed,
+            basis: String::new(),
+        }
+    }
+
+    /// A `derived` provenance carrying the heuristic `basis` that produced it.
+    #[must_use]
+    pub fn derived(basis: impl Into<String>) -> Self {
+        Self {
+            tier: ProvenanceTier::Derived,
+            basis: basis.into(),
+        }
+    }
+
+    /// An `asserted` (human-authoritative) provenance.
+    #[must_use]
+    pub fn asserted() -> Self {
+        Self {
+            tier: ProvenanceTier::Asserted,
+            basis: String::new(),
+        }
+    }
+
+    /// True when this is the default provenance (`derived`, no basis); used to omit
+    /// the slot on output.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// Which tier of [`Provenance`] produced an element.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProvenanceTier {
+    /// An immutable observed fact.
+    Observed,
+    /// cartographer's interpretation (the default for synthesized elements).
+    #[default]
+    Derived,
+    /// A human override; authoritative and preserved across re-synthesis (EM-E1).
+    Asserted,
+}
+
 /// A concrete observed participant — the evidence layer. Holds the bindings we
 /// saw and the roles it plays. One actor may play more than one role.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -96,6 +159,10 @@ pub struct Actor {
     /// Observed concrete bindings attributed to this actor. Omitted when empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bindings: Vec<Binding>,
+    /// How this actor came to be (D-CART-4 provenance). Omitted when the default
+    /// (`derived`, no basis).
+    #[serde(default, skip_serializing_if = "Provenance::is_default")]
+    pub provenance: Provenance,
 }
 
 /// One observed concrete binding — evidence that an actor was reached at this
@@ -157,6 +224,10 @@ pub struct Role {
     /// of its children (additive refinement, D-CART-4). Omitted when none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<String>,
+    /// How this role came to be (D-CART-4 provenance). Omitted when the default
+    /// (`derived`, no basis).
+    #[serde(default, skip_serializing_if = "Provenance::is_default")]
+    pub provenance: Provenance,
 }
 
 /// The part a role plays in a channel.
@@ -204,6 +275,10 @@ pub struct Channel {
     /// Observed evidence (counts, time window).
     #[serde(default, skip_serializing_if = "Observed::is_empty")]
     pub observed: Observed,
+    /// How this channel came to be (D-CART-4 provenance). Omitted when the default
+    /// (`derived`, no basis).
+    #[serde(default, skip_serializing_if = "Provenance::is_default")]
+    pub provenance: Provenance,
 }
 
 /// A reference to a message-contract document (an OpenAPI spec).

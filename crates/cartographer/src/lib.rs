@@ -29,8 +29,10 @@
 
 pub mod format;
 pub mod model;
+pub mod schema;
 pub mod sink;
 
+pub use schema::render_schema;
 pub use format::{
     LoadError, LoadOutcome, LoadedSpec, SpecFormat, load_path, parse_auto, parse_document,
     serialize_document,

@@ -30,6 +30,7 @@
 pub mod diagnostics;
 pub mod format;
 pub mod infer;
+pub mod merge;
 pub mod model;
 pub mod path;
 pub mod schema;
@@ -38,6 +39,7 @@ pub mod synth;
 pub mod validate;
 
 pub use infer::TemplateSet;
+pub use merge::merge;
 pub use synth::synthesize;
 pub use validate::{SpecIndex, validate_record, validate_stream};
 pub use diagnostics::{

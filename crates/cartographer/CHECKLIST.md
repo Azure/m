@@ -73,7 +73,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 - [x] **EM-E1** Mark derived elements `derived` with their `basis`; on re-synthesis
       over an existing descriptor, preserve `asserted` (human) elements and never
       clobber them (mirrors the D-CART-3 prose-preservation rule).
-- [ ] **EM-E2** CLI: emit the environment descriptor alongside the spec
+- [x] **EM-E2** CLI: emit the environment descriptor alongside the spec
       (`--environment <path>` / `environment.<fmt>`).
 - [ ] **EM-E3** Extend the `wordy` example to also emit `wordy-environment.yaml`.
 - [ ] **EM-E4** Integration: synthesize the wordy environment descriptor from the

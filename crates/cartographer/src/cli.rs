@@ -5,12 +5,15 @@
 //! ```text
 //! cartographer --spec <path>... --journal <path>... [--out <dir>]
 //!              [--format yaml|json] [--report text|ndjson]
-//!              [--update] [--overwrite] [--strict]
+//!              [--update] [--overwrite] [--environment] [--strict]
 //! ```
 //!
 //! Default: load the specs and journals, validate the observed traffic against
 //! the specs, and report diagnostics. With `--update`, also synthesize and merge
-//! an updated spec into `--out`. Every byte is written through the supplied
+//! an updated spec into `--out`. With `--environment`, also emit the
+//! observed-environment descriptor (D-CART-4) to `--out/environment.<fmt>`,
+//! preserving any human `asserted` edits in a descriptor already there. Every byte
+//! is written through the supplied
 //! [`OutputSink`] (the "one output site" rule). Exit codes: `0` success; `2`
 //! under `--strict` when an error-severity diagnostic was found; `1` on an
 //! operational problem (unreadable input, missing `--out` for `--update`, or a
@@ -25,8 +28,12 @@ use std::path::{Path, PathBuf};
 
 use api_journal::{JournalRecord, read_records};
 
+use crate::derive::{derive_environment, merge_environment};
 use crate::diagnostics::{ReportFormat, Severity, render};
-use crate::format::{SpecFormat, load_path, serialize_document};
+use crate::environment::Environment;
+use crate::format::{
+    SpecFormat, load_path, parse_environment, serialize_document, serialize_environment,
+};
 use crate::merge::merge;
 use crate::model::Document;
 use crate::path::PathTemplate;
@@ -53,6 +60,8 @@ pub struct Args {
     pub overwrite: bool,
     /// Fail (exit 2) when an error-severity diagnostic is found.
     pub strict: bool,
+    /// Also emit the observed-environment descriptor (D-CART-4) to `--out`.
+    pub environment: bool,
     /// Print usage and exit.
     pub help: bool,
 }
@@ -61,7 +70,7 @@ pub struct Args {
 #[must_use]
 pub fn usage() -> &'static str {
     "cartographer --spec <path>... --journal <path>... [--out <dir>] \
-[--format yaml|json] [--report text|ndjson] [--update] [--overwrite] [--strict]"
+[--format yaml|json] [--report text|ndjson] [--update] [--overwrite] [--environment] [--strict]"
 }
 
 /// Parse arguments (excluding the program name is *not* assumed — `argv[0]` is
@@ -96,6 +105,7 @@ pub fn parse_args(argv: &[String]) -> Result<Args, String> {
             }
             "--update" => args.update = true,
             "--overwrite" => args.overwrite = true,
+            "--environment" => args.environment = true,
             "--strict" => args.strict = true,
             "-h" | "--help" => args.help = true,
             other => return Err(format!("unknown argument: {other}")),
@@ -180,6 +190,21 @@ pub fn run(args: &Args, sink: &mut dyn OutputSink) -> i32 {
         }
     }
 
+    // Environment descriptor.
+    if args.environment {
+        match &args.out {
+            None => {
+                sink.write_line("error[environment] --environment requires --out <dir>");
+                io_problem = true;
+            }
+            Some(out) => {
+                if write_environment(out, args, &records, sink).is_err() {
+                    io_problem = true;
+                }
+            }
+        }
+    }
+
     if io_problem {
         return 1;
     }
@@ -230,6 +255,58 @@ fn write_updated_spec(
     }
     sink.write_line(&format!("wrote {}", path.display()));
     Ok(())
+}
+
+/// Derive the observed-environment descriptor and write it to `out`, preserving any
+/// human `asserted` edits already present in an existing `environment.<fmt>` there
+/// (EM-E1/EM-E2). Channels point their `contract` at the conventional `openapi.<fmt>`
+/// spec written alongside under `--update`.
+fn write_environment(
+    out: &Path,
+    args: &Args,
+    records: &[JournalRecord],
+    sink: &mut dyn OutputSink,
+) -> Result<(), ()> {
+    let contract = format!("openapi.{}", format_extension(args.format));
+    let fresh = derive_environment(records, Some(&contract));
+
+    let filename = format!("environment.{}", format_extension(args.format));
+    let path = out.join(&filename);
+    let environment = match load_existing_environment(&path, args.format) {
+        Some(existing) => merge_environment(fresh, &existing),
+        None => fresh,
+    };
+
+    let text = match serialize_environment(&environment, args.format) {
+        Ok(text) => text,
+        Err(message) => {
+            sink.write_line(&format!("error[environment] serialization failed: {message}"));
+            return Err(());
+        }
+    };
+    if let Err(error) = std::fs::create_dir_all(out) {
+        sink.write_line(&format!(
+            "error[environment] cannot create {}: {error}",
+            out.display()
+        ));
+        return Err(());
+    }
+    if let Err(error) = std::fs::write(&path, text) {
+        sink.write_line(&format!(
+            "error[environment] cannot write {}: {error}",
+            path.display()
+        ));
+        return Err(());
+    }
+    sink.write_line(&format!("wrote {}", path.display()));
+    Ok(())
+}
+
+/// Load an existing environment descriptor for merge, or `None` if it is absent or
+/// unreadable (a missing descriptor simply means "first run, nothing to preserve").
+fn load_existing_environment(path: &Path, format: SpecFormat) -> Option<Environment> {
+    let text = std::fs::read_to_string(path).ok()?;
+    parse_environment(&text, format).ok()
 }
 
 fn format_extension(format: SpecFormat) -> &'static str {
@@ -422,6 +499,53 @@ mod tests {
             "--journal",
             journal.to_str().unwrap(),
             "--update",
+        ]))
+        .unwrap();
+        let mut sink = BufferSink::new();
+        assert_eq!(run(&args, &mut sink), 1);
+        assert!(sink.lines().iter().any(|l| l.contains("requires --out")));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn parses_environment_flag() {
+        assert!(parse_args(&argv(&["--environment"])).unwrap().environment);
+    }
+
+    #[test]
+    fn run_environment_writes_a_descriptor() {
+        let dir = temp_dir();
+        let (_spec, journal) = fixture(&dir);
+        let out = dir.join("out");
+        let args = parse_args(&argv(&[
+            "--journal",
+            journal.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--environment",
+        ]))
+        .unwrap();
+        let mut sink = BufferSink::new();
+        assert_eq!(run(&args, &mut sink), 0);
+
+        let written = out.join("environment.yaml");
+        assert!(written.is_file(), "environment written");
+        let text = std::fs::read_to_string(&written).unwrap();
+        assert!(text.contains("server:local"), "{text}");
+        assert!(text.contains("client:inbound-client"), "{text}");
+        assert!(text.contains("openapi.yaml"), "contract ref: {text}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn run_environment_without_out_is_an_operational_error() {
+        let dir = temp_dir();
+        let (_spec, journal) = fixture(&dir);
+        let args = parse_args(&argv(&[
+            "--journal",
+            journal.to_str().unwrap(),
+            "--environment",
         ]))
         .unwrap();
         let mut sink = BufferSink::new();

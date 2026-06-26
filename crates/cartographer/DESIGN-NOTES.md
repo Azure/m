@@ -111,6 +111,11 @@ cartographer also synthesizes an **environment descriptor** that maps the
   listen binding may be unknown, which is acceptable since bindings are optional
   evidence) and inbound callers default to one client role per seam. Richer
   inbound-caller attribution is a deferred capture enhancement, not a blocker.
+- **Identity handling defers to the PII policy.** The `presents`/`requires` security a role
+  carries holds identity *header names* today; under api-journal **D-AJ-4** (deferred) even
+  those names, and any likely-PII request data, become tokenized — and cartographer must never
+  emit raw identities. Queued in
+  [`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
 
 ## Decision index
 

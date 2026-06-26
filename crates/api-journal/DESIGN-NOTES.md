@@ -65,6 +65,10 @@ Shapes-only governs *bodies*. For the surrounding metadata:
   `request_body_example` / `response_body_example` (`serde_json::Value`), populated by the
   shim from `derive_example` only under `full` mode; `cartographer` emits these as OpenAPI
   `example`s.
+- **D-AJ-4** — Principal identities and likely-PII request data must be *tokenized* (token in
+  the journal; token→identity map in a separate, eventually *encrypted*, opt-in-to-decrypt
+  sidecar); downstream (cartographer, D-CART-4) must not re-leak. Policy only; implementation
+  deferred and queued in [`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
 
 ## D-AJ-3 — `BodyCapture::Full` captures a literal example body (implemented, AJ-DEF-1)
 
@@ -76,3 +80,31 @@ center. `full` additionally retains a literal example body so cartographer can e
 populates these only under `full` mode (examples are literal user data); cartographer's
 `synthesize` sets a representative example per media type on request bodies and responses.
 `JournalRecord` is consequently not `Eq` (arbitrary JSON is not `Eq`).
+
+## D-AJ-4 — PII tokenization + encrypted identity map (policy; implementation deferred)
+
+Captured data that identifies a *principal* — and, more broadly, any request data that is a
+likely PII candidate — must not appear in the journal as plaintext. D-AJ-2 already keeps
+identity header *values* out; this decision goes further and governs the eventual treatment of
+identities and PII end to end. Recorded now as policy; implementation is deliberately deferred
+(it would slow active development) and queued as a cross-cutting plan:
+[`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
+
+- **Tokenize principal identity.** Even the *name* of a principal may be too revealing. The
+  journal carries a stable opaque **token** in place of a principal identity; the mapping from
+  token → real identity lives in a **separate sidecar file**, never in the journal.
+- **Tokenize likely-PII request data.** Any part of a request we can identify as a likely PII
+  candidate (body fields, query values, headers) is tokenized the same way. Detection is
+  *fuzzy*: pattern-based where patterns are clear (emails, GUIDs, bearer tokens, …) and manual
+  annotation where they are not.
+- **The identity/PII map is encrypted, opt-in to decrypt.** The token → identity sidecar is
+  PII and must not be stored in plaintext. It is encrypted under a key whose use requires an
+  **explicit developer choice** to decrypt. Key containment / selection / exchange is not
+  designed yet; we will adopt an existing, vetted standard rather than invent one (Design
+  Autonomy: we own the requirement; a standard satisfies it).
+- **Downstream must not re-leak.** cartographer (and any consumer) operates on tokenized
+  journals and must never emit raw identities or PII into specs or the environment descriptor
+  (D-CART-4). The `full`-mode example bodies (D-AJ-3) are the largest PII vector and are in
+  scope for tokenization.
+- **Deferral is intentional.** This is *not* to be implemented during the current development
+  push; it is queued so the requirement is not lost.

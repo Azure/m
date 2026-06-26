@@ -76,3 +76,6 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
   Recorded here so the absence is deliberate, per D-CART-4.
 - The recast/plan document (rebinding role → provider) and any replay / fault
   executor are downstream of cartographer and out of scope for these milestones.
+- PII tokenization of identities and likely-PII request data (api-journal **D-AJ-4**) is
+  deferred and tracked in the root [`CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md);
+  milestone PII-D covers cartographer not re-leaking identities into specs or the descriptor.

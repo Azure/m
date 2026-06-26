@@ -26,7 +26,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use api_journal::{JournalRecord, Seam};
 
 use crate::environment::{
-    Actor, Actors, Binding, Channel, Environment, Observed, Provenance, Role, RolePart,
+    Actor, Actors, Binding, Channel, ContractRef, Environment, Observed, Provenance, Role, RolePart,
 };
 
 /// Actor id for the observed local process — the egress *client* and/or the
@@ -166,9 +166,11 @@ fn inbound_client_actor(actors: &mut Actors) -> &mut Actor {
 /// becomes one coarse [`Role`] (D-CART-4, EM-C1), and the actor's `plays` lists the
 /// role ids. A role is the substitution unit, so the local process — which plays
 /// both the inbound *server* and the egress *client* — yields two roles. Channels
-/// (EM-C2) link the roles; contract links and security are layered on in EM-C3..C4.
+/// (EM-C2) link the roles, and each channel's `contract` points at `contract` — the
+/// relative path/URI of the synthesized OpenAPI document — when provided (EM-C3).
+/// Security is layered on in EM-C4.
 #[must_use]
-pub fn derive_environment(records: &[JournalRecord]) -> Environment {
+pub fn derive_environment(records: &[JournalRecord], contract: Option<&str>) -> Environment {
     let mut environment = Environment::new("observed environment", "0.0.0");
     environment.actors = derive_actors(records);
 
@@ -190,6 +192,7 @@ pub fn derive_environment(records: &[JournalRecord]) -> Environment {
     }
 
     derive_channels(records, &mut environment);
+    link_contract(contract, &mut environment);
     environment
 }
 
@@ -312,6 +315,21 @@ fn channel_basis(seam: Seam) -> &'static str {
     match seam {
         Seam::Egress => "observed egress traffic to a dependency",
         Seam::Inbound => "observed inbound traffic from callers",
+    }
+}
+
+/// Point every channel's `contract` at the synthesized OpenAPI document (EM-C3).
+/// `reference` is the relative path or URI where the spec is written; when `None`
+/// no contract link is added. All channels share the one synthesized document for
+/// now; per-channel / per-direction contract splitting is a future refinement.
+fn link_contract(reference: Option<&str>, environment: &mut Environment) {
+    let Some(reference) = reference else {
+        return;
+    };
+    for channel in environment.channels.values_mut() {
+        channel.contract = Some(ContractRef {
+            reference: reference.to_string(),
+        });
     }
 }
 

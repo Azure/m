@@ -37,7 +37,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
       client) with deterministic, stable role ids.
 - [x] **EM-C2** Derive channels as `(client-role → server-role, protocol)` edges
       carrying observation counts.
-- [ ] **EM-C3** Link each channel's `contract` to the synthesized OpenAPI document
+- [x] **EM-C3** Link each channel's `contract` to the synthesized OpenAPI document
       (a `$ref` / relative path), reusing existing synthesis output.
 - [ ] **EM-C4** Carry `presents` / `requires` security onto roles from observed
       identity/auth header names.

@@ -60,3 +60,14 @@ Component: `crates/cartographer`.
 - [x] AJ-E3: Spec merge — additive prose-preserving by default (add new paths/operations/statuses/params, keep human schemas); `--overwrite` replaces structure keeping prose. Tests.
 - [x] AJ-E4: CLI — hand-rolled `--spec/--journal/--out/--format/--report/--update/--overwrite/--strict`; validate + report, `--update` writes the merged spec; exit 0/1/2; all output via the sink. Tests.
 - [x] AJ-E5: End-to-end — a merriam+wordy journal → `cartographer --update` → OAS 3.1 YAML covering `/healthz`, `/custom`, `/custom/{id}` GET/POST/DELETE, `/spellcheck`, `/anagram`, `/shared`; the synthesized spec re-validates its own journal with zero findings. `D-CART-3`. Clean build debug+release, pushed. (Note: the heuristic synthesizes `/custom/{id}`, a human-refinable placeholder, rather than `/custom/{word}`.)
+
+## Moved 2026-06-25 — Full-body example capture (milestone AJ-F / AJ-DEF-1)
+
+`.pilcfg` `api_journal.bodies: full` now captures a literal example body in addition to the
+shapes-only skeleton, and `cartographer` emits it as OpenAPI `example`s. Resolves D-AJ-3.
+Privacy: examples are literal user data, captured only under the opt-in `full` mode.
+
+- [x] AJ-DEF-1.1: api-journal — optional `request_body_example` / `response_body_example` (`Option<serde_json::Value>`, forward-compatible) on `JournalRecord`, plus `derive_example` (parse JSON bodies → `Value`; `None` for empty/non-JSON). `JournalRecord` is no longer `Eq` (arbitrary JSON is not `Eq`). 4 tests.
+- [x] AJ-DEF-1.2: shim — `JournalSink::body_example` returns `Some` only under `BodyCapture::Full`; both the egress and inbound decorators populate the example fields. `serde_json` dependency added. `SHIM-D24` and `D-AJ-3` updated. 3 tests.
+- [x] AJ-DEF-1.3: cartographer — `MediaType.example`; `synthesize` sets a representative captured example per media type on request bodies and per-status responses. 2 tests.
+- [x] AJ-DEF-1.4: end-to-end + close — a `full`-mode journal flows through `cartographer --update` and the emitted OpenAPI carries the observed request/response `example`s. Clean build debug+release across api-journal + windows-win32-shim + cartographer, all in-scope tests pass, clippy all-targets clean.

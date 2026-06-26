@@ -228,3 +228,74 @@ fn synthesizes_a_spec_that_covers_and_revalidates_the_journal() {
 
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn full_mode_examples_flow_into_the_synthesized_spec() {
+    let dir = temp_dir();
+
+    // A journal captured under `bodies: full`: records carry literal example bodies.
+    let mut get = resp(
+        "GET",
+        "/custom/cat",
+        200,
+        obj(&[
+            ("word", BodyShape::String, true),
+            ("exists", BodyShape::Bool, true),
+        ]),
+    );
+    get.response_body_example = Some(serde_json::json!({ "word": "cat", "exists": true }));
+
+    let mut post = with_request(
+        resp("POST", "/spellcheck", 200, obj(&[("ok", BodyShape::Bool, true)])),
+        obj(&[("words", array(BodyShape::String), true)]),
+    );
+    post.request_body_example = Some(serde_json::json!({ "words": ["cat"] }));
+    post.response_body_example = Some(serde_json::json!({ "ok": true }));
+
+    let records = vec![get, post];
+
+    let journal_path = dir.join("full.ndjson");
+    {
+        let mut writer = BufWriter::new(File::create(&journal_path).unwrap());
+        for record in &records {
+            write_record(&mut writer, record).unwrap();
+        }
+    }
+
+    let out_dir = dir.join("out");
+    let args = Args {
+        journals: vec![journal_path],
+        out: Some(out_dir.clone()),
+        update: true,
+        format: SpecFormat::Yaml,
+        report: ReportFormat::Text,
+        ..Args::default()
+    };
+    let mut sink = cartographer::BufferSink::new();
+    assert_eq!(cli::run(&args, &mut sink), 0, "{:?}", sink.lines());
+
+    let text = std::fs::read_to_string(out_dir.join("openapi.yaml")).unwrap();
+    let document = parse_document(&text, SpecFormat::Yaml).expect("parse");
+
+    // The response example survived into the spec.
+    let get_media = &document.paths["/custom/cat"].operation("GET").unwrap().responses["200"]
+        .content["application/json"];
+    assert_eq!(
+        get_media.example,
+        Some(serde_json::json!({ "word": "cat", "exists": true }))
+    );
+
+    // Both the request and response examples for the POST survived.
+    let post_op = document.paths["/spellcheck"].operation("POST").unwrap();
+    let request_media = &post_op.request_body.as_ref().unwrap().content["application/json"];
+    assert_eq!(
+        request_media.example,
+        Some(serde_json::json!({ "words": ["cat"] }))
+    );
+    assert_eq!(
+        post_op.responses["200"].content["application/json"].example,
+        Some(serde_json::json!({ "ok": true }))
+    );
+
+    std::fs::remove_dir_all(&dir).ok();
+}

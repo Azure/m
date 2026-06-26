@@ -16,7 +16,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
       | `asserted`) and attach it to actors, roles, and channels.
 - [x] **EM-A3** Serialize/deserialize the descriptor through the existing `format`
       machinery (default YAML, also JSON), reusing the serde model.
-- [ ] **EM-A4** Tests: a hand-built `Environment` round-trips YAML and JSON
+- [x] **EM-A4** Tests: a hand-built `Environment` round-trips YAML and JSON
       (parse → equal); provenance and the `$ref` contract links survive.
 
 ## Milestone EM-B — Actor & binding derivation from journals

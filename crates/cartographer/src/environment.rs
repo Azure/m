@@ -296,3 +296,252 @@ pub struct Transport {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tls: Option<bool>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::format::{SpecFormat, parse_environment, serialize_environment};
+
+    /// A representative descriptor exercising every layer, provenance tier, and
+    /// the `$ref` contract link.
+    fn sample() -> Environment {
+        let mut env = Environment::new("wordy — observed environment", "2026-06-26");
+        env.info.description = Some("Synthesized from observed interactions.".to_string());
+
+        env.actors.insert(
+            "proc-wordy".to_string(),
+            Actor {
+                title: Some("wordy service process".to_string()),
+                plays: vec!["srv-wordy".to_string()],
+                bindings: vec![Binding {
+                    scheme: Some("https".to_string()),
+                    host: Some("wordy.internal".to_string()),
+                    port: Some(443),
+                    observed: Observed {
+                        interactions: 11,
+                        first_ms: Some(1_700_000_000_000),
+                        last_ms: Some(1_700_000_500_000),
+                    },
+                }],
+                provenance: Provenance::observed(),
+            },
+        );
+
+        env.roles.insert(
+            "srv-wordy".to_string(),
+            Role {
+                title: Some("wordy server".to_string()),
+                plays: vec![RolePart::Server],
+                presents: None,
+                requires: Some(Security {
+                    kind: Some("apiKey".to_string()),
+                    location: Some("header".to_string()),
+                    names: vec!["X-Wordy-User".to_string(), "X-Wordy-Locale".to_string()],
+                }),
+                children: Vec::new(),
+                provenance: Provenance::derived("single observed inbound seam"),
+            },
+        );
+        env.roles.insert(
+            "wordy-client".to_string(),
+            Role {
+                title: None,
+                plays: vec![RolePart::Client],
+                presents: Some(Security {
+                    kind: Some("apiKey".to_string()),
+                    location: Some("header".to_string()),
+                    names: vec!["X-Wordy-User".to_string()],
+                }),
+                requires: None,
+                children: vec!["wordy-client-spellcheck".to_string()],
+                provenance: Provenance::asserted(),
+            },
+        );
+
+        env.channels.insert(
+            "wordy-client->srv-wordy".to_string(),
+            Channel {
+                from: "wordy-client".to_string(),
+                to: "srv-wordy".to_string(),
+                protocol: Some("http/1.1+tls".to_string()),
+                contract: Some(ContractRef {
+                    reference: "./wordy-openapi.yaml".to_string(),
+                }),
+                transport: Some(Transport { tls: Some(true) }),
+                observed: Observed {
+                    interactions: 11,
+                    first_ms: None,
+                    last_ms: None,
+                },
+                provenance: Provenance::derived("single observed inbound seam"),
+            },
+        );
+        env
+    }
+
+    fn round_trip(env: &Environment, format: SpecFormat) -> Environment {
+        let text = serialize_environment(env, format).expect("serialize");
+        parse_environment(&text, format).expect("parse")
+    }
+
+    #[test]
+    fn sample_round_trips_yaml() {
+        let env = sample();
+        assert_eq!(round_trip(&env, SpecFormat::Yaml), env);
+    }
+
+    #[test]
+    fn sample_round_trips_json() {
+        let env = sample();
+        assert_eq!(round_trip(&env, SpecFormat::Json), env);
+    }
+
+    #[test]
+    fn yaml_and_json_parse_to_the_same_value() {
+        let env = sample();
+        assert_eq!(round_trip(&env, SpecFormat::Yaml), round_trip(&env, SpecFormat::Json));
+    }
+
+    #[test]
+    fn empty_environment_round_trips_both_formats() {
+        let env = Environment::new("empty", "0.0.0");
+        for format in [SpecFormat::Yaml, SpecFormat::Json] {
+            assert_eq!(round_trip(&env, format), env);
+        }
+    }
+
+    #[test]
+    fn contract_ref_serializes_as_dollar_ref() {
+        let json = serialize_environment(&sample(), SpecFormat::Json).unwrap();
+        assert!(json.contains("\"$ref\": \"./wordy-openapi.yaml\""));
+    }
+
+    #[test]
+    fn contract_ref_survives_round_trip() {
+        let back = round_trip(&sample(), SpecFormat::Yaml);
+        assert_eq!(
+            back.channels["wordy-client->srv-wordy"].contract,
+            Some(ContractRef {
+                reference: "./wordy-openapi.yaml".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn role_part_serializes_snake_case() {
+        let mut env = Environment::new("t", "1");
+        env.roles.insert(
+            "r".to_string(),
+            Role {
+                plays: vec![RolePart::Server, RolePart::Client],
+                ..Default::default()
+            },
+        );
+        let yaml = serialize_environment(&env, SpecFormat::Yaml).unwrap();
+        assert!(yaml.contains("server"));
+        assert!(yaml.contains("client"));
+        assert!(!yaml.contains("Server"));
+        assert!(!yaml.contains("Client"));
+    }
+
+    #[test]
+    fn security_in_field_is_renamed() {
+        let yaml = serialize_environment(&sample(), SpecFormat::Yaml).unwrap();
+        assert!(yaml.contains("in: header"));
+        assert!(!yaml.contains("location:"));
+    }
+
+    #[test]
+    fn observed_provenance_survives() {
+        let back = round_trip(&sample(), SpecFormat::Json);
+        assert_eq!(back.actors["proc-wordy"].provenance.tier, ProvenanceTier::Observed);
+    }
+
+    #[test]
+    fn asserted_provenance_survives() {
+        let back = round_trip(&sample(), SpecFormat::Yaml);
+        assert_eq!(
+            back.roles["wordy-client"].provenance.tier,
+            ProvenanceTier::Asserted
+        );
+    }
+
+    #[test]
+    fn derived_basis_survives() {
+        let back = round_trip(&sample(), SpecFormat::Json);
+        assert_eq!(
+            back.channels["wordy-client->srv-wordy"].provenance,
+            Provenance::derived("single observed inbound seam")
+        );
+    }
+
+    #[test]
+    fn default_provenance_is_omitted_but_round_trips() {
+        let mut env = Environment::new("t", "1");
+        env.roles.insert(
+            "r".to_string(),
+            Role {
+                plays: vec![RolePart::Server],
+                provenance: Provenance::default(),
+                ..Default::default()
+            },
+        );
+        let yaml = serialize_environment(&env, SpecFormat::Yaml).unwrap();
+        assert!(!yaml.contains("provenance"));
+        assert_eq!(parse_environment(&yaml, SpecFormat::Yaml).unwrap(), env);
+    }
+
+    #[test]
+    fn empty_observed_is_omitted() {
+        let mut env = Environment::new("t", "1");
+        env.channels.insert(
+            "c".to_string(),
+            Channel {
+                from: "a".to_string(),
+                to: "b".to_string(),
+                ..Default::default()
+            },
+        );
+        let yaml = serialize_environment(&env, SpecFormat::Yaml).unwrap();
+        assert!(!yaml.contains("observed"));
+    }
+
+    #[test]
+    fn observed_counts_survive() {
+        let mut env = Environment::new("t", "1");
+        env.actors.insert(
+            "a".to_string(),
+            Actor {
+                bindings: vec![Binding {
+                    observed: Observed {
+                        interactions: 7,
+                        first_ms: Some(1),
+                        last_ms: Some(2),
+                    },
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+        );
+        assert_eq!(round_trip(&env, SpecFormat::Json), env);
+    }
+
+    #[test]
+    fn children_survive() {
+        let back = round_trip(&sample(), SpecFormat::Yaml);
+        assert_eq!(
+            back.roles["wordy-client"].children,
+            vec!["wordy-client-spellcheck".to_string()]
+        );
+    }
+
+    #[test]
+    fn unknown_fields_are_ignored() {
+        // Forward compatibility: a descriptor carrying fields this version does not
+        // model still loads (the extra fields are simply dropped).
+        let yaml = "environment: 0.1.0\ninfo:\n  title: t\n  version: '1'\nfuture_field: 42\n";
+        let env = parse_environment(yaml, SpecFormat::Yaml).expect("parse");
+        assert_eq!(env.info.title, "t");
+    }
+}
+

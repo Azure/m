@@ -26,6 +26,11 @@ object = { version = "0.36", default-features = false, features = [
   "coff",
   "std",
 ] }
+# The shared NDJSON record schema + JSON body-shape model for API-interaction
+# journaling (AJ-B). Pure, platform-independent data; the on-disk format is owned
+# by this shared crate so the shim (writer) and the cartographer tool (reader)
+# cannot drift.
+api-journal = { path = "../api-journal" }
 
 [target.'cfg(windows)'.dependencies]
 windows-platform-isolation = { path = "../windows-platform-isolation" }

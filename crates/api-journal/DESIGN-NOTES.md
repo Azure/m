@@ -60,3 +60,18 @@ Shapes-only governs *bodies*. For the surrounding metadata:
   without depending on each other.
 - **D-AJ-2** — Shapes-only applies to bodies; path is literal (templating needs it), query
   names + value-shapes, header names + content-negotiation values only.
+- **D-AJ-3** — The record is shapes-only; `BodyCapture::Full` currently behaves as `Shapes`.
+  Carrying literal example bodies for `Full` mode requires an optional example field on the
+  record (deferred — see below).
+
+## D-AJ-3 — `BodyCapture::Full` is shapes-only for now (deferred example capture)
+
+The `.pilcfg` `api_journal.bodies` option offers `shapes` (default), `full`, and `none`.
+`none` is honored faithfully (body shape recorded as `Unknown`) and `shapes` is the design
+center. `full` is intended to additionally retain a literal example body so cartographer can
+emit OpenAPI `examples`. The current [`JournalRecord`](src/record.rs) holds only a
+[`BodyShape`] (no literal scalar values by construction), so `Full` presently derives the
+same shapes-only skeleton as `Shapes`. Honoring `Full` fully means adding an optional
+example-body field to the record and populating it at the seams under `Full` mode. This is
+queued as a deferred item in the feature checklist (`CHECKLIST-apijournal.md`,
+"Deferred follow-ups"); until then `Full` is a documented alias of `Shapes`.

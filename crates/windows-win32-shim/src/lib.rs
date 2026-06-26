@@ -91,6 +91,13 @@ pub mod mwinweb;
 #[cfg(windows)]
 pub mod pilcfg;
 
+// The API-interaction journal sink (AJ-B): a process-wide, thread-safe NDJSON
+// append writer driven by the `.pilcfg` `api_journal` block, plus the body-shape
+// capture helper the seam decorators use. Uses real `std::fs` (the shim's own
+// I/O is not aliased) and the shared `api-journal` schema.
+#[cfg(windows)]
+pub mod journal;
+
 #[cfg(windows)]
 pub mod reg_ops;
 
@@ -125,9 +132,12 @@ pub use web::{NullWebSink, WebEvent, WebMode, WebObservationSink, WebState};
 #[cfg(windows)]
 pub use egress_engine::{EgressEngine, EgressHandle};
 pub use pilcfg::{
-    EgressConfig, EgressMode, Pilcfg, PilcfgError, expand_environment_path, load_pilcfg,
-    parse_pilcfg,
+    ApiJournalConfig, BodyCapture, EgressConfig, EgressMode, Pilcfg, PilcfgError,
+    expand_environment_path, load_pilcfg, parse_pilcfg,
 };
+
+#[cfg(windows)]
+pub use journal::JournalSink;
 
 #[cfg(windows)]
 pub use reg_ops::{KeyInfo, QueryBuffer, apply_query_buffer};

@@ -37,7 +37,7 @@ Component: `crates/windows-win32-shim` (depends on the now-landed `api-journal`)
 > **⟸ CROSS-COMPONENT PREREQUISITE:** `crates/api-journal` milestone AJ-A must be landed first (provides `JournalRecord`, `BodyShape`, NDJSON IO).
 
 - [x] AJ-B1: `.pilcfg` `api_journal` block — extend `pilcfg.rs` with `ApiJournalConfig { enabled: bool (default false), path: String (%VAR%-expanded), bodies: Shapes|Full|None (default Shapes), seams: { inbound: bool, egress: bool } (default both), max_body_bytes: usize }`. Tolerant parse, default-disabled, unknown members ignored (matching existing pilcfg policy). Unit tests.
-- [ ] AJ-B2: Journal sink — process-wide thread-safe append writer (Mutex-guarded), lazy file open on first record via real `std::fs` (the shim's own I/O is NOT aliased), per-line flush for crash-robustness across many machines, `%VAR%` path expansion via the existing expander, fail-soft (never break the host). Unit tests (temp-dir write, expansion, concurrent append).
+- [x] AJ-B2: Journal sink — process-wide thread-safe append writer (Mutex-guarded), lazy file open on first record via real `std::fs` (the shim's own I/O is NOT aliased), per-line flush for crash-robustness across many machines, `%VAR%` path expansion via the existing expander, fail-soft (never break the host). Unit tests (temp-dir write, expansion, concurrent append).
 - [ ] AJ-B3: Egress journaling decorator — derive a `JournalRecord` (seam=Egress) from `EgressRequest`/`EgressResponse` honoring the `bodies` mode, write via the sink; compose into `build_egress_backing` only when `api_journal.enabled` and the egress seam is on. Unit tests with a fake egress surface (records reflect verb/authority/path/status/body-shape).
 - [ ] AJ-B4: Inbound (web.rs) journaling — capture inbound request/response bodies (as shapes) at the IIS web-host seam and emit a `JournalRecord` (seam=Inbound) via the sink when enabled and the inbound seam is on. Extend `web.rs` capture as needed. Unit tests.
 - [ ] AJ-B5: Milestone integration — exit-code-driven `journalproof` harness (aliased stdout is swallowed): run the aliased `wordy-relay-probe` against a genuine `merriam` with an `api_journal`-enabled `.pilcfg`, then assert (from a non-aliased driver) that the NDJSON journal file exists and contains the expected egress + inbound records. Implicit end-of-milestone steps (clean build debug+release, shim tests, sync + push).
@@ -81,3 +81,15 @@ Component: `crates/cartographer`.
 - [ ] AJ-E3: Spec merge — combine synthesized operations into an existing `Document`, preserving human-authored summaries/operationIds/descriptions and widening (not overwriting) schemas; `--overwrite` to replace instead. Unit tests (empty baseline = fresh synth; non-empty baseline = additive merge).
 - [ ] AJ-E4: CLI — `cartographer --spec <path>... --journal <path>... --out <dir> --format yaml|json --report text|ndjson [--update] [--strict]`; default reads spec+journals and reports diagnostics; `--update` writes merged specs; all output via the sink; exit code nonzero under `--strict` when violations exist. Unit/CLI tests.
 - [ ] AJ-E5: End-to-end — feed the AJ-B5 captured journal (real wordy + merriam traffic) into `cartographer --update` to emit OAS 3.1 YAML for both services plus a diagnostics report; assert the generated spec contains the expected paths/operations/status codes (`/healthz`, `/custom`, `/custom/{word}` GET/POST/DELETE, `/spellcheck`, `/anagram`, `/shared`). Implicit end-of-milestone steps (clean build debug+release, full in-scope tests, sync + push). On completion: mark the root `PLANS.md` entry completed and move this file to `COMPLETED-CHECKLIST.md`.
+
+---
+
+## Deferred follow-ups
+
+Queued (not yet scheduled into a milestone); each records a decision whose implied work is
+intentionally postponed.
+
+- [ ] AJ-DEF-1: Full-body example capture (D-AJ-3). Add an optional literal example-body
+  field to `api_journal::JournalRecord` and populate it at the egress/inbound seams when
+  `.pilcfg` `api_journal.bodies` is `full`, so `cartographer` can emit OpenAPI `examples`.
+  Until done, `BodyCapture::Full` is a documented alias of `Shapes`.

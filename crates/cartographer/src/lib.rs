@@ -33,7 +33,9 @@ pub mod model;
 pub mod path;
 pub mod schema;
 pub mod sink;
+pub mod validate;
 
+pub use validate::{SpecIndex, validate_record};
 pub use diagnostics::{
     Diagnostic, DiagnosticCode, Location, ReportFormat, Severity, render as render_diagnostics,
 };

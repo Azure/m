@@ -22,10 +22,11 @@ use serde::{Deserialize, Serialize};
 ///
 /// Changing the serialized form of any variant is a breaking change to the on-disk journal
 /// format shared with `cartographer`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BodyShape {
-    /// No body was present (zero bytes).
+    /// No body was present (zero bytes). The default shape.
+    #[default]
     Empty,
     /// The body was not captured structurally (capture mode `None`, or an as-yet-unobserved
     /// element). Yields to any concrete shape on merge.

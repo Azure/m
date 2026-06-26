@@ -26,6 +26,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod record;
 pub mod shape;
 
+pub use record::{HeaderField, JournalRecord, QueryParam, Seam, infer_scalar};
 pub use shape::{BodyShape, Field};

@@ -55,7 +55,9 @@ pub struct HeaderField {
 ///
 /// Construct with a struct literal using [`Default`] for the unset fields, e.g.
 /// `JournalRecord { seam: Seam::Egress, method: "GET".into(), ..Default::default() }`.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// Not `Eq`: the optional body-example fields hold arbitrary JSON (which is not `Eq`).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct JournalRecord {
     /// Which seam observed the interaction.
     pub seam: Seam,
@@ -85,6 +87,9 @@ pub struct JournalRecord {
     /// The shape of the request body.
     #[serde(default, skip_serializing_if = "is_empty_shape")]
     pub request_body: BodyShape,
+    /// A literal example request body, captured only under `bodies: full`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_body_example: Option<serde_json::Value>,
 
     /// The HTTP response status code.
     pub status: u16,
@@ -94,6 +99,9 @@ pub struct JournalRecord {
     /// The shape of the response body.
     #[serde(default, skip_serializing_if = "is_empty_shape")]
     pub response_body: BodyShape,
+    /// A literal example response body, captured only under `bodies: full`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_body_example: Option<serde_json::Value>,
 
     /// Best-effort capture time, milliseconds since the Unix epoch (0 if unavailable).
     pub timestamp_ms: u64,
@@ -134,6 +142,26 @@ pub fn infer_scalar(value: &str) -> BodyShape {
     } else {
         BodyShape::String
     }
+}
+
+/// Extract a literal example body for `bodies: full` capture.
+///
+/// Returns the parsed JSON value of a JSON body (content type contains `json`, or none is
+/// given), or `None` for an empty or non-JSON body. Unlike [`BodyShape::derive`], this keeps
+/// the literal values, so it is only ever called under the opt-in `full` capture mode.
+#[must_use]
+pub fn derive_example(bytes: &[u8], content_type: Option<&str>) -> Option<serde_json::Value> {
+    if bytes.is_empty() {
+        return None;
+    }
+    let looks_jsonish = match content_type {
+        Some(ct) => ct.to_ascii_lowercase().contains("json"),
+        None => true,
+    };
+    if !looks_jsonish {
+        return None;
+    }
+    serde_json::from_slice::<serde_json::Value>(bytes).ok()
 }
 
 fn header_value<'a>(headers: &'a [HeaderField], name_lower: &str) -> Option<&'a str> {
@@ -188,6 +216,8 @@ mod tests {
                 value: Some("application/json".into()),
             }],
             response_body: sample_object(),
+            request_body_example: None,
+            response_body_example: None,
             timestamp_ms: 1_700_000_000_000,
             session_id: 42,
             seq: 7,
@@ -299,5 +329,62 @@ mod tests {
     fn seam_serializes_snake_case() {
         assert_eq!(serde_json::to_string(&Seam::Inbound).unwrap(), "\"inbound\"");
         assert_eq!(serde_json::to_string(&Seam::Egress).unwrap(), "\"egress\"");
+    }
+
+    #[test]
+    fn derive_example_keeps_literal_json() {
+        let value = derive_example(br#"{"word":"cat","exists":true}"#, Some("application/json"))
+            .expect("example");
+        assert_eq!(value["word"], serde_json::json!("cat"));
+        assert_eq!(value["exists"], serde_json::json!(true));
+
+        assert_eq!(
+            derive_example(b"[1,2,3]", None),
+            Some(serde_json::json!([1, 2, 3]))
+        );
+        assert_eq!(derive_example(b"42", None), Some(serde_json::json!(42)));
+    }
+
+    #[test]
+    fn derive_example_is_none_for_empty_or_non_json() {
+        assert_eq!(derive_example(b"", Some("application/json")), None);
+        assert_eq!(derive_example(b"<html>", Some("text/html")), None);
+        assert_eq!(derive_example(b"{not json", Some("application/json")), None);
+    }
+
+    #[test]
+    fn record_round_trips_with_body_examples() {
+        let record = JournalRecord {
+            seam: Seam::Inbound,
+            method: "POST".into(),
+            path: "/custom/cat".into(),
+            request_body: BodyShape::String,
+            request_body_example: derive_example(br#"{"words":["a"]}"#, None),
+            status: 200,
+            response_body: sample_object(),
+            response_body_example: derive_example(br#"{"word":"cat","exists":true}"#, None),
+            timestamp_ms: 1,
+            session_id: 2,
+            seq: 3,
+            ..Default::default()
+        };
+        assert!(record.request_body_example.is_some());
+        let json = serde_json::to_string(&record).expect("serialize");
+        let back: JournalRecord = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(record, back);
+    }
+
+    #[test]
+    fn examples_are_omitted_when_absent() {
+        let record = JournalRecord {
+            seam: Seam::Inbound,
+            method: "GET".into(),
+            path: "/healthz".into(),
+            status: 200,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&record).expect("serialize");
+        assert!(!json.contains("request_body_example"), "{json}");
+        assert!(!json.contains("response_body_example"), "{json}");
     }
 }

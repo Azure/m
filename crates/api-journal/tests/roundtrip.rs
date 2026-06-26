@@ -9,8 +9,8 @@ use std::io::{BufReader, BufWriter};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use api_journal::{
-    BodyShape, HeaderField, JournalRecord, QueryParam, ReadStats, Seam, read_records,
-    write_record,
+    BodyShape, HeaderField, JournalRecord, QueryParam, ReadStats, Seam, derive_example,
+    read_records, write_record,
 };
 
 /// Build a deterministic but varied record from an index.
@@ -70,6 +70,12 @@ fn make_record(i: u64) -> JournalRecord {
             value: Some("application/json".into()),
         }],
         response_body,
+        request_body_example: if method == "POST" {
+            derive_example(br#"{"words":["a"]}"#, Some("application/json"))
+        } else {
+            None
+        },
+        response_body_example: derive_example(br#"{"ok":true}"#, Some("application/json")),
         timestamp_ms: 1_700_000_000_000 + i,
         session_id: 0xABCD,
         seq: i,

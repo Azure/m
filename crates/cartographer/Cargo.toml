@@ -1,0 +1,18 @@
+# Copyright (c) Microsoft Corporation.
+[package]
+name = "cartographer"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Offline tool that reads journaled HTTP API interactions (api-journal NDJSON) plus existing OpenAPI specs, reports violations against them as diagnostics, and synthesizes/merges updated OpenAPI 3.1 specs. Pure data; no Win32, no unsafe."
+
+[dependencies]
+# The shared journal record + body-shape schema (writer side is the win32 shim).
+api-journal = { path = "../api-journal" }
+# OpenAPI document (de)serialization. The OAS 3.1 model and its JSON/YAML mapping
+# are owned here (Design Autonomy); serde merely realizes them.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true

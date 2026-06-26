@@ -26,8 +26,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use api_journal::{HeaderField, JournalRecord, Seam};
 
 use crate::environment::{
-    Actor, Actors, Binding, Channel, ContractRef, Environment, Observed, Provenance, Role, RolePart,
-    Security,
+    Actor, Actors, Binding, Channel, ContractRef, Environment, Observed, Provenance, ProvenanceTier,
+    Role, RolePart, Security,
 };
 use crate::infer::TemplateSet;
 use crate::validate::STANDARD_HEADERS;
@@ -466,6 +466,55 @@ fn subdivide_roles(records: &[JournalRecord], environment: &mut Environment) {
         if let Some(parent) = environment.roles.get_mut(&parent_id) {
             parent.children = children;
         }
+    }
+}
+
+/// Merge a freshly-[`derive_environment`]d descriptor over an `existing` one,
+/// preserving human edits (D-CART-4, EM-E1). Any actor, role, or channel the
+/// `existing` descriptor marks `asserted` is kept verbatim — overriding the fresh
+/// derivation — so hand edits (a meaningful title, curated security, a merged child
+/// set, a human-authored role) survive re-synthesis. Everything else is refreshed
+/// from the new evidence. This is the environment analog of the D-CART-3
+/// prose-preserving spec merge.
+#[must_use]
+pub fn merge_environment(mut fresh: Environment, existing: &Environment) -> Environment {
+    preserve_asserted(&mut fresh.actors, &existing.actors);
+    preserve_asserted(&mut fresh.roles, &existing.roles);
+    preserve_asserted(&mut fresh.channels, &existing.channels);
+    fresh
+}
+
+/// Overlay the `asserted` elements of `existing` onto `fresh` (asserted wins and is
+/// never clobbered; a human-added element absent from `fresh` is carried in).
+fn preserve_asserted<T>(fresh: &mut BTreeMap<String, T>, existing: &BTreeMap<String, T>)
+where
+    T: Provenanced + Clone,
+{
+    for (id, element) in existing {
+        if element.provenance().tier == ProvenanceTier::Asserted {
+            fresh.insert(id.clone(), element.clone());
+        }
+    }
+}
+
+/// Internal: descriptor elements that carry a [`Provenance`], so the merge can find
+/// the human-`asserted` ones.
+trait Provenanced {
+    fn provenance(&self) -> &Provenance;
+}
+impl Provenanced for Actor {
+    fn provenance(&self) -> &Provenance {
+        &self.provenance
+    }
+}
+impl Provenanced for Role {
+    fn provenance(&self) -> &Provenance {
+        &self.provenance
+    }
+}
+impl Provenanced for Channel {
+    fn provenance(&self) -> &Provenance {
+        &self.provenance
     }
 }
 
@@ -1032,6 +1081,77 @@ mod tests {
         );
         let yaml = serialize_environment(&env, SpecFormat::Yaml).expect("serialize");
         assert_eq!(parse_environment(&yaml, SpecFormat::Yaml).expect("parse"), env);
+    }
+
+    // --- EM-E1: re-synthesis preserves human (asserted) edits ---
+
+    #[test]
+    fn merge_preserves_an_asserted_role_edit() {
+        let mut existing = derive_environment(&[inbound_op("POST", "/spellcheck", 1)], None);
+        // A human gives the server role a meaningful title and asserts it.
+        let role = existing.roles.get_mut("server:local").expect("role");
+        role.title = Some("Wordy public API".to_string());
+        role.provenance = Provenance::asserted();
+
+        let fresh = derive_environment(&[inbound_op("POST", "/spellcheck", 1)], None);
+        let merged = merge_environment(fresh, &existing);
+
+        let preserved = &merged.roles["server:local"];
+        assert_eq!(preserved.title.as_deref(), Some("Wordy public API"));
+        assert_eq!(preserved.provenance.tier, ProvenanceTier::Asserted);
+    }
+
+    #[test]
+    fn merge_refreshes_derived_elements() {
+        // A stale title on a still-`derived` role is overwritten by the fresh derivation.
+        let mut existing = derive_environment(&[inbound_op("POST", "/spellcheck", 1)], None);
+        existing.roles.get_mut("server:local").unwrap().title = Some("stale".to_string());
+
+        let fresh = derive_environment(&[inbound_op("POST", "/spellcheck", 1)], None);
+        let merged = merge_environment(fresh, &existing);
+
+        assert_eq!(merged.roles["server:local"].title, None);
+    }
+
+    #[test]
+    fn merge_carries_in_a_human_authored_role() {
+        let fresh = derive_environment(&[inbound_op("POST", "/spellcheck", 1)], None);
+        let mut existing = Environment::new("e", "1");
+        existing.roles.insert(
+            "custom:human".to_string(),
+            Role {
+                title: Some("hand-authored".to_string()),
+                provenance: Provenance::asserted(),
+                ..Default::default()
+            },
+        );
+        let merged = merge_environment(fresh, &existing);
+        assert!(merged.roles.contains_key("custom:human"));
+        assert_eq!(
+            merged.roles["custom:human"].provenance.tier,
+            ProvenanceTier::Asserted
+        );
+    }
+
+    #[test]
+    fn merge_preserves_asserted_actors_and_channels() {
+        let mut existing = derive_environment(&[inbound_op("POST", "/spellcheck", 1)], None);
+        let actor = existing.actors.get_mut("local").expect("actor");
+        actor.title = Some("the app".to_string());
+        actor.provenance = Provenance::asserted();
+        let channel_id = "client:inbound-client->server:local".to_string();
+        let channel = existing.channels.get_mut(&channel_id).expect("channel");
+        channel.protocol = Some("http/1.1".to_string());
+        channel.provenance = Provenance::asserted();
+
+        let fresh = derive_environment(&[inbound_op("POST", "/spellcheck", 1)], None);
+        let merged = merge_environment(fresh, &existing);
+
+        assert_eq!(merged.actors["local"].title.as_deref(), Some("the app"));
+        assert_eq!(
+            merged.channels[&channel_id].protocol.as_deref(),
+            Some("http/1.1")
+        );
     }
 }
 

@@ -70,7 +70,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 
 ## Milestone EM-E — Provenance preservation, CLI emission, end-to-end
 
-- [ ] **EM-E1** Mark derived elements `derived` with their `basis`; on re-synthesis
+- [x] **EM-E1** Mark derived elements `derived` with their `basis`; on re-synthesis
       over an existing descriptor, preserve `asserted` (human) elements and never
       clobber them (mirrors the D-CART-3 prose-preservation rule).
 - [ ] **EM-E2** CLI: emit the environment descriptor alongside the spec

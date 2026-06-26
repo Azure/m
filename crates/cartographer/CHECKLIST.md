@@ -54,7 +54,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 > (identity gated on PII-A). This replaces the original 4 items (behavioral subdivision presumed
 > per-caller attribution that anonymity does not provide). See D-CART-4.
 
-- [ ] **EM-D1** Behavioral subdivision: partition each client role's traffic by operation
+- [x] **EM-D1** Behavioral subdivision: partition each client role's traffic by operation
       (METHOD + inferred path template); when ≥2 distinct operations appear, create one additive
       child role per operation with a deterministic id, retaining the parent as a group
       (`parent.children` = union of children).

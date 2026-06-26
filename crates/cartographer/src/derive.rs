@@ -29,6 +29,7 @@ use crate::environment::{
     Actor, Actors, Binding, Channel, ContractRef, Environment, Observed, Provenance, Role, RolePart,
     Security,
 };
+use crate::infer::TemplateSet;
 use crate::validate::STANDARD_HEADERS;
 
 /// Actor id for the observed local process — the egress *client* and/or the
@@ -171,7 +172,9 @@ fn inbound_client_actor(actors: &mut Actors) -> &mut Actor {
 /// (EM-C2) link the roles, and each channel's `contract` points at `contract` — the
 /// relative path/URI of the synthesized OpenAPI document — when provided (EM-C3).
 /// Each role's `presents`/`requires` security records the observed identity/auth
-/// header names (EM-C4).
+/// header names (EM-C4). A client role whose traffic spans multiple operations is
+/// subdivided into per-operation child roles, with the parent retained as a group
+/// (EM-D1).
 #[must_use]
 pub fn derive_environment(records: &[JournalRecord], contract: Option<&str>) -> Environment {
     let mut environment = Environment::new("observed environment", "0.0.0");
@@ -197,6 +200,7 @@ pub fn derive_environment(records: &[JournalRecord], contract: Option<&str>) -> 
     derive_channels(records, &mut environment);
     link_contract(contract, &mut environment);
     derive_security(records, &mut environment);
+    subdivide_roles(records, &mut environment);
     environment
 }
 
@@ -409,6 +413,59 @@ fn security_from(names: BTreeSet<String>) -> Security {
         location: Some("header".to_string()),
         names: names.into_iter().collect(),
         ..Default::default()
+    }
+}
+
+/// Subdivide each heterogeneous client role into per-operation **candidate** child
+/// roles (D-CART-4, EM-D1). A client role whose traffic spans ≥2 operations
+/// (METHOD + inferred path template) gains one child per operation, and the parent
+/// is retained as a group (`children` = the union). Because callers are anonymous,
+/// this is a *population-level* partition, not per-caller attribution: each child is
+/// a candidate the maintainer refines (their `asserted` edits survive re-synthesis).
+/// The transport/auth and identity axes are deferred (identity gated on PII-A).
+fn subdivide_roles(records: &[JournalRecord], environment: &mut Environment) {
+    let observed: Vec<String> = records.iter().map(|record| record.path.clone()).collect();
+    let templates = TemplateSet::infer(&observed, &[]);
+
+    // Per client role, the set of operations (METHOD + inferred path template) its
+    // traffic touched. Templating means `/custom/cat` and `/custom/dog` count as the
+    // single operation `/custom/{id}` rather than two.
+    let mut role_ops: BTreeMap<String, BTreeSet<(String, String)>> = BTreeMap::new();
+    for record in records {
+        let client_role = match record.seam {
+            Seam::Egress => role_id(RolePart::Client, LOCAL_ACTOR),
+            Seam::Inbound => role_id(RolePart::Client, INBOUND_CLIENT_ACTOR),
+        };
+        let Some((template, _matched)) = templates.assign(&record.path) else {
+            continue;
+        };
+        role_ops
+            .entry(client_role)
+            .or_default()
+            .insert((record.method.to_ascii_uppercase(), template.raw().to_string()));
+    }
+
+    for (parent_id, operations) in role_ops {
+        // Only subdivide when the role's behavior is heterogeneous.
+        if operations.len() < 2 {
+            continue;
+        }
+        let mut children = Vec::new();
+        for (method, template) in &operations {
+            let child_id = format!("{parent_id}#{method}{template}");
+            environment.roles.insert(
+                child_id.clone(),
+                Role {
+                    plays: vec![RolePart::Client],
+                    provenance: Provenance::derived(format!("callers of {method} {template}")),
+                    ..Default::default()
+                },
+            );
+            children.push(child_id);
+        }
+        if let Some(parent) = environment.roles.get_mut(&parent_id) {
+            parent.children = children;
+        }
     }
 }
 

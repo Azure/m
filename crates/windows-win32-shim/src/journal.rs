@@ -411,7 +411,7 @@ mod tests {
         ))
     }
 
-    fn config(path: &PathBuf) -> ApiJournalConfig {
+    fn config(path: &std::path::Path) -> ApiJournalConfig {
         ApiJournalConfig {
             enabled: true,
             path: path.to_string_lossy().into_owned(),

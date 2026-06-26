@@ -924,3 +924,45 @@ separate web service, turning `wordy`'s calls to it into the egress we isolate.
   (`launch-tandem.cmd` / `.ps1`) brings the two services up under any egress mode.
   **Verified 4/4 on this host.** This is the egress analogue of MW15's filesystem
   isolation proof, against a *real* dependent service rather than a synthetic stub.
+
+## SHIM-D24 — API-interaction journaling seam (AJ-B)
+
+When the `.pilcfg` `api_journal` block is enabled, the shim journals observed
+HTTP interactions as NDJSON for off-machine post-processing by the `cartographer`
+OpenAPI tool. The on-disk record schema and the shapes-only body model are owned
+by the shared `api-journal` crate (its `D-AJ-1..3`), so the shim (writer) and the
+tool (reader) cannot drift.
+
+- **Config (`pilcfg.rs`).** A new `api_journal` block parses to `ApiJournalConfig`
+  (`enabled`, `%VAR%`-expanded `path`, `bodies` = `shapes`|`full`|`none`,
+  `seams.{inbound,egress}`, `max_body_bytes`). Disabled by default; the strict
+  parse / tolerant load posture of the rest of the sidecar is preserved. Body
+  default is **shapes-only** — a JSON schema skeleton with no literal scalar
+  values — so journals describe an API's structure without exporting user data.
+  `full` is presently an alias of `shapes` (`D-AJ-3`, deferred).
+- **Sink (`journal.rs`).** A process-wide `JournalSink` opens the file lazily,
+  serializes record writes behind a `Mutex`, and stamps each record's
+  `session_id` / `seq` / `timestamp_ms`. It writes through ordinary `std::fs`:
+  link-time aliasing redirects only the *client's* `WriteFile`/`CreateFileW`, so
+  the shim's own I/O binds the real kernel32 and journaling never recurses through
+  `mWriteFile`. Fail-soft — an unopenable path or a write error drops the record,
+  never the host.
+- **Two decorators, one sink.** `JournalingEgress` wraps the session's
+  `EgressBacking` (so the outbound WinHTTP seam journals each successful
+  exchange), and `JournalingHandler` wraps the per-request inbound
+  `RequestHandler` stack built by `WebState::build_handler` (so the IIS seam
+  journals each request/response). The session builds **one** sink and shares its
+  `Arc` with both seams, filtered by `seams.{egress,inbound}`. Inbound journaling
+  is independent of the legacy `WebMode` observation channel: it fires whenever
+  the inbound seam is enabled, because the host rebuilds the handler per request.
+- **Metadata policy.** Paths are literal (the tool infers `{templates}` from
+  concrete paths); query parameters keep names + value *shapes*; headers keep
+  names, with literal values retained only for the content-negotiation safelist
+  (`Content-Type`, `Accept`). Egress records carry the destination
+  scheme/host/port; inbound records do not (the service is the host).
+- **Proof.** Hermetic `tests/journal_capture.rs` builds a real `ShimSession` from
+  an `api_journal`-enabled `.pilcfg` (egress `buffer` mode, so a POST is acked
+  synthetically with no network), drives both seams, and asserts the shared file
+  holds one `Seam::Egress` + one `Seam::Inbound` record with one `session_id` and
+  monotonic `seq`. The aliased/live end-to-end path stays available as
+  `egressrelayproof`.

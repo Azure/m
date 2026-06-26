@@ -16,17 +16,18 @@ ID scheme: `AJ-<milestone><n>`; decimal sub-steps (`AJ-A1.1`).
 **Milestones AJ-A through AJ-E are complete** (api-journal shared crate; shim capture
 wiring; cartographer OAS model + loader + shape→schema; validation + diagnostics;
 synthesis/merge + CLI + end-to-end). Their items have been moved to
-[`COMPLETED-CHECKLIST.md`](COMPLETED-CHECKLIST.md). Only the deferred follow-up below
-remains.
+[`COMPLETED-CHECKLIST.md`](COMPLETED-CHECKLIST.md).
 
 ---
 
-## Deferred follow-ups
+## Milestone AJ-F — Full-body example capture (AJ-DEF-1)
 
-Queued (not yet scheduled into a milestone); each records a decision whose implied work is
-intentionally postponed.
+Make `.pilcfg` `api_journal.bodies: full` capture a literal example body (in addition to
+the shapes-only skeleton) so `cartographer` can emit OpenAPI `example`s. Resolves D-AJ-3;
+until landed, `BodyCapture::Full` is a documented alias of `Shapes`. Privacy note: examples
+are literal user data and are captured **only** under the opt-in `full` mode.
 
-- [ ] AJ-DEF-1: Full-body example capture (D-AJ-3). Add an optional literal example-body
-  field to `api_journal::JournalRecord` and populate it at the egress/inbound seams when
-  `.pilcfg` `api_journal.bodies` is `full`, so `cartographer` can emit OpenAPI `examples`.
-  Until done, `BodyCapture::Full` is a documented alias of `Shapes`.
+- [ ] AJ-DEF-1.1: api-journal — add optional `request_body_example` / `response_body_example` (`Option<serde_json::Value>`, serde `default` + skip-when-`None`, forward-compatible) to `JournalRecord`, and a pure `derive_example(bytes, content_type) -> Option<serde_json::Value>` (parse JSON bodies → `Value`; `None` for empty or non-JSON). Unit tests (JSON object/array/scalar → example; empty/non-JSON → `None`; record serde round-trip with and without examples).
+- [ ] AJ-DEF-1.2: shim — add `JournalSink::body_example(bytes, content_type) -> Option<serde_json::Value>` returning `Some` only under `BodyCapture::Full`; populate the example fields in the egress and inbound record builders (the shape is still derived as today). Unit tests (Full captures example; Shapes/None do not). Update `SHIM-D24` and `api-journal` D-AJ-3 to reflect that `Full` now captures examples.
+- [ ] AJ-DEF-1.3: cartographer — add `example: Option<serde_json::Value>` to the OAS `MediaType` model (serde skip-when-`None`), and have `synthesize` set a representative captured example per media type on request bodies and per-status responses. Unit tests (synth emits the observed example; serde round-trip of a doc carrying an example).
+- [ ] AJ-DEF-1.4: end-to-end + close — integration test: a `full`-mode journal flows through `cartographer --update` and the emitted OpenAPI carries the observed `example`(s). Flip D-AJ-3 to implemented. Implicit end-of-milestone steps (clean build debug+release across api-journal + windows-win32-shim + cartographer, in-scope tests, sync + push). On completion move this milestone to `COMPLETED-CHECKLIST.md`.

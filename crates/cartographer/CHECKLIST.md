@@ -26,7 +26,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 - [x] **EM-B2** Derive inbound actors: the local process is the server actor;
       remote callers default to one `client` actor per inbound seam (an unknown
       server binding is allowed — bindings are optional evidence).
-- [ ] **EM-B3** Attach observed evidence (interaction counts, first/last
+- [x] **EM-B3** Attach observed evidence (interaction counts, first/last
       timestamps) to bindings and actors.
 - [ ] **EM-B4** Tests: a small synthetic egress+inbound journal yields the
       expected actor set, bindings, and counts.

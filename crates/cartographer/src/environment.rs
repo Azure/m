@@ -159,6 +159,10 @@ pub struct Actor {
     /// Observed concrete bindings attributed to this actor. Omitted when empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bindings: Vec<Binding>,
+    /// Aggregate observed evidence across this actor's participation (interaction
+    /// counts, time window). Omitted when empty.
+    #[serde(default, skip_serializing_if = "Observed::is_empty")]
+    pub observed: Observed,
     /// How this actor came to be (D-CART-4 provenance). Omitted when the default
     /// (`derived`, no basis).
     #[serde(default, skip_serializing_if = "Provenance::is_default")]
@@ -323,6 +327,11 @@ mod tests {
                         last_ms: Some(1_700_000_500_000),
                     },
                 }],
+                observed: Observed {
+                    interactions: 11,
+                    first_ms: Some(1_700_000_000_000),
+                    last_ms: Some(1_700_000_500_000),
+                },
                 provenance: Provenance::observed(),
             },
         );

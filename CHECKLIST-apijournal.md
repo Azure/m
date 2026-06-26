@@ -68,7 +68,7 @@ Component: `crates/cartographer`.
 - [x] AJ-D2: Diagnostic model + rendering — `Diagnostic { severity, code, location (path/method/status), message }` rendered through the output sink in `text` and `ndjson` report modes. Unit tests.
 - [x] AJ-D3: Validation rules — `UndocumentedPath`, `UndocumentedOperation` (method not in PathItem), `UndeclaredStatus`, `UndeclaredParameter` (query), `UndeclaredHeader` (excluding standard headers), `RequestSchemaMismatch`, `ResponseSchemaMismatch`, `TypeMismatch`. One unit test per rule.
 - [x] AJ-D4: Stream aggregation — validate a whole journal stream, deduplicating repeated identical violations with an observation count. Unit tests.
-- [ ] AJ-D5: Milestone integration — fixture journals + a fixture spec produce a known, asserted diagnostic set (including a clean run with zero diagnostics). Implicit end-of-milestone steps (clean build debug+release, in-scope tests, sync + push).
+- [x] AJ-D5: Milestone integration — fixture journals + a fixture spec produce a known, asserted diagnostic set (including a clean run with zero diagnostics). Implicit end-of-milestone steps (clean build debug+release, in-scope tests, sync + push).
 
 ---
 

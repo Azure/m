@@ -202,3 +202,794 @@ commented in the `.def` / `.ndjson` until their `W` core lands. Recorded as
       enumeration over an in-memory `Filesystem` tree. (Re-scoped from a live-FS
       scratch dir to the in-memory surface to match the established
       structural-isolation test pattern: deterministic, no OS dependency.)
+
+## Moved 2026-06-25 — MW1—MW4, MW7, MW9—MW18 (all remaining completed milestones): foundation (handle table / error map / session), registry + filesystem + `.pilcfg` + C++ artifact parity, dynamic-loader + COM activation + web-host bootstrap + response-path bridge, `wordy` (HWC dictionary service) + async completion + filesystem-isolation proof, the WinHTTP egress seam (SHIM-D22), and the validation tier (`merriam` + `wordy` relay split, SHIM-D23).
+
+## MW1 — Foundation (scaffold, ABI posture, handle table, error mapping, session)
+
+- [x] **MW1-1** Scaffold `crates/windows-win32-shim`: `Cargo.toml`
+      (`crate-type = ["cdylib", "rlib"]`, edition 2024, MSRV inherited),
+      `#![deny(unsafe_code)]` at the root with `#[allow(unsafe_code)]` only on the
+      ABI-boundary modules (SHIM-D2), README + `DESIGN-NOTES.md` + `COMPONENT.md`.
+      Dependencies (cfg(windows)): `windows-platform-isolation` (path),
+      `windows-text` (path), `windows-sys` 0.59 (Win32 types/errors:
+      `Win32_Foundation`, `Win32_System_Registry`, `Win32_Storage_FileSystem`).
+      Add the crate to the workspace `members` list.
+- [x] **MW1-2** Win32 error-mapping module (SHIM-D7): `registry_error_to_lstatus`
+      and `filesystem_error_to_win32` translating `RegistryError` /
+      `FilesystemError` into `LSTATUS` / Win32 codes, plus a `set_last_error`
+      helper. `Os(u32)` passes through; structured variants map to documented
+      codes. Owned mapping (Design Autonomy), with a unit table.
+- [x] **MW1-3** Handle table (SHIM-D3 / mwin32 D11): mint `HANDLE`/`HKEY` with the
+      reserved bit pattern; `intern` / `deref` / `close` behind a `Mutex` over a
+      payload variant (isolation registry-key handle, file-handle state,
+      find-enumeration state). Predefined `HKEY` values resolve (cached) to
+      `windows-platform-isolation` well-known roots.
+- [x] **MW1-4** Process-wide `Session`: lazily-initialized isolation stack holder
+      vending the registry (and later filesystem) facade; default **live
+      passthrough** for registry (SHIM-D8). Programmatic config only at this stage
+      (`.pilcfg` is MW4). `current_exe()` is read via safe `std::env`.
+- [x] **MW1-5** *(integration)* Tests: handle round-trip + reserved-bit
+      invariants (minted handles never collide with predefined `HKEY`s or low-bit
+      OS values), predefined `HKEY` → root resolution, and the error-mapping table.
+
+## MW2 — Registry C ABI (W forms)
+
+- [x] **MW2-1** `mRegOpenKeyExW` / `mRegCreateKeyExW` / `mRegCloseKey`
+      (predefined handles are close no-ops), routing through the session's
+      registry facade and minting result `HKEY`s.
+- [x] **MW2-2** Value ops: `mRegSetValueExW`, `mRegQueryValueExW` (the Win32
+      three-case size/type contract: query, `ERROR_MORE_DATA`, success),
+      `mRegDeleteValueW`, `mRegGetValueW`. Value-type bytes map to/from
+      `ValueData` (all six types).
+- [x] **MW2-3** Enumeration / info: `mRegEnumKeyExW`, `mRegEnumValueW`,
+      `mRegQueryInfoKeyW`, in `windows-platform-isolation` ordinal order.
+- [x] **MW2-4** `mRegDeleteKeyExW` (subtree), plus `ERROR_NOT_SUPPORTED` stubs for
+      the in-`.def` but unimplemented entries (transacted create, predefined-cache
+      control, `mRegOverridePredefKey`, etc.), matching the C++ stub behavior.
+- [x] **MW2-5** *(integration)* Registry tests mirroring the C++
+      `test_mwinreg_predefined` / `test_mwinreg_open_close` /
+      `test_mwinreg_value_ops` against a buffered in-memory stack, asserting the
+      `LSTATUS` contracts and the `mRegQueryValueExW` three-case behavior.
+
+## MW3 — Filesystem C ABI (W forms; metadata / dir / enum; content deferred)
+
+> **⬅ CROSS-COMPONENT PREREQUISITE:** filesystem passthrough requires the live FS
+> provider in `windows-platform-isolation` → **M9** (`LiveFilesystem`). See
+> [`../windows-platform-isolation/CHECKLIST.md`](../windows-platform-isolation/CHECKLIST.md).
+> Until M9 lands, MW3 is exercised against in-memory / artifact stacks only.
+
+- [x] **MW3-1** `mCreateFileW` (creation disposition → create/open metadata node;
+      mint a file `HANDLE` carrying handle state) + `mCloseHandle` (exported
+      `noalias` / opt-in per SHIM-D4; predefined / unknown handles handled per the
+      Win32 contract).
+- [x] **MW3-2** Path metadata: `mGetFileAttributesW` / `mGetFileAttributesExW` /
+      `mSetFileAttributesW` / `mDeleteFileW`, translating `FileMetadata` ↔ the
+      Win32 attribute/`WIN32_FILE_ATTRIBUTE_DATA` shapes.
+- [x] **MW3-3** Directory + handle-state ops: `mCreateDirectoryW` /
+      `mRemoveDirectoryW`, and `mGetFileSizeEx` / `mSetFilePointerEx` over the
+      file handle state.
+- [x] **MW3-4** Directory enumeration: `mFindFirstFileW` / `mFindNextFileW` /
+      `mFindClose` (find-enumeration state from `read_dir`, ordinal-ordered).
+      Content + move/copy exports (`mReadFile`, `mWriteFile`,
+      `mReadFileScatter`/`mWriteFileGather`, `mMoveFileExW`, `mCopyFileExW`)
+      return the Win32 not-supported failure shape (SHIM-D6; `mMoveFileExW`
+      additionally awaits a future isolation rename op).
+- [x] **MW3-5** *(integration)* Filesystem tests mirroring the C++
+      `test_mwinfile_handle_meta` / `test_mwinfile_legacy` against the live FS
+      provider over a scratch temp dir (RAII cleanup) and an in-memory artifact
+      stack; assert attribute/size results and ordinal `FindFirst`/`FindNext`
+      ordering.
+
+## MW4 — `.pilcfg` config (JSON sidecar; artifact parity, SHIM-D5)
+
+- [x] **MW4-1** Choose the JSON parser dependency; model the `.pilcfg` schema
+      (`buffer_updates`, `record_modifications`, `redirections`,
+      `persisted_state`, `capture_snapshot`, `diagnostic_log`, `fault_script`;
+      `webcore` ignored), with `%TEMP%`-style expansion as the C++ does.
+- [x] **MW4-2** Tolerant sidecar load: resolve `<current_exe>.pilcfg`
+      (`std::env::current_exe`, safe); absent / unreadable / malformed →
+      passthrough, never failing the host (mwin32 D5).
+- [x] **MW4-3** Wire config → isolation stack composition: `buffer_updates` →
+      `Buffered` layer; `persisted_state` → load the `<Platform>` artifact via the
+      isolation loaders; `redirections` / `record_modifications` / `fault_script`
+      honored where the isolation crate supports them, documented as gaps
+      otherwise.
+- [x] **MW4-4** *(integration)* `.pilcfg` parity tests (mirror C++ `test_pilcfg`
+      + buffered `test_mwinreg_value_ops`): a buffered fixture isolates writes
+      from the live registry; `capture_snapshot` writes state on teardown.
+
+## MW7 — End-to-end / C++ registry-artifact parity (SHIM-D13 / SHIM-D5)
+
+> **Re-plan (2026-06-25):** the outline is detailed into concrete, dependency-ordered
+> items. Findings that shaped it: (1) the C++ `mwin32` shim is **registry-only**
+> (its M1–M4 cover `.pilcfg` + persisted registry snapshots; it has no filesystem
+> persisted-state), so "C++ artifact parity" is fundamentally about the **registry**
+> snapshot. (2) The existing `tests/pilcfg.rs` `persisted_state` tests load the Rust
+> shim's **own** `save_registry_hive` output, so they prove round-trip but *not* that
+> the shim consumes the C++ emission **dialect** (abbreviated hive names, `last_write_time`
+> attrs, mixed-case hex, mirrored placeholders, tombstones). (3) The shared on-disk
+> schema is the parity contract (platform-isolation D18/D19 == mwin32 D7), and the
+> `windows-platform-isolation` loader already accepts that dialect. **Decision:** the
+> golden artifact is the **shared on-disk contract** (the same bytes the C++ shim
+> emits); a literally-C++-binary-captured artifact is a future swap-in (it needs the
+> CMake/vcpkg C++ build driven to emit a snapshot — heavy, deferred), not a blocker —
+> exactly as the platform-isolation golden artifacts already note. Filesystem
+> persisted-state *through the shim* stays a documented SHIM-D13 gap (no C++ FS
+> artifact exists to be parity with); MW7-3 isolates the filesystem via `buffer_updates`.
+
+- [x] **MW7-1** Shim-level C++-**dialect** registry-artifact parity. Add a shim
+      `testdata/` golden artifact authored to the C++ `mwin32` `save_xml` dialect
+      (mwin32 D7 / platform-isolation D18): abbreviated hive names (`HKLM` / `HKCU`),
+      `last_write_time` attributes, every decodable `REG_*` type plus a default
+      (empty-name) value, mixed-case hex, a value tombstone and a key tombstone, a
+      mirrored (name-only) placeholder, and out-of-order subkeys. Drive it through
+      `ShimSession::from_config(persisted_state = …)` and assert `reg_ops` reproduce
+      the C++ shim's **observable** behavior: every type decodes; abbreviations
+      normalize to the canonical predefined hives the shim opens via reserved `HKEY`
+      handles; tombstones fold away; the mirrored key enumerates as empty; subkeys
+      enumerate in ordinal sort; a write lands in the overlay and the source artifact
+      on disk is never mutated. Record the parity decision (golden = shared contract)
+      in a SHIM design note.
+      *(`testdata/cpp_registry_artifact.xml` + `tests/cpp_parity.rs` (2 tests):
+      decode/enumerate parity — REG_SZ/EXPAND_SZ/MULTI_SZ/DWORD/QWORD/BINARY +
+      default value, `HKLM` abbreviation and long-form `HKEY_CURRENT_USER` both
+      normalize and open via reserved `HKEY` handles, value + key tombstones fold,
+      mirrored placeholder enumerates empty, `[Alpha, beta, Beta2, Mir, Zeta, _under]`
+      ordinal order, source artifact read-only — and write-isolation. Decision
+      recorded in SHIM-D20.)*
+- [x] **MW7-2** Packaging / SDK considerations — **documented**. A concise SHIM
+      design note capturing the deployment model the link/HWC proofs already embody
+      (the alias `.obj` + the `windows_win32_shim.dll.lib` import library +
+      `windows_win32_shim.dll` + a `<host>.pilcfg`, co-located beside the host;
+      build-time injection via the generic `WORDY_EXTRA_LINK_*`-style `build.rs`
+      vars), and recording the remaining items — a real SDK packaging story, a
+      literally-C++-binary-captured artifact, and filesystem persisted-state through
+      the shim — as explicitly **out of scope for now** with rationale. Doc-only; no
+      code.
+      *(Recorded in SHIM-D21: the four co-located deployment artifacts (shim DLL +
+      import lib + alias object + `<host>.pilcfg`), cdylib-scoped build-time
+      injection, and the three out-of-scope items each with rationale.)*
+- [x] **MW7-3** *(integration)* Full end-to-end single-`.pilcfg` scenario: one config
+      carrying **both** `persisted_state` (a C++-dialect registry snapshot) **and**
+      `buffer_updates` drives the registry **and** filesystem through one
+      `ShimSession` — `reg_ops` observe the snapshot and isolate writes to the
+      overlay; `fs_ops` buffer namespace ops off the live filesystem — asserting both
+      surfaces isolate under a single sidecar, the registry honoring a C++ artifact.
+      The capstone parity/integration test.
+      *(`tests/cpp_parity.rs::single_pilcfg_isolates_both_registry_and_filesystem_end_to_end`:
+      one `Pilcfg { persisted_state, buffer_updates: true }` yields a Persisted
+      registry (observes the C++ snapshot's `Name=Srv`, isolates an `E2E` write) and
+      a Buffered filesystem (a `create_directory` is read-your-writes yet leaves the
+      live disk untouched), both under a single session; the source artifact stays
+      read-only.)*
+
+## MW9 — Dynamic-loader shims (`mLoadLibrary*` / `mGetProcAddress` / module handles, SHIM-D16)
+
+Realizes platform-isolation **D26** (loader shims) and **D29** (observe seams).
+New surface — no C++ `mwin32` antecedent. The session gains an **observation
+sink** (a safe trait, default no-op) keyed by `(api, target)` for the D29 volume
+policy; the loader policy tables are shim-local (SHIM-D16 first-cut).
+
+- [x] **MW9-1** Module handle table + observation seam: intern real vs
+      minted-sentinel `HMODULE` (peer of the SHIM-D3 handle table); add the
+      `ObservationSink` trait the session holds (default no-op) plus the
+      shim-local `EngineSubstitution` registry and `name→shim-proc` table types
+      (empty/seeded). No exports yet; pure unit-tested data structures.
+- [x] **MW9-2** `mLoadLibraryW`/`A`, `mLoadLibraryExW`/`A`, `mFreeLibrary`:
+      passthrough that observes the load and interns the real `HMODULE`;
+      minted-sentinel path wired through the (initially empty) engine-substitution
+      registry; `*A` transcode via the `ansi` module (SHIM-D15). Transparent for
+      any `HMODULE` not minted here.
+- [x] **MW9-3** `mGetProcAddress`: observe `(module, proc)`; consult the
+      `name→shim-proc` table (seeded from the current export roster) and return
+      the shim body when the mode is not off and the name is shimmed, else
+      forward; sentinel modules resolve to shim-supplied procs. Off-mode is a
+      pure forward.
+- [x] **MW9-4** `mGetModuleHandleW`/`A`, `mGetModuleHandleExW`/`A`: resolve
+      previously-minted sentinels by name (else forward); model the `Ex`
+      pin/ref-count flags minimally for sentinels. Add all MW9 exports to
+      `windows_win32_shim.def` + `windows_win32_shim_aliases.ndjson` (the
+      drift-guard test stays green). **The whole loader family is non-opt-in**
+      (every export carries a `/alternatename` entry — contrast `mCloseHandle`'s
+      `noalias`); correctness rests on the transparency-for-non-minted-values
+      invariant, not on opting out.
+- [x] **MW9-5** *(integration)* Link-proof + behavior test: a client that
+      resolves a shimmed API via genuine `GetProcAddress` (redirected to
+      `mGetProcAddress`) lands in the shim body; an engine-substitution sentinel
+      returns a shim proc; observation records the resolutions; off-mode is
+      byte-for-byte transparent (`dumpbin /imports` confirms `LoadLibraryW` /
+      `GetProcAddress` bind the shim).
+
+## MW10 — COM activation shims (`mCoCreateInstance` / `mCoGetClassObject` / …, SHIM-D17)
+
+Realizes the COM half of platform-isolation **D24/D29**. New surface — no C++
+`mwin32` antecedent.
+
+> **CROSS-MILESTONE PREREQUISITE:** MW10 reuses the session mode + observation
+> sink introduced in **MW9-1**; do MW9 first.
+
+- [x] **MW10-1** Minimal COM plumbing: `IUnknown` / `IClassFactory` vtable
+      scaffolding in the `#[allow(unsafe_code)]` boundary module (raw
+      `windows-sys` GUID / HRESULT), plus a safe `ShimClassFactory` trait and a
+      `CLSID→factory` registry the session can populate. Unit-tested via a stub
+      factory.
+- [x] **MW10-2** `mCoCreateInstance` + `mCoCreateInstanceEx`: off→forward;
+      observe `(CLSID, IID, CLSCTX)`; substitute via the registry when a factory
+      is registered; map factory / `QueryInterface` failures to the correct
+      `HRESULT`.
+- [x] **MW10-3** `mCoGetClassObject`: off→forward; observe; return a shim class
+      factory for a registered CLSID, else forward to real activation.
+- [x] **MW10-4** Passthrough lifecycle exports (`mCoInitialize` /
+      `mCoInitializeEx` / `mCoUninitialize`) + add all MW10 exports to the dual
+      manifests (drift-guard green). **All COM exports are non-opt-in**
+      (manifest'd with `/alternatename`, like the loader family, not `noalias`);
+      transparent when no factory is registered, with volume-aware observation
+      per D29.
+- [x] **MW10-5** *(integration)* Test: a registered CLSID activates a
+      shim-supplied object implementing the requested interface (replay path); an
+      unregistered CLSID forwards to real activation (passthrough); activations
+      are observed; off-mode forwards unchanged.
+
+## MW11 — In-process module bootstrap + web-host activation seam (ABI, SHIM-D18)
+
+Gets the shim DLL loaded into the web host and inserts a controlled request
+handler at the host's **public activation seam**, using the loader/COM
+interception (D24/D26, MW9/MW10). In-process replacement for the former
+out-of-process HWC pipeline (platform-isolation D17, superseded). Public SDK
+names only — no host-specific identifiers.
+
+> **CROSS-COMPONENT PREREQUISITE:** consumes `windows-platform-isolation` → **M8**
+> (`RequestHandler` surface + identity/journaling decorators). See
+> [`../windows-platform-isolation/CHECKLIST.md`](../windows-platform-isolation/CHECKLIST.md).
+
+- [x] **MW11-1** Confirm load: the shim cdylib is a load-time dependency of the
+      relinked host module (via the aliasobj relink, MW5) and its initializer
+      runs in the host process; a smoke export proves we are resident.
+- [x] **MW11-2** Identify the public activation seam in IIS/HWC terms — a native
+      module registration entry (`RegisterModule` →
+      `IHttpModuleRegistrationInfo::SetRequestNotifications` → `CHttpModule`)
+      and/or a handler-factory acquisition import — using only public SDK names.
+      Record the chosen seam in SHIM-D18.
+- [x] **MW11-3** Intercept the seam: alias the factory-acquisition import (D24,
+      MW9/MW10 machinery) or register our module factory, so the host obtains a
+      shim-controlled handler. First cut returns a handler that forwards to the
+      real one (pass-through).
+- [x] **MW11-4** Add any new exports to the dual manifests (`.def` + `.ndjson`,
+      drift-guard green); set their aliasing posture (non-opt-in, consistent with
+      MW9/MW10).
+- [x] **MW11-5** *(integration)* In an emulated host harness, the interception
+      hands back our handler and the host drives it; assert pass-through behavior
+      and that our code is on the call path.
+
+## MW12 — Response-path bridge to the safe handler surface (ABI, SHIM-D18)
+
+Bridges the host's per-request calls to the safe `RequestHandler` surface
+(platform-isolation M8) through unsafe vtable glue, wiring the identity decorator
+so today's behavior is unchanged — the "code in the response path, no behavior
+change today" endpoint.
+
+> **CROSS-COMPONENT PREREQUISITE:** `windows-platform-isolation` → **M8**
+> (handler surface + identity decorator); builds on **MW11**.
+
+- [x] **MW12-1** Unsafe vtable bridge: translate the host's per-request
+      notifications (`OnBeginRequest` / `OnSendResponse`, raw `IHttpContext` /
+      request-response pointers) into borrowed models for the safe trait, in the
+      `#[allow(unsafe_code)]` boundary module (SHIM-D2).
+- [x] **MW12-2** Wire the platform-isolation `IdentityHandler` as the active
+      handler (D25 off): forward every notification to the real handler, return
+      its disposition unchanged.
+- [x] **MW12-3** Map handler dispositions back to host notification return codes /
+      `HRESULT`; ensure error and continue/finish outcomes round-trip exactly.
+- [x] **MW12-4** Optional journaling path: swap in the platform-isolation
+      `JournalingHandler` under record mode, observing each request without
+      changing the response (D29 volume policy applies).
+- [x] **MW12-5** *(integration)* End-to-end: a request flows through a real or
+      emulated host into our bridge and the identity decorator and back; assert
+      the response is byte-identical to the un-shimmed path.
+
+## MW13 — `wordy`: a shim-unaware Rust HWC dictionary service (synchronous surface, SHIM-D19)
+
+A standalone, **shim-unaware** native IIS module + host activator that serves a
+"shared dictionary" REST API synchronously under genuine HWC, with the word
+business-logic fully unit-testable off-host. No isolation, no async yet (those
+are MW14 / MW15). `wordy` is a sibling crate (`crates/wordy`); its source carries
+zero isolation awareness (SHIM-D19) — it declares its **own** modeled IIS vtable
+subset (peer of `mwinweb`), never depending on this crate.
+
+- [x] **MW13-1** Scaffold `crates/wordy` (add to workspace): a `cdylib`+`rlib`
+      IIS native-module crate with a generic **env-driven `build.rs`** (SHIM-D19:
+      links an extra object + lib search dir only when `WORDY_EXTRA_LINK_*` env
+      vars are set, else a plain build — no isolation knowledge). Its own
+      `#[allow(unsafe_code)]` IIS-ABI boundary module declaring the minimal
+      native-module vtables (`IHttpModuleRegistrationInfo` subset,
+      `IHttpModuleFactory`, `CHttpModule`, `IHttpContext`/`IHttpRequest` read of
+      method+URL, `IHttpResponse` **status** write) — a peer of `mwinweb`, never
+      depending on this crate. Export `RegisterModule`; the factory vends a
+      `CHttpModule` whose `OnBeginRequest` runs a safe route dispatcher seed
+      (`GET /healthz` → 200, else continue). `wordy` `PLANS.md` + brief
+      `DESIGN-NOTES.md` (shim-unaware contract). Proven via an emulated-host unit
+      test (mirrors `mwinweb`) — no HWC dependency. The genuine-HWC activator is
+      MW13-5.
+- [x] **MW13-2** Word-domain core (pure Rust, no IIS, no FS): in-memory shared
+      dictionary loaded from the vendored SCOWL `en-US` list (+ its license file);
+      `Locale` enum (only `en-US` populated); spell-check **membership**; `regex`
+      enumeration; **anagram** solver (positional template fixes length, fixed
+      letters are free givens, blanks drawn from a supplied letter **multiset**,
+      optional **wildcard tiles**); `fst` edit-distance **suggestions** over the
+      shared list. Extensive unit tests (≥10 normal + edge cases) — proves the
+      business logic runs with **zero host** (the no-HWC end-goal in miniature).
+- [x] **MW13-3** Custom-dictionary FS store: per-`{locale}/{user}` directory of
+      **name-encoded empty word files**; add / exists / remove / enumerate via
+      `std::fs` **namespace/metadata ops only** (no content — SHIM-D6 aligned);
+      reversible, path-escape-proof word↔filename encoding (lowercase +
+      percent-encode outside `[a-z]`); `Principal`/`UserId` newtype threaded,
+      resolved from an `X-Wordy-User` header with a single default user.
+      Unit-tested over a scratch temp dir (RAII cleanup).
+- [x] **MW13-4** Response **body** write path + route dispatcher: extend `wordy`'s
+      IIS boundary to clear/set-status/write a JSON body (`IHttpResponse`); JSON
+      request/response models; map every route — `POST /spellcheck`,
+      `POST /anagram`, `GET /shared?pattern=`, `GET /custom?pattern=`,
+      `POST /custom/{word}`, `DELETE /custom/{word}`, `GET /custom/{word}` — to the
+      domain core + FS store, **synchronously**.
+- [x] **MW13-5** *(integration)* End-to-end route harness + HWC readiness
+      pre-flight. Integration tests (`wordy/tests/host.rs`) drive **every** route
+      end-to-end through the public `routes::Service` (the host-agnostic core the
+      IIS boundary calls) over a scratch custom-dictionary store at integration
+      scale (hundreds of ops), asserting all dictionary behaviors; the IIS ABI
+      boundary itself (decode body/header → dispatch → write JSON body) is covered
+      by the emulated-host unit tests in `src/iis.rs`. Adds the `wordy-host`
+      activator bin (`src/bin/wordy-host.rs`): discovers genuine `hwebcore.dll` at
+      the absolute `inetsrv` path, locates the built `wordy.dll`, generates a
+      representative applicationHost/web.config loading it, and (opt-in
+      `WORDY_HOST_PROBE`) `LoadLibraryExW`s the real engine by absolute path with
+      the `inetsrv` dependency dir and resolves its three exports — proving the
+      load seam — then frees it. Safe everywhere (exits 0; HWC discovery gated).
+      **Genuine `WebCoreActivate` + live HTTP is deferred to MW16** (it requires
+      pinning the modeled vtables to real `httpserv.h` first).
+
+      > **➡ HANDOFF:** genuine in-process HWC hosting (this milestone's
+      > `WebCoreActivate` + live HTTP, and MW15-2's `hwcproof/`) is blocked on
+      > **MW16** (real `httpserv.h` vtable pinning). See MW16 below.
+
+## MW16 — Pin the modeled IIS vtables to `httpserv.h` + genuine HWC activation (SHIM-D19)
+
+> **Re-plan note (execution-driven):** MW13-1 deliberately modeled only the
+> *subset* of the IIS native-module vtables `wordy` exercises (WD-D3), in a
+> self-consistent ordering sufficient for the emulated host. Driving a **genuine**
+> Hostable Web Core process, however, requires those vtables to match the real
+> `httpserv.h` memory layout exactly — `CHttpModule` alone declares ~30 ordered
+> notification methods, and a real host calling an unmodeled slot at the wrong
+> offset would mis-dispatch. Pinning the real layout is therefore a substantial,
+> SDK-dependent, crash-sensitive effort that is its own milestone — a shared
+> prerequisite of MW13-5's genuine path and MW15-2's `hwcproof/` harness. It was
+> separated out of MW13-5 during execution so the rest of MW13 could land runnable.
+
+- [x] **MW16-1** Pin the genuine `httpserv.h` vtable layouts for every interface
+      `wordy` touches (`IHttpModuleRegistrationInfo`, `IHttpModuleFactory`,
+      `CHttpModule` — all notification slots, `IHttpContext`, `IHttpRequest`,
+      `IHttpResponse`), with the unmodeled `CHttpModule` notifications defaulting
+      to a safe pass-through, verified against the SDK header.
+- [x] **MW16-2** Genuine activation in `wordy-host`: `WebCoreActivate` the real
+      `hwebcore.dll` with the generated applicationHost/web.config loading the
+      pinned `wordy.dll`, then `WebCoreShutdown`; single-activation-per-process
+      and error-code semantics handled per the HWC notes. **Verified on a machine
+      with IIS-HostableWebCore: `WebCoreActivate` → `HRESULT 0`, `wordy.dll`
+      loads, `RegisterModule` runs, `SetRequestNotifications` → `S_OK`, and IIS
+      calls `GetHttpModule` once per request (allocating from the request pool via
+      `IModuleAllocator`).** Bin gates: `WORDY_HOST_ACTIVATE` / `WORDY_HOST_HTTP` /
+      `WORDY_HOST_DUMP` / `WORDY_HOST_CONFIG`; `iis.rs` gains a `WORDY_TRACE` gated
+      trace.
+- [x] **MW16-3** *(integration)* Drive every route end-to-end over **real HTTP**
+      against the activated host; assert dictionary behaviors; gated/ignored when
+      HWC is absent. Reconciles the modeled-vs-genuine boundary and unblocks
+      MW15-2.
+
+      > **✅ RESOLVED (see wordy WD-D11).** Genuine HWC now dispatches every route
+      > into `wordy` end-to-end (`GET /healthz` → `200 {"status":"ok"}`,
+      > `POST /spellcheck` → `200 {"results":[…]}`, all 7 routes → `200`). The
+      > earlier bare-`500` was **HTTP 500.19** (`sc-win32-status 1168`,
+      > `ERROR_NOT_FOUND`): the hand-rolled `applicationHost.config` declared only
+      > a *subset* of the standard `<configSections>`, so IIS aborted each request
+      > at config resolution — before the notification pipeline — when a loaded
+      > module read an undeclared section (`staticContent`, `httpProtocol`, …).
+      > `wordy`'s binding was correct all along (as the emulated-host unit tests
+      > showed). Fix: `wordy-host::application_host_config` now emits the
+      > **complete** standard section set + the core `inetsrv` pipeline modules.
+      > Covered by the `hwc_genuine_http_dispatch_end_to_end` integration test,
+      > which drives genuine HWC **by default** on a capable host
+      > (`WORDY_HWC_EMULATED_ONLY=1` opts out; skips when HWC is absent or the
+      > listener cannot bind without elevation). Diagnosis aids:
+      > W3C site logging surfaced the sub-status; `custerr.dll` +
+      > `errorMode="Detailed"` named the offending section; per-slot trace
+      > trampolines confirmed no notification was dispatched.
+
+## MW14 — Asynchronous request completion on the Windows thread pool (SHIM-D19)
+
+Make **every** route async via IIS asynchronous completion, offloaded to our
+`windows-threadpool` crate — the deliberate "force the redirection open across a
+second seam" milestone.
+
+- [x] **MW14-1** Extend `wordy`'s IIS-ABI boundary with the async-completion
+      subset: `IHttpContext::PostCompletion` (and the `RQ_NOTIFICATION_PENDING`
+      return); boundary module only, unit-modeled.
+- [x] **MW14-2** Async dispatch: `OnBeginRequest` submits the route's work to
+      `windows_threadpool::submit_once`, returns `RQ_NOTIFICATION_PENDING`; the
+      pool work item computes, writes the response, and calls `PostCompletion`.
+      Route every endpoint through it (add the `windows-threadpool` path dep).
+      *(Landed with MW14-3 — the async `OnBeginRequest` returns `PENDING` and
+      writes nothing synchronously, so it cannot be tested without the
+      suspend/resume harness; the two are coupled. Design refinement per WD-D12:
+      the response is realized in `OnAsyncCompletion` on the host thread, not the
+      pool work item, so all `IHttpResponse` calls stay on the host thread.)*
+- [x] **MW14-3** Extend the emulated-host harness to model **suspend/resume**
+      (deliver `PENDING`, run the completion, finalize) so async routes are
+      testable without HWC. *(Landed with MW14-2; see WD-D12.)*
+- [x] **MW14-4** Concurrency hardening: shared dictionary as a read-only `Arc`;
+      per-user custom-store FS ops serialized or concurrency-tolerant; verify no
+      data races or handle-lifetime issues across the pool boundary.
+      *(Shared dict is a `&'static` `LazyLock` singleton — read-only + `Sync`,
+      stronger than `Arc`. The concurrency test exposed a real Windows
+      concurrent-create `ACCESS_DENIED` race that retrying did not reliably clear,
+      so custom-store mutations are now serialized by a per-store `Arc<Mutex<()>>`
+      (reads stay lock-free). Pool-boundary safety per WD-D12. See WD-D12.)*
+- [x] **MW14-5** *(integration)* Async end-to-end: many concurrent requests across
+      routes; assert correctness, that work ran off the host thread (observation
+      marker), and clean completion. (`windows-threadpool-executor` async/await
+      variant noted as a follow-on, not required here.)
+      *(Drives 240 concurrent requests across every route through the real OS
+      thread pool — the same pool the IIS async boundary offloads to — asserting
+      each response is correct, that no work ran on the host thread (thread-id
+      observation), and that every work item joined cleanly.)*
+
+## MW15 — Isolation proof: force the redirection open (SHIM-D19)
+
+Applies the alias + `.pilcfg` to the *unmodified* `wordy` from the outside
+(SHIM-D19) and proves its namespace ops land in the overlay, not the live FS.
+
+> **Re-plan note (scheduling, 2026-06-25):** detailing the outline revealed the
+> blocking prerequisite that the header's *"isolation deferred"* foreshadowed:
+> the shim's filesystem surface is hardcoded to `LiveFilesystem` passthrough —
+> there is no `FilesystemBacking` and `.pilcfg`-driven FS layering is the
+> documented SHIM-D13 gap. Since `wordy`'s custom store is filesystem-based, the
+> overlay proof cannot run until that gap is closed. The building blocks already
+> exist in `windows-platform-isolation` (`FsSurface`, `OverlayFileTree`,
+> `TreeFsSurface`), so closing it is bounded. The original four items are
+> renumbered MW15-3..6; MW15-1/2 are the prerequisite. Decision: overlay-over-live
+> semantics, gated by the existing `buffer_updates` flag (now "buffer all
+> mutations: registry + filesystem").
+
+- [x] **MW15-1** Add an `FsBuffered<S: FsSurface, C>` decorator to
+      `windows-platform-isolation` — the filesystem analogue of the registry
+      `Buffered`: mutations land in an in-memory overlay (with tombstones that
+      shadow inner/live paths) and never reach the inner surface; reads see the
+      overlay layered over the inner (read-your-writes); `commit` replays the
+      journal. Unit-tested over a `LiveFilesystem` and/or `TreeFsSurface` base
+      (create/remove/enumerate land in the overlay; inner untouched). Record the
+      decision in the platform-isolation design notes.
+      *(Added `OverlayFileTree::{dir,file}_presence` → `OverlayPresence` so the
+      live-backed decorator distinguishes tombstoned from absent; `FsBuffered`
+      with read-your-writes + read_dir merge + `commit`/`rollback`/`journal`; 5
+      new unit tests; platform-isolation design note D30.)*
+- [x] **MW15-2** Wire a `FilesystemBacking` enum (`Live` / `Buffered`) into the
+      shim `ShimSession`, selected from `.pilcfg` (`buffer_updates` now buffers
+      filesystem mutations too); change `session.filesystem` to the enum. Shim
+      integration tests drive the FS C ABI through the buffered backing and assert
+      namespace ops land in the overlay with the live FS untouched. Update
+      SHIM-D13.
+      *(Added `FilesystemBacking::{Live,Buffered}` — itself an `FsSurface`, the
+      `Buffered` variant boxed to satisfy `large_enum_variant`; renamed the alias
+      to `SessionFs = Filesystem<FilesystemBacking>`; `build_filesystem_backing`
+      selects buffered/live from `buffer_updates`. Two session tests prove a
+      buffered session's `create_directory` is read-your-writes yet leaves the
+      live FS untouched, while the default session writes through to disk. The C
+      ABI exports use the process-global `session()` and cannot take a per-test
+      config, so the genuine-C-ABI-through-buffered proof is MW15-4 (`hwcproof/`);
+      these tests drive the same `fs_ops` core the C ABI marshals into. Updated
+      SHIM-D13 with a "Filesystem backing composition" bullet + narrowed gap.)*
+- [x] **MW15-3** Build `wordy` with the alias `.obj` + shim import lib injected via
+      the generic `build.rs` env vars (no `wordy` source change); confirm via
+      `dumpbin /imports` that the FS + thread-pool/loader imports bind the shim.
+      (Orchestration script mirroring `linkproof/run-linkproof.ps1`.)
+      *(`hwcproof/build-aliased-wordy.ps1`: builds the shim, emits the alias COFF
+      via `gen-alias-obj`, builds `wordy` with `WORDY_EXTRA_LINK_{SEARCH,OBJ}` set
+      (the alias object **and** the shim import library are passed as raw linker
+      inputs — `rustc-link-lib` would not resolve the `.dll.lib`), then parses
+      `dumpbin /imports wordy.dll`. Verified: all 99 manifest exports — every
+      aliased FS entry point (`mCreateFileW`/`mCreateDirectoryW`/`mDeleteFileW`/
+      `mFindFirstFile*`/`mFindNextFileW`/`mFindClose`/`mGetFileAttributes*`/
+      `mRemoveDirectoryW`/…) plus loader/registry/COM — bind `windows_win32_shim.dll`,
+      and **zero** aliased FS names survive as `kernel32` imports. The OS thread
+      pool is intentionally not in the alias manifest (the shim does not virtualize
+      it), so thread-pool calls remain native by design. `-ReportOnly` prints the
+      findings; assertion mode exits 0 on success.)*
+- [x] **MW15-4** `hwcproof/` harness (mirrors `linkproof/`): genuine HWC + a
+      buffered `.pilcfg` beside the aliased `wordy.dll`; real HTTP add/remove/
+      enumerate of custom words; assert the namespace ops land in the shim
+      overlay, not the live FS.
+      *(`hwcproof/run-hwcproof.ps1 -Variant isolated`: stages a buffered host
+      sidecar (`wordy-host.exe.pilcfg = {"buffer_updates":true}` — keyed to the
+      host **process** exe, which `load_pilcfg` reads via `current_exe`), points
+      `WORDY_CUSTOM_ROOT` at a fresh live dir, then runs `wordy-host.exe` with
+      `WORDY_HOST_HTTP=1` to genuinely `WebCoreActivate` and drive POST/GET/DELETE
+      `/custom/widget` over real HTTP. **Verified end to end on this box**: HWC
+      activated (HRESULT 0), all 7 routes returned 200 including the custom
+      add/get/delete round-trip, yet the live custom root was never created on
+      disk — the aliased module's FS mutations stayed in the shim overlay
+      (read-your-writes held over real HTTP). Skips gracefully (exit 2) when HWC
+      is absent or the URL is unbindable. **Prerequisite found:** the host must
+      stay native, so `wordy/build.rs` was scoped to inject the alias object via
+      `rustc-link-arg-cdylib` (cdylib only) — an object is linked unconditionally,
+      so aliasing the host binary too would buffer its own config writes and break
+      activation; this mirrors production (native HWC worker, isolated module).)*
+- [x] **MW15-5** Negative control: a non-aliased `wordy` hits the live FS; an
+      exit-code discriminator distinguishes the two builds.
+      *(`hwcproof/run-hwcproof.ps1 -Variant native`: rebuilds `wordy.dll` with no
+      alias injection (dumpbin confirms it does **not** import the shim), stages
+      the **same** buffered sidecar, and runs the identical round-trip. **Verified**:
+      the live custom root **was** created on disk (exit 0 = PASS for the native
+      variant), confirming the isolated run's absent root is a real overlay effect
+      and not an artifact. The script's per-variant exit code is the discriminator
+      (PASS=0 / FAIL=1 / SKIP=2); the only independent variable between the two
+      runs is whether `wordy.dll` was linked against the alias object.)*
+- [x] **MW15-6** *(integration)* End-to-end isolation proof, gated/ignored when HWC
+      is absent; record closure / any new decisions in SHIM-D19.
+      *(`tests/hwc_isolation.rs`: an `#[ignore]`d integration test that invokes
+      `hwcproof/run-hwcproof.ps1 -Variant isolated` and maps its exit code (0 PASS
+      / 1 FAIL / 2 SKIP). Skips cleanly when HWC is absent or the URL is unbindable,
+      so the default `cargo test` run never depends on host configuration (it
+      reports `1 ignored`). **Verified**: run directly with `--ignored`, the test
+      genuinely activates HWC, drives the add/get/delete round-trip over real HTTP,
+      and passes (live custom root never created on disk). Closure + the
+      isolate-the-module-not-the-host decision recorded in SHIM-D19.)*
+
+
+## MW17 — WinHTTP egress seam (outbound relay isolation, SHIM-D22)
+
+The outbound counterpart of the registry/filesystem seams: alias an unmodified
+app's `winhttp.dll` imports to `m`-prefixed front-ends that reassemble the
+`HINTERNET` request lifecycle into one `EgressRequest`, run it through a session
+`EgressBacking` selected from `.pilcfg` (passthrough / redirect / buffer / replay
+/ block), and drain the chosen `EgressResponse` back. Consumes
+`windows-platform-isolation` **M11** (D31). HTTP only; WWSAPI/SOAP deferred. See
+`../windows-platform-isolation/design-sessions/DESIGN-SESSION-2026-06-25-egress-surface-and-validation-tier.md`.
+
+> **CROSS-COMPONENT PREREQUISITE:** `windows-platform-isolation` **M11**
+> (`EgressSurface` + redirect/buffer/replay/block/observe decorators + `LiveEgress`)
+> must land first. See
+> [`../windows-platform-isolation/CHECKLIST.md`](../windows-platform-isolation/CHECKLIST.md).
+
+- [x] **MW17-1** `.pilcfg` `egress` section: `mode`
+      (`passthrough`|`redirect`|`buffer`|`replay`|`block`), `redirections:
+      [{from,to}]` (host[:port] / prefix rewrite rules), `replay_dir`. Strict parse
+      (unknown shape = error) + tolerant `load_pilcfg` (absent/malformed = default
+      passthrough), mirroring SHIM-D5. Unit tests for the schema + env-expansion of
+      `replay_dir`.
+      *(`pilcfg.rs`: `EgressMode{Passthrough,Buffer,Redirect,Replay,Block}` +
+      `EgressConfig{mode,redirections,replay_dir}` + `Pilcfg.egress` field;
+      `read_egress`/`read_egress_mode` (nested `redirections` distinct from the
+      top-level registry ones; `replay_dir` `%VAR%`-expanded; unknown mode / wrong
+      shapes are errors). Re-exported from `lib.rs`. 7 unit tests. 198 unit tests
+      pass.)*
+- [x] **MW17-2** `HINTERNET` handle table + per-handle transaction state: the `m`
+      WinHTTP front-ends (`mWinHttpOpen`/`Connect`/`OpenRequest`/`AddRequestHeaders`/
+      `SendRequest`/`ReceiveResponse`/`QueryHeaders`/`QueryDataAvailable`/`ReadData`/
+      `CloseHandle`, `SetTimeouts`/`SetOption` accepted) accumulate scheme/host/port/
+      verb/path/headers/body, capture one `EgressRequest` at `SendRequest`, and drain
+      the response across the read calls (replay-state-in-a-handle, SHIM-D14 shape).
+      Default = transparent 1:1 passthrough to real WinHTTP. Unit-tested over a fake
+      sender + a recording sender (no live network).
+      *(`src/egress_engine.rs`: `EgressEngine<S: EgressSurface>` — interns
+      `HINTERNET` sentinels (session→connection→request hierarchy), accumulates the
+      transaction (`open`/`connect`/`open_request`/`add_headers`), captures one
+      `EgressRequest` at `send` → `backing.send`, drains via `status`/
+      `response_headers`/`data_available`/`read_data` (chunked)/`close`. Surface-
+      generic; 8 unit tests with a canned sender + composed Redirecting/Buffered/
+      Blocking backings. 206 unit tests pass. **Note:** the `extern "C"` `mWinHttp*`
+      pointer marshaling and the passthrough-vs-isolation handle dispatch fold into
+      MW17-3 (they need the session-held `EgressBacking`); per SHIM-D22 the seam is
+      request/response-buffered, so even passthrough reassembles-and-resends via
+      `LiveEgress` rather than forwarding 1:1.)*
+- [x] **MW17-3** Session `EgressBacking` enum (Passthrough / Buffered / Redirecting
+      / Replay / Blocking), selected by `build_egress_backing(&Pilcfg)` and borrowed
+      under a `Mutex` like the registry/filesystem backings; wire the front-ends
+      through it (consumes M11). Unit tests assert each mode's observable effect
+      through the front-ends.
+      *(`session.rs`: `EgressBacking` enum (itself an `EgressSurface` over
+      `LiveEgress`) + `EgressEngine` held as `Mutex<SessionEgress>` with
+      `with_egress`; `build_egress_backing` selects the mode and parses redirect
+      rules (`split_authority`/`parse_redirect_rule`) + loads/merges replay fixtures
+      from `replay_dir` (`load_replay_fixtures`, tolerant; added
+      `ReplaySet::extend` to platform-isolation). 6 unit/session tests: helper
+      parsing, mode selection, and Block/Buffer/Replay driven through the session
+      engine (no network). 212 unit tests pass. **Restructure:** the `extern "C"`
+      `mWinHttp*` exports move to MW17-4 — they are the raw-pointer marshaling that
+      the alias roster aliases to, so creating the exports and the `.def`/`.ndjson`
+      roster is one coherent unit.)*
+- [x] **MW17-4** Expose the `mWinHttp*` C ABI front-ends (raw-pointer marshaling
+      over the session egress engine: `mWinHttpOpen`/`Connect`/`OpenRequest`/
+      `AddRequestHeaders`/`SendRequest`/`ReceiveResponse`/`QueryHeaders`/
+      `QueryDataAvailable`/`ReadData`/`CloseHandle` (+ `SetTimeouts`/`SetOption`
+      no-op)), then add the used `winhttp.dll` entry points to
+      `windows_win32_shim_aliases.ndjson` + the `.def`, export the `m` forms, keep
+      the `.def`↔`.ndjson` parity test green, and verify with `dumpbin /imports`
+      that a relinked client binds the shim for the WinHTTP imports and leaves
+      `kernel32` etc. untouched (extend the alias-proof script).
+      *(`mwinhttp.rs`: 12 `pub extern "system" fn mWinHttp*` exports (`#[unsafe(no_mangle)]`,
+      inner derefs in `unsafe` blocks, mirroring `mwinfile`) marshaling raw
+      WinHTTP pointers/wide-strings into `session().with_egress(|engine| …)` over the
+      `EgressEngine`; two-call buffer convention for `QueryHeaders`, chunked
+      `ReadData`, `SetTimeouts`/`SetOption` no-op. Roster grows 99→111 aliased
+      (`.def` + `.ndjson`, parity test green); count guards updated (exports 100→112,
+      aliased 99→111). `build-aliased-wordy.ps1` confirms a relinked `wordy.dll`
+      binds all 12 `mWinHttp*` to `windows_win32_shim.dll` with 0 FS leaks to
+      `kernel32`. 212 unit tests pass; clippy clean.)*
+- [x] **MW17-5** *(integration)* `egressproof/` harness (mirrors `linkproof/`): a
+      synthetic relinked client doing a real `WinHttpSendRequest`; assert
+      **redirect** diverts it to a localhost echo (live target never contacted),
+      **buffer** contacts nothing and captures the request, and **replay** serves a
+      fixture with no listener; a non-aliased negative control hits the real target.
+      Exit-code discriminator (PASS/FAIL/SKIP). Record SHIM-D22.
+      *(`egressproof/egressproof_main.cpp` + `run-egressproof.ps1`: a genuine-WinHTTP
+      C++ client linked against the alias COFF object, run under each `.pilcfg`
+      egress mode against a CLOSED loopback port (genuine send fails fast).
+      redirect -> live loopback echo (200 + marker); buffer -> POST gets synthetic
+      202 with no listener; replay -> 203 fixture with no listener; non-aliased
+      control -> real (dead) target, fails. **The verdict travels only in the EXIT
+      CODE**: the alias roster aliases `WriteFile`/`ReadFile`, so the aliased build's
+      `printf`->`WriteFile(stdout)` is rerouted into `mWriteFile` and stdout is
+      swallowed (same reason `linkproof` is exit-code-driven); the EXE asserts
+      against an `<expect>` arg internally. Driver exit code: 0 PASS / 1 FAIL / 2 SKIP
+      (no MSVC, or no free port). 4/4 scenarios pass. SHIM-D22 updated.)*
+
+## MW18 — Validation tier: dictionary-store service + `wordy` split (SHIM-D23)
+
+Make the egress seam testable against a *real* dependent service. Carve `wordy`'s
+on-disk custom dictionary into a separate REST service (`merriam`), backed by
+native async Win32 file I/O; `wordy` keeps its CPU work and **relays** the custom-
+dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
+`wordy` stays shim-unaware (SHIM-D19). See the design session above.
+
+> **CROSS-COMPONENT PREREQUISITE:** MW17 (WinHTTP egress seam) provides the
+> isolation the MW18-4 proof exercises; MW18-1..3 (building `merriam` + the relay)
+> may proceed in parallel with MW17 since they are ordinary networking.
+
+- [x] **MW18-1** Scaffold crate `windows-file-io` (+ its `-sys` `unsafe` leaf):
+      native async Win32 file I/O — overlapped `CreateFile`/`ReadFile`/`WriteFile`
+      with completion via the Windows thread pool (`CreateThreadpoolIo` /
+      `StartThreadpoolIo`, over `windows-threadpool`'s IOCP reactor). The public API
+      is **async/completion-shaped even though small ops usually complete
+      synchronously** — handle the synchronous-completion fast path, but write the
+      code as if completion is always deferred. Its own `COMPONENT.md`/`CHECKLIST.md`/
+      `DESIGN-NOTES.md`/`PLANS.md`; unit + a stress integration test.
+      *(`windows-file-io-sys` unsafe leaf: RAII overlapped `FileHandle`
+      (`AsRawHandle`), `open`/`file_size`/`set_end_of_file`, `OverlappedOp` issuing
+      one overlapped `ReadFile`/`WriteFile` → `Issue::{Pending,Eof,Failed}` — a
+      pool-bound handle (no `FILE_SKIP_COMPLETION_PORT_ON_SUCCESS`) so even sync
+      success posts a completion and is awaited. Safe `windows-file-io`
+      (`#![forbid(unsafe_code)]`): `File` over the `windows-threadpool` `Io` reactor
+      — `open`/`create`/`open_read_write`, async `read_at`/`write_at`/`write_all_at`/
+      `read_to_end`, `size`/`set_len`; owned `FileError`. 13 unit + 3 stress
+      integration tests (256 KiB chunked round-trip, 300-file round-trip, truncating
+      rewrite) pass; clippy clean. Component docs + `D-FIO-1..6`.)*
+- [x] **MW18-2** Scaffold crate `merriam`: a REST dictionary-store service owning
+      the custom dictionary on disk (add / update / store / remove / enumerate) via
+      `windows-file-io`, with a **listener-independent dispatch core** (testable like
+      `wordy::routes::Service`) and an inbound edge over the **HTTP Server API
+      (http.sys)** (async receives + thread-pool dispatch). Its own checklist/notes;
+      core unit tests + a gated listener integration test (urlacl preflight reused).
+
+      > **Re-plan (2026-06-25, execution-driven):** MW18-2 is three independently
+      > testable units in strict dependency order — the on-disk store (consumes
+      > `windows-file-io`, no HTTP), the dispatch core (consumes the store, no
+      > listener), and the http.sys listener edge (large `unsafe` inbound + a server
+      > bin + a gated integration test). Splitting keeps each commit tractable and
+      > each unit independently verified; the store/core land runnable before the
+      > listener. `merriam` owns its `COMPONENT.md`/`CHECKLIST.md`/`DESIGN-NOTES.md`/
+      > `PLANS.md`; decisions recorded as `MER-D*`.
+
+  - [x] **MW18-2.1** `merriam` crate scaffold + async **content** store
+        (`store.rs`): each `(locale, user)` is one on-disk word-list file
+        (newline-delimited, sorted) read/written through `windows-file-io` (a
+        content store, vs. `wordy`'s name-encoded empty files — this is what
+        exercises the async overlapped path); `add`/`remove`/`contains`/`list`
+        with path-safe `(locale, user)` slugs, word normalization (trim + lower,
+        reject empty / embedded newline), and per-key mutation serialization.
+        Unit tests over a scratch dir.
+        *(`merriam` crate (`store.rs`): `Store` over `windows-file-io` — one
+        `{root}/{locale-slug}/{user-slug}.dict` newline file per pair; sync
+        `add`/`remove`/`contains`/`list` driving the async overlapped read/write
+        via thread-pool `block_on` under a per-key `Mutex` (never held across an
+        `.await`, MER-D3); `normalize_word` + path-safe `slug` (traversal-proof,
+        MER-D2); content store, not namespace (MER-D1). 14 unit tests pass; clippy
+        clean. Component docs + `MER-D1..3`.)*
+  - [x] **MW18-2.2** Dispatch core (`routes.rs`) mirroring the `wordy` custom-dict
+        routes 1:1 so the MW18-3 relay maps directly: `GET /healthz`,
+        `GET /custom[?pattern=]`, `GET /custom/{word}`, `POST /custom/{word}`,
+        `DELETE /custom/{word}` (`X-Wordy-User` header → principal, optional
+        locale). Host-agnostic `HttpRequest`/`HttpResponse`/`Outcome`; JSON bodies
+        identical to `wordy`'s. Unit tests for every route off any listener.
+        *(`routes.rs`: `Service`/`HttpRequest`/`HttpResponse`/`Outcome` peer of
+        `wordy::routes`; `X-Wordy-User`/`X-Wordy-Locale` headers, `?pattern=`
+        full-match regex filter, byte-identical JSON; URL helpers mirrored from
+        `wordy`. 13 route unit tests (27 total in `merriam`); clippy clean. MER-D4.)*
+  - [x] **MW18-2.3** http.sys listener edge (`#[allow(unsafe_code)]` boundary
+        module): HTTP Server API inbound (`HttpInitialize` /
+        `HttpCreateRequestQueue` / url-group + `HttpAddUrlToUrlGroup` /
+        `HttpReceiveHttpRequest` loop → thread-pool dispatch → `HttpSendHttpResponse`),
+        a `merriam` server bin, and a **gated** listener integration test
+        (urlacl/bind preflight; skips when unbindable). Record `MER-D*` closure.
+        *(`http_sys.rs`: `Server::bind`/`serve`/`Drop` over the v2 HTTP Server API
+        (init → session → url-group → request-queue → binding → add-url); receive→
+        decode→dispatch→send loop; **synchronous** dispatch (MER-D5 — async file I/O
+        is in the store, so no inbound offload). No request body parsing.
+        `merriam-host` bin (env-configured `MERRIAM_URL`/`MERRIAM_PORT`/`MERRIAM_ROOT`).
+        Gated `tests/listener.rs`: binds a free loopback port, drives every route
+        over real TCP/HTTP (verified all routes 200/404 + user isolation over the
+        wire), SKIPs on `ERROR_ACCESS_DENIED`. clippy clean. **Bug caught in review:**
+        `HttpVerb*` consts must be compared by value, not used as `match` patterns.)*
+- [x] **MW18-3** Gut `wordy`: remove the local filesystem custom store
+      (`custom.rs`); replace the custom-dict ops (add/remove/contains/list) with a
+      **WinHTTP client** that relays to `merriam` (configurable base URL); keep the
+      shared-dictionary spell-check / match / anagram / `fst` work unchanged. `wordy`
+      remains shim-unaware (only ordinary WinHTTP calls). Update the `wordy` design
+      notes + amend SHIM-D19 to record the split. Tests: the relay client unit-tested
+      against a stub `merriam`; `wordy`'s CPU routes unchanged.
+
+      > **Re-plan (2026-06-25, execution-driven):** two dependency-ordered units.
+      > The WinHTTP transport + `MerriamClient` relay is a standalone, independently
+      > testable piece (drive it against a `TcpListener` stub speaking HTTP/1.1);
+      > the routes rewrite (abstract the custom store behind a `CustomStore` trait,
+      > make `Service` generic, swap in `MerriamClient` for production and an
+      > in-memory store for the existing route tests, delete the FS store) is the
+      > integration. Splitting lands a tested relay before disturbing the routes.
+
+  - [x] **MW18-3.1** `wordy` WinHTTP relay client: a `#[allow(unsafe_code)]`
+        `winhttp` boundary module (`WinHttpOpen`/`Connect`/`OpenRequest`/
+        `SendRequest`/`ReceiveResponse`/`QueryHeaders`/`QueryDataAvailable`/`ReadData`/
+        `CloseHandle` → `(status, body)`) and a safe `MerriamClient` (`from_env`
+        `MERRIAM_HOST`/`MERRIAM_PORT`) with inherent `add`/`remove`/`contains`/`list`
+        building the `merriam` REST calls + parsing the JSON. **Ordinary** WinHTTP
+        calls (so the shim's MW17 seam can alias them). Tested against a `TcpListener`
+        stub serving canned JSON. `wordy` routes untouched (still on `custom.rs`).
+        *(`src/winhttp.rs` (ordinary WinHTTP transport, RAII `Internet` guard) +
+        `src/relay.rs` (`MerriamClient`/`RelayError`, percent-encoded word path,
+        `X-Wordy-User`/`X-Wordy-Locale` headers, JSON parse, `Upstream`/`Transport`
+        errors). 8 relay unit tests vs. a one-shot `TcpListener` stub (genuine
+        WinHTTP); 74 wordy unit + 6 host tests pass; clippy clean. WD-D13.)*
+  - [x] **MW18-3.2** Abstract the custom store behind a `CustomStore` trait; make
+        `Service` generic over it; route handlers call the trait. `MerriamClient`
+        impls it (production, via `iis.rs`/bin `from_env`); an in-memory
+        `MemoryStore` impls it for the existing route unit tests. Delete the FS
+        store (`custom.rs`), moving the identity types (`Principal`/`UserId`/
+        `X-Wordy-User`) to an `identity` module. Update `wordy` `DESIGN-NOTES.md` +
+        amend SHIM-D19 to record the split.
+        *(`store.rs` (`CustomStore` trait + `StoreError` + `MemoryStore`),
+        `identity.rs` (`Principal`/`UserId`/`X-Wordy-User`), generic `Service<S>`;
+        `RelayStore` adapter in `relay.rs`. **Re-plan: `custom.rs` is re-homed, not
+        deleted** — deleting it would break the MW15 FS-isolation proof and the MW16
+        genuine-HWC dispatch test, so `CustomDictionary` is kept as a `CustomStore`
+        impl and `iis.rs` selects the backing: `merriam` relay by default, the FS
+        store when `WORDY_CUSTOM_ROOT` is set (those harnesses already set it). The
+        genuine-HWC dispatch test now sets `WORDY_CUSTOM_ROOT` (it tests dispatch,
+        not egress). 83 wordy unit + 6 host tests pass; clippy clean. WD-D13 + SHIM-D19
+        amendment.)*
+- [x] **MW18-4** *(integration)* End-to-end egress isolation against a real service:
+      run aliased `wordy` + `merriam` and prove the three owner-requested modes via
+      the `.pilcfg` `egress` section — **redirect** (`wordy`'s `merriam` URL
+      rewritten to a second instance, asserted by where the words land), **buffer**
+      (dict mutations captured in the egress overlay, `merriam` untouched), and
+      **replay** (`wordy` serves dict reads from egress fixtures with `merriam`
+      offline). Gated/ignored when the listener URL is unbindable. Record SHIM-D23
+      closure.
+      *(`wordy-relay-probe` bin drives `wordy`'s **real** `MerriamClient` relay;
+      `wordy/build.rs` aliases that bin (only) when `WORDY_EXTRA_LINK_OBJ` is set.
+      `egressrelayproof/run-egressrelayproof.ps1`: builds shim+alias+aliased/native
+      probes+`merriam-host`, runs a genuine `merriam` on a free loopback port, and
+      proves redirect (dead port → live `merriam`, `widget1` lands there) / buffer
+      (POST captured, `merriam` untouched, probe exit 2) / replay (fixture served
+      offline) / control (non-aliased → dead target, exit 3). Probe is
+      **exit-code-driven** (aliased stdout swallowed by `mWriteFile`); `merriam`
+      state asserted by a non-aliased direct query. `launch-tandem.cmd`/`.ps1`
+      manual companion. Gated `tests/egress_relay.rs` (`#[ignore]`, SKIP on
+      `ERROR_ACCESS_DENIED`). **Verified 4/4.** SHIM-D23 closure recorded.)*

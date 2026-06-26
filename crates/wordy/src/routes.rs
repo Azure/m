@@ -24,13 +24,14 @@
 //!
 //! Unknown method/path pairs yield [`Outcome::Continue`] so the host pipeline
 //! proceeds. The caller is identified by the `X-Wordy-User` header
-//! ([`crate::custom::USER_HEADER`]); custom-dictionary routes are scoped to that
+//! ([`crate::identity::USER_HEADER`]); custom-dictionary routes are scoped to that
 //! [`Principal`].
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::custom::{CustomDictionary, Principal};
+use crate::identity::Principal;
+use crate::store::{CustomStore, StoreError};
 use crate::words::{AnagramQuery, Dictionary, Locale};
 
 /// HTTP 200.
@@ -152,16 +153,18 @@ struct ErrorResponse {
 // --- Service ---------------------------------------------------------------
 
 /// The `wordy` REST service: the shared dictionary plus a per-user custom
-/// dictionary, wired to the routing surface.
-pub struct Service {
-    custom: CustomDictionary,
+/// dictionary, wired to the routing surface. The custom dictionary is reached
+/// through a [`CustomStore`] (`merriam` over WinHTTP in production, an in-memory
+/// store in tests).
+pub struct Service<S: CustomStore> {
+    store: S,
     locale: Locale,
 }
 
-impl Service {
-    /// Build a service over the given custom-dictionary store and locale.
-    pub fn new(custom: CustomDictionary, locale: Locale) -> Self {
-        Service { custom, locale }
+impl<S: CustomStore> Service<S> {
+    /// Build a service over the given custom store and locale.
+    pub fn new(store: S, locale: Locale) -> Self {
+        Service { store, locale }
     }
 
     /// The shared (read-only) dictionary this service serves.
@@ -254,9 +257,9 @@ impl Service {
     /// `GET /custom?pattern=`: enumerate the caller's custom dictionary,
     /// optionally filtered by a full-match regex.
     fn custom_enum(&self, user: &Principal, query: &str) -> HttpResponse {
-        let words = match self.custom.list(self.locale, user) {
+        let words = match self.store.list(self.locale, user) {
             Ok(words) => words,
-            Err(e) => return server_error(e.to_string()),
+            Err(e) => return store_error(&e),
         };
         let matches = match query_param(query, "pattern") {
             Some(pattern) => {
@@ -275,34 +278,34 @@ impl Service {
 
     /// `POST /custom/{word}`: add a word to the caller's custom dictionary.
     fn custom_add(&self, user: &Principal, word: &str) -> HttpResponse {
-        match self.custom.add(self.locale, user, word) {
+        match self.store.add(self.locale, user, word) {
             Ok(added) => json_ok(&AddedResponse {
                 word: word.to_string(),
                 added,
             }),
-            Err(e) => store_error(e),
+            Err(e) => store_error(&e),
         }
     }
 
     /// `DELETE /custom/{word}`: remove a word from the caller's custom dictionary.
     fn custom_remove(&self, user: &Principal, word: &str) -> HttpResponse {
-        match self.custom.remove(self.locale, user, word) {
+        match self.store.remove(self.locale, user, word) {
             Ok(removed) => json_ok(&RemovedResponse {
                 word: word.to_string(),
                 removed,
             }),
-            Err(e) => store_error(e),
+            Err(e) => store_error(&e),
         }
     }
 
     /// `GET /custom/{word}`: test membership in the caller's custom dictionary.
     fn custom_exists(&self, user: &Principal, word: &str) -> HttpResponse {
-        match self.custom.contains(self.locale, user, word) {
+        match self.store.contains(self.locale, user, word) {
             Ok(exists) => json_ok(&ExistsResponse {
                 word: word.to_string(),
                 exists,
             }),
-            Err(e) => store_error(e),
+            Err(e) => store_error(&e),
         }
     }
 }
@@ -334,13 +337,17 @@ fn server_error(message: impl Into<String>) -> HttpResponse {
     json_error(STATUS_INTERNAL_ERROR, "Internal Server Error", message.into())
 }
 
-/// Map a custom-store I/O error to a response: an empty / invalid word is a
-/// client error (400); anything else is a server error (500).
-fn store_error(error: std::io::Error) -> HttpResponse {
-    if error.kind() == std::io::ErrorKind::InvalidInput {
-        bad_request(error.to_string())
-    } else {
-        server_error(error.to_string())
+/// Map a custom-store error to a response: an invalid word or an upstream `4xx`
+/// is a client error (400); a transport failure or an upstream `5xx` is a server
+/// error (500).
+fn store_error(error: &StoreError) -> HttpResponse {
+    match error {
+        StoreError::InvalidWord(_) => bad_request(error.to_string()),
+        StoreError::Upstream { status, body } if (400..500).contains(status) => {
+            bad_request(body.clone())
+        }
+        StoreError::Upstream { body, .. } => server_error(body.clone()),
+        StoreError::Transport(message) => server_error(message.clone()),
     }
 }
 
@@ -468,6 +475,7 @@ fn hex_value(byte: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::store::MemoryStore;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     /// A unique scratch directory removed on drop.
@@ -492,9 +500,9 @@ mod tests {
         }
     }
 
-    fn service() -> (TempDir, Service) {
+    fn service() -> (TempDir, Service<MemoryStore>) {
         let tmp = TempDir::new();
-        let store = CustomDictionary::new(&tmp.path);
+        let store = MemoryStore::new();
         (tmp, Service::new(store, Locale::EnUs))
     }
 

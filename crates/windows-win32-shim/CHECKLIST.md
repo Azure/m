@@ -736,7 +736,7 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
         over real TCP/HTTP (verified all routes 200/404 + user isolation over the
         wire), SKIPs on `ERROR_ACCESS_DENIED`. clippy clean. **Bug caught in review:**
         `HttpVerb*` consts must be compared by value, not used as `match` patterns.)*
-- [ ] **MW18-3** Gut `wordy`: remove the local filesystem custom store
+- [x] **MW18-3** Gut `wordy`: remove the local filesystem custom store
       (`custom.rs`); replace the custom-dict ops (add/remove/contains/list) with a
       **WinHTTP client** that relays to `merriam` (configurable base URL); keep the
       shared-dictionary spell-check / match / anagram / `fst` work unchanged. `wordy`
@@ -765,13 +765,23 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
         `X-Wordy-User`/`X-Wordy-Locale` headers, JSON parse, `Upstream`/`Transport`
         errors). 8 relay unit tests vs. a one-shot `TcpListener` stub (genuine
         WinHTTP); 74 wordy unit + 6 host tests pass; clippy clean. WD-D13.)*
-  - [ ] **MW18-3.2** Abstract the custom store behind a `CustomStore` trait; make
+  - [x] **MW18-3.2** Abstract the custom store behind a `CustomStore` trait; make
         `Service` generic over it; route handlers call the trait. `MerriamClient`
         impls it (production, via `iis.rs`/bin `from_env`); an in-memory
         `MemoryStore` impls it for the existing route unit tests. Delete the FS
         store (`custom.rs`), moving the identity types (`Principal`/`UserId`/
         `X-Wordy-User`) to an `identity` module. Update `wordy` `DESIGN-NOTES.md` +
         amend SHIM-D19 to record the split.
+        *(`store.rs` (`CustomStore` trait + `StoreError` + `MemoryStore`),
+        `identity.rs` (`Principal`/`UserId`/`X-Wordy-User`), generic `Service<S>`;
+        `RelayStore` adapter in `relay.rs`. **Re-plan: `custom.rs` is re-homed, not
+        deleted** — deleting it would break the MW15 FS-isolation proof and the MW16
+        genuine-HWC dispatch test, so `CustomDictionary` is kept as a `CustomStore`
+        impl and `iis.rs` selects the backing: `merriam` relay by default, the FS
+        store when `WORDY_CUSTOM_ROOT` is set (those harnesses already set it). The
+        genuine-HWC dispatch test now sets `WORDY_CUSTOM_ROOT` (it tests dispatch,
+        not egress). 83 wordy unit + 6 host tests pass; clippy clean. WD-D13 + SHIM-D19
+        amendment.)*
 - [ ] **MW18-4** *(integration)* End-to-end egress isolation against a real service:
       run aliased `wordy` + `merriam` and prove the three owner-requested modes via
       the `.pilcfg` `egress` section — **redirect** (`wordy`'s `merriam` URL

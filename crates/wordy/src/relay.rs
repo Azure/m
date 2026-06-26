@@ -16,7 +16,6 @@ use std::fmt;
 use serde::Deserialize;
 
 use crate::winhttp;
-
 /// The default `merriam` host when `MERRIAM_HOST` is unset.
 pub const DEFAULT_HOST: &str = "127.0.0.1";
 /// The default `merriam` port when `MERRIAM_PORT` is unset.
@@ -162,6 +161,80 @@ impl MerriamClient {
         let (status, body) = self.call("GET", "/custom", locale, user)?;
         let parsed: MatchesResponse = Self::parse_ok(status, body)?;
         Ok(parsed.matches)
+    }
+}
+
+/// A [`CustomStore`](crate::store::CustomStore) backed by a [`MerriamClient`]:
+/// the production wiring of `wordy`'s route handlers to the `merriam` service.
+///
+/// It bridges the route-level types (`Locale`, `Principal`) onto the relay's
+/// plain-string REST API and maps [`RelayError`] onto
+/// [`StoreError`](crate::store::StoreError).
+#[derive(Clone, Debug)]
+pub struct RelayStore {
+    client: MerriamClient,
+}
+
+impl RelayStore {
+    /// Wrap a configured [`MerriamClient`].
+    pub fn new(client: MerriamClient) -> Self {
+        RelayStore { client }
+    }
+
+    /// Build a relay store from `MERRIAM_HOST` / `MERRIAM_PORT`.
+    pub fn from_env() -> Self {
+        RelayStore { client: MerriamClient::from_env() }
+    }
+}
+
+impl From<RelayError> for crate::store::StoreError {
+    fn from(error: RelayError) -> Self {
+        match error {
+            RelayError::Transport(code) => {
+                crate::store::StoreError::Transport(format!("os error {code}"))
+            }
+            RelayError::Upstream { status, body } => {
+                crate::store::StoreError::Upstream { status, body }
+            }
+            RelayError::Parse(message) => crate::store::StoreError::Transport(message),
+        }
+    }
+}
+
+impl crate::store::CustomStore for RelayStore {
+    fn add(
+        &self,
+        locale: crate::words::Locale,
+        user: &crate::identity::Principal,
+        word: &str,
+    ) -> Result<bool, crate::store::StoreError> {
+        self.client.add(locale.slug(), user.user_id().as_str(), word).map_err(Into::into)
+    }
+
+    fn remove(
+        &self,
+        locale: crate::words::Locale,
+        user: &crate::identity::Principal,
+        word: &str,
+    ) -> Result<bool, crate::store::StoreError> {
+        self.client.remove(locale.slug(), user.user_id().as_str(), word).map_err(Into::into)
+    }
+
+    fn contains(
+        &self,
+        locale: crate::words::Locale,
+        user: &crate::identity::Principal,
+        word: &str,
+    ) -> Result<bool, crate::store::StoreError> {
+        self.client.contains(locale.slug(), user.user_id().as_str(), word).map_err(Into::into)
+    }
+
+    fn list(
+        &self,
+        locale: crate::words::Locale,
+        user: &crate::identity::Principal,
+    ) -> Result<Vec<String>, crate::store::StoreError> {
+        self.client.list(locale.slug(), user.user_id().as_str()).map_err(Into::into)
     }
 }
 

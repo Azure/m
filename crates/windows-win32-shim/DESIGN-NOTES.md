@@ -740,6 +740,19 @@ Realized by **MW13** (synchronous service), **MW14** (asynchronous completion on
 the thread pool), and **MW15** (isolation proof — link-time `dumpbin` + genuine-HWC
 runtime harness with a native negative control). See CHECKLIST.md.
 
+**MW18 amendment — `wordy` split for the egress validation tier (SHIM-D23).** The
+per-user custom dictionary's *storage* is carved out of `wordy` into the `merriam`
+service; `wordy` keeps its shared-dictionary CPU work and **relays** the custom-
+dict operations to `merriam` over **ordinary WinHTTP** (`wordy/src/winhttp.rs` +
+`relay.rs`, WD-D13). This is the outbound counterpart of the inbound IIS seam:
+`wordy` stays shim-unaware, so when relinked against the alias object its `WinHttp*`
+imports are rerouted into the egress seam (MW17) with no `wordy` change. The route
+handlers now depend on a `CustomStore` trait; the filesystem store (`custom.rs`)
+is **re-homed** as one backing (not deleted) and selected when `WORDY_CUSTOM_ROOT`
+is set, so the MW15 filesystem-isolation proof and the MW16 genuine-HWC dispatch
+test (which already set that variable) keep working, while the default backing is
+the `merriam` relay the egress proof (MW18-4) isolates.
+
 
 ## SHIM-D20 — C++ artifact parity is a shared on-disk contract, not a captured binary
 

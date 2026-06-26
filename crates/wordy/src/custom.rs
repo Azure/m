@@ -38,73 +38,9 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use crate::identity::Principal;
+use crate::store::{CustomStore, StoreError};
 use crate::words::Locale;
-
-/// The request header `wordy` reads to identify the calling user. Absent or
-/// blank, the [`DEFAULT_USER`] is used.
-pub const USER_HEADER: &str = "X-Wordy-User";
-
-/// The built-in user used when no [`USER_HEADER`] is supplied.
-pub const DEFAULT_USER: &str = "default";
-
-/// A user identity. Today this is just a name resolved from a request header,
-/// but it is modeled as a newtype so per-user claims can grow here later
-/// (windows-win32-shim SHIM-D19, "forward-compatible identity / locale").
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct UserId(String);
-
-impl UserId {
-    /// Build a user id from a raw header value. Leading / trailing whitespace is
-    /// trimmed; an empty result falls back to [`DEFAULT_USER`].
-    pub fn new(raw: &str) -> Self {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            UserId(DEFAULT_USER.to_string())
-        } else {
-            UserId(trimmed.to_string())
-        }
-    }
-
-    /// The raw user-id string (before path encoding).
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl Default for UserId {
-    fn default() -> Self {
-        UserId(DEFAULT_USER.to_string())
-    }
-}
-
-/// The authenticated (today: asserted) caller. `wordy` performs no real logon;
-/// it threads a [`Principal`] through every handler as if it did, resolving it
-/// from the [`USER_HEADER`] and defaulting to a single built-in user — the
-/// "app reads its own claims" posture of a real HWC application.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct Principal {
-    user: UserId,
-}
-
-impl Principal {
-    /// Build a principal for an explicit user.
-    pub fn new(user: UserId) -> Self {
-        Principal { user }
-    }
-
-    /// Resolve a principal from an optional [`USER_HEADER`] value, defaulting to
-    /// the built-in user when absent or blank.
-    pub fn from_header(header: Option<&str>) -> Self {
-        Principal {
-            user: UserId::new(header.unwrap_or("")),
-        }
-    }
-
-    /// The user this principal represents.
-    pub fn user_id(&self) -> &UserId {
-        &self.user
-    }
-}
 
 /// A filesystem-backed custom-dictionary store rooted at a base directory.
 ///
@@ -212,6 +148,34 @@ impl CustomDictionary {
     }
 }
 
+/// Map a filesystem-store `io::Error` to a [`StoreError`]: an empty/invalid word
+/// (`InvalidInput`) is a client error; anything else is a transport failure.
+fn io_to_store(error: io::Error) -> StoreError {
+    if error.kind() == io::ErrorKind::InvalidInput {
+        StoreError::InvalidWord(error.to_string())
+    } else {
+        StoreError::Transport(error.to_string())
+    }
+}
+
+impl CustomStore for CustomDictionary {
+    fn add(&self, locale: Locale, user: &Principal, word: &str) -> Result<bool, StoreError> {
+        CustomDictionary::add(self, locale, user, word).map_err(io_to_store)
+    }
+
+    fn remove(&self, locale: Locale, user: &Principal, word: &str) -> Result<bool, StoreError> {
+        CustomDictionary::remove(self, locale, user, word).map_err(io_to_store)
+    }
+
+    fn contains(&self, locale: Locale, user: &Principal, word: &str) -> Result<bool, StoreError> {
+        CustomDictionary::contains(self, locale, user, word).map_err(io_to_store)
+    }
+
+    fn list(&self, locale: Locale, user: &Principal) -> Result<Vec<String>, StoreError> {
+        CustomDictionary::list(self, locale, user).map_err(io_to_store)
+    }
+}
+
 /// Trim `word` and reject an empty result.
 fn validate_word(word: &str) -> io::Result<&str> {
     let trimmed = word.trim();
@@ -290,6 +254,7 @@ fn hex_value(byte: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity::DEFAULT_USER;
     use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
     /// A unique scratch directory under the OS temp dir, removed on drop so the

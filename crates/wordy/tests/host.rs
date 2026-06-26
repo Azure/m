@@ -48,7 +48,7 @@ impl Drop for TempDir {
     }
 }
 
-fn service(tmp: &TempDir) -> Service {
+fn service(tmp: &TempDir) -> Service<CustomDictionary> {
     Service::new(CustomDictionary::new(&tmp.path), Locale::EnUs)
 }
 
@@ -62,7 +62,7 @@ fn req(method: &str, url: &str, body: &str, user: Option<&str>) -> HttpRequest {
 }
 
 /// Dispatch and unwrap the response body + status, panicking on `Continue`.
-fn call(svc: &Service, request: &HttpRequest) -> (u16, String) {
+fn call(svc: &Service<CustomDictionary>, request: &HttpRequest) -> (u16, String) {
     match svc.dispatch(request) {
         Outcome::Respond(r) => (r.status, r.body),
         Outcome::Continue => panic!("expected a response for {}", request.url),
@@ -170,7 +170,7 @@ fn custom_dictionary_at_integration_scale() {
     // Enumerate and verify the count (results are capped at 1000, so 500 is full).
     let store = CustomDictionary::new(&tmp.path);
     let listed = store
-        .list(Locale::EnUs, &wordy::custom::Principal::from_header(user))
+        .list(Locale::EnUs, &wordy::identity::Principal::from_header(user))
         .expect("list custom words");
     assert_eq!(listed.len(), COUNT);
 
@@ -189,7 +189,7 @@ fn custom_dictionary_at_integration_scale() {
         );
     }
     let remaining = store
-        .list(Locale::EnUs, &wordy::custom::Principal::from_header(user))
+        .list(Locale::EnUs, &wordy::identity::Principal::from_header(user))
         .expect("list custom words");
     assert!(remaining.is_empty());
 }
@@ -255,11 +255,22 @@ fn hwc_genuine_http_dispatch_end_to_end() {
     // the generated config (loading wordy.dll), drives every route over localhost
     // HTTP, dumps the raw responses, then WebCoreShutdowns and exits.
     let exe = env!("CARGO_BIN_EXE_wordy-host");
+    // This test exercises the genuine-HWC dispatch path, not egress isolation, so
+    // point `wordy`'s custom dictionary at a local filesystem store (MW18 made the
+    // `merriam` relay the default; setting WORDY_CUSTOM_ROOT selects the FS
+    // backing, which needs no external service).
+    let custom_root = std::env::temp_dir().join(format!(
+        "wordy-hwc-custom-{}-{:?}",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+    ));
     let output = Command::new(exe)
         .env("WORDY_HOST_HTTP", "1")
         .env("WORDY_HOST_DUMP", "1")
+        .env("WORDY_CUSTOM_ROOT", &custom_root)
         .output()
         .expect("run wordy-host genuine activation");
+    let _ = std::fs::remove_dir_all(&custom_root);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     // The status banner + per-route verdicts print to stdout; the raw response

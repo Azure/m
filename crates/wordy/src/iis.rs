@@ -47,7 +47,10 @@ use windows_sys::Win32::Foundation::{E_POINTER, S_OK};
 use windows_sys::core::HRESULT;
 
 use crate::custom::CustomDictionary;
+use crate::identity::Principal;
+use crate::relay::RelayStore;
 use crate::routes::{self, Outcome, Service};
+use crate::store::{CustomStore, StoreError};
 use crate::words::Locale;
 
 // --- Notification status codes and flags (IIS `httpserv.h`) ----------------
@@ -342,14 +345,57 @@ struct SendState(*mut AsyncState);
 unsafe impl Send for SendState {}
 
 /// The process-wide service: the shared dictionary plus a per-user custom
-/// dictionary rooted under [`CUSTOM_ROOT_ENV`] (default: a per-process directory
-/// under the OS temp dir). Built once on first request.
-static SERVICE: LazyLock<Service> = LazyLock::new(|| {
-    let root = std::env::var_os(CUSTOM_ROOT_ENV)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("wordy-custom"));
-    Service::new(CustomDictionary::new(root), Locale::EnUs)
+/// dictionary. The custom-dictionary backing is selected once on first request:
+/// the **`merriam` relay** by default (the production path the egress seam
+/// isolates, windows-win32-shim MW18), or the **local filesystem store** rooted
+/// under [`CUSTOM_ROOT_ENV`] when that variable is set (the path the filesystem-
+/// isolation proof drives, MW15).
+static SERVICE: LazyLock<Service<WordyStore>> = LazyLock::new(|| {
+    let store = match std::env::var_os(CUSTOM_ROOT_ENV) {
+        Some(root) => WordyStore::Fs(CustomDictionary::new(PathBuf::from(root))),
+        None => WordyStore::Relay(RelayStore::from_env()),
+    };
+    Service::new(store, Locale::EnUs)
 });
+
+/// The selectable custom-dictionary backing: the `merriam` relay (production) or
+/// the local filesystem store (the MW15 filesystem-isolation proof).
+enum WordyStore {
+    /// The filesystem store, rooted under [`CUSTOM_ROOT_ENV`].
+    Fs(CustomDictionary),
+    /// The `merriam` relay over WinHTTP.
+    Relay(RelayStore),
+}
+
+impl CustomStore for WordyStore {
+    fn add(&self, locale: Locale, user: &Principal, word: &str) -> Result<bool, StoreError> {
+        match self {
+            WordyStore::Fs(s) => CustomStore::add(s, locale, user, word),
+            WordyStore::Relay(s) => CustomStore::add(s, locale, user, word),
+        }
+    }
+
+    fn remove(&self, locale: Locale, user: &Principal, word: &str) -> Result<bool, StoreError> {
+        match self {
+            WordyStore::Fs(s) => CustomStore::remove(s, locale, user, word),
+            WordyStore::Relay(s) => CustomStore::remove(s, locale, user, word),
+        }
+    }
+
+    fn contains(&self, locale: Locale, user: &Principal, word: &str) -> Result<bool, StoreError> {
+        match self {
+            WordyStore::Fs(s) => CustomStore::contains(s, locale, user, word),
+            WordyStore::Relay(s) => CustomStore::contains(s, locale, user, word),
+        }
+    }
+
+    fn list(&self, locale: Locale, user: &Principal) -> Result<Vec<String>, StoreError> {
+        match self {
+            WordyStore::Fs(s) => CustomStore::list(s, locale, user),
+            WordyStore::Relay(s) => CustomStore::list(s, locale, user),
+        }
+    }
+}
 
 /// The single shared factory vtable every [`WordyModuleFactory`] points at.
 static WORDY_MODULE_FACTORY_VTBL: IHttpModuleFactoryVtbl = IHttpModuleFactoryVtbl {

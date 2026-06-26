@@ -359,5 +359,15 @@ custom-dict operations (`add` / `remove` / `contains` / `list`) to `merriam`.
   JSON parsing, and the upstream/transport error paths, with no `merriam` (or
   urlacl) needed.
 - **Swap-in is MW18-3.2.** The route handlers move onto a `CustomStore` trait
-  (`MerriamClient` for production, an in-memory store for the existing route
-  tests) and the local FS store (`custom.rs`) is deleted then.
+  (`store.rs`), so `Service` is generic over the store: an in-memory `MemoryStore`
+  drives the existing route unit tests, and a `RelayStore` (the `MerriamClient`
+  adapter) is the production backing.
+- **The local FS store is re-homed, not deleted (re-plan).** Removing `custom.rs`
+  outright would break the filesystem-isolation proof (windows-win32-shim MW15)
+  and the genuine-HWC dispatch test (MW16), both of which exercise `wordy`'s
+  custom routes against a *local* store. So `CustomDictionary` is kept and re-homed
+  as a `CustomStore` impl, and `iis.rs` selects the backing once on first request:
+  the **`merriam` relay by default** (the egress path MW18 isolates), or the
+  **filesystem store when `WORDY_CUSTOM_ROOT` is set** (the MW15/MW16 path — those
+  harnesses already set that variable, so they keep working unchanged). The
+  identity types (`Principal` / `UserId` / `X-Wordy-User`) moved to `identity.rs`.

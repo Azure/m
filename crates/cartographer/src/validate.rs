@@ -39,7 +39,7 @@ use crate::path::{PathMatch, PathTemplate};
 
 /// Request headers that are transport-level rather than part of the API contract;
 /// observing one undeclared is not a finding.
-const STANDARD_HEADERS: &[&str] = &[
+pub(crate) const STANDARD_HEADERS: &[&str] = &[
     "accept",
     "accept-encoding",
     "accept-language",

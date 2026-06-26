@@ -69,6 +69,18 @@ impl PathTemplate {
             .count()
     }
 
+    /// The parameter names, in template order.
+    #[must_use]
+    pub fn param_names(&self) -> Vec<&str> {
+        self.segments
+            .iter()
+            .filter_map(|segment| match segment {
+                Segment::Param(name) => Some(name.as_str()),
+                Segment::Literal(_) => None,
+            })
+            .collect()
+    }
+
     /// Match a concrete path, capturing parameter values, or `None` if it does
     /// not match.
     #[must_use]

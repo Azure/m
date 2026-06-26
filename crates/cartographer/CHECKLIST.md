@@ -35,7 +35,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 
 - [x] **EM-C1** Derive coarse roles from actors (one role per part: server /
       client) with deterministic, stable role ids.
-- [ ] **EM-C2** Derive channels as `(client-role → server-role, protocol)` edges
+- [x] **EM-C2** Derive channels as `(client-role → server-role, protocol)` edges
       carrying observation counts.
 - [ ] **EM-C3** Link each channel's `contract` to the synthesized OpenAPI document
       (a `$ref` / relative path), reusing existing synthesis output.

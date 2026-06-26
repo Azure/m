@@ -26,7 +26,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use api_journal::{JournalRecord, Seam};
 
 use crate::environment::{
-    Actor, Actors, Binding, Environment, Observed, Provenance, Role, RolePart,
+    Actor, Actors, Binding, Channel, Environment, Observed, Provenance, Role, RolePart,
 };
 
 /// Actor id for the observed local process — the egress *client* and/or the
@@ -165,8 +165,8 @@ fn inbound_client_actor(actors: &mut Actors) -> &mut Actor {
 /// Actors come from [`derive_actors`]; each part an actor plays (client/server)
 /// becomes one coarse [`Role`] (D-CART-4, EM-C1), and the actor's `plays` lists the
 /// role ids. A role is the substitution unit, so the local process — which plays
-/// both the inbound *server* and the egress *client* — yields two roles. Channels,
-/// contract links, and security are layered on in EM-C2..C4.
+/// both the inbound *server* and the egress *client* — yields two roles. Channels
+/// (EM-C2) link the roles; contract links and security are layered on in EM-C3..C4.
 #[must_use]
 pub fn derive_environment(records: &[JournalRecord]) -> Environment {
     let mut environment = Environment::new("observed environment", "0.0.0");
@@ -189,6 +189,7 @@ pub fn derive_environment(records: &[JournalRecord]) -> Environment {
         }
     }
 
+    derive_channels(records, &mut environment);
     environment
 }
 
@@ -250,6 +251,67 @@ fn role_basis(part: RolePart, actor_id: &str) -> &'static str {
         }
         RolePart::Server => "an egress dependency",
         RolePart::Client => "a client participant",
+    }
+}
+
+/// Derive the role→role [`Channel`]s carrying the observed interactions. Egress
+/// records yield a `client:local → server:{authority}` edge; inbound records yield
+/// a `client:inbound-client → server:local` edge. A channel's `protocol` is the
+/// observed scheme when uniform, and is left unset when schemes are mixed.
+fn derive_channels(records: &[JournalRecord], environment: &mut Environment) {
+    let mut schemes: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for record in records {
+        let (from, to) = match record.seam {
+            Seam::Egress => {
+                let Some(host) = record.host.as_deref() else {
+                    continue;
+                };
+                (
+                    role_id(RolePart::Client, LOCAL_ACTOR),
+                    role_id(RolePart::Server, &authority(host, record.port)),
+                )
+            }
+            Seam::Inbound => (
+                role_id(RolePart::Client, INBOUND_CLIENT_ACTOR),
+                role_id(RolePart::Server, LOCAL_ACTOR),
+            ),
+        };
+        let id = channel_id(&from, &to);
+        let channel = environment
+            .channels
+            .entry(id.clone())
+            .or_insert_with(|| Channel {
+                from,
+                to,
+                provenance: Provenance::derived(channel_basis(record.seam)),
+                ..Default::default()
+            });
+        accumulate(&mut channel.observed, record.timestamp_ms);
+        if let Some(scheme) = record.scheme.as_deref() {
+            schemes.entry(id).or_default().insert(scheme.to_string());
+        }
+    }
+
+    for (id, scheme_set) in schemes {
+        if scheme_set.len() != 1 {
+            continue;
+        }
+        if let Some(channel) = environment.channels.get_mut(&id) {
+            channel.protocol = scheme_set.into_iter().next();
+        }
+    }
+}
+
+/// The deterministic channel id for an edge from role `from` to role `to`.
+fn channel_id(from: &str, to: &str) -> String {
+    format!("{from}->{to}")
+}
+
+/// A human-readable provenance basis for a channel observed on `seam`.
+fn channel_basis(seam: Seam) -> &'static str {
+    match seam {
+        Seam::Egress => "observed egress traffic to a dependency",
+        Seam::Inbound => "observed inbound traffic from callers",
     }
 }
 

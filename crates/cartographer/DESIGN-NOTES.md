@@ -30,8 +30,25 @@ We define cartographer's behavior and choose dependencies that satisfy it
 - **OAS version:** OpenAPI 3.1 (JSON Schema 2020-12 alignment: type arrays for
   nullability rather than `nullable`; `examples` arrays; no `format: binary`).
 
+## D-CART-2 — YAML backend and schema rendering (AJ-C)
+
+- **YAML library.** `serde_yaml_ng` (the maintained drop-in successor to the
+  archived `serde_yaml`, sharing the same `unsafe-libyaml` backend) realizes our
+  YAML read/write. The read/write contract is owned here (`format` module): read
+  JSON *or* YAML (extension-detected, content-sniffed otherwise), default-write
+  YAML; loading a directory is tolerant (one `LoadError` per bad file, never an
+  abort). If the library diverges from this contract we wrap or replace it.
+- **Shape → schema (`schema` module).** A body [`BodyShape`] renders to a
+  JSON-Schema-2020-12 [`Schema`]: scalars → `type` tokens; objects → `properties`
+  + `required`; arrays → `items`; a union of exactly `null` + one alternative →
+  a nullable `type` array (e.g. `["string", "null"]`), and richer unions → `anyOf`.
+  `Empty`/`Unknown` render to no schema (the caller omits the slot); `Opaque`
+  (non-JSON) renders to a described `string`.
+
 ## Decision index
 
 - **D-CART-1** — Single output sink abstraction (`OutputSink`) is introduced at
   crate creation, before any output site, so diagnostics and spec emission share
   one retargetable destination.
+- **D-CART-2** — `serde_yaml_ng` for YAML; the read/write contract and the
+  shape→schema rendering rules (nullable type-array vs `anyOf`) are owned here.

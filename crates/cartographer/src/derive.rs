@@ -23,11 +23,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use api_journal::{JournalRecord, Seam};
+use api_journal::{HeaderField, JournalRecord, Seam};
 
 use crate::environment::{
     Actor, Actors, Binding, Channel, ContractRef, Environment, Observed, Provenance, Role, RolePart,
+    Security,
 };
+use crate::validate::STANDARD_HEADERS;
 
 /// Actor id for the observed local process — the egress *client* and/or the
 /// inbound *server*. Its own network binding is not captured, so this actor has no
@@ -168,7 +170,8 @@ fn inbound_client_actor(actors: &mut Actors) -> &mut Actor {
 /// both the inbound *server* and the egress *client* — yields two roles. Channels
 /// (EM-C2) link the roles, and each channel's `contract` points at `contract` — the
 /// relative path/URI of the synthesized OpenAPI document — when provided (EM-C3).
-/// Security is layered on in EM-C4.
+/// Each role's `presents`/`requires` security records the observed identity/auth
+/// header names (EM-C4).
 #[must_use]
 pub fn derive_environment(records: &[JournalRecord], contract: Option<&str>) -> Environment {
     let mut environment = Environment::new("observed environment", "0.0.0");
@@ -193,6 +196,7 @@ pub fn derive_environment(records: &[JournalRecord], contract: Option<&str>) -> 
 
     derive_channels(records, &mut environment);
     link_contract(contract, &mut environment);
+    derive_security(records, &mut environment);
     environment
 }
 
@@ -330,6 +334,81 @@ fn link_contract(reference: Option<&str>, environment: &mut Environment) {
         channel.contract = Some(ContractRef {
             reference: reference.to_string(),
         });
+    }
+}
+
+/// Carry the observed identity/auth header names onto roles (EM-C4): the *client*
+/// role of each channel `presents` them, the *server* role `requires` them.
+fn derive_security(records: &[JournalRecord], environment: &mut Environment) {
+    let mut presents: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut requires: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for record in records {
+        let names = identity_header_names(&record.request_headers);
+        if names.is_empty() {
+            continue;
+        }
+        let (client_role, server_role) = match record.seam {
+            Seam::Egress => {
+                let Some(host) = record.host.as_deref() else {
+                    continue;
+                };
+                (
+                    role_id(RolePart::Client, LOCAL_ACTOR),
+                    role_id(RolePart::Server, &authority(host, record.port)),
+                )
+            }
+            Seam::Inbound => (
+                role_id(RolePart::Client, INBOUND_CLIENT_ACTOR),
+                role_id(RolePart::Server, LOCAL_ACTOR),
+            ),
+        };
+        presents
+            .entry(client_role)
+            .or_default()
+            .extend(names.iter().cloned());
+        requires.entry(server_role).or_default().extend(names);
+    }
+    for (id, names) in presents {
+        if let Some(role) = environment.roles.get_mut(&id) {
+            role.presents = Some(security_from(names));
+        }
+    }
+    for (id, names) in requires {
+        if let Some(role) = environment.roles.get_mut(&id) {
+            role.requires = Some(security_from(names));
+        }
+    }
+}
+
+/// The identity/auth header names observed in `headers`, sorted and deduped. A
+/// header is treated as identity/auth if it is a well-known credential header
+/// (`Authorization`, `Proxy-Authorization`, `Cookie`) or a non-standard custom
+/// header (not in [`STANDARD_HEADERS`]). This is a deliberately inclusive candidate
+/// set; precise scheme classification and PII handling are refined under the
+/// deferred D-AJ-4 / PII-B work.
+fn identity_header_names(headers: &[HeaderField]) -> BTreeSet<String> {
+    headers
+        .iter()
+        .filter(|header| is_identity_header(&header.name.to_ascii_lowercase()))
+        .map(|header| header.name.clone())
+        .collect()
+}
+
+/// Whether a lowercased request-header name carries identity/auth (see
+/// [`identity_header_names`]).
+fn is_identity_header(lower_name: &str) -> bool {
+    const AUTH_HEADERS: &[&str] = &["authorization", "proxy-authorization", "cookie"];
+    AUTH_HEADERS.contains(&lower_name) || !STANDARD_HEADERS.contains(&lower_name)
+}
+
+/// A header-carried [`Security`] from observed identity/auth header `names`. The
+/// scheme `kind` is left unclassified (deferred to D-AJ-4 / PII-B); only the
+/// header location and the observed names are recorded — never values.
+fn security_from(names: BTreeSet<String>) -> Security {
+    Security {
+        location: Some("header".to_string()),
+        names: names.into_iter().collect(),
+        ..Default::default()
     }
 }
 

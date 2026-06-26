@@ -39,7 +39,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
       carrying observation counts.
 - [x] **EM-C3** Link each channel's `contract` to the synthesized OpenAPI document
       (a `$ref` / relative path), reusing existing synthesis output.
-- [ ] **EM-C4** Carry `presents` / `requires` security onto roles from observed
+- [x] **EM-C4** Carry `presents` / `requires` security onto roles from observed
       identity/auth header names.
 - [ ] **EM-C5** Tests: roles, channels, contract refs, and security derive
       correctly from the synthetic journal.

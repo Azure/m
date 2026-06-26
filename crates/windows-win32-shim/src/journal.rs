@@ -1120,4 +1120,130 @@ mod tests {
             assert_eq!(r.seq, i as u64);
         }
     }
+
+    // === Off-thread vs direct-worker parity (OT-7) ===
+
+    /// Zero the per-sink / wall-clock bookkeeping fields that are not part of the
+    /// reduction under test, so two records can be compared for structural equality.
+    fn normalized(mut r: JournalRecord) -> JournalRecord {
+        r.session_id = 0;
+        r.seq = 0;
+        r.timestamp_ms = 0;
+        r
+    }
+
+    #[test]
+    fn egress_decorator_matches_direct_worker() {
+        // The off-thread egress decorator marshals a request/response...
+        let path_a = temp_path("ot7-egress-deco");
+        let sink_a = JournalSink::from_config(&full_config(&path_a)).expect("sink");
+        let inner = CannedEgress {
+            ok: Some(canned(200, "application/json", br#"{"ok":true}"#)),
+        };
+        let mut deco = JournalingEgress::new(inner, Some(Arc::clone(&sink_a)));
+        let mut req = EgressRequest::http(
+            Scheme::Http,
+            "merriam.local",
+            8080,
+            "POST",
+            "/custom/cat?pattern=c.t",
+        );
+        req.headers.push((
+            Utf16::from_utf8("Content-Type"),
+            Utf16::from_utf8("application/json"),
+        ));
+        req.headers
+            .push((Utf16::from_utf8("X-Wordy-User"), Utf16::from_utf8("alice")));
+        req.body = br#"{"words":["cat"]}"#.to_vec();
+        deco.send(&req).expect("send ok");
+        let file = File::open(&path_a).expect("journal a");
+        let (records_a, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path_a);
+
+        // ...the direct worker, fed the equivalent raw interaction, must produce the
+        // identical record (the decorator captured exactly the raw context).
+        let path_b = temp_path("ot7-egress-worker");
+        let sink_b = JournalSink::from_config(&full_config(&path_b)).expect("sink");
+        let interaction = Interaction {
+            seam: Seam::Egress,
+            method: "POST".into(),
+            scheme: Some("http".into()),
+            host: Some("merriam.local".into()),
+            port: Some(8080),
+            target: "/custom/cat?pattern=c.t".into(),
+            request_headers: vec![
+                RawHeader { name: "Content-Type".into(), value: "application/json".into() },
+                RawHeader { name: "X-Wordy-User".into(), value: "alice".into() },
+            ],
+            request_body: br#"{"words":["cat"]}"#.to_vec(),
+            status: 200,
+            response_headers: vec![RawHeader {
+                name: "Content-Type".into(),
+                value: "application/json".into(),
+            }],
+            response_body: br#"{"ok":true}"#.to_vec(),
+            timestamp_ms: 0,
+        };
+        let _ = handle_interaction(&interaction.to_json().unwrap(), &sink_b);
+        let file = File::open(&path_b).expect("journal b");
+        let (records_b, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path_b);
+
+        assert_eq!(records_a.len(), 1);
+        assert_eq!(records_b.len(), 1);
+        assert_eq!(
+            normalized(records_a[0].clone()),
+            normalized(records_b[0].clone())
+        );
+    }
+
+    #[test]
+    fn inbound_decorator_matches_direct_worker() {
+        let path_a = temp_path("ot7-inbound-deco");
+        let sink_a = JournalSink::from_config(&full_config(&path_a)).expect("sink");
+        let mut handler = JournalingHandler::new(Box::new(ContinueLeaf), Arc::clone(&sink_a));
+        let request = HttpRequest::new("POST", "/spellcheck?lang=en")
+            .with_header("Content-Type", "application/json")
+            .with_body(br#"{"words":["a"]}"#.to_vec());
+        handler.on_begin_request(&request);
+        let mut response = HttpResponse::new(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(br#"{"results":[]}"#.to_vec());
+        handler.on_send_response(&mut response);
+        let file = File::open(&path_a).expect("journal a");
+        let (records_a, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path_a);
+
+        let path_b = temp_path("ot7-inbound-worker");
+        let sink_b = JournalSink::from_config(&full_config(&path_b)).expect("sink");
+        let interaction = Interaction {
+            seam: Seam::Inbound,
+            method: "POST".into(),
+            target: "/spellcheck?lang=en".into(),
+            request_headers: vec![RawHeader {
+                name: "Content-Type".into(),
+                value: "application/json".into(),
+            }],
+            request_body: br#"{"words":["a"]}"#.to_vec(),
+            status: 200,
+            response_headers: vec![RawHeader {
+                name: "Content-Type".into(),
+                value: "application/json".into(),
+            }],
+            response_body: br#"{"results":[]}"#.to_vec(),
+            timestamp_ms: 0,
+            ..Default::default()
+        };
+        let _ = handle_interaction(&interaction.to_json().unwrap(), &sink_b);
+        let file = File::open(&path_b).expect("journal b");
+        let (records_b, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path_b);
+
+        assert_eq!(records_a.len(), 1);
+        assert_eq!(records_b.len(), 1);
+        assert_eq!(
+            normalized(records_a[0].clone()),
+            normalized(records_b[0].clone())
+        );
+    }
 }

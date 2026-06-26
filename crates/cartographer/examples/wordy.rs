@@ -9,7 +9,9 @@
 //!
 //! Writes, into `<out_dir>` (default: the current directory):
 //! - `wordy-journal.ndjson` — the captured journal (one interaction per line),
-//! - `wordy-openapi.yaml` / `wordy-openapi.json` — the synthesized OpenAPI 3.1 doc.
+//! - `wordy-openapi.yaml` / `wordy-openapi.json` — the synthesized OpenAPI 3.1 doc,
+//! - `wordy-environment.yaml` — the observed-environment descriptor (D-CART-4:
+//!   actors / roles / channels), whose channels reference the OpenAPI doc.
 //!
 //! The records mirror what the win32 shim's inbound (IIS) seam captures for
 //! `wordy` under `bodies: full-with-pii`: shapes-only structure plus a literal example
@@ -24,7 +26,9 @@ use api_journal::{
     BodyShape, HeaderField, JournalRecord, QueryParam, Seam, derive_example, infer_scalar,
     write_record,
 };
-use cartographer::{SpecFormat, serialize_document, synthesize};
+use cartographer::{
+    SpecFormat, derive_environment, serialize_document, serialize_environment, synthesize,
+};
 
 /// The JSON content type used throughout `wordy`.
 const JSON: &str = "application/json";
@@ -155,8 +159,17 @@ fn main() {
     )
     .expect("write json");
 
+    // Derive the observed-environment descriptor (actors / roles / channels), whose
+    // channels point their contract at the OpenAPI doc above, and write it as YAML.
+    let environment = derive_environment(&records, Some("wordy-openapi.yaml"));
+    std::fs::write(
+        out.join("wordy-environment.yaml"),
+        serialize_environment(&environment, SpecFormat::Yaml).expect("serialize environment"),
+    )
+    .expect("write environment");
+
     println!(
-        "wrote {} journal records and the synthesized spec to {}",
+        "wrote {} journal records, the synthesized spec, and the environment descriptor to {}",
         records.len(),
         out.display()
     );

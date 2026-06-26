@@ -99,11 +99,36 @@ impl JournalSink {
     ///
     /// `None` mode yields [`BodyShape::Unknown`] (the interaction is still
     /// journaled, just without body structure). `Shapes` and `Full` both derive a
-    /// shapes-only skeleton today (full literal-example capture is a deferred
-    /// enhancement — see `DESIGN-NOTES.md`), inspecting at most `max_body_bytes`.
+    /// shapes-only skeleton, inspecting at most `max_body_bytes`; `Full`
+    /// additionally captures a literal example via [`body_example`](Self::body_example).
     #[must_use]
     pub fn body_shape(&self, bytes: &[u8], content_type: Option<&str>) -> BodyShape {
         body_shape_for(self.bodies, bytes, content_type, self.max_body_bytes)
+    }
+
+    /// Capture a literal example body for `bodies: full`, else `None`.
+    ///
+    /// Under [`BodyCapture::Full`] this returns the parsed JSON body (the
+    /// shapes-only skeleton is still produced by [`body_shape`](Self::body_shape));
+    /// under `Shapes`/`None` it returns `None`. Examples are literal user data,
+    /// captured only under the opt-in `full` mode, and only up to `max_body_bytes`.
+    #[must_use]
+    pub fn body_example(
+        &self,
+        bytes: &[u8],
+        content_type: Option<&str>,
+    ) -> Option<serde_json::Value> {
+        match self.bodies {
+            BodyCapture::Full => {
+                let slice = if bytes.len() > self.max_body_bytes {
+                    &bytes[..self.max_body_bytes]
+                } else {
+                    bytes
+                };
+                api_journal::derive_example(slice, content_type)
+            }
+            BodyCapture::Shapes | BodyCapture::None => None,
+        }
     }
 
     /// Stamp bookkeeping fields onto a record and append it to the journal.
@@ -241,9 +266,11 @@ fn egress_record(sink: &JournalSink, req: &EgressRequest, resp: &EgressResponse)
         query,
         request_headers,
         request_body: sink.body_shape(&req.body, request_ct.as_deref()),
+        request_body_example: sink.body_example(&req.body, request_ct.as_deref()),
         status: u16::try_from(resp.status).unwrap_or(0),
         response_headers,
         response_body: sink.body_shape(&resp.body, response_ct.as_deref()),
+        response_body_example: sink.body_example(&resp.body, response_ct.as_deref()),
         ..Default::default()
     }
 }
@@ -303,6 +330,7 @@ struct PendingInbound {
     query: Vec<QueryParam>,
     request_headers: Vec<HeaderField>,
     request_body: BodyShape,
+    request_body_example: Option<serde_json::Value>,
 }
 
 /// A [`RequestHandler`] decorator that journals each inbound (IIS) exchange as a
@@ -340,6 +368,7 @@ impl RequestHandler for JournalingHandler {
             query,
             request_headers,
             request_body: self.sink.body_shape(request.body(), request_ct.as_deref()),
+            request_body_example: self.sink.body_example(request.body(), request_ct.as_deref()),
         });
         self.inner.on_begin_request(request)
     }
@@ -358,9 +387,13 @@ impl RequestHandler for JournalingHandler {
                 query: pending.query,
                 request_headers: pending.request_headers,
                 request_body: pending.request_body,
+                request_body_example: pending.request_body_example,
                 status: response.status(),
                 response_headers,
                 response_body: self.sink.body_shape(response.body(), response_ct.as_deref()),
+                response_body_example: self
+                    .sink
+                    .body_example(response.body(), response_ct.as_deref()),
                 ..Default::default()
             });
         }
@@ -714,5 +747,81 @@ mod tests {
             !path.exists(),
             "a response with no prior request journals nothing"
         );
+    }
+
+    fn full_config(path: &std::path::Path) -> ApiJournalConfig {
+        ApiJournalConfig {
+            enabled: true,
+            path: path.to_string_lossy().into_owned(),
+            bodies: BodyCapture::Full,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn body_example_only_under_full_mode() {
+        let path = temp_path("example");
+        let full = JournalSink::from_config(&full_config(&path)).expect("sink");
+        let example = full
+            .body_example(br#"{"word":"cat"}"#, Some("application/json"))
+            .expect("example");
+        assert_eq!(example["word"], serde_json::json!("cat"));
+
+        // The default (shapes) config captures no example.
+        let shapes = JournalSink::from_config(&config(&path)).expect("sink");
+        assert!(shapes
+            .body_example(br#"{"word":"cat"}"#, Some("application/json"))
+            .is_none());
+    }
+
+    #[test]
+    fn egress_decorator_captures_example_under_full_mode() {
+        let path = temp_path("egress-full");
+        let sink = JournalSink::from_config(&full_config(&path)).expect("sink");
+        let inner = CannedEgress {
+            ok: Some(canned(200, "application/json", br#"{"word":"cat","exists":true}"#)),
+        };
+        let mut deco = JournalingEgress::new(inner, Some(Arc::clone(&sink)));
+        let req = EgressRequest::http(Scheme::Http, "merriam.local", 8080, "GET", "/custom/cat");
+        deco.send(&req).expect("send");
+
+        let file = File::open(&path).expect("journal exists");
+        let (records, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(records.len(), 1);
+        let example = records[0]
+            .response_body_example
+            .as_ref()
+            .expect("response example captured under full mode");
+        assert_eq!(example["word"], serde_json::json!("cat"));
+        assert_eq!(example["exists"], serde_json::json!(true));
+    }
+
+    #[test]
+    fn inbound_decorator_captures_example_under_full_mode() {
+        let path = temp_path("inbound-full");
+        let sink = JournalSink::from_config(&full_config(&path)).expect("sink");
+        let mut handler = JournalingHandler::new(Box::new(ContinueLeaf), Arc::clone(&sink));
+
+        let request = HttpRequest::new("POST", "/spellcheck")
+            .with_header("Content-Type", "application/json")
+            .with_body(br#"{"words":["a"]}"#.to_vec());
+        handler.on_begin_request(&request);
+        let mut response = HttpResponse::new(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(br#"{"results":[]}"#.to_vec());
+        handler.on_send_response(&mut response);
+
+        let file = File::open(&path).expect("journal exists");
+        let (records, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(
+            records[0].request_body_example.as_ref().unwrap()["words"],
+            serde_json::json!(["a"])
+        );
+        assert!(records[0].response_body_example.is_some());
     }
 }

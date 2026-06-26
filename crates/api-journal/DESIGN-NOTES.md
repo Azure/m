@@ -60,18 +60,19 @@ Shapes-only governs *bodies*. For the surrounding metadata:
   without depending on each other.
 - **D-AJ-2** — Shapes-only applies to bodies; path is literal (templating needs it), query
   names + value-shapes, header names + content-negotiation values only.
-- **D-AJ-3** — The record is shapes-only; `BodyCapture::Full` currently behaves as `Shapes`.
-  Carrying literal example bodies for `Full` mode requires an optional example field on the
-  record (deferred — see below).
+- **D-AJ-3** — The record is shapes-only by default; `BodyCapture::Full` additionally
+  captures a literal example body. Implemented in AJ-DEF-1: `JournalRecord` carries optional
+  `request_body_example` / `response_body_example` (`serde_json::Value`), populated by the
+  shim from `derive_example` only under `full` mode; `cartographer` emits these as OpenAPI
+  `example`s.
 
-## D-AJ-3 — `BodyCapture::Full` is shapes-only for now (deferred example capture)
+## D-AJ-3 — `BodyCapture::Full` captures a literal example body (implemented, AJ-DEF-1)
 
 The `.pilcfg` `api_journal.bodies` option offers `shapes` (default), `full`, and `none`.
 `none` is honored faithfully (body shape recorded as `Unknown`) and `shapes` is the design
-center. `full` is intended to additionally retain a literal example body so cartographer can
-emit OpenAPI `examples`. The current [`JournalRecord`](src/record.rs) holds only a
-[`BodyShape`] (no literal scalar values by construction), so `Full` presently derives the
-same shapes-only skeleton as `Shapes`. Honoring `Full` fully means adding an optional
-example-body field to the record and populating it at the seams under `Full` mode. This is
-queued as a deferred item in the feature checklist (`CHECKLIST-apijournal.md`,
-"Deferred follow-ups"); until then `Full` is a documented alias of `Shapes`.
+center. `full` additionally retains a literal example body so cartographer can emit OpenAPI
+`example`s: `JournalRecord` carries optional `request_body_example` / `response_body_example`
+(`Option<serde_json::Value>`), and `derive_example` parses JSON bodies to a value. The shim
+populates these only under `full` mode (examples are literal user data); cartographer's
+`synthesize` sets a representative example per media type on request bodies and responses.
+`JournalRecord` is consequently not `Eq` (arbitrary JSON is not `Eq`).

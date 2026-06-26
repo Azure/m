@@ -939,7 +939,9 @@ tool (reader) cannot drift.
   parse / tolerant load posture of the rest of the sidecar is preserved. Body
   default is **shapes-only** — a JSON schema skeleton with no literal scalar
   values — so journals describe an API's structure without exporting user data.
-  `full` is presently an alias of `shapes` (`D-AJ-3`, deferred).
+  `full` additionally captures a literal example body via
+  `JournalSink::body_example` (AJ-DEF-1 / `D-AJ-3`); examples are literal user
+  data, captured only under the opt-in `full` mode.
 - **Sink (`journal.rs`).** A process-wide `JournalSink` opens the file lazily,
   serializes record writes behind a `Mutex`, and stamps each record's
   `session_id` / `seq` / `timestamp_ms`. It writes through ordinary `std::fs`:

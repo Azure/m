@@ -244,37 +244,48 @@ impl<S: EgressSurface> EgressSurface for JournalingEgress<S> {
         let result = self.inner.send(req);
         // Journal only real exchanges: a transport error is not an API interaction.
         if let (Some(sink), Ok(response)) = (&self.sink, &result) {
-            sink.record(egress_record(sink, req, response));
+            // Off-thread (SHIM-D25): marshal the raw context and hand it to the
+            // worker, blocking until it finishes. The reduction to the on-disk
+            // record now lives in the worker, not on this calling thread.
+            let _ = dispatch_off_thread(sink, egress_interaction(req, response));
         }
         result
     }
 }
 
-/// Build a [`Seam::Egress`] record from a request/response pair. The bookkeeping
-/// fields (`session_id`/`seq`/`timestamp_ms`) are stamped by
-/// [`JournalSink::record`].
-fn egress_record(sink: &JournalSink, req: &EgressRequest, resp: &EgressResponse) -> JournalRecord {
-    let raw_path = req.path.to_utf8().unwrap_or_default();
-    let (path, query) = split_path_query(&raw_path);
-    let (request_headers, request_ct) = egress_header_fields(&req.headers);
-    let (response_headers, response_ct) = egress_header_fields(&resp.headers);
-    JournalRecord {
+/// Marshal a raw [`Seam::Egress`] request/response into a position-independent
+/// [`Interaction`]. No reduction happens here — every header and the literal body
+/// bytes are carried as-is; the worker decides what to keep. The timestamp is
+/// sampled now, at interception, so it reflects the interaction's time rather than
+/// the worker's.
+fn egress_interaction(req: &EgressRequest, resp: &EgressResponse) -> Interaction {
+    Interaction {
         seam: Seam::Egress,
         method: req.verb.to_utf8().unwrap_or_else(|_| "?".to_string()),
         scheme: Some(req.scheme.as_str().to_string()),
         host: req.host.to_utf8().ok(),
         port: Some(req.port),
-        path,
-        query,
-        request_headers,
-        request_body: sink.body_shape(&req.body, request_ct.as_deref()),
-        request_body_example: sink.body_example(&req.body, request_ct.as_deref()),
+        target: req.path.to_utf8().unwrap_or_default(),
+        request_headers: raw_egress_headers(&req.headers),
+        request_body: req.body.clone(),
         status: u16::try_from(resp.status).unwrap_or(0),
-        response_headers,
-        response_body: sink.body_shape(&resp.body, response_ct.as_deref()),
-        response_body_example: sink.body_example(&resp.body, response_ct.as_deref()),
-        ..Default::default()
+        response_headers: raw_egress_headers(&resp.headers),
+        response_body: resp.body.clone(),
+        timestamp_ms: now_ms(),
     }
+}
+
+/// Convert raw egress `(name, value)` UTF-16 header pairs into position-independent
+/// [`RawHeader`]s, preserving every header and its literal value (the safelist is
+/// applied later, in the worker).
+fn raw_egress_headers(headers: &[(Utf16, Utf16)]) -> Vec<RawHeader> {
+    headers
+        .iter()
+        .map(|(name, value)| RawHeader {
+            name: name.to_utf8().unwrap_or_else(|_| "?".to_string()),
+            value: value.to_utf8().unwrap_or_default(),
+        })
+        .collect()
 }
 
 /// Split a raw request target into its path and query parameters. Query values
@@ -299,36 +310,12 @@ fn split_path_query(raw: &str) -> (String, Vec<QueryParam>) {
     }
 }
 
-/// Convert egress `(name, value)` header pairs into journal [`HeaderField`]s,
-/// retaining literal values only for content-negotiation headers, and return the
-/// observed `Content-Type` (used to key body-shape derivation).
-fn egress_header_fields(headers: &[(Utf16, Utf16)]) -> (Vec<HeaderField>, Option<String>) {
-    let mut fields = Vec::with_capacity(headers.len());
-    let mut content_type = None;
-    for (name, value) in headers {
-        let name = name.to_utf8().unwrap_or_else(|_| "?".to_string());
-        let lower = name.to_ascii_lowercase();
-        let retained = if CONTENT_NEGOTIATION_HEADERS.contains(&lower.as_str()) {
-            value.to_utf8().ok()
-        } else {
-            None
-        };
-        if lower == "content-type" {
-            content_type = retained.clone();
-        }
-        fields.push(HeaderField { name, value: retained });
-    }
-    (fields, content_type)
-}
-
 // === Off-thread worker (OT-3) ===
 
 /// Reduce raw `(name, value)` header pairs to journal [`HeaderField`]s, retaining
 /// literal values only for content-negotiation headers, and return the observed
 /// `Content-Type` (used to key body-shape derivation). This is the seam-agnostic
-/// reduction the off-thread worker applies to a marshaled interaction; the inline
-/// decorators have their own typed variants ([`egress_header_fields`] /
-/// [`http_header_fields`]) until they are rewired onto this path.
+/// reduction the off-thread worker applies to a marshaled interaction.
 fn header_fields(headers: &[RawHeader]) -> (Vec<HeaderField>, Option<String>) {
     let mut fields = Vec::with_capacity(headers.len());
     let mut content_type = None;

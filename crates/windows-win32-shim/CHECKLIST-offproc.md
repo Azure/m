@@ -28,7 +28,7 @@ persisted journal is unchanged — only *where* the work runs moves.
       byte-identical to today.
 - [x] **OT-4** A synchronous off-thread dispatcher: marshal the context → `submit_once` a work
       item that runs `handle_interaction` then signals the `WaitGate` → `wait` → return the reply.
-- [ ] **OT-5** Wire `JournalingEgress::send` to marshal + dispatch off-thread instead of the
+- [x] **OT-5** Wire `JournalingEgress::send` to marshal + dispatch off-thread instead of the
       inline `sink.record`.
 - [ ] **OT-6** Wire `JournalingHandler` (inbound) to marshal + dispatch off-thread.
 - [ ] **OT-7** Tests: the off-thread path produces the same journal records as the inline path;

@@ -11,6 +11,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::environment::Environment;
 use crate::model::Document;
 
 /// The serialized form of an OpenAPI document.
@@ -104,6 +105,37 @@ pub fn serialize_document(document: &Document, format: SpecFormat) -> Result<Str
     match format {
         SpecFormat::Json => serde_json::to_string_pretty(document).map_err(|e| e.to_string()),
         SpecFormat::Yaml => serde_yaml_ng::to_string(document).map_err(|e| e.to_string()),
+    }
+}
+
+/// Parse an environment descriptor (D-CART-4) from text in a known format.
+///
+/// # Errors
+/// Returns a human-readable message if the text is not a valid descriptor in
+/// `format`.
+pub fn parse_environment(text: &str, format: SpecFormat) -> Result<Environment, String> {
+    match format {
+        SpecFormat::Json => serde_json::from_str(text).map_err(|e| e.to_string()),
+        SpecFormat::Yaml => serde_yaml_ng::from_str(text).map_err(|e| e.to_string()),
+    }
+}
+
+/// Serialize an environment descriptor (D-CART-4) to text in the given format.
+///
+/// JSON is pretty-printed for human review; YAML is block style. The format
+/// boundary is shared with [`serialize_document`]; the descriptor shape is owned
+/// in [`crate::environment`].
+///
+/// # Errors
+/// Returns a message if serialization fails (it should not for a well-formed
+/// descriptor).
+pub fn serialize_environment(
+    environment: &Environment,
+    format: SpecFormat,
+) -> Result<String, String> {
+    match format {
+        SpecFormat::Json => serde_json::to_string_pretty(environment).map_err(|e| e.to_string()),
+        SpecFormat::Yaml => serde_yaml_ng::to_string(environment).map_err(|e| e.to_string()),
     }
 }
 

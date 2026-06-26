@@ -64,7 +64,7 @@ pub use path::{PathMatch, PathTemplate, best_match};
 pub use schema::render_schema;
 pub use format::{
     LoadError, LoadOutcome, LoadedSpec, SpecFormat, load_path, parse_auto, parse_document,
-    serialize_document,
+    parse_environment, serialize_document, serialize_environment,
 };
 pub use model::{
     Components, Content, Document, Info, MediaType, Operation, Parameter, ParameterIn, PathItem,

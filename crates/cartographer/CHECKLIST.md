@@ -14,7 +14,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
       role, protocol, `contract` ref, transport, observations). Serde derive.
 - [x] **EM-A2** Add the `Provenance` annotation (`observed` | `derived` { basis }
       | `asserted`) and attach it to actors, roles, and channels.
-- [ ] **EM-A3** Serialize/deserialize the descriptor through the existing `format`
+- [x] **EM-A3** Serialize/deserialize the descriptor through the existing `format`
       machinery (default YAML, also JSON), reusing the serde model.
 - [ ] **EM-A4** Tests: a hand-built `Environment` round-trips YAML and JSON
       (parse → equal); provenance and the `$ref` contract links survive.

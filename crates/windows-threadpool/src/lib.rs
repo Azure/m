@@ -32,6 +32,9 @@ mod timer;
 mod work_queue;
 
 #[cfg(windows)]
+mod wait_gate;
+
+#[cfg(windows)]
 mod io;
 
 #[cfg(windows)]
@@ -39,6 +42,9 @@ pub use error::{ThreadPoolError, ThreadPoolResult};
 
 #[cfg(windows)]
 pub use work::{Work, submit_once};
+
+#[cfg(windows)]
+pub use wait_gate::WaitGate;
 
 #[cfg(windows)]
 pub use timer::{PeriodicTimer, Timer};

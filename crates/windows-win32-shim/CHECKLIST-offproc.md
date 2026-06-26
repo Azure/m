@@ -14,7 +14,7 @@ Move the work to a Windows thread-pool work item and block the calling thread un
 it finishes (via a `WaitOnAddress` latch), regardless of the caller's contract. The
 persisted journal is unchanged — only *where* the work runs moves.
 
-- [ ] **OT-1** Add a `WaitGate` completion latch (`WaitOnAddress` / `WakeByAddressSingle`,
+- [x] **OT-1** Add a `WaitGate` completion latch (`WaitOnAddress` / `WakeByAddressSingle`,
       unsafe quarantined in `ffi`) to `windows-threadpool`; add `windows-threadpool` as a
       `windows-win32-shim` dependency.
       > ➡ **CROSS-COMPONENT:** the `WaitGate` primitive lands in `crates/windows-threadpool`.

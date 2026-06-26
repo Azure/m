@@ -13,6 +13,7 @@
 
 use core::ffi::c_void;
 use core::ptr;
+use core::sync::atomic::AtomicU32;
 
 use windows_sys::Win32::Foundation::{FILETIME, GetLastError, HANDLE};
 use windows_sys::Win32::System::Threading::{
@@ -20,7 +21,7 @@ use windows_sys::Win32::System::Threading::{
     CreateThreadpoolIo, CreateThreadpoolTimer, CreateThreadpoolWork, IsThreadpoolTimerSet, PTP_IO,
     PTP_CALLBACK_INSTANCE, PTP_TIMER, PTP_WORK, SetThreadpoolTimer, StartThreadpoolIo,
     SubmitThreadpoolWork, WaitForThreadpoolIoCallbacks, WaitForThreadpoolTimerCallbacks,
-    WaitForThreadpoolWorkCallbacks,
+    WaitForThreadpoolWorkCallbacks, WaitOnAddress, WakeByAddressSingle,
 };
 
 use crate::error::{ThreadPoolError, ThreadPoolResult};
@@ -30,6 +31,31 @@ pub(crate) fn last_error_code() -> u32 {
     // SAFETY: `GetLastError` reads thread-local error state and has no
     // preconditions or side effects.
     unsafe { GetLastError() }
+}
+
+/// `WaitOnAddress` "no timeout" sentinel (Win32 `INFINITE`).
+const WAIT_INFINITE: u32 = 0xFFFF_FFFF;
+
+/// Block via `WaitOnAddress` until the `u32` at `flag` differs from `compare`.
+/// Spurious returns are possible, so callers re-check the value in a loop.
+pub(crate) fn wait_on_address_u32(flag: &AtomicU32, compare: u32) {
+    let flag_ptr = (flag as *const AtomicU32).cast::<c_void>();
+    let compare_ptr = (&compare as *const u32).cast::<c_void>();
+    // SAFETY: `flag` is a live borrowed atom and `compare` a live local; the
+    // address size (4) matches a `u32`. `WaitOnAddress` only reads both operands.
+    unsafe {
+        WaitOnAddress(flag_ptr, compare_ptr, 4, WAIT_INFINITE);
+    }
+}
+
+/// Wake one thread waiting (via `WaitOnAddress`) on the `u32` at `flag`.
+pub(crate) fn wake_by_address_single_u32(flag: &AtomicU32) {
+    let flag_ptr = (flag as *const AtomicU32).cast::<c_void>();
+    // SAFETY: `flag` is a live borrowed atom; `WakeByAddressSingle` only reads its
+    // address to match waiters.
+    unsafe {
+        WakeByAddressSingle(flag_ptr);
+    }
 }
 
 /// The persistent callback a [`Work`] runs each time it is submitted.

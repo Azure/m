@@ -934,14 +934,14 @@ by the shared `api-journal` crate (its `D-AJ-1..3`), so the shim (writer) and th
 tool (reader) cannot drift.
 
 - **Config (`pilcfg.rs`).** A new `api_journal` block parses to `ApiJournalConfig`
-  (`enabled`, `%VAR%`-expanded `path`, `bodies` = `shapes`|`full`|`none`,
+  (`enabled`, `%VAR%`-expanded `path`, `bodies` = `shapes`|`full-with-pii`|`none`,
   `seams.{inbound,egress}`, `max_body_bytes`). Disabled by default; the strict
   parse / tolerant load posture of the rest of the sidecar is preserved. Body
   default is **shapes-only** — a JSON schema skeleton with no literal scalar
   values — so journals describe an API's structure without exporting user data.
-  `full` additionally captures a literal example body via
+  `full-with-pii` additionally captures a literal example body via
   `JournalSink::body_example` (AJ-DEF-1 / `D-AJ-3`); examples are literal user
-  data, captured only under the opt-in `full` mode.
+  data, captured only under the opt-in `full-with-pii` mode.
 - **Sink (`journal.rs`).** A process-wide `JournalSink` opens the file lazily,
   serializes record writes behind a `Mutex`, and stamps each record's
   `session_id` / `seq` / `timestamp_ms`. It writes through ordinary `std::fs`:

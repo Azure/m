@@ -51,7 +51,7 @@ Cross-cutting across **api-journal** (schema), **windows-win32-shim** (capture),
 
 - [ ] **PII-D1** Synthesis and the environment descriptor (D-CART-4) consume tokenized
       journals; roles, selectors, and security carry tokens, never raw identities.
-- [ ] **PII-D2** `full`-mode example bodies (D-AJ-3) are PII-scrubbed / tokenized before they
+- [ ] **PII-D2** `full-with-pii`-mode example bodies (D-AJ-3) are PII-scrubbed / tokenized before they
       reach specs.
 - [ ] **PII-D3** Tests: no raw identity or detected-PII string appears in any synthesized spec
       or environment descriptor.
@@ -61,10 +61,10 @@ Cross-cutting across **api-journal** (schema), **windows-win32-shim** (capture),
 The rest of this plan is deferred, but this one item directly addresses the production-capture
 risk and is a cheap safety rail (not tokenization), so it may be done at any time.
 
-- [ ] **PII-SAFE-1** Warn when `bodies: full` is enabled: it captures literal request/response
-      bodies that can contain customer PII, so it must not be run against production traffic
-      until PII-D2 (body scrub / tokenization) lands. The default (`shapes`/`none`) stays
-      PII-safe and needs no warning.
+- [ ] **PII-SAFE-1** Warn when `bodies: full-with-pii` is enabled: it captures literal
+      request/response bodies that can contain customer PII, so it must not be run against
+      production traffic until PII-D2 (body scrub / tokenization) lands. The default
+      (`shapes`/`none`) stays PII-safe and needs no warning.
 
 ## Open design questions (resolve when this is undeferred)
 

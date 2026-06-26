@@ -233,7 +233,7 @@ fn synthesizes_a_spec_that_covers_and_revalidates_the_journal() {
 fn full_mode_examples_flow_into_the_synthesized_spec() {
     let dir = temp_dir();
 
-    // A journal captured under `bodies: full`: records carry literal example bodies.
+    // A journal captured under `bodies: full-with-pii`: records carry literal example bodies.
     let mut get = resp(
         "GET",
         "/custom/cat",

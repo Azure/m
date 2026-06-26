@@ -100,8 +100,11 @@ pub enum BodyCapture {
     /// literal scalar values. The privacy-preserving default.
     #[default]
     Shapes,
-    /// Capture full body bytes, truncated at `max_body_bytes`.
-    Full,
+    /// Capture full body bytes — literal request/response content, **including any
+    /// PII** — truncated at `max_body_bytes`. Selected by the `.pilcfg` value
+    /// `"full-with-pii"`, whose name makes the PII choice explicit at the point of
+    /// selection.
+    FullWithPii,
     /// Capture no body content at all (metadata only).
     None,
 }
@@ -371,7 +374,7 @@ fn read_body_capture(object: &Object) -> Result<BodyCapture, PilcfgError> {
         None => Ok(BodyCapture::Shapes),
         Some(JsonValue::String(value)) => match value.as_str() {
             "shapes" => Ok(BodyCapture::Shapes),
-            "full" => Ok(BodyCapture::Full),
+            "full-with-pii" => Ok(BodyCapture::FullWithPii),
             "none" => Ok(BodyCapture::None),
             other => Err(PilcfgError::new(format!(
                 "'api_journal.bodies' has unknown value {other:?}"
@@ -817,13 +820,13 @@ mod tests {
         let json = r#"{ "api_journal": {
             "enabled": true,
             "path": "C:/logs/api.ndjson",
-            "bodies": "full",
+            "bodies": "full-with-pii",
             "max_body_bytes": 4096
         } }"#;
         let journal = parse_pilcfg(json).unwrap().api_journal;
         assert!(journal.enabled);
         assert_eq!(journal.path, "C:/logs/api.ndjson");
-        assert_eq!(journal.bodies, BodyCapture::Full);
+        assert_eq!(journal.bodies, BodyCapture::FullWithPii);
         assert_eq!(journal.max_body_bytes, 4096);
         // Seams default on when the block is omitted.
         assert!(journal.capture_inbound);
@@ -842,7 +845,7 @@ mod tests {
     fn api_journal_bodies_variants() {
         for (text, expected) in [
             ("shapes", BodyCapture::Shapes),
-            ("full", BodyCapture::Full),
+            ("full-with-pii", BodyCapture::FullWithPii),
             ("none", BodyCapture::None),
         ] {
             let json = format!(r#"{{ "api_journal": {{ "bodies": "{text}" }} }}"#);

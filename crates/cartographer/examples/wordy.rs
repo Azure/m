@@ -12,7 +12,7 @@
 //! - `wordy-openapi.yaml` / `wordy-openapi.json` — the synthesized OpenAPI 3.1 doc.
 //!
 //! The records mirror what the win32 shim's inbound (IIS) seam captures for
-//! `wordy` under `bodies: full`: shapes-only structure plus a literal example
+//! `wordy` under `bodies: full-with-pii`: shapes-only structure plus a literal example
 //! body. Identity headers (`X-Wordy-User`/`X-Wordy-Locale`) keep only their names,
 //! exactly as the shapes-only capture policy retains them.
 

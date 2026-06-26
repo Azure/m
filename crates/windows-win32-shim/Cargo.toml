@@ -31,7 +31,7 @@ object = { version = "0.36", default-features = false, features = [
 # by this shared crate so the shim (writer) and the cartographer tool (reader)
 # cannot drift.
 api-journal = { path = "../api-journal" }
-# Literal example bodies captured under `bodies: full` are `serde_json::Value`s
+# Literal example bodies captured under `bodies: full-with-pii` are `serde_json::Value`s
 # (AJ-DEF-1); the value is produced by `api_journal::derive_example`.
 serde_json = "1"
 

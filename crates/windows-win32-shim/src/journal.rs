@@ -98,20 +98,20 @@ impl JournalSink {
     /// Derive a [`BodyShape`] from raw body bytes per the configured capture mode.
     ///
     /// `None` mode yields [`BodyShape::Unknown`] (the interaction is still
-    /// journaled, just without body structure). `Shapes` and `Full` both derive a
-    /// shapes-only skeleton, inspecting at most `max_body_bytes`; `Full`
+    /// journaled, just without body structure). `Shapes` and `FullWithPii` both derive a
+    /// shapes-only skeleton, inspecting at most `max_body_bytes`; `FullWithPii`
     /// additionally captures a literal example via [`body_example`](Self::body_example).
     #[must_use]
     pub fn body_shape(&self, bytes: &[u8], content_type: Option<&str>) -> BodyShape {
         body_shape_for(self.bodies, bytes, content_type, self.max_body_bytes)
     }
 
-    /// Capture a literal example body for `bodies: full`, else `None`.
+    /// Capture a literal example body for `bodies: full-with-pii`, else `None`.
     ///
-    /// Under [`BodyCapture::Full`] this returns the parsed JSON body (the
+    /// Under [`BodyCapture::FullWithPii`] this returns the parsed JSON body (the
     /// shapes-only skeleton is still produced by [`body_shape`](Self::body_shape));
     /// under `Shapes`/`None` it returns `None`. Examples are literal user data,
-    /// captured only under the opt-in `full` mode, and only up to `max_body_bytes`.
+    /// captured only under the opt-in `full-with-pii` mode, and only up to `max_body_bytes`.
     #[must_use]
     pub fn body_example(
         &self,
@@ -119,7 +119,7 @@ impl JournalSink {
         content_type: Option<&str>,
     ) -> Option<serde_json::Value> {
         match self.bodies {
-            BodyCapture::Full => {
+            BodyCapture::FullWithPii => {
                 let slice = if bytes.len() > self.max_body_bytes {
                     &bytes[..self.max_body_bytes]
                 } else {
@@ -170,10 +170,10 @@ pub fn body_shape_for(
 ) -> BodyShape {
     match mode {
         BodyCapture::None => BodyShape::Unknown,
-        // Shapes and Full both derive a shapes-only skeleton for now; a body
+        // Shapes and FullWithPii both derive a shapes-only skeleton for now; a body
         // larger than the cap is inspected only up to the cap (and a JSON body
         // truncated mid-token will simply read as opaque).
-        BodyCapture::Shapes | BodyCapture::Full => {
+        BodyCapture::Shapes | BodyCapture::FullWithPii => {
             let slice = if bytes.len() > max_body_bytes {
                 &bytes[..max_body_bytes]
             } else {
@@ -564,8 +564,8 @@ mod tests {
         // Shapes → derived object skeleton.
         let shaped = body_shape_for(BodyCapture::Shapes, json, Some("application/json"), 4096);
         assert!(matches!(shaped, BodyShape::Object(_)));
-        // Full currently behaves like Shapes.
-        let full = body_shape_for(BodyCapture::Full, json, Some("application/json"), 4096);
+        // FullWithPii currently behaves like Shapes.
+        let full = body_shape_for(BodyCapture::FullWithPii, json, Some("application/json"), 4096);
         assert_eq!(shaped, full);
         // Empty body → Empty.
         assert_eq!(
@@ -753,7 +753,7 @@ mod tests {
         ApiJournalConfig {
             enabled: true,
             path: path.to_string_lossy().into_owned(),
-            bodies: BodyCapture::Full,
+            bodies: BodyCapture::FullWithPii,
             ..Default::default()
         }
     }
@@ -793,7 +793,7 @@ mod tests {
         let example = records[0]
             .response_body_example
             .as_ref()
-            .expect("response example captured under full mode");
+            .expect("response example captured under full-with-pii mode");
         assert_eq!(example["word"], serde_json::json!("cat"));
         assert_eq!(example["exists"], serde_json::json!(true));
     }

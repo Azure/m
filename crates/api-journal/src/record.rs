@@ -87,7 +87,7 @@ pub struct JournalRecord {
     /// The shape of the request body.
     #[serde(default, skip_serializing_if = "is_empty_shape")]
     pub request_body: BodyShape,
-    /// A literal example request body, captured only under `bodies: full`.
+    /// A literal example request body, captured only under `bodies: full-with-pii`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_body_example: Option<serde_json::Value>,
 
@@ -99,7 +99,7 @@ pub struct JournalRecord {
     /// The shape of the response body.
     #[serde(default, skip_serializing_if = "is_empty_shape")]
     pub response_body: BodyShape,
-    /// A literal example response body, captured only under `bodies: full`.
+    /// A literal example response body, captured only under `bodies: full-with-pii`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub response_body_example: Option<serde_json::Value>,
 
@@ -144,11 +144,11 @@ pub fn infer_scalar(value: &str) -> BodyShape {
     }
 }
 
-/// Extract a literal example body for `bodies: full` capture.
+/// Extract a literal example body for `bodies: full-with-pii` capture.
 ///
 /// Returns the parsed JSON value of a JSON body (content type contains `json`, or none is
 /// given), or `None` for an empty or non-JSON body. Unlike [`BodyShape::derive`], this keeps
-/// the literal values, so it is only ever called under the opt-in `full` capture mode.
+/// the literal values, so it is only ever called under the opt-in `full-with-pii` capture mode.
 #[must_use]
 pub fn derive_example(bytes: &[u8], content_type: Option<&str>) -> Option<serde_json::Value> {
     if bytes.is_empty() {

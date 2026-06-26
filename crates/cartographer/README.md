@@ -49,6 +49,6 @@ cargo run -p cartographer --example wordy -- .scratch/wordy-openapi
 
 The sample exercises path-template inference (`/custom/frobnicate` and
 `/custom/wat` collapse to `/custom/{id}`), nested body schemas, literal
-`example`s carried from a `bodies: full` capture, and name-only retention of
+`example`s carried from a `bodies: full-with-pii` capture, and name-only retention of
 identity headers. The generator lives at
 [`examples/wordy.rs`](examples/wordy.rs).

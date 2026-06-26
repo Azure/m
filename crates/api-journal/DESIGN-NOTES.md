@@ -33,7 +33,7 @@ These were agreed with the repository owner and drive the schema:
 3. **Body capture default = shapes-only.** A request/response body is journaled as a
    [`shape`] — a JSON schema skeleton (field names, JSON types, nesting, array element
    shape) with **no literal scalar values**. This lets cartographer infer schemas without
-   exporting user data. `Full` (truncated bytes) and `None` (metadata only) remain
+   exporting user data. `FullWithPii` (truncated bytes) and `None` (metadata only) remain
    selectable per-machine via `.pilcfg`, but `Shapes` is the default.
 4. **First-cut capture seams:** egress (WinHTTP, the shim's MW17 seam) and IIS inbound
    (the `web.rs` seam). http.sys server-side capture is a possible later addition.
@@ -60,24 +60,24 @@ Shapes-only governs *bodies*. For the surrounding metadata:
   without depending on each other.
 - **D-AJ-2** — Shapes-only applies to bodies; path is literal (templating needs it), query
   names + value-shapes, header names + content-negotiation values only.
-- **D-AJ-3** — The record is shapes-only by default; `BodyCapture::Full` additionally
+- **D-AJ-3** — The record is shapes-only by default; `BodyCapture::FullWithPii` additionally
   captures a literal example body. Implemented in AJ-DEF-1: `JournalRecord` carries optional
   `request_body_example` / `response_body_example` (`serde_json::Value`), populated by the
-  shim from `derive_example` only under `full` mode; `cartographer` emits these as OpenAPI
+  shim from `derive_example` only under `full-with-pii` mode; `cartographer` emits these as OpenAPI
   `example`s.
 - **D-AJ-4** — Principal identities and likely-PII request data must be *tokenized* (token in
   the journal; token→identity map in a separate, eventually *encrypted*, opt-in-to-decrypt
   sidecar); downstream (cartographer, D-CART-4) must not re-leak. Policy only; implementation
   deferred and queued in [`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
 
-## D-AJ-3 — `BodyCapture::Full` captures a literal example body (implemented, AJ-DEF-1)
+## D-AJ-3 — `BodyCapture::FullWithPii` captures a literal example body (implemented, AJ-DEF-1)
 
-The `.pilcfg` `api_journal.bodies` option offers `shapes` (default), `full`, and `none`.
+The `.pilcfg` `api_journal.bodies` option offers `shapes` (default), `full-with-pii`, and `none`.
 `none` is honored faithfully (body shape recorded as `Unknown`) and `shapes` is the design
-center. `full` additionally retains a literal example body so cartographer can emit OpenAPI
+center. `full-with-pii` additionally retains a literal example body so cartographer can emit OpenAPI
 `example`s: `JournalRecord` carries optional `request_body_example` / `response_body_example`
 (`Option<serde_json::Value>`), and `derive_example` parses JSON bodies to a value. The shim
-populates these only under `full` mode (examples are literal user data); cartographer's
+populates these only under `full-with-pii` mode (examples are literal user data); cartographer's
 `synthesize` sets a representative example per media type on request bodies and responses.
 `JournalRecord` is consequently not `Eq` (arbitrary JSON is not `Eq`).
 
@@ -104,11 +104,11 @@ identities and PII end to end. Recorded now as policy; implementation is deliber
   Autonomy: we own the requirement; a standard satisfies it).
 - **Downstream must not re-leak.** cartographer (and any consumer) operates on tokenized
   journals and must never emit raw identities or PII into specs or the environment descriptor
-  (D-CART-4). The `full`-mode example bodies (D-AJ-3) are the largest PII vector and are in
+  (D-CART-4). The `full-with-pii`-mode example bodies (D-AJ-3) are the largest PII vector and are in
   scope for tokenization.
-- **Default capture is already PII-safe; `full` mode is the one production vector.** The
+- **Default capture is already PII-safe; `full-with-pii` mode is the one production vector.** The
   default (`bodies: shapes`, and `none`) captures no identity *values*, header *names* only, and
-  body *shapes* only — safe to run against production. `full` mode captures literal bodies,
+  body *shapes* only — safe to run against production. `full-with-pii` mode captures literal bodies,
   which can contain customer PII; it must not be run against production traffic until PII-D2
   (body scrub / tokenization) lands, and enabling it should warn.
 - **Sequencing guardrail (no raw identity before PII-A).** No raw principal identity may be

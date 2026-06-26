@@ -261,7 +261,7 @@ pub struct MediaType {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema: Option<Schema>,
     /// A literal example of the content, synthesized from a journal captured under
-    /// `bodies: full`.
+    /// `bodies: full-with-pii`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub example: Option<serde_json::Value>,
 }

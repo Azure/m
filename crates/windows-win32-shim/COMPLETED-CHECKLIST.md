@@ -993,3 +993,39 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
       state asserted by a non-aliased direct query. `launch-tandem.cmd`/`.ps1`
       manual companion. Gated `tests/egress_relay.rs` (`#[ignore]`, SKIP on
       `ERROR_ACCESS_DENIED`). **Verified 4/4.** SHIM-D23 closure recorded.)*
+
+
+---
+
+## Moved 2026-06-09 — Milestone OT: off-thread, synchronous interception handling (SHIM-D25)
+
+Moved all interception-response work (journaling) OFF the calling thread as the
+first step toward out-of-process. Each seam now **marshals the raw intercepted
+context** into a position-independent JSON `Interaction` (shim `marshal` module),
+enqueues a Windows thread-pool work item that runs the reduction worker
+(`handle_interaction`), and blocks on a `WaitOnAddress` latch (`WaitGate` in
+`windows-threadpool`) until it finishes — honoring the caller's contract by always
+waiting for now. The reduction (split path/query, safelist headers, derive body
+shapes / optional `full-with-pii` example) moved out of the decorators and into the
+worker, so the calling thread carries no journaling policy. On-disk records are
+structurally identical to the prior inline path (proved by decorator-vs-worker
+parity tests). Raw context is transient today and becomes the IPC payload later.
+
+- [x] **OT-1** Add a `WaitGate` completion latch (`WaitOnAddress` / `WakeByAddressSingle`,
+      unsafe quarantined in `ffi`) to `windows-threadpool`; add `windows-threadpool` as a
+      `windows-win32-shim` dependency.
+- [x] **OT-2** Define the position-independent marshaled interaction format in a new shim
+      `marshal` module: a JSON request (the raw intercepted context — seam, method,
+      scheme/host/port, path+query, headers, bodies as byte arrays, status) and a JSON reply
+      (an outcome/ack), with serde round-trip. (base64 compaction of bodies deferred.)
+- [x] **OT-3** A worker function `handle_interaction(request_json, &sink) -> reply_json` that
+      performs the journaling (reduce to shapes / safelist headers / optional example, then
+      write the record). The reduction moves here from the decorators; the on-disk record is
+      byte-identical to today.
+- [x] **OT-4** A synchronous off-thread dispatcher: marshal the context → `submit_once` a work
+      item that runs `handle_interaction` then signals the `WaitGate` → `wait` → return the reply.
+- [x] **OT-5** Wire `JournalingEgress::send` to marshal + dispatch off-thread instead of the
+      inline `sink.record`.
+- [x] **OT-6** Wire `JournalingHandler` (inbound) to marshal + dispatch off-thread.
+- [x] **OT-7** Tests: the off-thread path produces the same journal records as the inline path;
+      the `WaitGate` blocks then wakes; the marshaled request/reply round-trips.

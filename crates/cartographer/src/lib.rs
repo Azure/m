@@ -37,6 +37,7 @@
 
 pub mod cli;
 pub mod diagnostics;
+pub mod environment;
 pub mod format;
 pub mod infer;
 pub mod merge;
@@ -48,6 +49,10 @@ pub mod synth;
 pub mod validate;
 
 pub use infer::TemplateSet;
+pub use environment::{
+    Actor, Actors, Binding, Channel, Channels, ContractRef, Environment, Observed, Role, RolePart,
+    Roles, Security, Transport,
+};
 pub use merge::merge;
 pub use synth::synthesize;
 pub use cli::{Args, parse_args, run};

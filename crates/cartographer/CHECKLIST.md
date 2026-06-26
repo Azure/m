@@ -7,7 +7,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 
 ## Milestone EM-A — Descriptor model & serialization
 
-- [ ] **EM-A1** Add an `environment` module defining the descriptor model:
+- [x] **EM-A1** Add an `environment` module defining the descriptor model:
       `Environment` (version + reused `Info`), `Actor` (id, title, `bindings`,
       `plays`), `Binding` (scheme/host/port + observed counts), `Role` (id,
       `plays`, `presents`/`requires` security, `children`), `Channel` (from/to

@@ -54,6 +54,10 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 - [ ] **EM-D3** Encode the subdivision-axis priority (behavior > transport/auth >
       identity); keep identity-class subdivision behind the documented rolling-cert
       caveat, off by default.
+      > ⛔ **PREREQUISITE — PII-A:** identity-axis subdivision must stay disabled until PII-A
+      > (tokenized identity) lands; it must never key on a raw principal identity. Until then
+      > this item ships the behavior and transport/auth axes only. See
+      > [`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
 - [ ] **EM-D4** Tests: two behaviorally distinct caller populations split into two
       child roles under a retained parent; a homogeneous journal does not split.
 
@@ -73,7 +77,9 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 
 - Richer inbound-caller attribution may want additional shim capture (e.g. an
   authority/identity field); the first pass defaults to one client role per seam.
-  Recorded here so the absence is deliberate, per D-CART-4.
+  Recorded here so the absence is deliberate, per D-CART-4. **Blocked on PII-A
+  (tokenized identity):** any caller-distinguishing by principal identity must consume tokens,
+  never raw identities — see [`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
 - The recast/plan document (rebinding role → provider) and any replay / fault
   executor are downstream of cartographer and out of scope for these milestones.
 - PII tokenization of identities and likely-PII request data (api-journal **D-AJ-4**) is

@@ -106,5 +106,14 @@ identities and PII end to end. Recorded now as policy; implementation is deliber
   journals and must never emit raw identities or PII into specs or the environment descriptor
   (D-CART-4). The `full`-mode example bodies (D-AJ-3) are the largest PII vector and are in
   scope for tokenization.
+- **Default capture is already PII-safe; `full` mode is the one production vector.** The
+  default (`bodies: shapes`, and `none`) captures no identity *values*, header *names* only, and
+  body *shapes* only — safe to run against production. `full` mode captures literal bodies,
+  which can contain customer PII; it must not be run against production traffic until PII-D2
+  (body scrub / tokenization) lands, and enabling it should warn.
+- **Sequencing guardrail (no raw identity before PII-A).** No raw principal identity may be
+  introduced into capture or the descriptor before PII-A (tokenized identity) lands. PII-A is a
+  hard prerequisite of cartographer's deferred *richer inbound-caller attribution* and of
+  *identity-axis role subdivision* (EM-D3); when identity is introduced it arrives tokenized.
 - **Deferral is intentional.** This is *not* to be implemented during the current development
   push; it is queued so the requirement is not lost.

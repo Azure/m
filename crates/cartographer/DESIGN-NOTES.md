@@ -114,7 +114,9 @@ cartographer also synthesizes an **environment descriptor** that maps the
 - **Identity handling defers to the PII policy.** The `presents`/`requires` security a role
   carries holds identity *header names* today; under api-journal **D-AJ-4** (deferred) even
   those names, and any likely-PII request data, become tokenized — and cartographer must never
-  emit raw identities. Queued in
+  emit raw identities. **PII-A (tokenized identity) is a hard prerequisite** of the deferred
+  richer inbound-caller attribution and of identity-axis role subdivision (EM-D3): no caller may
+  be distinguished by a raw principal identity before then. Queued in
   [`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
 
 ## Decision index

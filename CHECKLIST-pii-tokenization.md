@@ -13,6 +13,11 @@ Cross-cutting across **api-journal** (schema), **windows-win32-shim** (capture),
 
 ## Milestone PII-A — Tokenized-identity schema + sidecar map (api-journal)
 
+> **Hard prerequisite for identity features.** PII-A blocks any work that would first introduce
+> a raw principal-identity path: cartographer's deferred *richer inbound-caller attribution* and
+> *identity-axis role subdivision* (EM-D3, in [crates/cartographer/CHECKLIST.md](crates/cartographer/CHECKLIST.md)).
+> Neither may distinguish callers by a raw identity until PII-A lands.
+
 - [ ] **PII-A1** Define a stable opaque **identity token** type and have `JournalRecord`
       reference tokens in place of principal identities.
 - [ ] **PII-A2** Define the **token → identity map** sidecar file format (separate from the
@@ -50,6 +55,16 @@ Cross-cutting across **api-journal** (schema), **windows-win32-shim** (capture),
       reach specs.
 - [ ] **PII-D3** Tests: no raw identity or detected-PII string appears in any synthesized spec
       or environment descriptor.
+
+## Near-term safety rail (may be implemented independently of the deferral)
+
+The rest of this plan is deferred, but this one item directly addresses the production-capture
+risk and is a cheap safety rail (not tokenization), so it may be done at any time.
+
+- [ ] **PII-SAFE-1** Warn when `bodies: full` is enabled: it captures literal request/response
+      bodies that can contain customer PII, so it must not be run against production traffic
+      until PII-D2 (body scrub / tokenization) lands. The default (`shapes`/`none`) stays
+      PII-safe and needs no warning.
 
 ## Open design questions (resolve when this is undeferred)
 

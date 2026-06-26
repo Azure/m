@@ -11,36 +11,33 @@ entry points"); it simply had not been built yet.
 
 ---
 
-## 1. Why now — the WireServer egress finding
+## 1. Why now — the relay-service egress finding
 
 Isolation work so far interposes on a process's *local* host calls — filesystem,
-registry, loader, COM, and the IIS request/response vtables. Reading the real
-**WireServer** (`Q:\src\Compute-Fabric-HostAgent\src\agent\WireServer`) showed
-that the defining behavior of a relay service is **egress**, and it uses two
-distinct outbound client stacks:
+registry, loader, COM, and the IIS request/response vtables. Studying a
+representative **relay / host-agent service** showed that the defining behavior of
+a relay service is **egress**, and it uses two distinct outbound client stacks:
 
-- **WinHTTP** (`winhttp.dll`) — the REST forwarders. `HostNetAgentQueryForwarder`
-  (`localhost:8019`), `InstanceMetadataFromServerHandler` (IMDS),
-  `AzureStackRequestHandlerBase`, `NetAnalyticsNodeAgentQueryHandler` all run the
-  textbook sequence `WinHttpOpen → WinHttpConnect → WinHttpOpenRequest →
-  WinHttpAddRequestHeaders → WinHttpSendRequest → WinHttpReceiveResponse →
-  WinHttpQueryHeaders → WinHttpQueryDataAvailable → WinHttpReadData →
-  WinHttpCloseHandle`.
+- **WinHTTP** (`winhttp.dll`) — the REST forwarders. The forwarders (a local
+  query endpoint on `localhost:8019`, an IMDS reader, and similar per-request
+  handlers) all run the textbook sequence `WinHttpOpen → WinHttpConnect →
+  WinHttpOpenRequest → WinHttpAddRequestHeaders → WinHttpSendRequest →
+  WinHttpReceiveResponse → WinHttpQueryHeaders → WinHttpQueryDataAvailable →
+  WinHttpReadData → WinHttpCloseHandle`.
 - **WWSAPI** (Windows Web Services API, `webservices.dll`) — the typed SOAP
-  control-plane to RdAgent / FC Agent. `AgentClient` builds a `WS_SERVICE_PROXY`
-  over `WS_HTTP_CHANNEL_BINDING` and dispatches `wsutil`-generated stubs
-  (`RdDefaultBinding_IWireAgent_QueryGoalState`, `…_ReportHealth`, …).
+  control-plane to the host's control-plane agents. A SOAP client builds a
+  `WS_SERVICE_PROXY` over `WS_HTTP_CHANNEL_BINDING` and dispatches
+  `wsutil`-generated stubs (query/report-style control operations).
 
-Inbound is an IIS native module (`modrest.dll`: `RegisterModule` →
+Inbound is an IIS native module (`RegisterModule` →
 `CHttpModule::OnBeginRequest(IHttpContext*)`) self-hosted in **Hostable Web Core**
-(`WebServer.cpp` → `WebCoreActivate`) — the exact HWC/native-module shape the shim
-already targets.
+(`WebCoreActivate`) — the exact HWC/native-module shape the shim already targets.
 
 **Key link-time nuance.** IAT aliasing only redirects what *the app itself*
 imports. WWSAPI calls WinHTTP *inside* `webservices.dll`, so aliasing `winhttp.dll`
-in the app does **not** catch the RdAgent SOAP egress. Each stack must be
+in the app does **not** catch the SOAP control-plane egress. Each stack must be
 intercepted at the app's own import boundary: WinHTTP for the direct REST
-forwarders, WWSAPI (`Ws*`) for `AgentClient`. They are independent seams.
+forwarders, WWSAPI (`Ws*`) for the SOAP client. They are independent seams.
 
 ---
 

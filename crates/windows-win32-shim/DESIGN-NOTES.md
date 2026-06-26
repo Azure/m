@@ -643,7 +643,7 @@ on an unprivileged developer machine with **no HWC installed**. `wordy`
 dictionary" service. It is both the proof vehicle for the whole isolation surface
 and a reusable testing asset for other HWC users in the division, so it is
 deliberately **generic** — organized around the host seams *any* HWC app touches,
-not shaped to mirror any one client (e.g. WireServer).
+not shaped to mirror any one client (e.g. a specific relay / host-agent service).
 
 **Shim-unaware contract.** `wordy`'s source carries zero isolation awareness — no
 dependency on this crate, no feature flags, no capture hooks. The only
@@ -688,7 +688,7 @@ cannot escape the dictionary directory.
 **Forward-compatible identity / locale.** The service has no per-user logon
 today, but is **designed and coded as if per-user**: a `Principal` / `UserId`
 newtype is threaded through every handler and resolved from a request header,
-defaulting to a single built-in user when absent. This is the WireServer-style
+defaulting to a single built-in user when absent. This is the relay-service-style
 "the app reads its own claims" posture — and no real authentication is
 implemented, consistent with the finding that HWC apps perform their own
 payload-level auth while the platform hands them anonymous requests. A `Locale`
@@ -828,7 +828,7 @@ oversight; none is queued as work):
 ## SHIM-D22 — WinHTTP egress seam (outbound relay isolation)
 
 The registry/filesystem/loader/COM seams isolate a process's *local* host calls;
-reading the real WireServer showed that a relay service's defining behavior is
+reading a representative relay / host-agent service showed that a relay service's defining behavior is
 **egress**, over two client stacks — **WinHTTP** (`winhttp.dll`, the REST
 forwarders) and **WWSAPI** (`webservices.dll`, the typed SOAP control-plane). The
 first egress seam aliases **WinHTTP** and routes it through the

@@ -45,6 +45,31 @@ We define cartographer's behavior and choose dependencies that satisfy it
   `Empty`/`Unknown` render to no schema (the caller omits the slot); `Opaque`
   (non-JSON) renders to a described `string`.
 
+## D-CART-3 — Validation, synthesis, and merge (AJ-D / AJ-E)
+
+- **Validation (`validate`).** `validate_record` matches an observed record to the
+  spec's most specific path template, then checks method, status, query/header
+  parameters, and shape-vs-schema body conformance, emitting one [`Diagnostic`]
+  per deviation. `validate_stream` deduplicates identical findings and sums
+  counts. Body conformance is shape-based (type, required fields, undocumented
+  fields, recursing through objects/arrays); `` is treated permissively
+  (resolution unmodeled).
+- **Path-template inference (`infer`).** Spec-driven matching is preferred; novel
+  paths use a conservative trie heuristic — a non-top-level segment whose parent
+  has ≥2 distinct leaf children collapses to a generic `{id}` placeholder. The
+  placeholder is a human-refinable name; once renamed in the spec, spec-driven
+  matching preserves it. Multi-parameter templates are left to spec-driven
+  matching.
+- **Synthesis (`synth`).** Records group by `(template, method)`; bodies merge via
+  `api_journal::BodyShape::merge` and render to schemas. A parameter is `required`
+  only when seen on every observation of the operation.
+- **Merge (`merge`).** Default is additive and prose-preserving (add new
+  paths/operations/statuses/parameters, keep human schemas and descriptions);
+  `--overwrite` replaces re-observed structure while keeping operation-level prose.
+  Deep schema-value widening is deferred.
+- **Round-trip property.** The end-to-end test proves the closure: a synthesized
+  spec validates the very journal it was built from with no findings.
+
 ## Decision index
 
 - **D-CART-1** — Single output sink abstraction (`OutputSink`) is introduced at
@@ -52,3 +77,6 @@ We define cartographer's behavior and choose dependencies that satisfy it
   one retargetable destination.
 - **D-CART-2** — `serde_yaml_ng` for YAML; the read/write contract and the
   shape→schema rendering rules (nullable type-array vs `anyOf`) are owned here.
+- **D-CART-3** — Validation (shape-vs-schema), conservative `{id}` template
+  inference, observation-frequency synthesis, additive prose-preserving merge
+  (`--overwrite` to replace); the synthesized spec re-validates its own journal.

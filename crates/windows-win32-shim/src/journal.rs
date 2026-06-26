@@ -34,6 +34,7 @@ use windows_platform_isolation::{
     Disposition, EgressRequest, EgressResponse, EgressResult, EgressSurface, Header, HttpRequest,
     HttpResponse, RequestHandler, Utf16,
 };
+use windows_threadpool::{WaitGate, submit_once};
 
 use crate::marshal::{Interaction, Outcome, RawHeader};
 use crate::pilcfg::{ApiJournalConfig, BodyCapture};
@@ -398,6 +399,65 @@ fn interaction_record(sink: &JournalSink, interaction: Interaction) -> JournalRe
         timestamp_ms: interaction.timestamp_ms,
         ..Default::default()
     }
+}
+
+// === Off-thread dispatcher (OT-4) ===
+
+/// Marshal a raw [`Interaction`], hand it to the off-thread worker, and block the
+/// calling thread until the worker finishes — returning the worker's [`Outcome`].
+///
+/// This is the first migration step (SHIM-D25 / milestone OT): the host thread no
+/// longer journals inline. It marshals the position-independent context, enqueues
+/// [`handle_interaction`] on a Windows thread-pool work item, and waits on a
+/// `WaitOnAddress` latch ([`WaitGate`]) for the worker to signal completion. The
+/// caller's contract is honored by *always* blocking for now; a later stage will
+/// make fire-and-forget seams truly asynchronous, and a stage after that will move
+/// the worker out of process (the marshaled JSON is the eventual IPC payload).
+///
+/// Fail-soft (mwin32 D5): if the context cannot be marshaled the interaction is
+/// dropped; if the pool refuses the work item the worker runs inline so a record
+/// is never silently lost.
+#[must_use]
+pub fn dispatch_off_thread(sink: &Arc<JournalSink>, interaction: Interaction) -> Outcome {
+    let request = match interaction.to_json() {
+        Ok(json) => json,
+        // A context that cannot be marshaled cannot cross to the worker; drop it.
+        Err(_) => return Outcome { journaled: false },
+    };
+
+    // The worker writes its JSON reply into this slot before signaling the latch;
+    // the store-before-signal / wait-before-load ordering hands the reply across.
+    let reply_slot: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    let gate = WaitGate::new();
+
+    let worker_sink = Arc::clone(sink);
+    let worker_slot = Arc::clone(&reply_slot);
+    let worker_gate = gate.clone();
+    let submitted = submit_once(move || {
+        let reply = handle_interaction(&request, &worker_sink);
+        *worker_slot
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()) = Some(reply);
+        // Signal last: the reply is in the slot before the waiter is released.
+        worker_gate.signal();
+    });
+
+    let Ok(_work) = submitted else {
+        // The pool refused the item; journal inline so nothing is lost.
+        let request = interaction.to_json().unwrap_or_default();
+        let reply = handle_interaction(&request, sink);
+        return Outcome::from_json(&reply).unwrap_or_default();
+    };
+
+    // Block until the worker finishes. `_work` additionally joins on drop, so the
+    // callback can never outlive this frame.
+    gate.wait();
+    let reply = reply_slot
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .take()
+        .unwrap_or_default();
+    Outcome::from_json(&reply).unwrap_or_default()
 }
 
 // === Inbound journaling decorator (AJ-B4) ===
@@ -1003,5 +1063,83 @@ mod tests {
         let reply = handle_interaction("not json", &sink);
         assert_eq!(Outcome::from_json(&reply).unwrap(), Outcome { journaled: false });
         assert!(!path.exists(), "an unparseable request journals nothing");
+    }
+
+    // === Off-thread dispatcher (OT-4) ===
+
+    #[test]
+    fn dispatch_off_thread_journals_synchronously() {
+        let path = temp_path("dispatch-sync");
+        let sink = JournalSink::from_config(&full_config(&path)).expect("sink");
+
+        let interaction = Interaction {
+            seam: Seam::Egress,
+            method: "POST".into(),
+            scheme: Some("https".into()),
+            host: Some("api.example".into()),
+            port: Some(443),
+            target: "/custom/cat?pattern=c.t".into(),
+            request_headers: vec![RawHeader {
+                name: "Content-Type".into(),
+                value: "application/json".into(),
+            }],
+            request_body: br#"{"words":["cat"]}"#.to_vec(),
+            status: 200,
+            response_headers: vec![RawHeader {
+                name: "Content-Type".into(),
+                value: "application/json".into(),
+            }],
+            response_body: br#"{"ok":true}"#.to_vec(),
+            timestamp_ms: 999,
+        };
+        let outcome = dispatch_off_thread(&sink, interaction);
+        assert_eq!(outcome, Outcome { journaled: true });
+
+        // The work ran on a pool thread, but dispatch blocked on the latch until it
+        // finished — so the record is already durably on disk right here.
+        let file = File::open(&path).expect("journal exists");
+        let (records, stats) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(stats, ReadStats::default());
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].path, "/custom/cat");
+        assert_eq!(records[0].seam, Seam::Egress);
+        assert_eq!(records[0].timestamp_ms, 999);
+        assert!(records[0].response_body_example.is_some());
+    }
+
+    #[test]
+    fn repeated_dispatch_each_blocks_and_journals_in_order() {
+        let path = temp_path("dispatch-many");
+        let sink = JournalSink::from_config(&config(&path)).expect("sink");
+
+        for i in 0..20 {
+            let interaction = Interaction {
+                seam: Seam::Inbound,
+                method: "GET".into(),
+                target: format!("/i{i}"),
+                status: 200,
+                timestamp_ms: 1,
+                ..Default::default()
+            };
+            assert_eq!(
+                dispatch_off_thread(&sink, interaction),
+                Outcome { journaled: true }
+            );
+        }
+
+        let file = File::open(&path).expect("journal exists");
+        let (records, stats) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(stats, ReadStats::default());
+        assert_eq!(records.len(), 20);
+        // Each dispatch blocked to completion before the next began, so records are
+        // in submission order with a contiguous, monotonic sequence.
+        for (i, r) in records.iter().enumerate() {
+            assert_eq!(r.path, format!("/i{i}"));
+            assert_eq!(r.seq, i as u64);
+        }
     }
 }

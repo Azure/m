@@ -26,7 +26,7 @@ persisted journal is unchanged — only *where* the work runs moves.
       performs the journaling (reduce to shapes / safelist headers / optional example, then
       write the record). The reduction moves here from the decorators; the on-disk record is
       byte-identical to today.
-- [ ] **OT-4** A synchronous off-thread dispatcher: marshal the context → `submit_once` a work
+- [x] **OT-4** A synchronous off-thread dispatcher: marshal the context → `submit_once` a work
       item that runs `handle_interaction` then signals the `WaitGate` → `wait` → return the reply.
 - [ ] **OT-5** Wire `JournalingEgress::send` to marshal + dispatch off-thread instead of the
       inline `sink.record`.

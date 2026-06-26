@@ -596,5 +596,230 @@ mod tests {
             Provenance::derived("inbound caller seam (anonymous)")
         );
     }
+
+    // --- EM-C5: roles, channels, contract links, security ---
+
+    /// Attach request header `names` (values are never captured) to a record.
+    fn with_headers(mut record: JournalRecord, names: &[&str]) -> JournalRecord {
+        record.request_headers = names
+            .iter()
+            .map(|name| HeaderField {
+                name: (*name).to_string(),
+                value: None,
+            })
+            .collect();
+        record
+    }
+
+    #[test]
+    fn local_process_yields_two_roles_plus_remote_and_caller() {
+        let env = derive_environment(&[egress("https", "api.example", 443, 1), inbound(2)], None);
+        assert_eq!(env.roles.len(), 4);
+        assert!(env.roles.contains_key("client:local"));
+        assert!(env.roles.contains_key("server:local"));
+        assert!(env.roles.contains_key("server:api.example:443"));
+        assert!(env.roles.contains_key("client:inbound-client"));
+    }
+
+    #[test]
+    fn roles_play_their_part() {
+        let env = derive_environment(&[egress("https", "api.example", 443, 1)], None);
+        assert_eq!(env.roles["client:local"].plays, vec![RolePart::Client]);
+        assert_eq!(
+            env.roles["server:api.example:443"].plays,
+            vec![RolePart::Server]
+        );
+    }
+
+    #[test]
+    fn actors_list_the_roles_they_play() {
+        let env = derive_environment(&[egress("https", "api.example", 443, 1), inbound(2)], None);
+        assert_eq!(
+            env.actors["local"].plays,
+            vec!["client:local".to_string(), "server:local".to_string()]
+        );
+        assert_eq!(
+            env.actors["api.example:443"].plays,
+            vec!["server:api.example:443".to_string()]
+        );
+        assert_eq!(
+            env.actors["inbound-client"].plays,
+            vec!["client:inbound-client".to_string()]
+        );
+    }
+
+    #[test]
+    fn roles_carry_descriptive_provenance() {
+        let env = derive_environment(&[egress("https", "api.example", 443, 1), inbound(2)], None);
+        assert_eq!(
+            env.roles["server:local"].provenance,
+            Provenance::derived("the observed process serving inbound requests")
+        );
+        assert_eq!(
+            env.roles["client:local"].provenance,
+            Provenance::derived("the observed process making egress calls")
+        );
+        assert_eq!(
+            env.roles["server:api.example:443"].provenance,
+            Provenance::derived("an egress dependency")
+        );
+        assert_eq!(
+            env.roles["client:inbound-client"].provenance,
+            Provenance::derived("the anonymous inbound caller population")
+        );
+    }
+
+    #[test]
+    fn egress_yields_a_client_to_server_channel() {
+        let env = derive_environment(
+            &[
+                egress("https", "api.example", 443, 1000),
+                egress("https", "api.example", 443, 2000),
+            ],
+            None,
+        );
+        let channel = &env.channels["client:local->server:api.example:443"];
+        assert_eq!(channel.from, "client:local");
+        assert_eq!(channel.to, "server:api.example:443");
+        assert_eq!(channel.observed.interactions, 2);
+        assert_eq!(channel.protocol.as_deref(), Some("https"));
+    }
+
+    #[test]
+    fn inbound_yields_a_caller_to_local_channel() {
+        let env = derive_environment(&[inbound(1)], None);
+        let channel = &env.channels["client:inbound-client->server:local"];
+        assert_eq!(channel.from, "client:inbound-client");
+        assert_eq!(channel.to, "server:local");
+        assert_eq!(channel.observed.interactions, 1);
+        assert_eq!(channel.protocol, None);
+    }
+
+    #[test]
+    fn mixed_schemes_leave_channel_protocol_unset() {
+        let env = derive_environment(
+            &[
+                egress("https", "h.example", 443, 1),
+                egress("http", "h.example", 443, 2),
+            ],
+            None,
+        );
+        let channel = &env.channels["client:local->server:h.example:443"];
+        assert_eq!(channel.observed.interactions, 2);
+        assert_eq!(channel.protocol, None);
+    }
+
+    #[test]
+    fn contract_links_every_channel_when_provided() {
+        let env = derive_environment(
+            &[egress("https", "api.example", 443, 1), inbound(2)],
+            Some("./openapi.yaml"),
+        );
+        assert!(!env.channels.is_empty());
+        for channel in env.channels.values() {
+            assert_eq!(
+                channel.contract.as_ref().map(|c| c.reference.as_str()),
+                Some("./openapi.yaml")
+            );
+        }
+    }
+
+    #[test]
+    fn no_contract_link_without_a_reference() {
+        let env = derive_environment(&[egress("https", "api.example", 443, 1)], None);
+        assert!(env.channels.values().all(|c| c.contract.is_none()));
+    }
+
+    #[test]
+    fn inbound_identity_headers_become_role_security() {
+        let record = with_headers(inbound(1), &["Authorization", "X-Wordy-User", "Content-Type"]);
+        let env = derive_environment(&[record], None);
+        let requires = env.roles["server:local"]
+            .requires
+            .as_ref()
+            .expect("requires");
+        assert_eq!(requires.location.as_deref(), Some("header"));
+        assert_eq!(
+            requires.names,
+            vec!["Authorization".to_string(), "X-Wordy-User".to_string()]
+        );
+        let presents = env.roles["client:inbound-client"]
+            .presents
+            .as_ref()
+            .expect("presents");
+        assert_eq!(
+            presents.names,
+            vec!["Authorization".to_string(), "X-Wordy-User".to_string()]
+        );
+    }
+
+    #[test]
+    fn standard_headers_are_not_treated_as_identity() {
+        let record = with_headers(
+            inbound(1),
+            &["Content-Type", "Accept", "Host", "User-Agent", "X-Forwarded-For"],
+        );
+        let env = derive_environment(&[record], None);
+        assert!(env.roles["server:local"].requires.is_none());
+    }
+
+    #[test]
+    fn cookie_is_identity_despite_being_a_standard_header() {
+        let record = with_headers(inbound(1), &["Cookie"]);
+        let env = derive_environment(&[record], None);
+        assert_eq!(
+            env.roles["server:local"].requires.as_ref().unwrap().names,
+            vec!["Cookie".to_string()]
+        );
+    }
+
+    #[test]
+    fn egress_identity_headers_attach_to_egress_roles() {
+        let record = with_headers(egress("https", "api.example", 443, 1), &["X-Api-Key"]);
+        let env = derive_environment(&[record], None);
+        assert_eq!(
+            env.roles["client:local"].presents.as_ref().unwrap().names,
+            vec!["X-Api-Key".to_string()]
+        );
+        assert_eq!(
+            env.roles["server:api.example:443"]
+                .requires
+                .as_ref()
+                .unwrap()
+                .names,
+            vec!["X-Api-Key".to_string()]
+        );
+    }
+
+    #[test]
+    fn security_records_names_only_no_values_or_kind() {
+        let record = with_headers(inbound(1), &["Authorization"]);
+        let env = derive_environment(&[record], None);
+        let security = env.roles["server:local"].requires.as_ref().unwrap();
+        assert_eq!(security.names, vec!["Authorization".to_string()]);
+        assert!(security.kind.is_none());
+    }
+
+    #[test]
+    fn empty_journal_yields_empty_environment() {
+        let env = derive_environment(&[], None);
+        assert!(env.actors.is_empty());
+        assert!(env.roles.is_empty());
+        assert!(env.channels.is_empty());
+    }
+
+    #[test]
+    fn derived_environment_round_trips_through_serialization() {
+        use crate::format::{SpecFormat, parse_environment, serialize_environment};
+        let env = derive_environment(
+            &[
+                egress("https", "api.example", 443, 1000),
+                inbound(2000),
+            ],
+            Some("./openapi.yaml"),
+        );
+        let yaml = serialize_environment(&env, SpecFormat::Yaml).expect("serialize");
+        assert_eq!(parse_environment(&yaml, SpecFormat::Yaml).expect("parse"), env);
+    }
 }
 

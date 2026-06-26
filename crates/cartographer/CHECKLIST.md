@@ -41,7 +41,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
       (a `$ref` / relative path), reusing existing synthesis output.
 - [x] **EM-C4** Carry `presents` / `requires` security onto roles from observed
       identity/auth header names.
-- [ ] **EM-C5** Tests: roles, channels, contract refs, and security derive
+- [x] **EM-C5** Tests: roles, channels, contract refs, and security derive
       correctly from the synthetic journal.
 
 ## Milestone EM-D — Additive role refinement (behavioral subdivision)

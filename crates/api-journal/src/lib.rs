@@ -26,8 +26,10 @@
 
 #![forbid(unsafe_code)]
 
+pub mod ndjson;
 pub mod record;
 pub mod shape;
 
+pub use ndjson::{ReadStats, read_records, write_record};
 pub use record::{HeaderField, JournalRecord, QueryParam, Seam, infer_scalar};
 pub use shape::{BodyShape, Field};

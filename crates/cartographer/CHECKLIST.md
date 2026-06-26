@@ -76,7 +76,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 - [x] **EM-E2** CLI: emit the environment descriptor alongside the spec
       (`--environment <path>` / `environment.<fmt>`).
 - [x] **EM-E3** Extend the `wordy` example to also emit `wordy-environment.yaml`.
-- [ ] **EM-E4** Integration: synthesize the wordy environment descriptor from the
+- [x] **EM-E4** Integration: synthesize the wordy environment descriptor from the
       wordy journal; assert it round-trips, references the wordy OpenAPI contract,
       and that re-synthesis preserves a hand-`asserted` role rename.
 

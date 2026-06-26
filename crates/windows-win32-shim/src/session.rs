@@ -171,6 +171,15 @@ impl ShimSession {
         // One process-wide journal sink (when the `api_journal` block is enabled);
         // its Arc is shared with the seams that opt in.
         let journal_sink = JournalSink::from_config(&cfg.api_journal);
+        // The inbound (IIS) seam journals through the same process-wide sink when
+        // the inbound seam is enabled.
+        let mut web_state = WebState::new();
+        web_state.set_journal_sink(
+            journal_sink
+                .as_ref()
+                .filter(|sink| sink.capture_inbound())
+                .map(Arc::clone),
+        );
         Self {
             isolation: Session::new(),
             registry: Mutex::new(Registry::new(build_registry_backing(&cfg, casing))),
@@ -178,7 +187,7 @@ impl ShimSession {
             handles: HandleTable::new(),
             loader: Mutex::new(LoaderState::new()),
             com: Mutex::new(ComState::new()),
-            web: Mutex::new(WebState::new()),
+            web: Mutex::new(web_state),
             egress: Mutex::new(EgressEngine::new(JournalingEgress::new(
                 build_egress_backing(&cfg),
                 journal_sink

@@ -24,6 +24,8 @@ use windows_platform_isolation::{
     RequestHandler, VolumePolicy, WebSession,
 };
 
+use crate::journal::{JournalSink, JournalingHandler};
+
 /// A single observed web-host activation or per-request notification (SHIM-D18 /
 /// D29). The variant is the seam point; observation never changes the host's
 /// behavior. A future substituting mode will carry richer events; MW11 records
@@ -124,6 +126,10 @@ pub struct WebState {
     /// The volume policy the journaling stack honors (D29). Defaults to
     /// recording every exchange.
     policy: VolumePolicy,
+    /// The inbound API-journal sink (AJ-B4). When present, `build_handler` wraps
+    /// the per-request stack so each inbound exchange is journaled to NDJSON,
+    /// independent of the legacy observation [`mode`](WebState::mode).
+    journal_sink: Option<Arc<JournalSink>>,
 }
 
 impl WebState {
@@ -136,6 +142,7 @@ impl WebState {
             sink: Box::new(NullWebSink),
             observation_log: Arc::new(Mutex::new(Vec::new())),
             policy: VolumePolicy::record_all(),
+            journal_sink: None,
         }
     }
 
@@ -148,6 +155,13 @@ impl WebState {
     /// recording every exchange.
     pub fn set_volume_policy(&mut self, policy: VolumePolicy) {
         self.policy = policy;
+    }
+
+    /// Install the inbound API-journal sink (AJ-B4), or clear it with `None`.
+    /// When present, [`build_handler`](WebState::build_handler) wraps the
+    /// per-request handler stack so each inbound exchange is journaled.
+    pub fn set_journal_sink(&mut self, sink: Option<Arc<JournalSink>>) {
+        self.journal_sink = sink;
     }
 
     /// A clone of the shared observation-log handle. The journaling stack
@@ -203,7 +217,14 @@ impl WebState {
         let sink = LogSink {
             log: self.observation_log.clone(),
         };
-        Box::new(WebSession::new(mode).wrap(ContinueLeaf, sink, self.policy.clone()))
+        let base: Box<dyn RequestHandler> =
+            Box::new(WebSession::new(mode).wrap(ContinueLeaf, sink, self.policy.clone()));
+        // When an inbound journal sink is installed, wrap the stack so each
+        // exchange is journaled regardless of the observation mode (AJ-B4).
+        match &self.journal_sink {
+            Some(journal) => Box::new(JournalingHandler::new(base, Arc::clone(journal))),
+            None => base,
+        }
     }
 }
 
@@ -335,5 +356,46 @@ mod tests {
         handler.on_begin_request(&HttpRequest::new("GET", "/page"));
         handler.on_send_response(&mut HttpResponse::new(200));
         assert_eq!(log.lock().expect("log poisoned").len(), 2);
+    }
+
+    #[test]
+    fn build_handler_journals_inbound_exchange_when_sink_installed() {
+        use crate::journal::JournalSink;
+        use crate::pilcfg::ApiJournalConfig;
+        use api_journal::{Seam, read_records};
+        use std::fs::File;
+        use std::io::BufReader;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!(
+            "web-inbound-{}-{nanos}.ndjson",
+            std::process::id()
+        ));
+        let cfg = ApiJournalConfig {
+            enabled: true,
+            path: path.to_string_lossy().into_owned(),
+            ..Default::default()
+        };
+        // Mode stays Off: API journaling is independent of the observation mode.
+        let mut state = WebState::new();
+        state.set_journal_sink(JournalSink::from_config(&cfg));
+        let mut handler = state.build_handler();
+
+        handler.on_begin_request(&HttpRequest::new("GET", "/healthz"));
+        handler.on_send_response(&mut HttpResponse::new(200));
+
+        let file = File::open(&path).expect("journal exists");
+        let (records, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].seam, Seam::Inbound);
+        assert_eq!(records[0].method, "GET");
+        assert_eq!(records[0].path, "/healthz");
+        assert_eq!(records[0].status, 200);
     }
 }

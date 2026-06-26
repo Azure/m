@@ -31,7 +31,8 @@ use api_journal::{
     BodyShape, HeaderField, JournalRecord, QueryParam, Seam, infer_scalar, write_record,
 };
 use windows_platform_isolation::{
-    EgressRequest, EgressResponse, EgressResult, EgressSurface, Utf16,
+    Disposition, EgressRequest, EgressResponse, EgressResult, EgressSurface, Header, HttpRequest,
+    HttpResponse, RequestHandler, Utf16,
 };
 
 use crate::pilcfg::{ApiJournalConfig, BodyCapture};
@@ -280,6 +281,104 @@ fn egress_header_fields(headers: &[(Utf16, Utf16)]) -> (Vec<HeaderField>, Option
         let lower = name.to_ascii_lowercase();
         let retained = if CONTENT_NEGOTIATION_HEADERS.contains(&lower.as_str()) {
             value.to_utf8().ok()
+        } else {
+            None
+        };
+        if lower == "content-type" {
+            content_type = retained.clone();
+        }
+        fields.push(HeaderField { name, value: retained });
+    }
+    (fields, content_type)
+}
+
+// === Inbound journaling decorator (AJ-B4) ===
+
+/// The request half captured at `on_begin_request`, held until the matching
+/// `on_send_response` so a single [`Seam::Inbound`] record describes the whole
+/// exchange.
+struct PendingInbound {
+    method: String,
+    path: String,
+    query: Vec<QueryParam>,
+    request_headers: Vec<HeaderField>,
+    request_body: BodyShape,
+}
+
+/// A [`RequestHandler`] decorator that journals each inbound (IIS) exchange as a
+/// [`Seam::Inbound`] record. It snapshots the request at `on_begin_request` and
+/// emits the record at `on_send_response`, when both halves are known.
+///
+/// The handler stack is rebuilt per request (the host calls `build_handler` on
+/// each `GetHttpModule`), so a fresh decorator instance backs each request and
+/// the pending request is never crossed between requests.
+pub struct JournalingHandler {
+    inner: Box<dyn RequestHandler>,
+    sink: Arc<JournalSink>,
+    pending: Option<PendingInbound>,
+}
+
+impl JournalingHandler {
+    /// Wrap `inner`, journaling each exchange through `sink`.
+    #[must_use]
+    pub fn new(inner: Box<dyn RequestHandler>, sink: Arc<JournalSink>) -> Self {
+        Self {
+            inner,
+            sink,
+            pending: None,
+        }
+    }
+}
+
+impl RequestHandler for JournalingHandler {
+    fn on_begin_request(&mut self, request: &HttpRequest) -> Disposition {
+        let (path, query) = split_path_query(request.url());
+        let (request_headers, request_ct) = http_header_fields(request.headers());
+        self.pending = Some(PendingInbound {
+            method: request.method().to_string(),
+            path,
+            query,
+            request_headers,
+            request_body: self.sink.body_shape(request.body(), request_ct.as_deref()),
+        });
+        self.inner.on_begin_request(request)
+    }
+
+    fn on_send_response(&mut self, response: &mut HttpResponse) -> Disposition {
+        // Let the inner stack run first so the journaled response reflects any
+        // downstream mutation (the identity stack mutates nothing).
+        let disposition = self.inner.on_send_response(response);
+        if let Some(pending) = self.pending.take() {
+            let (response_headers, response_ct) = http_header_fields(response.headers());
+            self.sink.record(JournalRecord {
+                seam: Seam::Inbound,
+                method: pending.method,
+                // Inbound: no destination authority — the service is the host.
+                path: pending.path,
+                query: pending.query,
+                request_headers: pending.request_headers,
+                request_body: pending.request_body,
+                status: response.status(),
+                response_headers,
+                response_body: self.sink.body_shape(response.body(), response_ct.as_deref()),
+                ..Default::default()
+            });
+        }
+        disposition
+    }
+}
+
+/// Convert inbound [`Header`] values into journal [`HeaderField`]s, retaining
+/// literal values only for content-negotiation headers, and return the observed
+/// `Content-Type` (used to key body-shape derivation).
+fn http_header_fields(headers: &[Header]) -> (Vec<HeaderField>, Option<String>) {
+    let mut fields = Vec::with_capacity(headers.len());
+    let mut content_type = None;
+    for header in headers {
+        let name = header.name().to_string();
+        let lower = name.to_ascii_lowercase();
+        let retained = if CONTENT_NEGOTIATION_HEADERS.contains(&lower.as_str()) {
+            Some(header.value().to_string())
         } else {
             None
         };
@@ -540,5 +639,80 @@ mod tests {
         let req = EgressRequest::http(Scheme::Http, "h", 80, "GET", "/x");
         assert!(deco.send(&req).is_err());
         assert!(!path.exists(), "a failed send must journal nothing");
+    }
+
+    /// A terminal inbound handler that continues the pipeline unchanged.
+    struct ContinueLeaf;
+    impl RequestHandler for ContinueLeaf {
+        fn on_begin_request(&mut self, _request: &HttpRequest) -> Disposition {
+            Disposition::Continue
+        }
+        fn on_send_response(&mut self, _response: &mut HttpResponse) -> Disposition {
+            Disposition::Continue
+        }
+    }
+
+    #[test]
+    fn inbound_decorator_journals_an_exchange() {
+        let path = temp_path("inbound");
+        let sink = JournalSink::from_config(&config(&path)).expect("sink");
+        let mut handler = JournalingHandler::new(Box::new(ContinueLeaf), Arc::clone(&sink));
+
+        let request = HttpRequest::new("POST", "/custom/cat?pattern=c.t")
+            .with_header("Content-Type", "application/json")
+            .with_header("X-Wordy-User", "alice")
+            .with_body(br#"{"words":["a"]}"#.to_vec());
+        assert_eq!(handler.on_begin_request(&request), Disposition::Continue);
+
+        let mut response = HttpResponse::new(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(br#"{"word":"cat","exists":true}"#.to_vec());
+        assert_eq!(handler.on_send_response(&mut response), Disposition::Continue);
+
+        let file = File::open(&path).expect("journal exists");
+        let (records, stats) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(stats, ReadStats::default());
+        assert_eq!(records.len(), 1);
+        let r = &records[0];
+        assert_eq!(r.seam, Seam::Inbound);
+        assert_eq!(r.method, "POST");
+        // Inbound records carry no destination authority.
+        assert_eq!(r.scheme, None);
+        assert_eq!(r.host, None);
+        assert_eq!(r.port, None);
+        assert_eq!(r.path, "/custom/cat");
+        assert_eq!(
+            r.query,
+            vec![QueryParam {
+                name: "pattern".into(),
+                value: BodyShape::String
+            }]
+        );
+        assert_eq!(r.request_content_type(), Some("application/json"));
+        assert!(matches!(r.request_body, BodyShape::Object(_)));
+        let user = r
+            .request_headers
+            .iter()
+            .find(|h| h.name == "X-Wordy-User")
+            .expect("header present");
+        assert_eq!(user.value, None);
+        assert_eq!(r.status, 200);
+        assert_eq!(r.response_content_type(), Some("application/json"));
+        assert!(matches!(r.response_body, BodyShape::Object(_)));
+    }
+
+    #[test]
+    fn inbound_decorator_without_begin_records_nothing() {
+        let path = temp_path("inbound-nobegin");
+        let sink = JournalSink::from_config(&config(&path)).expect("sink");
+        let mut handler = JournalingHandler::new(Box::new(ContinueLeaf), sink);
+        let mut response = HttpResponse::new(200);
+        assert_eq!(handler.on_send_response(&mut response), Disposition::Continue);
+        assert!(
+            !path.exists(),
+            "a response with no prior request journals nothing"
+        );
     }
 }

@@ -1,8 +1,9 @@
 # Design session — observed-environment descriptor (roles as substitution units)
 
 - **Date:** 2026-06-26
-- **Status:** Exploratory. **No committed decision yet.** Candidate to be promoted
-  to a Tier-1 decision `D-CART-4` once the model and scope are confirmed.
+- **Status:** **Approved 2026-06-26 as `D-CART-4`** (see [`../DESIGN-NOTES.md`](../DESIGN-NOTES.md)).
+  Work tracked in [`../CHECKLIST.md`](../CHECKLIST.md) (milestones EM-A..EM-E). The
+  body below is the original exploration, retained as the historical record.
 - **Participants:** repo owner + assistant.
 - **Topic:** A new "observed environment" descriptor that maps the *participants
   and channels* around journaled HTTP traffic — not the messages (cartographer
@@ -195,12 +196,12 @@ the individual schemes cover. The role-as-substitution-unit is ours to define.
    `api-journal` record needs any new captured field to support role attribution
    (likely already sufficient: seam, host, path, identity-header names).
 
-## 9. Candidate decision & milestone outline (NOT yet committed)
+## 9. Decision & milestone outline (committed)
 
-If confirmed, promote to **`D-CART-4`** (environment descriptor: three-layer
-actor/role/channel model; additive role-refinement hierarchy; three-tier
-provenance enabling later feedback learning; cartographer maps only) and open a
-`CHECKLIST` milestone roughly:
+Promoted to **`D-CART-4`** (environment descriptor: three-layer actor/role/channel
+model; additive role-refinement hierarchy; three-tier provenance enabling later
+feedback learning; cartographer maps only). Work is tracked in
+[`../CHECKLIST.md`](../CHECKLIST.md) as milestones EM-A..EM-E, roughly:
 
 - Define the environment descriptor model (actors/roles/channels + provenance),
   serialize to YAML/JSON (reuse the existing `format` machinery).

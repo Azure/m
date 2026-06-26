@@ -70,6 +70,48 @@ We define cartographer's behavior and choose dependencies that satisfy it
 - **Round-trip property.** The end-to-end test proves the closure: a synthesized
   spec validates the very journal it was built from with no findings.
 
+## D-CART-4 — Observed-environment descriptor (roles as substitution units)
+
+cartographer also synthesizes an **environment descriptor** that maps the
+*participants and channels* around the journaled traffic — the layer OpenAPI omits
+— so a later phase can drive automated replay and fault injection. Approved
+2026-06-26; full rationale in
+[`design-sessions/DESIGN-SESSION-2026-06-26-observed-environment-roles.md`](design-sessions/DESIGN-SESSION-2026-06-26-observed-environment-roles.md).
+
+- **Three layers: actor → role → channel.** An **actor** is a concrete observed
+  participant (binding evidence: scheme/host/port, counts). A **role** is an
+  abstract part an actor plays and is **the substitution unit** (one actor plays
+  ≥1 roles; a role is recast independently). A **channel** is a directed role→role
+  edge carrying a `contract` `$ref` to the OpenAPI document cartographer already
+  builds.
+- **Bindings are subordinate to roles.** `(ip, port, tls, auth)` is *evidence*
+  that a participant played a role, recorded inside the role's actor — never the
+  unit of description. The role name is the stable substitution handle.
+- **Additive role refinement.** Derivation starts coarse (one client role) and
+  subdivides on a **behavioral signature** (which operations a participant uses)
+  as evidence demands; subdivision-axis priority is behavior > transport/auth >
+  identity (identity last; rolling-cert long-lived principals are the one caveat,
+  off by default). Splits are **additive**: the parent role persists as a group
+  (= union of its children) so existing downstream test configs do not break;
+  renames are breaking and avoided.
+- **Three-tier provenance enables later feedback learning.** Every element is
+  `observed` (immutable fact), `derived` (our interpretation, carrying its
+  `basis`), or `asserted` (human override, authoritative). Re-synthesis preserves
+  `asserted` elements (same principle as the renamed-`{id}` preservation in
+  D-CART-3). Because `derived` carries its basis and `asserted` is stored
+  distinctly, the diff "what we would derive fresh vs. what the expert kept" is
+  always computable — that delta is the future training signal. The learner itself
+  is out of scope; only the data needed to build it is guaranteed now.
+- **Scope: cartographer maps only.** It derives actors/roles/channels/contracts
+  and emits the descriptor (refinable, re-verifiable). Executing replay or fault
+  injection — and the separate recast/plan document that rebinds role → provider —
+  is a downstream phase, not in cartographer.
+- **No new `api-journal` field for the first pass.** Egress records already carry
+  scheme/host/port; the inbound server actor is the observed process (its own
+  listen binding may be unknown, which is acceptable since bindings are optional
+  evidence) and inbound callers default to one client role per seam. Richer
+  inbound-caller attribution is a deferred capture enhancement, not a blocker.
+
 ## Decision index
 
 - **D-CART-1** — Single output sink abstraction (`OutputSink`) is introduced at
@@ -80,3 +122,9 @@ We define cartographer's behavior and choose dependencies that satisfy it
 - **D-CART-3** — Validation (shape-vs-schema), conservative `{id}` template
   inference, observation-frequency synthesis, additive prose-preserving merge
   (`--overwrite` to replace); the synthesized spec re-validates its own journal.
+- **D-CART-4** — Observed-environment descriptor: three-layer actor/role/channel
+  model with roles as the substitution unit; bindings subordinate to roles;
+  additive behavioral role refinement (parent retained as group); three-tier
+  provenance (observed/derived/asserted) enabling later feedback learning;
+  cartographer maps only. Work tracked in [`CHECKLIST.md`](CHECKLIST.md)
+  (milestones EM-A..EM-E).

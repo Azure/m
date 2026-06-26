@@ -33,7 +33,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 
 ## Milestone EM-C — Role & channel derivation + contract linkage
 
-- [ ] **EM-C1** Derive coarse roles from actors (one role per part: server /
+- [x] **EM-C1** Derive coarse roles from actors (one role per part: server /
       client) with deterministic, stable role ids.
 - [ ] **EM-C2** Derive channels as `(client-role → server-role, protocol)` edges
       carrying observation counts.

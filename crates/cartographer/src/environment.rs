@@ -235,7 +235,7 @@ pub struct Role {
 }
 
 /// The part a role plays in a channel.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RolePart {
     /// Initiates requests.

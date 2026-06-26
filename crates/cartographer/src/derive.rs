@@ -21,9 +21,13 @@
 //!   (D-CART-4: richer attribution is deferred and gated on PII-A), so they
 //!   collapse to a single actor with no binding.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use api_journal::{JournalRecord, Seam};
 
-use crate::environment::{Actor, Actors, Binding, Observed, Provenance};
+use crate::environment::{
+    Actor, Actors, Binding, Environment, Observed, Provenance, Role, RolePart,
+};
 
 /// Actor id for the observed local process — the egress *client* and/or the
 /// inbound *server*. Its own network binding is not captured, so this actor has no
@@ -154,6 +158,99 @@ fn inbound_client_actor(actors: &mut Actors) -> &mut Actor {
             provenance: Provenance::derived("inbound caller seam (anonymous)"),
             ..Default::default()
         })
+}
+
+/// Derive the full environment descriptor (actors and roles) from journal records.
+///
+/// Actors come from [`derive_actors`]; each part an actor plays (client/server)
+/// becomes one coarse [`Role`] (D-CART-4, EM-C1), and the actor's `plays` lists the
+/// role ids. A role is the substitution unit, so the local process — which plays
+/// both the inbound *server* and the egress *client* — yields two roles. Channels,
+/// contract links, and security are layered on in EM-C2..C4.
+#[must_use]
+pub fn derive_environment(records: &[JournalRecord]) -> Environment {
+    let mut environment = Environment::new("observed environment", "0.0.0");
+    environment.actors = derive_actors(records);
+
+    for (actor_id, parts) in actor_parts(records) {
+        for part in parts {
+            let id = role_id(part, &actor_id);
+            environment.roles.insert(
+                id.clone(),
+                Role {
+                    plays: vec![part],
+                    provenance: Provenance::derived(role_basis(part, &actor_id)),
+                    ..Default::default()
+                },
+            );
+            if let Some(actor) = environment.actors.get_mut(&actor_id) {
+                actor.plays.push(id);
+            }
+        }
+    }
+
+    environment
+}
+
+/// Map each actor id to the set of parts (client/server) it was observed playing.
+fn actor_parts(records: &[JournalRecord]) -> BTreeMap<String, BTreeSet<RolePart>> {
+    let mut parts: BTreeMap<String, BTreeSet<RolePart>> = BTreeMap::new();
+    for record in records {
+        match record.seam {
+            Seam::Egress => {
+                parts
+                    .entry(LOCAL_ACTOR.to_string())
+                    .or_default()
+                    .insert(RolePart::Client);
+                if let Some(host) = record.host.as_deref() {
+                    parts
+                        .entry(authority(host, record.port))
+                        .or_default()
+                        .insert(RolePart::Server);
+                }
+            }
+            Seam::Inbound => {
+                parts
+                    .entry(LOCAL_ACTOR.to_string())
+                    .or_default()
+                    .insert(RolePart::Server);
+                parts
+                    .entry(INBOUND_CLIENT_ACTOR.to_string())
+                    .or_default()
+                    .insert(RolePart::Client);
+            }
+        }
+    }
+    parts
+}
+
+/// The deterministic role id for `actor` acting as `part` (e.g. `client:local`,
+/// `server:api.example:443`).
+fn role_id(part: RolePart, actor_id: &str) -> String {
+    format!("{}:{actor_id}", part_str(part))
+}
+
+/// The lowercase token for a [`RolePart`] (matching its serialized form).
+fn part_str(part: RolePart) -> &'static str {
+    match part {
+        RolePart::Client => "client",
+        RolePart::Server => "server",
+    }
+}
+
+/// A human-readable provenance basis for the role of `actor` acting as `part`.
+fn role_basis(part: RolePart, actor_id: &str) -> &'static str {
+    match part {
+        RolePart::Server if actor_id == LOCAL_ACTOR => {
+            "the observed process serving inbound requests"
+        }
+        RolePart::Client if actor_id == LOCAL_ACTOR => "the observed process making egress calls",
+        RolePart::Client if actor_id == INBOUND_CLIENT_ACTOR => {
+            "the anonymous inbound caller population"
+        }
+        RolePart::Server => "an egress dependency",
+        RolePart::Client => "a client participant",
+    }
 }
 
 #[cfg(test)]

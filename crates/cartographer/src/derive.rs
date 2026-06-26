@@ -16,7 +16,10 @@
 //!   *server*. Its own address is never captured (egress records carry the
 //!   destination; inbound records carry no listen address), so it has no bindings;
 //!   per D-CART-4 bindings are optional evidence.
-//! - **Inbound callers** — derived in EM-B2.
+//! - **Inbound callers** ([`INBOUND_CLIENT_ACTOR`]) — the anonymous remote caller
+//!   population on the inbound seam. Callers are not individually identified
+//!   (D-CART-4: richer attribution is deferred and gated on PII-A), so they
+//!   collapse to a single actor with no binding.
 
 use api_journal::{JournalRecord, Seam};
 
@@ -26,6 +29,11 @@ use crate::environment::{Actor, Actors, Binding, Provenance};
 /// inbound *server*. Its own network binding is not captured, so this actor has no
 /// [`Binding`]s.
 pub const LOCAL_ACTOR: &str = "local";
+
+/// Actor id for the anonymous inbound caller population — one per inbound seam.
+/// Remote callers are not individually identified (D-CART-4: richer inbound-caller
+/// attribution is deferred and gated on PII-A), so they collapse to one actor.
+pub const INBOUND_CLIENT_ACTOR: &str = "inbound-client";
 
 /// The authority key (`host:port`, or just `host` when no port was observed) that
 /// identifies a remote endpoint actor.
@@ -39,18 +47,19 @@ fn authority(host: &str, port: Option<u16>) -> String {
 /// Derive the [`Actors`] of an environment descriptor from journal records.
 ///
 /// Egress records yield one remote *server* actor per observed authority
-/// (`host:port`), each carrying a [`Binding`] per distinct `(scheme, host, port)`;
-/// the observed process itself becomes the single [`LOCAL_ACTOR`]. Observed
-/// evidence (counts, timestamps) is attached in EM-B3.
+/// (`host:port`), each carrying a [`Binding`] per distinct `(scheme, host, port)`.
+/// Inbound records yield the single anonymous [`INBOUND_CLIENT_ACTOR`]. Either seam
+/// means the observed process participated, so it becomes the single
+/// [`LOCAL_ACTOR`]. Observed evidence (counts, timestamps) is attached in EM-B3.
 #[must_use]
 pub fn derive_actors(records: &[JournalRecord]) -> Actors {
     let mut actors = Actors::new();
-    let mut saw_egress = false;
+    let mut saw_local = false;
 
     for record in records {
         match record.seam {
             Seam::Egress => {
-                saw_egress = true;
+                saw_local = true;
                 let Some(host) = record.host.as_deref() else {
                     continue;
                 };
@@ -62,11 +71,14 @@ pub fn derive_actors(records: &[JournalRecord]) -> Actors {
                     });
                 ensure_binding(actor, record.scheme.as_deref(), host, record.port);
             }
-            Seam::Inbound => {}
+            Seam::Inbound => {
+                saw_local = true;
+                ensure_inbound_client_actor(&mut actors);
+            }
         }
     }
 
-    if saw_egress {
+    if saw_local {
         ensure_local_actor(&mut actors);
     }
     actors
@@ -97,6 +109,17 @@ fn ensure_local_actor(actors: &mut Actors) {
         .or_insert_with(|| Actor {
             title: Some("the observed process".to_string()),
             provenance: Provenance::derived("the observed process (egress client / inbound server)"),
+            ..Default::default()
+        });
+}
+
+/// Ensure the single anonymous inbound-caller actor exists.
+fn ensure_inbound_client_actor(actors: &mut Actors) {
+    actors
+        .entry(INBOUND_CLIENT_ACTOR.to_string())
+        .or_insert_with(|| Actor {
+            title: Some("anonymous inbound callers".to_string()),
+            provenance: Provenance::derived("inbound caller seam (anonymous)"),
             ..Default::default()
         });
 }

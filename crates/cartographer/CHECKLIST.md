@@ -23,7 +23,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 
 - [x] **EM-B1** Derive egress actors keyed by `(scheme, host, port)` with a
       `Binding`; the observed process becomes a single local actor.
-- [ ] **EM-B2** Derive inbound actors: the local process is the server actor;
+- [x] **EM-B2** Derive inbound actors: the local process is the server actor;
       remote callers default to one `client` actor per inbound seam (an unknown
       server binding is allowed — bindings are optional evidence).
 - [ ] **EM-B3** Attach observed evidence (interaction counts, first/last

@@ -50,7 +50,7 @@ pub mod synth;
 pub mod validate;
 
 pub use infer::TemplateSet;
-pub use derive::{LOCAL_ACTOR, derive_actors};
+pub use derive::{INBOUND_CLIENT_ACTOR, LOCAL_ACTOR, derive_actors};
 pub use environment::{
     Actor, Actors, Binding, Channel, Channels, ContractRef, Environment, Observed, Provenance,
     ProvenanceTier, Role, RolePart, Roles, Security, Transport,

@@ -110,7 +110,7 @@ mod tests {
 
     fn json_response(description: &str, schema: Schema) -> Response {
         let mut content = Content::new();
-        content.insert("application/json".to_string(), MediaType { schema: Some(schema) });
+        content.insert("application/json".to_string(), MediaType { schema: Some(schema), example: None });
         Response {
             description: description.to_string(),
             content,

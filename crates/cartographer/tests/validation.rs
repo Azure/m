@@ -37,7 +37,7 @@ fn object(fields: &[(&str, SimpleType, bool)]) -> Schema {
 
 fn json_200(schema: Schema) -> Responses {
     let mut content = Content::new();
-    content.insert("application/json".to_string(), MediaType { schema: Some(schema) });
+    content.insert("application/json".to_string(), MediaType { schema: Some(schema), example: None });
     let mut responses = Responses::new();
     responses.insert(
         "200".to_string(),

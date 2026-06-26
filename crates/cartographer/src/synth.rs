@@ -150,6 +150,7 @@ fn synth_header_params(records: &[&JournalRecord], total: usize, out: &mut Vec<P
 /// A request body merged per media type, or `None` if no body was ever observed.
 fn synth_request_body(records: &[&JournalRecord], total: usize) -> Option<RequestBody> {
     let mut by_media: BTreeMap<String, BodyShape> = BTreeMap::new();
+    let mut examples: BTreeMap<String, serde_json::Value> = BTreeMap::new();
     let mut with_body = 0;
     for record in records {
         if no_body(&record.request_body) {
@@ -157,15 +158,25 @@ fn synth_request_body(records: &[&JournalRecord], total: usize) -> Option<Reques
         }
         with_body += 1;
         let media = media_or_default(record.request_content_type());
-        let entry = by_media.entry(media).or_insert(BodyShape::Unknown);
+        let entry = by_media.entry(media.clone()).or_insert(BodyShape::Unknown);
         *entry = entry.clone().merge(record.request_body.clone());
+        if let Some(example) = &record.request_body_example {
+            examples.entry(media).or_insert_with(|| example.clone());
+        }
     }
     if by_media.is_empty() {
         return None;
     }
     let mut content = Content::new();
     for (media, shape) in by_media {
-        content.insert(media, MediaType { schema: render_schema(&shape) });
+        let example = examples.get(&media).cloned();
+        content.insert(
+            media,
+            MediaType {
+                schema: render_schema(&shape),
+                example,
+            },
+        );
     }
     Some(RequestBody {
         description: None,
@@ -178,6 +189,7 @@ fn synth_request_body(records: &[&JournalRecord], total: usize) -> Option<Reques
 fn synth_responses(records: &[&JournalRecord]) -> Responses {
     let statuses: BTreeSet<u16> = records.iter().map(|record| record.status).collect();
     let mut by_status: BTreeMap<u16, BTreeMap<String, BodyShape>> = BTreeMap::new();
+    let mut examples: BTreeMap<(u16, String), serde_json::Value> = BTreeMap::new();
     for record in records {
         if no_body(&record.response_body) {
             continue;
@@ -186,9 +198,14 @@ fn synth_responses(records: &[&JournalRecord]) -> Responses {
         let entry = by_status
             .entry(record.status)
             .or_default()
-            .entry(media)
+            .entry(media.clone())
             .or_insert(BodyShape::Unknown);
         *entry = entry.clone().merge(record.response_body.clone());
+        if let Some(example) = &record.response_body_example {
+            examples
+                .entry((record.status, media))
+                .or_insert_with(|| example.clone());
+        }
     }
 
     let mut responses = Responses::new();
@@ -196,7 +213,14 @@ fn synth_responses(records: &[&JournalRecord]) -> Responses {
         let mut content = Content::new();
         if let Some(media_map) = by_status.get(&status) {
             for (media, shape) in media_map {
-                content.insert(media.clone(), MediaType { schema: render_schema(shape) });
+                let example = examples.get(&(status, media.clone())).cloned();
+                content.insert(
+                    media.clone(),
+                    MediaType {
+                        schema: render_schema(shape),
+                        example,
+                    },
+                );
             }
         }
         responses.insert(
@@ -424,5 +448,19 @@ mod tests {
         // `word` seen in both -> required; `exists` only once -> not required.
         assert_eq!(schema.required, vec!["word".to_string()]);
         assert!(schema.properties.contains_key("exists"));
+    }
+
+    #[test]
+    fn synthesizes_example_from_a_captured_full_body() {
+        let mut record = record("GET", "/custom/cat", 200, obj(&[("word", BodyShape::String, true)]));
+        record.response_body_example = Some(serde_json::json!({"word": "cat", "exists": true}));
+        let doc = synthesize(&[record], &[]);
+        // A single observation stays a literal path.
+        let operation = doc.paths["/custom/cat"].operation("GET").unwrap();
+        let media = &operation.responses["200"].content["application/json"];
+        assert_eq!(
+            media.example,
+            Some(serde_json::json!({"word": "cat", "exists": true}))
+        );
     }
 }

@@ -583,7 +583,7 @@ mod tests {
         let mut content = Content::new();
         content.insert(
             "application/json".to_string(),
-            MediaType { schema: Some(schema) },
+            MediaType { schema: Some(schema), example: None },
         );
         content
     }

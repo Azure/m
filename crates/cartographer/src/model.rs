@@ -260,6 +260,10 @@ pub struct MediaType {
     /// The schema of the content.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema: Option<Schema>,
+    /// A literal example of the content, synthesized from a journal captured under
+    /// `bodies: full`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub example: Option<serde_json::Value>,
 }
 
 /// A single response.
@@ -398,6 +402,7 @@ mod tests {
                     required: vec!["word".to_string(), "exists".to_string()],
                     ..Schema::default()
                 }),
+                example: None,
             },
         );
         responses.insert(
@@ -520,5 +525,24 @@ mod tests {
         assert!(item.operation("post").is_none());
         let methods: Vec<_> = item.operations().map(|(m, _)| m).collect();
         assert_eq!(methods, ["GET"]);
+    }
+
+    #[test]
+    fn media_type_example_round_trips_and_is_omitted_when_absent() {
+        let media = MediaType {
+            schema: Some(Schema::of_type(SimpleType::Object)),
+            example: Some(serde_json::json!({"a": 1})),
+        };
+        let json = serde_json::to_string(&media).unwrap();
+        assert!(json.contains("\"example\""), "{json}");
+        let back: MediaType = serde_json::from_str(&json).unwrap();
+        assert_eq!(media, back);
+
+        let bare = MediaType {
+            schema: Some(Schema::of_type(SimpleType::String)),
+            example: None,
+        };
+        let json = serde_json::to_string(&bare).unwrap();
+        assert!(!json.contains("example"), "{json}");
     }
 }

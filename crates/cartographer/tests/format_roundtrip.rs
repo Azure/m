@@ -36,6 +36,7 @@ fn build_document() -> Document {
         "application/json".to_string(),
         MediaType {
             schema: Some(response_schema),
+            example: None,
         },
     );
     let mut responses = Responses::new();

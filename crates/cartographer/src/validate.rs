@@ -26,7 +26,7 @@
 //! undocumented fields, recursing through objects and arrays. `$ref` schemas are
 //! treated as permissive (resolution is not modeled yet).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use api_journal::{BodyShape, JournalRecord};
 
@@ -137,6 +137,53 @@ pub fn validate_record(index: &SpecIndex, record: &JournalRecord) -> Vec<Diagnos
     check_response_body(&path, record, operation, &mut diagnostics);
 
     diagnostics
+}
+
+/// Validate a whole journal stream, deduplicating identical findings and summing
+/// their observation counts.
+///
+/// The same violation observed across many records collapses to one diagnostic
+/// whose `count` is the number of observations. The result is sorted
+/// deterministically (by location, then code, then message) so output does not
+/// depend on record order.
+#[must_use]
+pub fn validate_stream(index: &SpecIndex, records: &[JournalRecord]) -> Vec<Diagnostic> {
+    let mut order: Vec<Diagnostic> = Vec::new();
+    let mut seen: HashMap<(Severity, DiagnosticCode, Location, String), usize> = HashMap::new();
+    for record in records {
+        for diagnostic in validate_record(index, record) {
+            let key = (
+                diagnostic.severity,
+                diagnostic.code,
+                diagnostic.location.clone(),
+                diagnostic.message.clone(),
+            );
+            match seen.get(&key) {
+                Some(&position) => order[position].count += diagnostic.count,
+                None => {
+                    seen.insert(key, order.len());
+                    order.push(diagnostic);
+                }
+            }
+        }
+    }
+    order.sort_by(|a, b| {
+        (
+            a.location.path.as_str(),
+            a.location.method.as_deref(),
+            a.location.status,
+            a.code.as_str(),
+            a.message.as_str(),
+        )
+            .cmp(&(
+                b.location.path.as_str(),
+                b.location.method.as_deref(),
+                b.location.status,
+                b.code.as_str(),
+                b.message.as_str(),
+            ))
+    });
+    order
 }
 
 fn check_status(
@@ -843,5 +890,62 @@ mod tests {
         // count observed as an integer (a number) — conforms.
         record.response_body = object_shape(&[("count", BodyShape::Integer, true)]);
         assert!(validate(&[document], &record).is_empty());
+    }
+
+    #[test]
+    fn stream_aggregates_identical_violations_with_a_count() {
+        let docs = vec![spec()];
+        let index = SpecIndex::from_documents(&docs);
+        // Three records hitting the same undocumented path.
+        let mut records = Vec::new();
+        for word in ["a", "b", "c"] {
+            let mut record = base_record();
+            record.path = format!("/unknown/{word}");
+            // Different concrete paths, but each matches nothing -> same finding
+            // keyed on the (identical) message and path? The path differs, so
+            // they are distinct findings.
+            records.push(record);
+        }
+        let diagnostics = validate_stream(&index, &records);
+        // Distinct concrete paths -> three distinct UndocumentedPath findings.
+        assert_eq!(diagnostics.len(), 3);
+        assert!(diagnostics.iter().all(|d| d.count == 1));
+
+        // Now the same concrete path repeated collapses to one with count 3.
+        let repeated: Vec<_> = (0..3)
+            .map(|_| {
+                let mut record = base_record();
+                record.path = "/unknown/same".into();
+                record
+            })
+            .collect();
+        let collapsed = validate_stream(&index, &repeated);
+        assert_eq!(collapsed.len(), 1);
+        assert_eq!(collapsed[0].code, DiagnosticCode::UndocumentedPath);
+        assert_eq!(collapsed[0].count, 3);
+    }
+
+    #[test]
+    fn stream_is_order_independent() {
+        let docs = vec![spec()];
+        let index = SpecIndex::from_documents(&docs);
+
+        let mut undocumented = base_record();
+        undocumented.method = "DELETE".into();
+        let mut bad_status = base_record();
+        bad_status.status = 418;
+
+        let forward = validate_stream(&index, &[undocumented.clone(), bad_status.clone()]);
+        let reverse = validate_stream(&index, &[bad_status, undocumented]);
+        assert_eq!(forward, reverse);
+        assert_eq!(forward.len(), 2);
+    }
+
+    #[test]
+    fn stream_of_clean_records_yields_nothing() {
+        let docs = vec![spec()];
+        let index = SpecIndex::from_documents(&docs);
+        let records = vec![base_record(), base_record()];
+        assert!(validate_stream(&index, &records).is_empty());
     }
 }

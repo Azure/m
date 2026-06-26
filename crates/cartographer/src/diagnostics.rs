@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::sink::OutputSink;
 
 /// How serious a diagnostic is.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     /// A definite contract violation.
@@ -42,7 +42,7 @@ impl Severity {
 }
 
 /// A machine-readable diagnostic category.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DiagnosticCode {
     /// An observed path has no matching template in any spec.
@@ -81,7 +81,7 @@ impl DiagnosticCode {
 }
 
 /// Where a diagnostic applies.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Location {
     /// The path (a template when matched, the observed concrete path otherwise).
     pub path: String,

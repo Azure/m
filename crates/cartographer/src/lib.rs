@@ -35,7 +35,7 @@ pub mod schema;
 pub mod sink;
 pub mod validate;
 
-pub use validate::{SpecIndex, validate_record};
+pub use validate::{SpecIndex, validate_record, validate_stream};
 pub use diagnostics::{
     Diagnostic, DiagnosticCode, Location, ReportFormat, Severity, render as render_diagnostics,
 };

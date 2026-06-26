@@ -22,7 +22,7 @@ persisted journal is unchanged — only *where* the work runs moves.
       `marshal` module: a JSON request (the raw intercepted context — seam, method,
       scheme/host/port, path+query, headers, bodies as byte arrays, status) and a JSON reply
       (an outcome/ack), with serde round-trip. (base64 compaction of bodies deferred.)
-- [ ] **OT-3** A worker function `handle_interaction(request_json, &sink) -> reply_json` that
+- [x] **OT-3** A worker function `handle_interaction(request_json, &sink) -> reply_json` that
       performs the journaling (reduce to shapes / safelist headers / optional example, then
       write the record). The reduction moves here from the decorators; the on-disk record is
       byte-identical to today.

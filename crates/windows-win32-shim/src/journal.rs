@@ -35,6 +35,7 @@ use windows_platform_isolation::{
     HttpResponse, RequestHandler, Utf16,
 };
 
+use crate::marshal::{Interaction, Outcome, RawHeader};
 use crate::pilcfg::{ApiJournalConfig, BodyCapture};
 
 /// A process-wide, thread-safe NDJSON journal writer.
@@ -317,6 +318,86 @@ fn egress_header_fields(headers: &[(Utf16, Utf16)]) -> (Vec<HeaderField>, Option
         fields.push(HeaderField { name, value: retained });
     }
     (fields, content_type)
+}
+
+// === Off-thread worker (OT-3) ===
+
+/// Reduce raw `(name, value)` header pairs to journal [`HeaderField`]s, retaining
+/// literal values only for content-negotiation headers, and return the observed
+/// `Content-Type` (used to key body-shape derivation). This is the seam-agnostic
+/// reduction the off-thread worker applies to a marshaled interaction; the inline
+/// decorators have their own typed variants ([`egress_header_fields`] /
+/// [`http_header_fields`]) until they are rewired onto this path.
+fn header_fields(headers: &[RawHeader]) -> (Vec<HeaderField>, Option<String>) {
+    let mut fields = Vec::with_capacity(headers.len());
+    let mut content_type = None;
+    for header in headers {
+        let lower = header.name.to_ascii_lowercase();
+        let retained = if CONTENT_NEGOTIATION_HEADERS.contains(&lower.as_str()) {
+            Some(header.value.clone())
+        } else {
+            None
+        };
+        if lower == "content-type" {
+            content_type = retained.clone();
+        }
+        fields.push(HeaderField {
+            name: header.name.clone(),
+            value: retained,
+        });
+    }
+    (fields, content_type)
+}
+
+/// Perform the journaling for one marshaled [`Interaction`] and return the JSON
+/// [`Outcome`] reply.
+///
+/// This is the worker that will eventually run out of process: it owns the entire
+/// reduction — split path/query, safelist headers, derive body shapes and the
+/// optional `full-with-pii` example — so the calling thread carries none of that
+/// policy. The on-disk record matches the one the inline decorators produce.
+/// Fail-soft: a request that does not parse yields a non-journaled outcome rather
+/// than an error (consistent with the shim's never-break-the-host posture).
+#[must_use]
+pub fn handle_interaction(request_json: &str, sink: &JournalSink) -> String {
+    let outcome = match Interaction::from_json(request_json) {
+        Ok(interaction) => {
+            sink.record(interaction_record(sink, interaction));
+            Outcome { journaled: true }
+        }
+        Err(_) => Outcome { journaled: false },
+    };
+    outcome
+        .to_json()
+        .unwrap_or_else(|_| r#"{"journaled":false}"#.to_string())
+}
+
+/// Build the [`JournalRecord`] for a marshaled interaction, applying the sink's
+/// body-capture policy. `session_id`/`seq` are stamped by [`JournalSink::record`];
+/// `timestamp_ms` is carried from the interaction (the interception instant) so it
+/// survives the off-thread hop rather than being re-sampled in the worker.
+fn interaction_record(sink: &JournalSink, interaction: Interaction) -> JournalRecord {
+    let (path, query) = split_path_query(&interaction.target);
+    let (request_headers, request_ct) = header_fields(&interaction.request_headers);
+    let (response_headers, response_ct) = header_fields(&interaction.response_headers);
+    JournalRecord {
+        seam: interaction.seam,
+        method: interaction.method,
+        scheme: interaction.scheme,
+        host: interaction.host,
+        port: interaction.port,
+        path,
+        query,
+        request_headers,
+        request_body: sink.body_shape(&interaction.request_body, request_ct.as_deref()),
+        request_body_example: sink.body_example(&interaction.request_body, request_ct.as_deref()),
+        status: interaction.status,
+        response_headers,
+        response_body: sink.body_shape(&interaction.response_body, response_ct.as_deref()),
+        response_body_example: sink.body_example(&interaction.response_body, response_ct.as_deref()),
+        timestamp_ms: interaction.timestamp_ms,
+        ..Default::default()
+    }
 }
 
 // === Inbound journaling decorator (AJ-B4) ===
@@ -823,5 +904,104 @@ mod tests {
             serde_json::json!(["a"])
         );
         assert!(records[0].response_body_example.is_some());
+    }
+
+    // === Off-thread worker (OT-3) ===
+
+    #[test]
+    fn worker_reduces_and_journals_egress_interaction() {
+        let path = temp_path("worker-egress");
+        let sink = JournalSink::from_config(&full_config(&path)).expect("sink");
+
+        let interaction = Interaction {
+            seam: Seam::Egress,
+            method: "POST".into(),
+            scheme: Some("https".into()),
+            host: Some("api.example".into()),
+            port: Some(443),
+            target: "/custom/cat?pattern=c.t".into(),
+            request_headers: vec![
+                RawHeader { name: "Content-Type".into(), value: "application/json".into() },
+                RawHeader { name: "X-Wordy-User".into(), value: "alice".into() },
+            ],
+            request_body: br#"{"words":["cat"]}"#.to_vec(),
+            status: 200,
+            response_headers: vec![RawHeader {
+                name: "Content-Type".into(),
+                value: "application/json".into(),
+            }],
+            response_body: br#"{"ok":true}"#.to_vec(),
+            timestamp_ms: 12_345,
+        };
+        let reply = handle_interaction(&interaction.to_json().unwrap(), &sink);
+        assert_eq!(Outcome::from_json(&reply).unwrap(), Outcome { journaled: true });
+
+        let file = File::open(&path).expect("journal exists");
+        let (records, stats) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(stats, ReadStats::default());
+        assert_eq!(records.len(), 1);
+        let r = &records[0];
+        assert_eq!(r.seam, Seam::Egress);
+        assert_eq!(r.method, "POST");
+        assert_eq!(r.scheme.as_deref(), Some("https"));
+        assert_eq!(r.host.as_deref(), Some("api.example"));
+        assert_eq!(r.port, Some(443));
+        // Path and query are split; the query value is reduced to a scalar shape.
+        assert_eq!(r.path, "/custom/cat");
+        assert_eq!(r.query.len(), 1);
+        assert_eq!(r.query[0].name, "pattern");
+        assert_eq!(r.query[0].value, infer_scalar("c.t"));
+        // Content-Type value retained; the non-safelisted header keeps only its name.
+        assert_eq!(r.request_headers[0].value.as_deref(), Some("application/json"));
+        assert_eq!(r.request_headers[1].name, "X-Wordy-User");
+        assert!(r.request_headers[1].value.is_none());
+        // Bodies are reduced exactly as the sink's policy dictates, and the
+        // interception timestamp survives the marshal hop.
+        assert_eq!(
+            r.request_body,
+            sink.body_shape(br#"{"words":["cat"]}"#, Some("application/json"))
+        );
+        assert!(r.response_body_example.is_some());
+        assert_eq!(r.timestamp_ms, 12_345);
+    }
+
+    #[test]
+    fn worker_handles_inbound_interaction_without_authority() {
+        let path = temp_path("worker-inbound");
+        let sink = JournalSink::from_config(&config(&path)).expect("sink");
+
+        let interaction = Interaction {
+            seam: Seam::Inbound,
+            method: "GET".into(),
+            target: "/healthz".into(),
+            status: 204,
+            timestamp_ms: 7,
+            ..Default::default()
+        };
+        let reply = handle_interaction(&interaction.to_json().unwrap(), &sink);
+        assert_eq!(Outcome::from_json(&reply).unwrap(), Outcome { journaled: true });
+
+        let file = File::open(&path).expect("journal exists");
+        let (records, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(records.len(), 1);
+        let r = &records[0];
+        assert_eq!(r.seam, Seam::Inbound);
+        assert_eq!(r.path, "/healthz");
+        assert!(r.query.is_empty());
+        assert!(r.scheme.is_none() && r.host.is_none() && r.port.is_none());
+        assert_eq!(r.status, 204);
+    }
+
+    #[test]
+    fn worker_is_fail_soft_on_unparseable_request() {
+        let path = temp_path("worker-badjson");
+        let sink = JournalSink::from_config(&config(&path)).expect("sink");
+        let reply = handle_interaction("not json", &sink);
+        assert_eq!(Outcome::from_json(&reply).unwrap(), Outcome { journaled: false });
+        assert!(!path.exists(), "an unparseable request journals nothing");
     }
 }

@@ -46,20 +46,27 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
 
 ## Milestone EM-D — Additive role refinement (behavioral subdivision)
 
-- [ ] **EM-D1** Compute a behavioral signature per client actor (the set of
-      operations / channels it used).
-- [ ] **EM-D2** Subdivide a coarse role into child roles when behaviorally distinct
-      sub-populations appear; retain the parent as a group (= union of children);
-      child names derive deterministically from the distinguishing trait.
-- [ ] **EM-D3** Encode the subdivision-axis priority (behavior > transport/auth >
-      identity); keep identity-class subdivision behind the documented rolling-cert
-      caveat, off by default.
-      > ⛔ **PREREQUISITE — PII-A:** identity-axis subdivision must stay disabled until PII-A
-      > (tokenized identity) lands; it must never key on a raw principal identity. Until then
-      > this item ships the behavior and transport/auth axes only. See
-      > [`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
-- [ ] **EM-D4** Tests: two behaviorally distinct caller populations split into two
-      child roles under a retained parent; a homogeneous journal does not split.
+> **Re-planned 2026-06-26.** Callers are anonymous (one `inbound-client` actor, no identity),
+> so requests cannot be attributed to distinct *principals*. Behavioral subdivision is therefore
+> a **population-level** partition of a client role's traffic by operation, producing *candidate*
+> child roles the maintainer refines (their `asserted` edits survive re-synthesis). The
+> *transport/auth* and *identity* axes both need per-participant attribution and are **deferred**
+> (identity gated on PII-A). This replaces the original 4 items (behavioral subdivision presumed
+> per-caller attribution that anonymity does not provide). See D-CART-4.
+
+- [ ] **EM-D1** Behavioral subdivision: partition each client role's traffic by operation
+      (METHOD + inferred path template); when ≥2 distinct operations appear, create one additive
+      child role per operation with a deterministic id, retaining the parent as a group
+      (`parent.children` = union of children).
+- [ ] **EM-D2** Record the subdivision-axis decision in DESIGN-NOTES: behavior is the active
+      axis; transport/auth and identity axes are deferred (identity gated on PII-A, never keying
+      on a raw principal identity).
+      > ⛔ **PREREQUISITE — PII-A:** the transport/auth and identity axes must not key on a raw
+      > principal identity; identity-axis subdivision stays disabled until PII-A (tokenized
+      > identity) lands. See [`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
+- [ ] **EM-D3** Tests: a client role whose traffic spans ≥2 operations splits into per-operation
+      child roles under a retained parent (deterministic ids); a homogeneous (single-operation)
+      journal does not split; literal paths sharing a template group as one operation.
 
 ## Milestone EM-E — Provenance preservation, CLI emission, end-to-end
 

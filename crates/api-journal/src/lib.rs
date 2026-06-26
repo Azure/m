@@ -25,3 +25,7 @@
 //! [NDJSON]: https://github.com/ndjson/ndjson-spec
 
 #![forbid(unsafe_code)]
+
+pub mod shape;
+
+pub use shape::{BodyShape, Field};

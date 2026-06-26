@@ -19,7 +19,7 @@
 //! [`predefined_root`](crate::handle_table::predefined_root) and from there to a
 //! root path here.
 
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use windows_platform_isolation::{
     BlockingEgress, Buffered, BufferedEgress, EgressRequest, EgressResponse, EgressResult,
@@ -33,6 +33,7 @@ use windows_platform_isolation::{
 use crate::com::ComState;
 use crate::egress_engine::EgressEngine;
 use crate::handle_table::HandleTable;
+use crate::journal::{JournalSink, JournalingEgress};
 use crate::loader::LoaderState;
 use crate::pilcfg::{EgressMode, Pilcfg, load_pilcfg};
 use crate::web::WebState;
@@ -43,8 +44,11 @@ use crate::web::WebState;
 type SessionFs = Filesystem<FilesystemBacking>;
 
 /// The egress engine the session routes WinHTTP through (MW17 / SHIM-D22): the
-/// reassembly engine over the [`EgressBacking`] selected from `.pilcfg`.
-type SessionEgress = EgressEngine<EgressBacking>;
+/// reassembly engine over a [`JournalingEgress`] wrapper of the [`EgressBacking`]
+/// selected from `.pilcfg`. The wrapper journals API interactions when the
+/// `api_journal` block is enabled (AJ-B) and is a zero-overhead passthrough
+/// otherwise.
+type SessionEgress = EgressEngine<JournalingEgress<EgressBacking>>;
 
 /// The registry surface the session routes through, selected from the `.pilcfg`
 /// configuration (SHIM-D13). A single concrete type keeps the handle table and
@@ -164,6 +168,9 @@ impl ShimSession {
     #[must_use]
     pub fn from_config(cfg: Pilcfg) -> Self {
         let casing = Win32OrdinalCasing;
+        // One process-wide journal sink (when the `api_journal` block is enabled);
+        // its Arc is shared with the seams that opt in.
+        let journal_sink = JournalSink::from_config(&cfg.api_journal);
         Self {
             isolation: Session::new(),
             registry: Mutex::new(Registry::new(build_registry_backing(&cfg, casing))),
@@ -172,7 +179,13 @@ impl ShimSession {
             loader: Mutex::new(LoaderState::new()),
             com: Mutex::new(ComState::new()),
             web: Mutex::new(WebState::new()),
-            egress: Mutex::new(EgressEngine::new(build_egress_backing(&cfg))),
+            egress: Mutex::new(EgressEngine::new(JournalingEgress::new(
+                build_egress_backing(&cfg),
+                journal_sink
+                    .as_ref()
+                    .filter(|sink| sink.capture_egress())
+                    .map(Arc::clone),
+            ))),
             casing,
             capture_snapshot: cfg.capture_snapshot,
         }

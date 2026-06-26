@@ -18,10 +18,10 @@ persisted journal is unchanged — only *where* the work runs moves.
       unsafe quarantined in `ffi`) to `windows-threadpool`; add `windows-threadpool` as a
       `windows-win32-shim` dependency.
       > ➡ **CROSS-COMPONENT:** the `WaitGate` primitive lands in `crates/windows-threadpool`.
-- [ ] **OT-2** Define the position-independent marshaled interaction format in a new shim
+- [x] **OT-2** Define the position-independent marshaled interaction format in a new shim
       `marshal` module: a JSON request (the raw intercepted context — seam, method,
-      scheme/host/port, path+query, headers, bodies as base64, status) and a JSON reply
-      (an outcome/ack), with serde round-trip.
+      scheme/host/port, path+query, headers, bodies as byte arrays, status) and a JSON reply
+      (an outcome/ack), with serde round-trip. (base64 compaction of bodies deferred.)
 - [ ] **OT-3** A worker function `handle_interaction(request_json, &sink) -> reply_json` that
       performs the journaling (reduce to shapes / safelist headers / optional example, then
       write the record). The reduction moves here from the decorators; the on-disk record is

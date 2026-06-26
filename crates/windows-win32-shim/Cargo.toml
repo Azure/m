@@ -34,6 +34,10 @@ api-journal = { path = "../api-journal" }
 # Literal example bodies captured under `bodies: full-with-pii` are `serde_json::Value`s
 # (AJ-DEF-1); the value is produced by `api_journal::derive_example`.
 serde_json = "1"
+# Derive the position-independent marshaled-interaction format (SHIM-D25): the raw
+# intercepted context is serialized to JSON for the off-thread (eventually
+# out-of-process) worker.
+serde = { version = "1", features = ["derive"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-platform-isolation = { path = "../windows-platform-isolation" }

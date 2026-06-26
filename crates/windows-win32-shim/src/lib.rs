@@ -50,6 +50,11 @@ pub mod com;
 // (MW11, SHIM-D18).
 pub mod web;
 
+// Platform-independent (no `unsafe`, no Windows deps): the position-independent
+// marshaled-interaction format (SHIM-D25) the off-thread worker consumes — the raw
+// intercepted context serialized to JSON.
+pub mod marshal;
+
 #[cfg(windows)]
 pub mod ansi;
 

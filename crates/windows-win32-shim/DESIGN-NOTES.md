@@ -968,3 +968,30 @@ tool (reader) cannot drift.
   holds one `Seam::Egress` + one `Seam::Inbound` record with one `session_id` and
   monotonic `seq`. The aliased/live end-to-end path stays available as
   `egressrelayproof`.
+
+## SHIM-D25 — Off-thread (toward out-of-process) interception handling via marshaled work items
+
+The work the shim does in response to intercepting a web API call — today journaling,
+later isolation decisions — is being moved off the calling thread and, eventually, out
+of process. Staged in [`CHECKLIST-offproc.md`](CHECKLIST-offproc.md).
+
+- **Marshal a position-independent context.** At each seam the intercepted interaction
+  is marshaled to a **JSON** request (seam, method, scheme/host/port, path+query,
+  headers, bodies as base64, status) — a form that could cross a process boundary
+  unchanged. The worker returns a JSON reply (an outcome/ack today; a possibly-modified
+  response later).
+- **Enqueue to the Windows thread pool; this step waits synchronously.** The marshaled
+  request is handed to a `windows-threadpool` work item. In this first step, *regardless
+  of the caller's contract*, the calling thread blocks until the item finishes, via a
+  `WaitOnAddress` / `WakeByAddressSingle` `WaitGate` latch (a primitive that generalizes
+  to the eventual cross-boundary completion handoff). Honoring the real contract (async
+  for fire-and-forget) is a later stage.
+- **Move all the work, but keep the persisted artifact reduced.** The worker performs the
+  full reduction (shapes-only bodies, safelisted headers) and writes the record, so the
+  *on-disk* journal is byte-identical to the inline path — no persisted-PII regression.
+  The marshaled request is *raw* and transient; when the worker moves out of process the
+  raw context crosses the channel, so PII tokenization (D-AJ-4 / PII-A) becomes the
+  worker's job before persisting.
+- **The latch lives in `windows-threadpool`, not the shim.** The shim keeps its `unsafe`
+  quarantined at the ABI/alias boundary (SHIM-D2); the `WaitOnAddress` FFI is quarantined
+  in the thread-pool crate's existing `ffi` module instead.

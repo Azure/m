@@ -27,6 +27,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod cli;
 pub mod diagnostics;
 pub mod format;
 pub mod infer;
@@ -41,6 +42,7 @@ pub mod validate;
 pub use infer::TemplateSet;
 pub use merge::merge;
 pub use synth::synthesize;
+pub use cli::{Args, parse_args, run};
 pub use validate::{SpecIndex, validate_record, validate_stream};
 pub use diagnostics::{
     Diagnostic, DiagnosticCode, Location, ReportFormat, Severity, render as render_diagnostics,

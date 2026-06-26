@@ -30,6 +30,10 @@ const ENV_SEARCH: &str = "WORDY_EXTRA_LINK_SEARCH";
 const ENV_OBJ: &str = "WORDY_EXTRA_LINK_OBJ";
 const ENV_LIB: &str = "WORDY_EXTRA_LINK_LIB";
 
+/// The bin whose link gets the aliased inputs (in addition to the cdylib): the
+/// egress-isolation proof driver (windows-win32-shim MW18-4).
+const PROBE_BIN: &str = "wordy-relay-probe";
+
 fn main() {
     println!("cargo:rerun-if-env-changed={ENV_SEARCH}");
     println!("cargo:rerun-if-env-changed={ENV_OBJ}");
@@ -52,6 +56,11 @@ fn main() {
             // ordinary executable mirrors production (a native host process
             // loading an isolated module).
             println!("cargo:rustc-link-arg-cdylib={}", obj.display());
+            // The egress-isolation proof (windows-win32-shim MW18-4) needs an
+            // *executable* whose own WinHTTP imports are aliased, so it can drive
+            // `wordy`'s relay client under the shim. Scope the same inputs to the
+            // dedicated `wordy-relay-probe` bin only (never the host bin).
+            println!("cargo:rustc-link-arg-bin={PROBE_BIN}={}", obj.display());
         }
     }
 

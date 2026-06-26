@@ -900,3 +900,27 @@ separate web service, turning `wordy`'s calls to it into the egress we isolate.
   the real `merriam`: redirect (URL rewritten to a second instance), buffer
   (mutations captured, `merriam` untouched), replay (reads served from fixtures,
   `merriam` offline). Realized by **MW18**; see the design session above.
+
+**MW18 closure (realized, 2026-06-25).** All four pieces landed:
+
+- `windows-file-io` (+ `-sys` leaf): async overlapped Win32 file I/O over the
+  `windows-threadpool` IOCP reactor, async-first even on synchronous completion
+  (`D-FIO-1..6`). `merriam`: a content store over `windows-file-io`, a dispatch
+  core mirroring `wordy`'s custom routes 1:1, and an http.sys listener
+  (`MER-D1..5`). `wordy` relays to `merriam` over ordinary WinHTTP through a
+  `CustomStore` trait (`WD-D13`); the FS store was **re-homed, not deleted**, so
+  the MW15/MW16 proofs (which set `WORDY_CUSTOM_ROOT`) keep working while the
+  default backing is the relay the egress seam isolates.
+- The capstone proof (`egressrelayproof/run-egressrelayproof.ps1`) links the
+  `wordy-relay-probe` bin — driving `wordy`'s **real** `MerriamClient` relay —
+  against the alias object, runs a genuine `merriam`, and verifies all four
+  scenarios with the probe **exit-code-driven** (its stdout is swallowed by the
+  aliased `mWriteFile`, like `linkproof`/`egressproof`) and `merriam`'s state
+  asserted by a **non-aliased** direct query: redirect → a dead port diverted
+  into `merriam` (the word lands there); buffer → the POST captured, `merriam`
+  untouched; replay → a fixture served with no network; control (non-aliased) →
+  the real dead target, transport failure. Gated `tests/egress_relay.rs`
+  (`#[ignore]`, SKIP on an unbindable URL). A manual companion
+  (`launch-tandem.cmd` / `.ps1`) brings the two services up under any egress mode.
+  **Verified 4/4 on this host.** This is the egress analogue of MW15's filesystem
+  isolation proof, against a *real* dependent service rather than a synthetic stub.

@@ -782,7 +782,7 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
         genuine-HWC dispatch test now sets `WORDY_CUSTOM_ROOT` (it tests dispatch,
         not egress). 83 wordy unit + 6 host tests pass; clippy clean. WD-D13 + SHIM-D19
         amendment.)*
-- [ ] **MW18-4** *(integration)* End-to-end egress isolation against a real service:
+- [x] **MW18-4** *(integration)* End-to-end egress isolation against a real service:
       run aliased `wordy` + `merriam` and prove the three owner-requested modes via
       the `.pilcfg` `egress` section — **redirect** (`wordy`'s `merriam` URL
       rewritten to a second instance, asserted by where the words land), **buffer**
@@ -790,5 +790,16 @@ dict ops to `merriam` over WinHTTP — which becomes the egress MW17 isolates.
       **replay** (`wordy` serves dict reads from egress fixtures with `merriam`
       offline). Gated/ignored when the listener URL is unbindable. Record SHIM-D23
       closure.
+      *(`wordy-relay-probe` bin drives `wordy`'s **real** `MerriamClient` relay;
+      `wordy/build.rs` aliases that bin (only) when `WORDY_EXTRA_LINK_OBJ` is set.
+      `egressrelayproof/run-egressrelayproof.ps1`: builds shim+alias+aliased/native
+      probes+`merriam-host`, runs a genuine `merriam` on a free loopback port, and
+      proves redirect (dead port → live `merriam`, `widget1` lands there) / buffer
+      (POST captured, `merriam` untouched, probe exit 2) / replay (fixture served
+      offline) / control (non-aliased → dead target, exit 3). Probe is
+      **exit-code-driven** (aliased stdout swallowed by `mWriteFile`); `merriam`
+      state asserted by a non-aliased direct query. `launch-tandem.cmd`/`.ps1`
+      manual companion. Gated `tests/egress_relay.rs` (`#[ignore]`, SKIP on
+      `ERROR_ACCESS_DENIED`). **Verified 4/4.** SHIM-D23 closure recorded.)*
 
 

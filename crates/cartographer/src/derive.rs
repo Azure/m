@@ -878,5 +878,160 @@ mod tests {
         let yaml = serialize_environment(&env, SpecFormat::Yaml).expect("serialize");
         assert_eq!(parse_environment(&yaml, SpecFormat::Yaml).expect("parse"), env);
     }
+
+    // --- EM-D3: behavioral subdivision ---
+
+    /// Build an inbound record for `method path` captured at `ts`.
+    fn inbound_op(method: &str, path: &str, ts: u64) -> JournalRecord {
+        JournalRecord {
+            seam: Seam::Inbound,
+            method: method.to_string(),
+            path: path.to_string(),
+            status: 200,
+            timestamp_ms: ts,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn heterogeneous_caller_traffic_subdivides_by_operation() {
+        let env = derive_environment(
+            &[
+                inbound_op("POST", "/spellcheck", 1),
+                inbound_op("POST", "/anagram", 2),
+            ],
+            None,
+        );
+        let parent = &env.roles["client:inbound-client"];
+        assert_eq!(
+            parent.children,
+            vec![
+                "client:inbound-client#POST/anagram".to_string(),
+                "client:inbound-client#POST/spellcheck".to_string(),
+            ]
+        );
+        assert!(env.roles.contains_key("client:inbound-client#POST/anagram"));
+        assert!(env.roles.contains_key("client:inbound-client#POST/spellcheck"));
+    }
+
+    #[test]
+    fn subdivision_children_are_client_roles_with_a_basis() {
+        let env = derive_environment(
+            &[
+                inbound_op("POST", "/spellcheck", 1),
+                inbound_op("POST", "/anagram", 2),
+            ],
+            None,
+        );
+        let child = &env.roles["client:inbound-client#POST/spellcheck"];
+        assert_eq!(child.plays, vec![RolePart::Client]);
+        assert_eq!(
+            child.provenance,
+            Provenance::derived("callers of POST /spellcheck")
+        );
+    }
+
+    #[test]
+    fn parent_role_is_retained_as_a_group() {
+        let env = derive_environment(
+            &[
+                inbound_op("POST", "/spellcheck", 1),
+                inbound_op("GET", "/healthz", 2),
+            ],
+            None,
+        );
+        // The parent role survives, the channel still references it, and the actor
+        // still plays it — only finer child facets are added.
+        assert!(env.roles.contains_key("client:inbound-client"));
+        assert!(env.channels.contains_key("client:inbound-client->server:local"));
+        assert_eq!(
+            env.actors["inbound-client"].plays,
+            vec!["client:inbound-client".to_string()]
+        );
+    }
+
+    #[test]
+    fn homogeneous_journal_does_not_subdivide() {
+        let env = derive_environment(
+            &[
+                inbound_op("POST", "/spellcheck", 1),
+                inbound_op("POST", "/spellcheck", 2),
+            ],
+            None,
+        );
+        assert!(env.roles["client:inbound-client"].children.is_empty());
+        assert_eq!(env.roles.len(), 2); // server:local + client:inbound-client
+    }
+
+    #[test]
+    fn literal_paths_sharing_a_template_count_as_one_operation() {
+        let env = derive_environment(
+            &[
+                inbound_op("GET", "/custom/cat", 1),
+                inbound_op("GET", "/custom/dog", 2),
+                inbound_op("GET", "/custom/fish", 3),
+            ],
+            None,
+        );
+        // All collapse to GET /custom/{id} — a single operation — so no split.
+        assert!(env.roles["client:inbound-client"].children.is_empty());
+    }
+
+    #[test]
+    fn templated_operation_plus_another_subdivides_into_two() {
+        let env = derive_environment(
+            &[
+                inbound_op("GET", "/custom/cat", 1),
+                inbound_op("GET", "/custom/dog", 2),
+                inbound_op("POST", "/spellcheck", 3),
+            ],
+            None,
+        );
+        let parent = &env.roles["client:inbound-client"];
+        assert_eq!(parent.children.len(), 2);
+        assert!(env.roles.contains_key("client:inbound-client#GET/custom/{id}"));
+        assert!(env.roles.contains_key("client:inbound-client#POST/spellcheck"));
+    }
+
+    #[test]
+    fn egress_client_subdivides_by_operation() {
+        let mut goal = egress("https", "api.example", 443, 1);
+        goal.path = "/goal".to_string();
+        let mut health = egress("https", "api.example", 443, 2);
+        health.path = "/health".to_string();
+        let env = derive_environment(&[goal, health], None);
+        let parent = &env.roles["client:local"];
+        assert_eq!(parent.children.len(), 2);
+        assert!(env.roles.contains_key("client:local#GET/goal"));
+        assert!(env.roles.contains_key("client:local#GET/health"));
+    }
+
+    #[test]
+    fn server_roles_are_not_subdivided() {
+        let env = derive_environment(
+            &[
+                inbound_op("POST", "/spellcheck", 1),
+                inbound_op("POST", "/anagram", 2),
+            ],
+            None,
+        );
+        assert!(env.roles["server:local"].children.is_empty());
+    }
+
+    #[test]
+    fn subdivided_environment_round_trips() {
+        use crate::format::{SpecFormat, parse_environment, serialize_environment};
+        let env = derive_environment(
+            &[
+                inbound_op("POST", "/spellcheck", 1),
+                inbound_op("POST", "/anagram", 2),
+                inbound_op("GET", "/custom/cat", 3),
+                inbound_op("GET", "/custom/dog", 4),
+            ],
+            None,
+        );
+        let yaml = serialize_environment(&env, SpecFormat::Yaml).expect("serialize");
+        assert_eq!(parse_environment(&yaml, SpecFormat::Yaml).expect("parse"), env);
+    }
 }
 

@@ -64,7 +64,7 @@ and **channels**, with roles as the substitution unit. Design: `D-CART-4` in
       > ⛔ **PREREQUISITE — PII-A:** the transport/auth and identity axes must not key on a raw
       > principal identity; identity-axis subdivision stays disabled until PII-A (tokenized
       > identity) lands. See [`../../CHECKLIST-pii-tokenization.md`](../../CHECKLIST-pii-tokenization.md).
-- [ ] **EM-D3** Tests: a client role whose traffic spans ≥2 operations splits into per-operation
+- [x] **EM-D3** Tests: a client role whose traffic spans ≥2 operations splits into per-operation
       child roles under a retained parent (deterministic ids); a homogeneous (single-operation)
       journal does not split; literal paths sharing a template group as one operation.
 

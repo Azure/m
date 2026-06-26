@@ -27,6 +27,11 @@
 
 #![forbid(unsafe_code)]
 
+pub mod model;
 pub mod sink;
 
+pub use model::{
+    Components, Content, Document, Info, MediaType, Operation, Parameter, ParameterIn, PathItem,
+    Paths, RequestBody, Response, ResponseHeader, Responses, Schema, SchemaType, Server, SimpleType,
+};
 pub use sink::{BufferSink, OutputSink, StdoutSink};

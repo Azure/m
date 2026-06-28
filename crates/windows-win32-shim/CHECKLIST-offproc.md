@@ -17,6 +17,49 @@ Milestone **BC** (bounded, compact marshaled bodies) is complete — see
 [COMPLETED-CHECKLIST.md](COMPLETED-CHECKLIST.md) (Moved 2026-06-28). Bodies are capped
 at `max_body_bytes` at the seam and base64-encoded in the marshaled JSON.
 
+## Milestone UT — Untranscoded, encoding-tagged text (spans `api-journal` → shim → `cartographer`)
+
+Stop transcoding captured text in the observed service. The egress seam currently
+converts WinHTTP wide strings to UTF-8 eagerly (`to_utf8()`), which burns host CPU,
+drops ill-formed UTF-16, and converts header values the worker discards. Carry every
+text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
+`Bytes` for HTTP/narrow), persist the tagged bytes, and decode only in `cartographer`
+(Option C). Design: `SHIM-D26`. Items are in strict dependency order across components.
+
+### `api-journal` (schema owner — lands first)
+
+- [ ] **UT-A1** Add a shared `RawStr { enc: TextEnc, bytes: Vec<u8> }` (`TextEnc ∈ { Utf16Le, Bytes }`)
+      with constructors `from_utf16_units(&[u16])` / `from_bytes(&[u8])` / `from_utf8(&str)`, a
+      lossy `to_string_lossy() -> String` decoder, and serde that emits a **plain JSON string when
+      the bytes are valid UTF-8** and a tagged object `{ "enc": "u16", "b64": "…" }` otherwise (the
+      reader accepts both). Unit tests: round-trip both encodings, ill-formed UTF-16 preserved,
+      readable-when-UTF-8, lossy decode. **Confirm the representation decision here (SHIM-D26).**
+- [ ] **UT-A2** Switch the `JournalRecord` text fields (`method`, `scheme`, `host`, `path`),
+      `HeaderField { name, value }`, and `QueryParam.name` from `String` / `Option<String>` to
+      `RawStr` / `Option<RawStr>`. Update `infer_scalar` / `derive_example` call sites and the
+      schema doc; record the breaking on-disk format change in `api-journal` DESIGN-NOTES. Update
+      api-journal tests.
+      > ➡ **CROSS-COMPONENT HANDOFF:** next work is in `crates/windows-win32-shim` → UT-B1.
+
+### `windows-win32-shim` (producer)
+
+- [ ] **UT-B1** **CROSS-COMPONENT PREREQUISITE:** `api-journal` UT-A2 must land first. Change the
+      `marshal::Interaction` text fields to `RawStr`. Capture without transcoding: egress wraps
+      `Utf16::as_units()` as `Utf16Le` (delete the `to_utf8()` calls in `egress_interaction` /
+      `raw_egress_headers`); inbound wraps its narrow bytes as `Bytes`. Update the `marshal`
+      round-trip tests.
+- [ ] **UT-B2** Build the tagged `JournalRecord` in the worker without transcoding the stored
+      fields; reductions that need UTF-8 string ops (`split_path_query`, header safelist,
+      content-type match, `infer_scalar`) operate on a transient decoded view only. Update the
+      worker + decorator parity tests for the tagged record.
+      > ➡ **CROSS-COMPONENT HANDOFF:** next work is in `crates/cartographer` → UT-C1.
+
+### `cartographer` (consumer)
+
+- [ ] **UT-C1** **CROSS-COMPONENT PREREQUISITE:** shim UT-B2 must land first. Decode `RawStr` per
+      tag (`to_string_lossy`) wherever cartographer consumes record text (path templating / OpenAPI
+      synthesis / grouping). Update fixtures and tests for the tagged journal format.
+
 ## Deferred (next stages, not yet planned into milestones)
 
 These seed the next milestones; promote to concrete items when picked up.

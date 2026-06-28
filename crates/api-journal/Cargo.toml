@@ -9,6 +9,8 @@ description = "Shared NDJSON schema and JSON body-shape model for journaled HTTP
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Encoding-tagged captured text (RawStr, UT-A) base64-encodes its bytes in the JSON.
+base64 = "0.22"
 
 [lints]
 workspace = true

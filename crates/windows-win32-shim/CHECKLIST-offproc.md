@@ -59,10 +59,11 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
 (Option C). Design: `SHIM-D26`. Items are in strict dependency order across components.
 
 **Open design points (work through before implementing):**
-- **PII redaction placement.** PII must be redacted *before* the data exits the process, so
-  redaction cannot move to the out-of-process collector — it stays in-process (and may *inspect*
-  the captured data, which is allowed; only gratuitous re-encoding is not). Where it sits (seam vs.
-  in-process pre-send worker) and how it reads the encoding tag is unresolved (D-AJ-4 / PII-A).
+- **PII redaction placement — RESOLVED.** Redact in the in-process worker, *synchronously*, with no
+  special reentrancy handling: the IIS / http.sys / WinHTTP seams run on MTA pool worker threads,
+  sequentially per request, with no message pump, so the seam is never re-entered; redaction is pure
+  CPU and calls no aliased APIs. In-process satisfies the redact-before-exit constraint (SHIM-D27 /
+  D-AJ-4). Tracing's async path is a perf/mode choice, not required for safety.
 - **SOAP support changes the body calculus (reservation — no work scheduled yet).** Extending the
   WireServer dev/test wins to another important Azure agent will require parsing SOAP. Unlike REST,
   a SOAP request's **operation identity** lives in the *body* (first child of `<soap:Body>` and/or
@@ -80,7 +81,7 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
 
 ### `api-journal` (schema owner — lands first)
 
-- [ ] **UT-A1** Add a shared `RawStr { enc: TextEnc, bytes: Vec<u8> }` (`TextEnc ∈ { Utf16Le, Bytes }`)
+- [x] **UT-A1** Add a shared `RawStr { enc: TextEnc, bytes: Vec<u8> }` (`TextEnc ∈ { Utf16Le, Bytes }`)
       with constructors `from_utf16_units(&[u16])` / `from_bytes(&[u8])` / `from_utf8(&str)` and a
       lossy `to_string_lossy() -> String` decoder. serde emits a **uniform tagged object**
       `{ "enc": "u16"|"raw", "b64": "…" }` — never sniff the bytes for UTF-8 validity (that buys only

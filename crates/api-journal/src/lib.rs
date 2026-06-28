@@ -27,9 +27,11 @@
 #![forbid(unsafe_code)]
 
 pub mod ndjson;
+pub mod rawstr;
 pub mod record;
 pub mod shape;
 
 pub use ndjson::{ReadStats, read_records, write_record};
+pub use rawstr::{RawStr, TextEnc};
 pub use record::{HeaderField, JournalRecord, QueryParam, Seam, derive_example, infer_scalar};
 pub use shape::{BodyShape, Field};

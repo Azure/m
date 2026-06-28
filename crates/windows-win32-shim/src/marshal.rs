@@ -11,12 +11,37 @@
 //! the calling thread), which is why the raw context is what crosses the seam.
 //!
 //! This module is pure data — no `unsafe`, no OS dependency — so it is unit-testable
-//! anywhere. Bodies are carried as byte vectors (serialized as JSON arrays);
-//! base64 compaction of the payload is a deferred refinement.
+//! anywhere. Bodies are owned byte vectors; in the marshaled JSON they are encoded
+//! as base64 strings (BC-2) — ~3x more compact than a JSON number array and the
+//! standard binary-in-JSON form for the eventual cross-process payload.
 
+use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
 
 use api_journal::Seam;
+
+/// serde `with` adapter encoding a `Vec<u8>` body as a base64 string (RFC 4648
+/// standard alphabet) in the marshaled JSON and decoding it back. Empty bodies are
+/// elided by the field's `skip_serializing_if`, so this only runs for non-empty
+/// payloads. A malformed base64 string is a deserialization error.
+mod base64_body {
+    use super::BASE64;
+    use base64::Engine as _;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&BASE64.encode(bytes))
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Vec<u8>, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        BASE64
+            .decode(text.as_bytes())
+            .map_err(serde::de::Error::custom)
+    }
+}
 
 /// One raw header `name`/`value` pair, exactly as observed on the wire (no
 /// safelist filtering — that is the worker's job).
@@ -51,16 +76,16 @@ pub struct Interaction {
     /// Raw request headers (names and literal values).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub request_headers: Vec<RawHeader>,
-    /// Raw request body bytes.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// Raw request body bytes (base64-encoded in the marshaled JSON).
+    #[serde(default, with = "base64_body", skip_serializing_if = "Vec::is_empty")]
     pub request_body: Vec<u8>,
     /// The HTTP response status code.
     pub status: u16,
     /// Raw response headers (names and literal values).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub response_headers: Vec<RawHeader>,
-    /// Raw response body bytes.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// Raw response body bytes (base64-encoded in the marshaled JSON).
+    #[serde(default, with = "base64_body", skip_serializing_if = "Vec::is_empty")]
     pub response_body: Vec<u8>,
     /// Best-effort capture time (ms since the Unix epoch) sampled at interception,
     /// so the record reflects when the interaction happened, not when the worker ran.
@@ -116,6 +141,7 @@ impl Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine as _;
 
     fn header(name: &str, value: &str) -> RawHeader {
         RawHeader {
@@ -204,7 +230,20 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_bytes_survive_the_byte_array_encoding() {
+    fn bodies_are_base64_strings_not_number_arrays() {
+        let interaction = egress_sample();
+        let json = interaction.to_json().unwrap();
+        // The body is a base64 JSON string, not a `[123,34,...]` number array.
+        let expected = BASE64.encode(br#"{"words":["cat"]}"#);
+        assert!(
+            json.contains(&format!("\"request_body\":\"{expected}\"")),
+            "expected base64 body in {json}"
+        );
+        assert!(!json.contains("request_body\":["), "body must not be a number array");
+    }
+
+    #[test]
+    fn non_utf8_bytes_survive_the_base64_encoding() {
         let interaction = Interaction {
             seam: Seam::Inbound,
             method: "POST".to_string(),
@@ -216,5 +255,13 @@ mod tests {
         };
         let back = Interaction::from_json(&interaction.to_json().unwrap()).unwrap();
         assert_eq!(back.request_body, vec![0x00, 0xFF, 0x80, 0x7F]);
+    }
+
+    #[test]
+    fn malformed_base64_body_is_a_parse_error() {
+        // A body field that is not valid base64 must fail to deserialize rather than
+        // silently yield garbage.
+        let json = r#"{"seam":"inbound","method":"POST","target":"/x","request_body":"!!!not base64!!!","status":200,"timestamp_ms":1}"#;
+        assert!(Interaction::from_json(json).is_err());
     }
 }

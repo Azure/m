@@ -25,7 +25,7 @@ the on-disk record.
       response bodies before building the `Interaction`. Behavior-preserving because the worker
       already slices to the same cap. Add an end-to-end test that an over-cap body through the
       off-thread path produces the same record as the inline-equivalent.
-- [ ] **BC-2** Encode the marshaled body fields as base64 strings (RFC 4648) instead of JSON
+- [x] **BC-2** Encode the marshaled body fields as base64 strings (RFC 4648) instead of JSON
       number arrays: a `base64_bytes` serde `with` module on `Interaction::request_body` /
       `response_body`, keeping `skip_serializing_if`/`default`. Update the round-trip tests and
       assert the JSON carries a base64 string, not a number array.

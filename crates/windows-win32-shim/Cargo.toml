@@ -38,6 +38,10 @@ serde_json = "1"
 # intercepted context is serialized to JSON for the off-thread (eventually
 # out-of-process) worker.
 serde = { version = "1", features = ["derive"] }
+# Encode the marshaled request/response bodies as base64 strings (BC-2) instead of
+# JSON number arrays — ~3x smaller in the marshaled JSON and the standard binary-in-
+# JSON encoding for the eventual cross-process payload.
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 windows-platform-isolation = { path = "../windows-platform-isolation" }

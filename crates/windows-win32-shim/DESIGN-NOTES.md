@@ -995,3 +995,10 @@ of process. Staged in [`CHECKLIST-offproc.md`](CHECKLIST-offproc.md).
 - **The latch lives in `windows-threadpool`, not the shim.** The shim keeps its `unsafe`
   quarantined at the ABI/alias boundary (SHIM-D2); the `WaitOnAddress` FFI is quarantined
   in the thread-pool crate's existing `ffi` module instead.
+- **Bounded, compact marshaled bodies (milestone BC).** The seam carries only the leading
+  `max_body_bytes` of each body (`JournalSink::capped_body`) — the worker never inspects
+  past that cap, so truncating at the seam is behavior-preserving yet bounds the payload
+  instead of cloning and encoding whole multi-MB bodies. Bodies are encoded as **base64
+  strings** in the marshaled JSON (not number arrays), ~3× smaller and the standard
+  binary-in-JSON form for the eventual cross-process payload (`base64_body` serde adapter
+  in `marshal`).

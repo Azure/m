@@ -29,7 +29,7 @@ shim's fail-soft contract.
       (`work` / `timer` / `io`) with `catch_unwind` so a panicking callback can never unwind across
       the FFI boundary and abort the process. Test: a `submit_once` callback that panics is
       contained — the pool survives and `Work::wait` returns.
-- [ ] **RS-2** *(shim)* **PREREQUISITE: RS-1.** Guarantee the completion latch is always signaled:
+- [x] **RS-2** *(shim)* **PREREQUISITE: RS-1.** Guarantee the completion latch is always signaled:
       signal the `WaitGate` from an RAII guard in the dispatcher's worker body so a worker panic
       wakes the waiter instead of deadlocking it; the waiter then returns a not-journaled `Outcome`.
       Test: a panicking worker wakes the waiter, the host survives, and the result is not-journaled.

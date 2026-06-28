@@ -405,6 +405,19 @@ fn interaction_record(sink: &JournalSink, interaction: Interaction) -> JournalRe
 
 // === Off-thread dispatcher (OT-4) ===
 
+/// Signals a [`WaitGate`] on drop so the dispatcher's worker always releases the
+/// waiting host thread — on normal completion *and* while unwinding from a panic
+/// in the worker (RS-2). Combined with the thread pool's panic containment (RS-1),
+/// a worker panic can neither abort the host nor deadlock the caller: the waiter
+/// observes no reply and returns a not-journaled outcome.
+struct SignalGuard(WaitGate);
+
+impl Drop for SignalGuard {
+    fn drop(&mut self) {
+        self.0.signal();
+    }
+}
+
 /// Marshal a raw [`Interaction`], hand it to the off-thread worker, and block the
 /// calling thread until the worker finishes — returning the worker's [`Outcome`].
 ///
@@ -436,12 +449,14 @@ pub fn dispatch_off_thread(sink: &Arc<JournalSink>, interaction: Interaction) ->
     let worker_slot = Arc::clone(&reply_slot);
     let worker_gate = gate.clone();
     let submitted = submit_once(move || {
+        // Signal the latch from an RAII guard so the waiter is released even if the
+        // worker panics (RS-2); the pool contains the panic itself (RS-1). On the
+        // normal path the guard drops last, after the reply is in the slot.
+        let _signal = SignalGuard(worker_gate);
         let reply = handle_interaction(&request, &worker_sink);
         *worker_slot
             .lock()
             .unwrap_or_else(|poison| poison.into_inner()) = Some(reply);
-        // Signal last: the reply is in the slot before the waiter is released.
-        worker_gate.signal();
     });
 
     let Ok(_work) = submitted else {
@@ -1351,5 +1366,26 @@ mod tests {
             normalized(records_a[0].clone()),
             normalized(records_b[0].clone())
         );
+    }
+
+    // === Cross-thread remoting robustness (RS-2) ===
+
+    #[test]
+    fn worker_panic_wakes_the_waiter_and_is_contained() {
+        // Mirrors `dispatch_off_thread`'s worker structure: the `SignalGuard` releases
+        // the waiting host thread even when the worker panics before producing a reply
+        // (RS-2), and the pool contains the panic so the process survives (RS-1).
+        // Without either fix this test would deadlock on `wait()` or abort the process.
+        // The panic message on stderr is expected.
+        let gate = WaitGate::new();
+        let worker_gate = gate.clone();
+        let work = submit_once(move || {
+            let _signal = SignalGuard(worker_gate);
+            panic!("worker boom before producing a reply");
+        })
+        .expect("submit");
+        gate.wait(); // must return, not deadlock
+        assert!(gate.is_signaled());
+        work.wait(); // pool survived the contained panic
     }
 }

@@ -1388,4 +1388,88 @@ mod tests {
         assert!(gate.is_signaled());
         work.wait(); // pool survived the contained panic
     }
+
+    // === Cross-thread remoting concurrency stress (RS-3) ===
+
+    #[test]
+    fn concurrent_mixed_clients_journal_off_thread_without_loss() {
+        // A mix of egress and inbound "clients" hammer the off-thread dispatch from
+        // many host threads at once. Every interception marshals its raw context and
+        // submits a work item to the pool, then blocks on its *own* `WaitGate`. The
+        // invariants under load: every record lands (no loss), no line tears, and
+        // there is no cross-talk between the per-call gate/slot pairs — distinct
+        // paths and a contiguous sequence prove it. RS-3.
+        const EGRESS_CLIENTS: usize = 8;
+        const INBOUND_CLIENTS: usize = 8;
+        const REQUESTS_PER_CLIENT: usize = 50;
+
+        let path = temp_path("rs3-concurrent-mixed");
+        let sink = JournalSink::from_config(&config(&path)).expect("sink");
+
+        let mut clients = Vec::new();
+
+        // Egress clients: each owns a decorator over a canned backing and sends many
+        // requests through the off-thread journaling path.
+        for t in 0..EGRESS_CLIENTS {
+            let sink = Arc::clone(&sink);
+            clients.push(thread::spawn(move || {
+                let inner = CannedEgress {
+                    ok: Some(canned(200, "application/json", br#"{"ok":true}"#)),
+                };
+                let mut deco = JournalingEgress::new(inner, Some(sink));
+                for i in 0..REQUESTS_PER_CLIENT {
+                    let mut req = EgressRequest::http(
+                        Scheme::Http,
+                        "merriam.local",
+                        8080,
+                        "POST",
+                        &format!("/egress/t{t}/i{i}"),
+                    );
+                    req.headers.push((
+                        Utf16::from_utf8("Content-Type"),
+                        Utf16::from_utf8("application/json"),
+                    ));
+                    req.body = br#"{"words":["cat"]}"#.to_vec();
+                    deco.send(&req).expect("send ok");
+                }
+            }));
+        }
+
+        // Inbound clients: each drives fresh per-request handlers (as the IIS module
+        // rebuilds per request) through the same off-thread path.
+        for t in 0..INBOUND_CLIENTS {
+            let sink = Arc::clone(&sink);
+            clients.push(thread::spawn(move || {
+                for i in 0..REQUESTS_PER_CLIENT {
+                    let mut handler =
+                        JournalingHandler::new(Box::new(ContinueLeaf), Arc::clone(&sink));
+                    let request = HttpRequest::new("GET", format!("/inbound/t{t}/i{i}"));
+                    handler.on_begin_request(&request);
+                    let mut response = HttpResponse::new(200);
+                    handler.on_send_response(&mut response);
+                }
+            }));
+        }
+
+        for c in clients {
+            c.join().expect("client thread joined");
+        }
+
+        let file = File::open(&path).expect("journal exists");
+        let (records, stats) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+
+        let expected = (EGRESS_CLIENTS + INBOUND_CLIENTS) * REQUESTS_PER_CLIENT;
+        // No torn lines and no lost records.
+        assert_eq!(stats, ReadStats::default());
+        assert_eq!(records.len(), expected);
+        // Every distinct path was journaled exactly once — no cross-talk, no dupes.
+        let paths: std::collections::BTreeSet<&str> =
+            records.iter().map(|r| r.path.as_str()).collect();
+        assert_eq!(paths.len(), expected);
+        // Sequence numbers form a contiguous 0..expected set despite the contention.
+        let seqs: std::collections::BTreeSet<u64> = records.iter().map(|r| r.seq).collect();
+        assert_eq!(seqs.len(), expected);
+        assert_eq!(*seqs.iter().next_back().unwrap(), (expected as u64) - 1);
+    }
 }

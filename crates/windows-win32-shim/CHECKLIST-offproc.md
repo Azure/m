@@ -33,7 +33,7 @@ shim's fail-soft contract.
       signal the `WaitGate` from an RAII guard in the dispatcher's worker body so a worker panic
       wakes the waiter instead of deadlocking it; the waiter then returns a not-journaled `Outcome`.
       Test: a panicking worker wakes the waiter, the host survives, and the result is not-journaled.
-- [ ] **RS-3** *(shim, optional)* Concurrency stress test: many host threads through
+- [x] **RS-3** *(shim, optional)* Concurrency stress test: many host threads through
       `dispatch_off_thread` to one sink land every record with no lost wakeups or per-call gate/slot
       cross-talk. (Broad multi-threaded testing was deferred to the OOP stage; this validates the
       in-process machinery specifically — include if the insurance is wanted now.)

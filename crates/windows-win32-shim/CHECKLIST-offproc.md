@@ -17,6 +17,35 @@ Milestone **BC** (bounded, compact marshaled bodies) is complete — see
 [COMPLETED-CHECKLIST.md](COMPLETED-CHECKLIST.md) (Moved 2026-06-28). Bodies are capped
 at `max_body_bytes` at the seam and base64-encoded in the marshaled JSON.
 
+## Milestone RS — Shore up the in-process cross-thread remoting (do before out-of-process)
+
+Make the off-thread dispatch panic-safe and verified before building the IPC / out-of-process
+stage on top of it. A worker panic today is catastrophic: the thread-pool callback trampoline is
+`extern "system"` (panic ⇒ process abort), and the dispatcher signals the `WaitGate` as its last
+statement (panic before it ⇒ the calling host thread deadlocks on `wait()`). Both violate the
+shim's fail-soft contract.
+
+- [x] **RS-1** *(windows-threadpool)* Contain panics at the `extern "system"` callback trampolines
+      (`work` / `timer` / `io`) with `catch_unwind` so a panicking callback can never unwind across
+      the FFI boundary and abort the process. Test: a `submit_once` callback that panics is
+      contained — the pool survives and `Work::wait` returns.
+- [ ] **RS-2** *(shim)* **PREREQUISITE: RS-1.** Guarantee the completion latch is always signaled:
+      signal the `WaitGate` from an RAII guard in the dispatcher's worker body so a worker panic
+      wakes the waiter instead of deadlocking it; the waiter then returns a not-journaled `Outcome`.
+      Test: a panicking worker wakes the waiter, the host survives, and the result is not-journaled.
+- [ ] **RS-3** *(shim, optional)* Concurrency stress test: many host threads through
+      `dispatch_off_thread` to one sink land every record with no lost wakeups or per-call gate/slot
+      cross-talk. (Broad multi-threaded testing was deferred to the OOP stage; this validates the
+      in-process machinery specifically — include if the insurance is wanted now.)
+- [ ] **RS-4** *(decide)* `Outcome.journaled` means *attempted* — `sink.record` swallows write
+      errors (fail-soft), so a failed write still reports journaled. Decide whether the reply should
+      distinguish attempted vs. persisted before OOP makes the reply a real channel signal.
+
+Related finding (out of scope here, larger): the shim's exported `extern "system"` functions do not
+appear to `catch_unwind`, so a panic on the *calling* thread (marshaling, or the inline
+submit-failure fallback) would escape into the host. RS-1 only covers the pool-thread worker;
+export-boundary containment is a separate, broader ABI-robustness audit.
+
 ## Milestone UT — Untranscoded, encoding-tagged text (spans `api-journal` → shim → `cartographer`)
 
 Stop transcoding captured text in the observed service. The egress seam currently

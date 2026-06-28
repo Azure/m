@@ -130,4 +130,23 @@ mod tests {
         }
         assert_eq!(counter.load(Ordering::SeqCst), 1);
     }
+
+    #[test]
+    fn panicking_callback_is_contained_and_pool_survives() {
+        // A panic in a pool callback must not unwind across the `extern "system"`
+        // trampoline (which would abort the process); the trampoline contains it
+        // (RS-1). The panic message is printed by the default hook — that stderr
+        // noise is expected. The pool stays usable afterward.
+        let work = submit_once(|| panic!("boom in a pool callback")).expect("submit");
+        work.wait(); // must return, not abort
+
+        let ran = Arc::new(AtomicU32::new(0));
+        let r = Arc::clone(&ran);
+        let work2 = submit_once(move || {
+            r.fetch_add(1, Ordering::SeqCst);
+        })
+        .expect("submit");
+        work2.wait();
+        assert_eq!(ran.load(Ordering::SeqCst), 1);
+    }
 }

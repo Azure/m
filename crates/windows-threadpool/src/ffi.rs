@@ -86,6 +86,18 @@ pub(crate) struct Work {
 unsafe impl Send for Work {}
 unsafe impl Sync for Work {}
 
+/// Run a pool callback so a panic can never unwind across the `extern "system"`
+/// FFI boundary — which would abort the process (RS-1).
+///
+/// A panicking callback is contained and swallowed: the pool thread stays alive
+/// and the caller is unaffected, matching the fail-soft contract of consumers
+/// like the shim's off-thread journal worker. The callback is wrapped in
+/// [`AssertUnwindSafe`](std::panic::AssertUnwindSafe) because on a caught panic
+/// we observe no state across the boundary — we simply return.
+fn run_contained(callback: impl FnOnce()) {
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(callback));
+}
+
 /// The `extern "system"` trampoline the OS invokes on a pool thread.
 ///
 /// Reconstructs a borrow of the boxed callback from the opaque context and runs
@@ -101,7 +113,7 @@ unsafe extern "system" fn work_trampoline(
     // this callback. The `Work` guarantees (via wait-before-free on drop) that
     // the pointee outlives every callback invocation.
     let callback = unsafe { &*(context as *const WorkCallback) };
-    callback();
+    run_contained(callback);
 }
 
 impl Work {
@@ -191,7 +203,7 @@ unsafe extern "system" fn timer_trampoline(
     // that armed this expiration; the `Timer` keeps it alive until after it has
     // cancelled and waited for callbacks on drop.
     let callback = unsafe { &*(context as *const TimerCallback) };
-    callback();
+    run_contained(callback);
 }
 
 impl Timer {
@@ -298,7 +310,7 @@ unsafe extern "system" fn io_trampoline(
     // bound this handle; the `Io` keeps it alive until after it has waited for
     // callbacks on drop.
     let callback = unsafe { &*(context as *const IoCallback) };
-    callback(io_result, bytes_transferred);
+    run_contained(|| callback(io_result, bytes_transferred));
 }
 
 impl Io {

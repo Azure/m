@@ -133,6 +133,21 @@ impl JournalSink {
         }
     }
 
+    /// The leading `min(len, max_body_bytes)` bytes of a body — the most the seam
+    /// ever needs to marshal.
+    ///
+    /// The worker derives both the body shape and the optional `full-with-pii`
+    /// example from at most `max_body_bytes` leading bytes, so carrying any more
+    /// across the off-thread (eventually cross-process) hop is wasted transport.
+    /// Truncating here is behavior-preserving: [`body_shape`](Self::body_shape) and
+    /// [`body_example`](Self::body_example) slice to the same cap, so a body capped
+    /// at the seam yields the identical record a full body would.
+    #[must_use]
+    pub fn capped_body(&self, bytes: &[u8]) -> Vec<u8> {
+        let n = bytes.len().min(self.max_body_bytes);
+        bytes[..n].to_vec()
+    }
+
     /// Stamp bookkeeping fields onto a record and append it to the journal.
     ///
     /// Fills in `session_id`, the next `seq`, and (when unset) `timestamp_ms`,
@@ -247,7 +262,7 @@ impl<S: EgressSurface> EgressSurface for JournalingEgress<S> {
             // Off-thread (SHIM-D25): marshal the raw context and hand it to the
             // worker, blocking until it finishes. The reduction to the on-disk
             // record now lives in the worker, not on this calling thread.
-            let _ = dispatch_off_thread(sink, egress_interaction(req, response));
+            let _ = dispatch_off_thread(sink, egress_interaction(sink, req, response));
         }
         result
     }
@@ -255,10 +270,10 @@ impl<S: EgressSurface> EgressSurface for JournalingEgress<S> {
 
 /// Marshal a raw [`Seam::Egress`] request/response into a position-independent
 /// [`Interaction`]. No reduction happens here — every header and the literal body
-/// bytes are carried as-is; the worker decides what to keep. The timestamp is
-/// sampled now, at interception, so it reflects the interaction's time rather than
-/// the worker's.
-fn egress_interaction(req: &EgressRequest, resp: &EgressResponse) -> Interaction {
+/// bytes (capped at `max_body_bytes`, the most the worker inspects) are carried as
+/// is; the worker decides what to keep. The timestamp is sampled now, at
+/// interception, so it reflects the interaction's time rather than the worker's.
+fn egress_interaction(sink: &JournalSink, req: &EgressRequest, resp: &EgressResponse) -> Interaction {
     Interaction {
         seam: Seam::Egress,
         method: req.verb.to_utf8().unwrap_or_else(|_| "?".to_string()),
@@ -267,10 +282,10 @@ fn egress_interaction(req: &EgressRequest, resp: &EgressResponse) -> Interaction
         port: Some(req.port),
         target: req.path.to_utf8().unwrap_or_default(),
         request_headers: raw_egress_headers(&req.headers),
-        request_body: req.body.clone(),
+        request_body: sink.capped_body(&req.body),
         status: u16::try_from(resp.status).unwrap_or(0),
         response_headers: raw_egress_headers(&resp.headers),
-        response_body: resp.body.clone(),
+        response_body: sink.capped_body(&resp.body),
         timestamp_ms: now_ms(),
     }
 }
@@ -491,11 +506,12 @@ impl JournalingHandler {
 impl RequestHandler for JournalingHandler {
     fn on_begin_request(&mut self, request: &HttpRequest) -> Disposition {
         // Marshal the raw request half; the worker (not this thread) reduces it.
+        // The body is capped to what the worker inspects (`max_body_bytes`).
         self.pending = Some(PendingInbound {
             method: request.method().to_string(),
             target: request.url().to_string(),
             request_headers: raw_http_headers(request.headers()),
-            request_body: request.body().to_vec(),
+            request_body: self.sink.capped_body(request.body()),
             timestamp_ms: now_ms(),
         });
         self.inner.on_begin_request(request)
@@ -520,7 +536,7 @@ impl RequestHandler for JournalingHandler {
                 request_body: pending.request_body,
                 status: response.status(),
                 response_headers: raw_http_headers(response.headers()),
-                response_body: response.body().to_vec(),
+                response_body: self.sink.capped_body(response.body()),
                 timestamp_ms: pending.timestamp_ms,
             };
             let _ = dispatch_off_thread(&self.sink, interaction);
@@ -1241,6 +1257,96 @@ mod tests {
 
         assert_eq!(records_a.len(), 1);
         assert_eq!(records_b.len(), 1);
+        assert_eq!(
+            normalized(records_a[0].clone()),
+            normalized(records_b[0].clone())
+        );
+    }
+
+    // === Bounded marshaled bodies (BC-1) ===
+
+    fn capped_config(path: &std::path::Path, max_body_bytes: usize) -> ApiJournalConfig {
+        ApiJournalConfig {
+            enabled: true,
+            path: path.to_string_lossy().into_owned(),
+            max_body_bytes,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn capped_body_truncates_to_max() {
+        let path = temp_path("capped");
+        let sink = JournalSink::from_config(&capped_config(&path, 8)).expect("sink");
+        // Longer than the cap → truncated to the leading `max_body_bytes`.
+        assert_eq!(sink.capped_body(b"0123456789ABCDEF"), b"01234567");
+        // Exactly the cap → unchanged.
+        assert_eq!(sink.capped_body(b"01234567"), b"01234567");
+        // Shorter than the cap → unchanged.
+        assert_eq!(sink.capped_body(b"abc"), b"abc");
+        // Empty → empty.
+        assert!(sink.capped_body(b"").is_empty());
+    }
+
+    #[test]
+    fn over_cap_body_through_off_thread_matches_worker_capping() {
+        // The egress decorator caps the body at the seam; the worker would also cap
+        // it internally. Both must yield the identical on-disk record — proving the
+        // seam-side truncation changes nothing the worker computes.
+        let big = br#"{"name":"abcdefghijklmnop"}"#; // > 8 bytes
+        let cap = 8;
+
+        let path_a = temp_path("bc1-deco");
+        let sink_a = JournalSink::from_config(&capped_config(&path_a, cap)).expect("sink");
+        let inner = CannedEgress {
+            ok: Some(canned(200, "application/json", br#"{"ok":true}"#)),
+        };
+        let mut deco = JournalingEgress::new(inner, Some(Arc::clone(&sink_a)));
+        let mut req =
+            EgressRequest::http(Scheme::Http, "merriam.local", 8080, "POST", "/upload");
+        req.headers.push((
+            Utf16::from_utf8("Content-Type"),
+            Utf16::from_utf8("application/json"),
+        ));
+        req.body = big.to_vec();
+        deco.send(&req).expect("send ok");
+        let file = File::open(&path_a).expect("journal a");
+        let (records_a, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path_a);
+
+        // Feed the worker the FULL, uncapped body; it caps internally to the same
+        // bound. (Same small cap so both observe the same leading bytes.)
+        let path_b = temp_path("bc1-worker");
+        let sink_b = JournalSink::from_config(&capped_config(&path_b, cap)).expect("sink");
+        let interaction = Interaction {
+            seam: Seam::Egress,
+            method: "POST".into(),
+            scheme: Some("http".into()),
+            host: Some("merriam.local".into()),
+            port: Some(8080),
+            target: "/upload".into(),
+            request_headers: vec![RawHeader {
+                name: "Content-Type".into(),
+                value: "application/json".into(),
+            }],
+            request_body: big.to_vec(),
+            status: 200,
+            response_headers: vec![RawHeader {
+                name: "Content-Type".into(),
+                value: "application/json".into(),
+            }],
+            response_body: br#"{"ok":true}"#.to_vec(),
+            timestamp_ms: 0,
+        };
+        let _ = handle_interaction(&interaction.to_json().unwrap(), &sink_b);
+        let file = File::open(&path_b).expect("journal b");
+        let (records_b, _) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path_b);
+
+        assert_eq!(records_a.len(), 1);
+        assert_eq!(records_b.len(), 1);
+        // The body, cut mid-token by the cap, reads as opaque either way.
+        assert_eq!(records_a[0].request_body, BodyShape::Opaque);
         assert_eq!(
             normalized(records_a[0].clone()),
             normalized(records_b[0].clone())

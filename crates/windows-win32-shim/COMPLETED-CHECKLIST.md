@@ -1029,3 +1029,27 @@ parity tests). Raw context is transient today and becomes the IPC payload later.
 - [x] **OT-6** Wire `JournalingHandler` (inbound) to marshal + dispatch off-thread.
 - [x] **OT-7** Tests: the off-thread path produces the same journal records as the inline path;
       the `WaitGate` blocks then wakes; the marshaled request/reply round-trips.
+
+
+---
+
+## Moved 2026-06-28 — Milestone BC: bounded, compact marshaled bodies (SHIM-D25 refinement)
+
+Bounded and compacted the marshaled body payloads. The seam now carries only the
+leading `max_body_bytes` of each body (`JournalSink::capped_body`) — behavior-
+preserving because the worker already slices to the same cap, but it stops cloning
+and encoding whole multi-MB bodies just to inspect the first 64 KB (the default cap).
+Bodies are now encoded as **base64 strings** in the marshaled JSON (`base64_body`
+serde adapter in `marshal`) instead of JSON number arrays — ~3× smaller and the
+standard binary-in-JSON form for the eventual cross-process payload.
+
+- [x] **BC-1** Cap marshaled bodies at the seam: add `JournalSink::capped_body` (returns the
+      leading `min(len, max_body_bytes)` bytes) and apply it to the egress and inbound request /
+      response bodies before building the `Interaction`. Behavior-preserving because the worker
+      already slices to the same cap. Added an end-to-end test that an over-cap body through the
+      off-thread path produces the same record as the inline-equivalent.
+- [x] **BC-2** Encode the marshaled body fields as base64 strings (RFC 4648) instead of JSON
+      number arrays: a `base64_body` serde `with` module on `Interaction::request_body` /
+      `response_body`, keeping `skip_serializing_if`/`default`. Updated the round-trip tests and
+      assert the JSON carries a base64 string, not a number array (plus a malformed-base64 parse
+      error test).

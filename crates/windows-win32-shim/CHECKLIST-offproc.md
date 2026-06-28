@@ -13,22 +13,9 @@ Milestone **OT** (off-thread, synchronous, in-process) is complete — see
 marshals the raw context, dispatches the journaling worker to a thread-pool work
 item, and blocks on a `WaitOnAddress` latch until it finishes.
 
-## Milestone BC — Bounded, compact marshaled bodies
-
-The worker never inspects past `max_body_bytes`, yet the seam currently marshals the
-**entire** raw body and serializes it as a JSON number array (~4× bloat). Bound the
-payload at the seam and encode it compactly. Both changes are behavior-preserving for
-the on-disk record.
-
-- [x] **BC-1** Cap marshaled bodies at the seam: add `JournalSink::capped_body` (returns the
-      leading `min(len, max_body_bytes)` bytes) and apply it to the egress and inbound request /
-      response bodies before building the `Interaction`. Behavior-preserving because the worker
-      already slices to the same cap. Add an end-to-end test that an over-cap body through the
-      off-thread path produces the same record as the inline-equivalent.
-- [x] **BC-2** Encode the marshaled body fields as base64 strings (RFC 4648) instead of JSON
-      number arrays: a `base64_bytes` serde `with` module on `Interaction::request_body` /
-      `response_body`, keeping `skip_serializing_if`/`default`. Update the round-trip tests and
-      assert the JSON carries a base64 string, not a number array.
+Milestone **BC** (bounded, compact marshaled bodies) is complete — see
+[COMPLETED-CHECKLIST.md](COMPLETED-CHECKLIST.md) (Moved 2026-06-28). Bodies are capped
+at `max_body_bytes` at the seam and base64-encoded in the marshaled JSON.
 
 ## Deferred (next stages, not yet planned into milestones)
 

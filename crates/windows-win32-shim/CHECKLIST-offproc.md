@@ -37,9 +37,12 @@ shim's fail-soft contract.
       `dispatch_off_thread` to one sink land every record with no lost wakeups or per-call gate/slot
       cross-talk. (Broad multi-threaded testing was deferred to the OOP stage; this validates the
       in-process machinery specifically — include if the insurance is wanted now.)
-- [ ] **RS-4** *(decide)* `Outcome.journaled` means *attempted* — `sink.record` swallows write
-      errors (fail-soft), so a failed write still reports journaled. Decide whether the reply should
-      distinguish attempted vs. persisted before OOP makes the reply a real channel signal.
+- [x] **RS-4** *(decide)* `Outcome.journaled` means *attempted* — `sink.record` swallows write
+      errors (fail-soft), so a failed write still reports journaled. **Decided (SHIM-D27):** failure
+      policy is mode-dependent — journaling is faithful-or-fatal (capture failure aborts with a clear
+      diagnosis; today's swallow is wrong and must become fail-loud); out-of-line primary tasks raise
+      a diagnosable fault and the reply carries persisted-vs-dropped; tracing is best-effort, queued
+      async, in-process (no OOP round-trip). Implementation tied to the OOP milestones.
 
 Related finding (out of scope here, larger): the shim's exported `extern "system"` functions do not
 appear to `catch_unwind`, so a panic on the *calling* thread (marshaling, or the inline

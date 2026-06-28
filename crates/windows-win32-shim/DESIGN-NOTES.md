@@ -1068,3 +1068,29 @@ Planned in [`CHECKLIST-offproc.md`](CHECKLIST-offproc.md) (Milestone UT). Spans 
   parser honors the declared encoding, we never pre-transcode. Two forward constraints (reserved,
   see the UT "Open design points"): `cartographer` needs an XML shape model + body-based operation
   identity, and the BC body cap must not truncate before the operation element.
+
+## SHIM-D27 — Failure policy is mode-dependent, not blanket fail-soft (resolves RS-4)
+
+How the observed service reacts to an **observability-pipeline** failure (the journaling I/O today;
+the IPC to the collector when out-of-process) depends on the *mode*, not a single fail-soft rule.
+This corrects the prior assumption that journaling must always be best-effort.
+
+- **Journaling (capture to derive an API shape): faithful-or-fatal.** A dropped message means the
+  log is not faithful to the interactions, which silently corrupts the derived shape. If the user
+  asked us to journal and we cannot (disk full, unwritable path, write error; later: collector
+  unreachable), that is a **clear, diagnosable failure that aborts the process** — not a swallow.
+  This means the current `sink.record` fail-soft swallow is *wrong* for journaling and must become
+  fail-loud.
+- **Out-of-line primary tasks (redirect / replay / fault — moving the message IS the function):**
+  failure likewise raises a **diagnosable fault** (panic with a message, an event-log entry, or a
+  log line — severity per how desperate we are when it's detected). The reply is load-bearing here,
+  so `Outcome` carries persisted-vs-dropped only in these modes.
+- **Tracing (implied best-effort): loss does not fail processing; proceed.** Tracing is queued
+  **asynchronously and continues in-process without the OOP round-trip** — i.e. it skips the
+  synchronous `WaitGate` hop entirely (this is the deferred "honor the caller's contract / async"
+  path).
+- **Interaction with RS-1/RS-2:** those contain *unexpected* panics (bugs) so a worker panic can't
+  abort the host. A journaling/primary I/O failure is a *deliberate, diagnosed* abort — a different
+  thing — so panic containment stays; this adds explicit fatal handling for capture failure.
+- **`mode` becomes first-class `.pilcfg` state.** Implementation (mode-aware failure policy) is
+  future work tied to the out-of-process milestones; the decision is recorded now.

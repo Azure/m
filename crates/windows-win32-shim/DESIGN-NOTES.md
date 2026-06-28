@@ -1005,19 +1005,22 @@ of process. Staged in [`CHECKLIST-offproc.md`](CHECKLIST-offproc.md).
 
 ## SHIM-D26 — Untranscoded, encoding-tagged text end-to-end (milestone UT, planned)
 
-The observed service should never transcode captured text. Today the egress seam eagerly
-converts WinHTTP wide strings (`Utf16`) to UTF-8 (`to_utf8()` in `egress_interaction` /
-`raw_egress_headers`) — burning CPU in the host, *and* silently dropping ill-formed UTF-16
-(`unwrap_or_default()`), *and* converting header values the worker then discards. Planned in
-[`CHECKLIST-offproc.md`](CHECKLIST-offproc.md) (Milestone UT). Spans `api-journal` (schema),
-this shim (producer), and `cartographer` (consumer).
+**Governing principle (directive):** *never impose an encoding or transcoding burden on data
+captured from the platform (http.sys / WinHTTP / file / registry / etc.). Carry it verbatim in
+its native encoding, tagged with what that encoding is, and let only the final consumer decode.*
+
+Today the egress seam violates this: it eagerly converts WinHTTP wide strings (`Utf16`) to UTF-8
+(`to_utf8()` in `egress_interaction` / `raw_egress_headers`) — burning host CPU, silently dropping
+ill-formed UTF-16 (`unwrap_or_default()`), and converting header values the worker then discards.
+Planned in [`CHECKLIST-offproc.md`](CHECKLIST-offproc.md) (Milestone UT). Spans `api-journal`
+(schema), this shim (producer), and `cartographer` (consumer).
 
 - **The platform is not uniformly UTF-16; it splits by API family.** Win32 *client* wide APIs
   (WinHTTP egress, file, registry) are UTF-16. The HTTP *server* stack (http.sys / IIS) is
   **narrow raw octets** because HTTP is a byte protocol — `wordy` reads `pRawUrl` (`*const u8`)
   and `IHttpRequest::GetHeader` (`PCSTR`); `merriam` reads `HTTP_KNOWN_HEADER` (`PCSTR`). So
   the inbound `String` fields in `windows-platform-isolation::web` are narrow-native, not a
-  hidden wide source.
+  hidden wide source. The encoding tag records this faithfully instead of forcing one encoding.
 - **Carry raw bytes + a 1-byte encoding tag, never transcode in the service.** A shared
   `RawStr { enc, bytes }` (in `api-journal`, the schema owner) with `enc ∈ { Utf16Le, Bytes }`
   represents every captured text field. Egress wraps `Utf16::as_units()` as `Utf16Le` (no
@@ -1027,14 +1030,24 @@ this shim (producer), and `cartographer` (consumer).
   `RawStr`, so the *producer* (and the eventual out-of-process collector) transcodes nothing;
   `cartographer` decodes per tag (`Utf16Le`→UTF-8 lossy, `Bytes`→UTF-8 lossy) at read time.
   This pushes the one unavoidable UTF-8 conversion to off-machine post-processing.
-- **Representation / readability (decision to confirm at UT-A1).** `RawStr` serializes as a
-  plain JSON string when its bytes are already valid UTF-8 (the common ASCII inbound case, so
-  the journal stays human-readable), and as a tagged object `{ "enc": "u16", "b64": "…" }` only
-  when not (egress wide bytes, ill-formed UTF-16, non-UTF-8 narrow). The reader accepts both.
-  This is a JSON-formatting choice at the schema boundary — it does **not** reintroduce a
-  transcode in the host, since egress wide bytes are not valid UTF-8 and thus stay raw+tagged.
-- **The worker still reduces on a decoded view.** Reductions that need UTF-8 string ops
+- **Always raw+tagged, never inspected.** `RawStr` serializes *uniformly* as a tagged object
+  `{ "enc": "u16"|"raw", "b64": "…" }` — we do **not** sniff the bytes for UTF-8 validity to
+  opportunistically emit a plain string, because inspecting the captured data is itself a burden
+  the principle forbids. Consequence (accepted): the raw NDJSON is opaque for these fields until
+  `cartographer` decodes them; readability is the reader's job, not the producer's.
+- **base64 is transport packaging, not transcoding.** Putting raw bytes into JSON requires
+  base64; this is reversible and byte-preserving (the data's encoding is untouched), unlike the
+  forbidden `Utf16→Utf8` transcode which reinterprets and can fail. base64 of captured bytes
+  still costs an O(n) pass, so it must run on the worker, not the calling thread (see the
+  marshal-without-serializing note below).
+- **The worker reduces on a transient decoded view.** Reductions that need UTF-8 string ops
   (split path/query on `?`/`&`/`=`, header safelist `ascii_lowercase`, content-type match,
-  `infer_scalar`) decode transiently inside the worker; the *stored* field remains the raw
-  tagged bytes. Decoding for a parsing decision is not the same as persisting a transcoded
-  string.
+  `infer_scalar`) decode transiently inside the worker; the *stored* field stays raw tagged
+  bytes. Decoding for a parsing decision is not the same as persisting a transcoded string.
+- **Don't serialize captured data on the calling thread (UT-B0).** `dispatch_off_thread` today
+  calls `interaction.to_json()` (which base64-encodes bodies) on the *host* thread before
+  submitting. To honor the principle, the host hands the worker the raw in-memory `Interaction`
+  (a move, zero encoding) and the worker serializes off-thread; serialization re-enters only at
+  the real IPC boundary when the worker moves out of process. (The in-process *reply*
+  serialization stays as-is per the prior directive — that is our control data, not captured
+  platform data.)

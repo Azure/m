@@ -29,11 +29,11 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
 ### `api-journal` (schema owner — lands first)
 
 - [ ] **UT-A1** Add a shared `RawStr { enc: TextEnc, bytes: Vec<u8> }` (`TextEnc ∈ { Utf16Le, Bytes }`)
-      with constructors `from_utf16_units(&[u16])` / `from_bytes(&[u8])` / `from_utf8(&str)`, a
-      lossy `to_string_lossy() -> String` decoder, and serde that emits a **plain JSON string when
-      the bytes are valid UTF-8** and a tagged object `{ "enc": "u16", "b64": "…" }` otherwise (the
-      reader accepts both). Unit tests: round-trip both encodings, ill-formed UTF-16 preserved,
-      readable-when-UTF-8, lossy decode. **Confirm the representation decision here (SHIM-D26).**
+      with constructors `from_utf16_units(&[u16])` / `from_bytes(&[u8])` / `from_utf8(&str)` and a
+      lossy `to_string_lossy() -> String` decoder. serde emits a **uniform tagged object**
+      `{ "enc": "u16"|"raw", "b64": "…" }` — never sniff the bytes for UTF-8 validity (inspecting the
+      captured data is itself the burden the principle forbids; SHIM-D26). Unit tests: round-trip
+      both encodings, ill-formed UTF-16 preserved verbatim, lossy decode.
 - [ ] **UT-A2** Switch the `JournalRecord` text fields (`method`, `scheme`, `host`, `path`),
       `HeaderField { name, value }`, and `QueryParam.name` from `String` / `Option<String>` to
       `RawStr` / `Option<RawStr>`. Update `infer_scalar` / `derive_example` call sites and the
@@ -43,6 +43,11 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
 
 ### `windows-win32-shim` (producer)
 
+- [ ] **UT-B0** Stop serializing captured data on the calling thread: `dispatch_off_thread` hands
+      the worker the raw in-memory `Interaction` (a move — zero encoding) instead of calling
+      `interaction.to_json()` on the host; the worker serializes/`base64`s off-thread (and only at
+      the real IPC boundary once out of process). The in-process *reply* serialization is unchanged
+      (control data, not captured platform data). This item is shim-local and may land before UT-B1.
 - [ ] **UT-B1** **CROSS-COMPONENT PREREQUISITE:** `api-journal` UT-A2 must land first. Change the
       `marshal::Interaction` text fields to `RawStr`. Capture without transcoding: egress wraps
       `Utf16::as_units()` as `Utf16Le` (delete the `to_utf8()` calls in `egress_interaction` /

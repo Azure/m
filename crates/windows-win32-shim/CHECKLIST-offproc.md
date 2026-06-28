@@ -31,6 +31,19 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
   redaction cannot move to the out-of-process collector — it stays in-process (and may *inspect*
   the captured data, which is allowed; only gratuitous re-encoding is not). Where it sits (seam vs.
   in-process pre-send worker) and how it reads the encoding tag is unresolved (D-AJ-4 / PII-A).
+- **SOAP support changes the body calculus (reservation — no work scheduled yet).** Extending the
+  WireServer dev/test wins to another important Azure agent will require parsing SOAP. Unlike REST,
+  a SOAP request's **operation identity** lives in the *body* (first child of `<soap:Body>` and/or
+  the `SOAPAction` header), since operations are typically `POST`ed to one endpoint — so the body
+  becomes load-bearing for routing/grouping, not just shape/validity, which pulls body inspection
+  **in-process** and earlier. Implications to honor when SOAP is built: (a) an XML shape model in
+  `cartographer` (today non-JSON bodies reduce to `Opaque`) plus body-based operation identity;
+  (b) XML self-describes its encoding in the prolog, which *reinforces* the UT raw-bytes+tag
+  decision — never pre-transcode; the XML parser honors the declared encoding; (c) the **BC body
+  cap must not truncate before the SOAP operation element** — the `<soap:Body>` child can sit past
+  a large envelope/header, so `max_body_bytes` needs a "capture enough to identify the operation"
+  rule rather than a blind leading-bytes cut. No UT/BC item changes now; this reserves the design
+  space so the future SOAP effort (cartographer XML + shim cap policy) inherits these constraints.
 - Other details still under discussion; settle them here before starting UT-A1.
 
 ### `api-journal` (schema owner — lands first)

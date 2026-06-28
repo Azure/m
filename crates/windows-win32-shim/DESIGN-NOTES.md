@@ -1062,3 +1062,9 @@ Planned in [`CHECKLIST-offproc.md`](CHECKLIST-offproc.md) (Milestone UT). Spans 
   the real IPC boundary when the worker moves out of process. (The in-process *reply*
   serialization stays as-is per the prior directive — that is our control data, not captured
   platform data.)
+- **SOAP reinforces these decisions (future).** Extending to a SOAP-speaking Azure agent will make
+  the body load-bearing for *operation identity* (the `<soap:Body>` child / `SOAPAction`), parsed
+  in-process. XML self-describes its encoding (prolog), so raw-bytes+tag is exactly right — the
+  parser honors the declared encoding, we never pre-transcode. Two forward constraints (reserved,
+  see the UT "Open design points"): `cartographer` needs an XML shape model + body-based operation
+  identity, and the BC body cap must not truncate before the operation element.

@@ -26,13 +26,20 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
 `Bytes` for HTTP/narrow), persist the tagged bytes, and decode only in `cartographer`
 (Option C). Design: `SHIM-D26`. Items are in strict dependency order across components.
 
+**Open design points (work through before implementing):**
+- **PII redaction placement.** PII must be redacted *before* the data exits the process, so
+  redaction cannot move to the out-of-process collector — it stays in-process (and may *inspect*
+  the captured data, which is allowed; only gratuitous re-encoding is not). Where it sits (seam vs.
+  in-process pre-send worker) and how it reads the encoding tag is unresolved (D-AJ-4 / PII-A).
+- Other details still under discussion; settle them here before starting UT-A1.
+
 ### `api-journal` (schema owner — lands first)
 
 - [ ] **UT-A1** Add a shared `RawStr { enc: TextEnc, bytes: Vec<u8> }` (`TextEnc ∈ { Utf16Le, Bytes }`)
       with constructors `from_utf16_units(&[u16])` / `from_bytes(&[u8])` / `from_utf8(&str)` and a
       lossy `to_string_lossy() -> String` decoder. serde emits a **uniform tagged object**
-      `{ "enc": "u16"|"raw", "b64": "…" }` — never sniff the bytes for UTF-8 validity (inspecting the
-      captured data is itself the burden the principle forbids; SHIM-D26). Unit tests: round-trip
+      `{ "enc": "u16"|"raw", "b64": "…" }` — never sniff the bytes for UTF-8 validity (that buys only
+      journal readability, which has no value to the producer; SHIM-D26). Unit tests: round-trip
       both encodings, ill-formed UTF-16 preserved verbatim, lossy decode.
 - [ ] **UT-A2** Switch the `JournalRecord` text fields (`method`, `scheme`, `host`, `path`),
       `HeaderField { name, value }`, and `QueryParam.name` from `String` / `Option<String>` to

@@ -1030,11 +1030,22 @@ Planned in [`CHECKLIST-offproc.md`](CHECKLIST-offproc.md) (Milestone UT). Spans 
   `RawStr`, so the *producer* (and the eventual out-of-process collector) transcodes nothing;
   `cartographer` decodes per tag (`Utf16Le`→UTF-8 lossy, `Bytes`→UTF-8 lossy) at read time.
   This pushes the one unavoidable UTF-8 conversion to off-machine post-processing.
-- **Always raw+tagged, never inspected.** `RawStr` serializes *uniformly* as a tagged object
-  `{ "enc": "u16"|"raw", "b64": "…" }` — we do **not** sniff the bytes for UTF-8 validity to
-  opportunistically emit a plain string, because inspecting the captured data is itself a burden
-  the principle forbids. Consequence (accepted): the raw NDJSON is opaque for these fields until
-  `cartographer` decodes them; readability is the reader's job, not the producer's.
+- **Always raw+tagged; no *gratuitous* re-encoding.** `RawStr` serializes *uniformly* as a tagged
+  object `{ "enc": "u16"|"raw", "b64": "…" }`. We do **not** sniff the bytes for UTF-8 validity to
+  opportunistically emit a plain string: that inspection buys only journal *readability*, which has
+  no value to the producer (readability is the reader's job). This is a value judgment about a
+  pointless transcode — **not** a blanket rule against ever looking at the data (see PII below).
+  Consequence (accepted): the raw NDJSON is opaque for these fields until `cartographer` decodes.
+- **Inspection *is* allowed when it has value — notably PII redaction, which must stay in-process.**
+  The principle bans a transcoding/encoding burden imposed *for storage or transport*; it does not
+  ban examining the data. We anticipate needing to inspect captured data to **redact PII before it
+  exits the process** (a real privacy guarantee, unlike readability sniffing). The hard constraint:
+  redaction must happen **before** the marshaled payload crosses the process boundary — so it cannot
+  be deferred to the out-of-process collector (the raw data would already have left). This *refines*
+  the SHIM-D25 sketch of "carry raw across the channel, tokenize in the collector": if redaction must
+  precede process exit, that step remains in-process even after the rest of the worker moves out.
+  Exactly where redaction sits (seam vs. in-process pre-send worker) and how it interacts with the
+  encoding tag is an **open design point** (D-AJ-4 / PII-A) to settle before the out-of-process stage.
 - **base64 is transport packaging, not transcoding.** Putting raw bytes into JSON requires
   base64; this is reversible and byte-preserving (the data's encoding is untouched), unlike the
   forbidden `Utf16→Utf8` transcode which reinterprets and can fail. base64 of captured bytes

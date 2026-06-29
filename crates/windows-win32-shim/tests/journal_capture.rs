@@ -88,7 +88,9 @@ fn session_journals_both_seams_to_one_shared_file() {
         handler.on_send_response(&mut HttpResponse::new(200));
     });
 
-    // Both seams wrote to the one configured file.
+    // Both seams wrote to the one configured file. Flush the journal writer so the
+    // queued records are on disk before reading (JW-2).
+    session.flush_journal();
     let file = File::open(&path).expect("journal file exists");
     let (records, stats) = read_records(BufReader::new(file));
     let _ = std::fs::remove_file(&path);

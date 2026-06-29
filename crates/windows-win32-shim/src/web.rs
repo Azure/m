@@ -382,7 +382,8 @@ mod tests {
         };
         // Mode stays Off: API journaling is independent of the observation mode.
         let mut state = WebState::new();
-        state.set_journal_sink(JournalSink::from_config(&cfg));
+        let sink = JournalSink::from_config(&cfg).expect("sink");
+        state.set_journal_sink(Some(std::sync::Arc::clone(&sink)));
         let mut handler = state.build_handler();
 
         handler.on_begin_request(&HttpRequest::new("GET", "/healthz"));
@@ -390,6 +391,7 @@ mod tests {
 
         // Inbound dispatch is non-blocking (AC-4); drop the handler to join the worker.
         drop(handler);
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);

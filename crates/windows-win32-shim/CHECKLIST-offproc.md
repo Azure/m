@@ -169,11 +169,11 @@ PIL `rundown.h`): consult `RtlDllShutdownInProgress` and leak on process rundown
 - [x] **JW-1** Expose a process-rundown query in `windows-threadpool` backed by ntdll
       `RtlDllShutdownInProgress` (resolved by name; false where unavailable). Mirrors PIL
       `process_rundown_in_progress()`. Test: returns false in a normally-running process.
-- [ ] **JW-2** **PREREQUISITE: JW-1.** Add the MPSC queue + single-consumer drain to `JournalSink`:
+- [x] **JW-2** **PREREQUISITE: JW-1.** Add the MPSC queue + single-consumer drain to `JournalSink`:
       `record` enqueues and (0→1) submits the writer; the writer takes the file mutex, drains to
       empty, releases, and re-checks for a clean empty pass. Producers never block. Test: many
       threads enqueue, one writer drains, every record lands, no loss.
-- [ ] **JW-3** **PREREQUISITE: JW-2.** Rundown-safe teardown: on drop quiesce the writer (wait) on
+- [x] **JW-3** **PREREQUISITE: JW-2.** Rundown-safe teardown: on drop quiesce the writer (wait) on
       a live unload, but leak on process rundown (skip the hang). Test: normal drop flushes/joins;
       simulated rundown leaks without waiting.
 - [ ] **JW-4** **PREREQUISITE: JW-2.** Rewire egress + inbound to the queue (drop the per-request

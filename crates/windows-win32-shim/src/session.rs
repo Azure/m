@@ -147,6 +147,9 @@ pub struct ShimSession {
     egress: Mutex<SessionEgress>,
     casing: Win32OrdinalCasing,
     capture_snapshot: String,
+    /// The process-wide journal sink (when enabled), held so teardown can flush
+    /// the queued records the seams enqueued (JW-2).
+    journal: Option<Arc<JournalSink>>,
 }
 
 impl ShimSession {
@@ -197,6 +200,7 @@ impl ShimSession {
             ))),
             casing,
             capture_snapshot: cfg.capture_snapshot,
+            journal: journal_sink,
         }
     }
 
@@ -206,9 +210,16 @@ impl ShimSession {
         f(&mut guard)
     }
 
+    /// Flush queued journal records to disk (JW-2). Teardown/test helper; drains
+    /// the single-consumer writer so the configured file reflects all interactions.
+    pub fn flush_journal(&self) {
+        if let Some(sink) = &self.journal {
+            sink.flush();
+        }
+    }
+
     /// Write the configured `capture_snapshot` artifact from the current
     /// registry state, returning whether a snapshot was written (SHIM-D13).
-    ///
     /// Best-effort: a no-op (returns `false`) when no `capture_snapshot` path is
     /// configured, when the backing is not a persisted snapshot (live and
     /// buffered backings cannot be serialized — a documented gap), or when the

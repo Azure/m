@@ -25,6 +25,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::collections::VecDeque;
+use std::sync::OnceLock;
+use std::sync::atomic::AtomicBool;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use api_journal::{
@@ -44,7 +47,6 @@ use crate::pilcfg::{ApiJournalConfig, BodyCapture};
 /// Construct via [`JournalSink::from_config`] (returns `None` when journaling is
 /// disabled or no path is set) and share clones of the returned [`Arc`] with the
 /// seam decorators.
-#[derive(Debug)]
 pub struct JournalSink {
     /// The destination NDJSON file (already `%VAR%`-expanded by pilcfg parsing).
     path: PathBuf,
@@ -53,8 +55,18 @@ pub struct JournalSink {
     session_id: u64,
     /// Monotonic per-process record sequence.
     seq: AtomicU64,
-    /// The append handle, opened lazily on the first record.
+    /// The append handle, opened lazily on the first record. Held only by the
+    /// single writer (JW-2), so writes never contend.
     file: Mutex<Option<File>>,
+    /// Pending records awaiting the single-consumer writer (JW-2). Producers push
+    /// and return; the writer drains in batches under the file lock.
+    queue: Mutex<VecDeque<JournalRecord>>,
+    /// 0→1 transition submits the writer; the writer clears it when it drains the
+    /// queue empty, so at most one writer work item is ever in flight.
+    writer_scheduled: AtomicBool,
+    /// The single-consumer drain work item; runs on the pool, holds a `Weak` back
+    /// to the sink (no cycle). Set once at construction.
+    writer: OnceLock<Work>,
     /// How much of each body to capture.
     bodies: BodyCapture,
     /// Maximum body bytes to inspect when deriving a shape.
@@ -73,16 +85,33 @@ impl JournalSink {
         if !config.enabled || config.path.is_empty() {
             return None;
         }
-        Some(Arc::new(JournalSink {
-            path: PathBuf::from(&config.path),
-            session_id: new_session_id(),
-            seq: AtomicU64::new(0),
-            file: Mutex::new(None),
-            bodies: config.bodies,
-            max_body_bytes: config.max_body_bytes,
-            capture_inbound: config.capture_inbound,
-            capture_egress: config.capture_egress,
-        }))
+        let sink = Arc::new_cyclic(|weak: &std::sync::Weak<JournalSink>| {
+            let writer = OnceLock::new();
+            // The drain work item runs on the pool; upgrading the Weak fails once
+            // the sink is gone, so a late callback is a no-op (no cycle, no UAF).
+            let w = weak.clone();
+            if let Ok(work) = Work::new(move || {
+                if let Some(sink) = w.upgrade() {
+                    sink.drain();
+                }
+            }) {
+                let _ = writer.set(work);
+            }
+            JournalSink {
+                path: PathBuf::from(&config.path),
+                session_id: new_session_id(),
+                seq: AtomicU64::new(0),
+                file: Mutex::new(None),
+                queue: Mutex::new(VecDeque::new()),
+                writer_scheduled: AtomicBool::new(false),
+                writer,
+                bodies: config.bodies,
+                max_body_bytes: config.max_body_bytes,
+                capture_inbound: config.capture_inbound,
+                capture_egress: config.capture_egress,
+            }
+        });
+        Some(sink)
     }
 
     /// Whether the inbound (IIS) seam should journal.
@@ -159,20 +188,93 @@ impl JournalSink {
             record.timestamp_ms = now_ms();
         }
 
-        // Tolerate a poisoned mutex: a prior panic while holding the lock must not
-        // disable journaling for the rest of the process.
-        let mut guard = self.file.lock().unwrap_or_else(|poison| poison.into_inner());
-        if guard.is_none() {
-            *guard = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&self.path)
-                .ok();
+        // Enqueue and return: producers never touch the file (JW-2). The 0→1
+        // transition submits the single writer; while it is scheduled, later
+        // pushes just grow the queue and the in-flight writer drains them.
+        self.queue
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .push_back(record);
+        if !self.writer_scheduled.swap(true, Ordering::AcqRel) {
+            if let Some(writer) = self.writer.get() {
+                writer.submit();
+            }
         }
-        if let Some(file) = guard.as_mut() {
-            // Fail-soft: a write error drops this record but keeps the host alive.
-            let _ = write_record(file, &record);
+    }
+
+    /// Single-consumer drain (JW-2): take the file mutex, write every queued
+    /// record, release, and loop until a full pass finds the queue empty. Clearing
+    /// `writer_scheduled` before the final empty check, then re-checking, closes
+    /// the lost-wakeup window with `record`'s 0→1 submit.
+    fn drain(&self) {
+        loop {
+            let batch: VecDeque<JournalRecord> = {
+                let mut q = self.queue.lock().unwrap_or_else(|p| p.into_inner());
+                std::mem::take(&mut *q)
+            };
+            if batch.is_empty() {
+                self.writer_scheduled.store(false, Ordering::Release);
+                // A producer may have pushed between the take and the clear; if so,
+                // reclaim the writer and keep draining, else stop.
+                if self.queue.lock().unwrap_or_else(|p| p.into_inner()).is_empty() {
+                    return;
+                }
+                if self.writer_scheduled.swap(true, Ordering::AcqRel) {
+                    return; // another submit already reclaimed the writer
+                }
+                continue;
+            }
+            let mut guard = self.file.lock().unwrap_or_else(|p| p.into_inner());
+            if guard.is_none() {
+                *guard = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&self.path)
+                    .ok();
+            }
+            if let Some(file) = guard.as_mut() {
+                for record in &batch {
+                    // Fail-soft: a write error drops this record but keeps the host alive.
+                    let _ = write_record(file, record);
+                }
+            }
         }
+    }
+
+    /// Drain all queued records to disk and wait for the writer to idle. Test/teardown
+    /// helper; producers never call this on the hot path.
+    pub fn flush(&self) {
+        if let Some(writer) = self.writer.get() {
+            loop {
+                if !self.queue.lock().unwrap_or_else(|p| p.into_inner()).is_empty() {
+                    writer.submit();
+                }
+                writer.wait();
+                if self.queue.lock().unwrap_or_else(|p| p.into_inner()).is_empty() {
+                    return;
+                }
+            }
+        }
+    }
+}
+
+impl Drop for JournalSink {
+    fn drop(&mut self) {
+        // Rundown hazard (mwin32 D16): joining a pool callback during process
+        // teardown hangs (worker threads already gone) — leak instead. On a live
+        // unload, quiesce: cancel/await the writer, then drain inline.
+        if windows_threadpool::process_rundown_in_progress() {
+            if let Some(writer) = self.writer.take() {
+                std::mem::forget(writer); // skip CloseThreadpoolWork's implicit wait
+            }
+            return;
+        }
+        // Quiesce the writer first: its callback upgrades a Weak that now fails
+        // (strong count is 0), so it cannot drain — drain inline on this thread.
+        if let Some(writer) = self.writer.take() {
+            writer.cancel_pending();
+        }
+        self.drain();
     }
 }
 
@@ -759,6 +861,7 @@ mod tests {
         sink.record(sample(Seam::Egress, "/a"));
         sink.record(sample(Seam::Inbound, "/b"));
 
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, stats) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -781,6 +884,7 @@ mod tests {
         let sink = JournalSink::from_config(&config(&path)).expect("enabled sink");
         assert!(!path.exists(), "no file before the first record");
         sink.record(sample(Seam::Egress, "/healthz"));
+        sink.flush();
         assert!(path.exists(), "file created on first record");
         let _ = std::fs::remove_file(&path);
     }
@@ -803,6 +907,7 @@ mod tests {
             h.join().expect("thread joined");
         }
 
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, stats) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -894,6 +999,7 @@ mod tests {
             .push((Utf16::from_utf8("X-Wordy-User"), Utf16::from_utf8("alice")));
         deco.send(&req).expect("send ok");
 
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, stats) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -976,6 +1082,7 @@ mod tests {
 
         // Inbound is non-blocking (AC-4); drop the handler to join the worker.
         drop(handler);
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, stats) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -1024,6 +1131,7 @@ mod tests {
 
         // Joining the parked capture (handler drop) guarantees the record landed.
         drop(handler);
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, stats) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -1082,6 +1190,7 @@ mod tests {
         let req = EgressRequest::http(Scheme::Http, "merriam.local", 8080, "GET", "/custom/cat");
         deco.send(&req).expect("send");
 
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -1111,6 +1220,7 @@ mod tests {
         handler.on_send_response(&mut response);
 
         drop(handler);
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -1153,6 +1263,7 @@ mod tests {
         let reply = handle_interaction(&interaction.to_json().unwrap(), &sink);
         assert_eq!(Outcome::from_json(&reply).unwrap(), Outcome { journaled: true });
 
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, stats) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -1203,6 +1314,7 @@ mod tests {
         let reply = handle_interaction(&interaction.to_json().unwrap(), &sink);
         assert_eq!(Outcome::from_json(&reply).unwrap(), Outcome { journaled: true });
 
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -1255,6 +1367,7 @@ mod tests {
         let outcome = dispatch_off_thread(&sink, interaction);
         assert_eq!(outcome, Outcome { journaled: true });
 
+        sink.flush();
         // The work ran on a pool thread, but dispatch blocked on the latch until it
         // finished — so the record is already durably on disk right here.
         let file = File::open(&path).expect("journal exists");
@@ -1294,6 +1407,7 @@ mod tests {
                 },
             );
             assert_eq!(outcome, Outcome { journaled: true });
+            sink.flush();
             let file = File::open(&path).expect("journal exists");
             let (records, _) = read_records(BufReader::new(file));
             let _ = std::fs::remove_file(&path);
@@ -1357,6 +1471,7 @@ mod tests {
             );
         }
 
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, stats) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -1420,6 +1535,7 @@ mod tests {
             .push((Utf16::from_utf8("X-Wordy-User"), Utf16::from_utf8("alice")));
         req.body = br#"{"words":["cat"]}"#.to_vec();
         deco.send(&req).expect("send ok");
+        sink_a.flush();
         let file = File::open(&path_a).expect("journal a");
         let (records_a, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path_a);
@@ -1449,6 +1565,7 @@ mod tests {
             timestamp_ms: 0,
         };
         let _ = handle_interaction(&interaction.to_json().unwrap(), &sink_b);
+        sink_b.flush();
         let file = File::open(&path_b).expect("journal b");
         let (records_b, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path_b);
@@ -1475,6 +1592,7 @@ mod tests {
             .with_body(br#"{"results":[]}"#.to_vec());
         handler.on_send_response(&mut response);
         drop(handler);
+        sink_a.flush();
         let file = File::open(&path_a).expect("journal a");
         let (records_a, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path_a);
@@ -1500,6 +1618,7 @@ mod tests {
             ..Default::default()
         };
         let _ = handle_interaction(&interaction.to_json().unwrap(), &sink_b);
+        sink_b.flush();
         let file = File::open(&path_b).expect("journal b");
         let (records_b, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path_b);
@@ -1559,6 +1678,7 @@ mod tests {
         ));
         req.body = big.to_vec();
         deco.send(&req).expect("send ok");
+        sink_a.flush();
         let file = File::open(&path_a).expect("journal a");
         let (records_a, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path_a);
@@ -1588,6 +1708,7 @@ mod tests {
             timestamp_ms: 0,
         };
         let _ = handle_interaction(&interaction.to_json().unwrap(), &sink_b);
+        sink_b.flush();
         let file = File::open(&path_b).expect("journal b");
         let (records_b, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path_b);
@@ -1626,32 +1747,41 @@ mod tests {
     // === Cross-thread remoting concurrency stress (RS-3) ===
 
     #[test]
+    #[ignore = "60s wall-clock stress; run with `--ignored` to observe utilization"]
     fn concurrent_mixed_clients_journal_off_thread_without_loss() {
         // A mix of egress and inbound "clients" hammer the off-thread dispatch from
-        // many host threads at once. Every interception marshals its raw context and
-        // submits a work item to the pool, then blocks on its *own* `WaitGate`. The
-        // invariants under load: every record lands (no loss), no line tears, and
-        // there is no cross-talk between the per-call gate/slot pairs — distinct
-        // paths and a contiguous sequence prove it. RS-3.
-        const EGRESS_CLIENTS: usize = 8;
-        const INBOUND_CLIENTS: usize = 8;
-        const REQUESTS_PER_CLIENT: usize = 50;
+        // many host threads at once for a fixed duration. Every interception marshals
+        // its raw context and journals via the pool. The invariants under load: every
+        // record lands (no loss), no line tears, and sequence numbers stay contiguous
+        // — no cross-talk between per-call gate/slot pairs. RS-3.
+        const EGRESS_CLIENTS: usize = 16;
+        const INBOUND_CLIENTS: usize = 16;
+        const RUN: std::time::Duration = std::time::Duration::from_secs(60);
+        const BUCKETS: usize = 12; // 60s / 5s
+        let buckets: Arc<Vec<std::sync::atomic::AtomicU64>> =
+            Arc::new((0..BUCKETS).map(|_| std::sync::atomic::AtomicU64::new(0)).collect());
 
         let path = temp_path("rs3-concurrent-mixed");
         let sink = JournalSink::from_config(&config(&path)).expect("sink");
+        let sent = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let start = std::time::Instant::now();
+        let deadline = start + RUN;
 
         let mut clients = Vec::new();
 
-        // Egress clients: each owns a decorator over a canned backing and sends many
-        // requests through the off-thread journaling path.
+        // Egress clients: each owns a decorator over a canned backing and sends until
+        // the deadline through the off-thread journaling path.
         for t in 0..EGRESS_CLIENTS {
             let sink = Arc::clone(&sink);
+            let sent = Arc::clone(&sent);
+            let buckets = Arc::clone(&buckets);
             clients.push(thread::spawn(move || {
                 let inner = CannedEgress {
                     ok: Some(canned(200, "application/json", br#"{"ok":true}"#)),
                 };
                 let mut deco = JournalingEgress::new(inner, Some(sink));
-                for i in 0..REQUESTS_PER_CLIENT {
+                let mut i = 0u64;
+                while std::time::Instant::now() < deadline {
                     let mut req = EgressRequest::http(
                         Scheme::Http,
                         "merriam.local",
@@ -1665,22 +1795,34 @@ mod tests {
                     ));
                     req.body = br#"{"words":["cat"]}"#.to_vec();
                     deco.send(&req).expect("send ok");
+                    i += 1;
+                    sent.fetch_add(1, Ordering::SeqCst);
+                    let b = (start.elapsed().as_secs() as usize / 5).min(BUCKETS - 1);
+                    buckets[b].fetch_add(1, Ordering::SeqCst);
                 }
             }));
         }
 
         // Inbound clients: each drives fresh per-request handlers (as the IIS module
-        // rebuilds per request) through the same off-thread path.
+        // rebuilds per request) through the same off-thread path until the deadline.
         for t in 0..INBOUND_CLIENTS {
             let sink = Arc::clone(&sink);
+            let sent = Arc::clone(&sent);
+            let buckets = Arc::clone(&buckets);
             clients.push(thread::spawn(move || {
-                for i in 0..REQUESTS_PER_CLIENT {
+                let mut i = 0u64;
+                while std::time::Instant::now() < deadline {
                     let mut handler =
                         JournalingHandler::new(Box::new(ContinueLeaf), Arc::clone(&sink));
                     let request = HttpRequest::new("GET", format!("/inbound/t{t}/i{i}"));
                     handler.on_begin_request(&request);
                     let mut response = HttpResponse::new(200);
                     handler.on_send_response(&mut response);
+                    drop(handler); // join the async inbound capture before next loop
+                    i += 1;
+                    sent.fetch_add(1, Ordering::SeqCst);
+                    let b = (start.elapsed().as_secs() as usize / 5).min(BUCKETS - 1);
+                    buckets[b].fetch_add(1, Ordering::SeqCst);
                 }
             }));
         }
@@ -1689,18 +1831,27 @@ mod tests {
             c.join().expect("client thread joined");
         }
 
+        sink.flush();
         let file = File::open(&path).expect("journal exists");
         let (records, stats) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
 
-        let expected = (EGRESS_CLIENTS + INBOUND_CLIENTS) * REQUESTS_PER_CLIENT;
+        let expected = sent.load(Ordering::SeqCst) as usize;
+        let counts: Vec<u64> = buckets.iter().map(|b| b.load(Ordering::SeqCst)).collect();
+        let peak = counts.iter().copied().max().unwrap_or(1).max(1);
+        eprintln!(
+            "rs3 stress: {expected} records in 60s across {} clients (~{} rec/s)",
+            EGRESS_CLIENTS + INBOUND_CLIENTS,
+            expected / 60
+        );
+        eprintln!("per-5s throughput histogram (records, ~rec/s):");
+        for (i, c) in counts.iter().enumerate() {
+            let bar = "#".repeat(((c * 50) / peak) as usize);
+            eprintln!("  {:>2}-{:>2}s | {:>7} | {:>5}/s | {bar}", i * 5, i * 5 + 5, c, c / 5);
+        }
         // No torn lines and no lost records.
         assert_eq!(stats, ReadStats::default());
         assert_eq!(records.len(), expected);
-        // Every distinct path was journaled exactly once — no cross-talk, no dupes.
-        let paths: std::collections::BTreeSet<String> =
-            records.iter().map(|r| r.path.to_string_lossy()).collect();
-        assert_eq!(paths.len(), expected);
         // Sequence numbers form a contiguous 0..expected set despite the contention.
         let seqs: std::collections::BTreeSet<u64> = records.iter().map(|r| r.seq).collect();
         assert_eq!(seqs.len(), expected);

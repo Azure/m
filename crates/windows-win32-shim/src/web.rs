@@ -388,6 +388,8 @@ mod tests {
         handler.on_begin_request(&HttpRequest::new("GET", "/healthz"));
         handler.on_send_response(&mut HttpResponse::new(200));
 
+        // Inbound dispatch is non-blocking (AC-4); drop the handler to join the worker.
+        drop(handler);
         let file = File::open(&path).expect("journal exists");
         let (records, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);

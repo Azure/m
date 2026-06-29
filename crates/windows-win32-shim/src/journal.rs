@@ -433,18 +433,32 @@ pub fn seam_capability(seam: Seam) -> SeamCapability {
 }
 
 /// Route a marshaled interaction to the journaling worker, gated on the seam's
-/// async capability (AC-1; SHIM-D28). AC-1 only introduces the gate: both branches
-/// take the synchronous snapshot-then-block path, so behavior is identical to
-/// pre-AC. AC-2..AC-4 will give async-capable seams a zero-copy, non-blocking path.
+/// async capability (AC-1/AC-4; SHIM-D28). Sync-only seams block on the snapshot
+/// path here; async-capable seams use [`dispatch_capture_async`] instead and do not
+/// block. (An async-capable seam routed through here still works — it just blocks —
+/// so the sync fallback is always safe.)
 #[must_use]
 pub fn dispatch_capture(sink: &Arc<JournalSink>, interaction: Interaction) -> Outcome {
-    match seam_capability(interaction.seam) {
-        // Sync-only seams keep the snapshot-then-block path, unchanged.
-        SeamCapability::Sync => dispatch_off_thread(sink, interaction),
-        // Async-capable seams will get the zero-copy path in AC-2; until then they
-        // share the blocking path so behavior is unchanged.
-        SeamCapability::AsyncCapable => dispatch_off_thread(sink, interaction),
-    }
+    // Sync-only and (as a safe fallback) async-capable seams both journal here by
+    // blocking; async-capable seams that want the non-blocking path call
+    // dispatch_capture_async.
+    dispatch_off_thread(sink, interaction)
+}
+
+/// Non-blocking dispatch for an async-capable seam (AC-4): retain the interaction
+/// and journal it on the pool without waiting, returning the parked completion
+/// handle. The seam keeps the handle until the worker consumes (its IIS contract
+/// permits an async reply), so the request thread is never blocked. `None` on pool
+/// refusal (fail-soft drop).
+#[must_use]
+pub fn dispatch_capture_async(
+    sink: &Arc<JournalSink>,
+    interaction: Interaction,
+) -> Option<RetainedCapture<Interaction>> {
+    let worker_sink = Arc::clone(sink);
+    dispatch_retained(Arc::new(interaction), move |interaction| {
+        worker_sink.record(interaction_record(&worker_sink, interaction.clone()));
+    })
 }
 
 /// Reduce and journal a marshaled interaction in-process (struct path, UT-B0): the
@@ -605,6 +619,10 @@ pub struct JournalingHandler {
     inner: Box<dyn RequestHandler>,
     sink: Arc<JournalSink>,
     pending: Option<PendingInbound>,
+    // The async capture for the in-flight exchange (AC-4): parked here so the
+    // request thread does not block; dropping it joins, so it lives until the next
+    // request replaces it or the handler is torn down.
+    capture: Option<RetainedCapture<Interaction>>,
 }
 
 impl JournalingHandler {
@@ -615,6 +633,7 @@ impl JournalingHandler {
             inner,
             sink,
             pending: None,
+            capture: None,
         }
     }
 }
@@ -638,9 +657,11 @@ impl RequestHandler for JournalingHandler {
         // downstream mutation (the identity stack mutates nothing).
         let disposition = self.inner.on_send_response(response);
         if let Some(pending) = self.pending.take() {
-            // Off-thread (SHIM-D25): assemble the raw interaction and hand it to the
-            // worker, blocking until it finishes. Inbound has no destination
-            // authority — the service is the host.
+            // Async-capable seam (SHIM-D28 / AC-4): assemble the raw interaction and
+            // hand it to the worker without blocking. The IIS contract permits an
+            // async reply, so the request thread returns immediately while the worker
+            // journals; the parked handle keeps the payload alive until it consumes.
+            // Inbound has no destination authority — the service is the host.
             let interaction = Interaction {
                 seam: Seam::Inbound,
                 method: pending.method,
@@ -655,7 +676,7 @@ impl RequestHandler for JournalingHandler {
                 response_body: self.sink.capped_body(response.body()),
                 timestamp_ms: pending.timestamp_ms,
             };
-            let _ = dispatch_capture(&self.sink, interaction);
+            self.capture = dispatch_capture_async(&self.sink, interaction);
         }
         disposition
     }
@@ -953,6 +974,8 @@ mod tests {
             .with_body(br#"{"word":"cat","exists":true}"#.to_vec());
         assert_eq!(handler.on_send_response(&mut response), Disposition::Continue);
 
+        // Inbound is non-blocking (AC-4); drop the handler to join the worker.
+        drop(handler);
         let file = File::open(&path).expect("journal exists");
         let (records, stats) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -985,6 +1008,29 @@ mod tests {
         assert_eq!(r.status, 200);
         assert_eq!(r.response_content_type().as_deref(), Some("application/json"));
         assert!(matches!(r.response_body, BodyShape::Object(_)));
+    }
+
+    #[test]
+    fn inbound_decorator_dispatches_async() {
+        // AC-4: the inbound seam returns non-blocking; the record may not be on disk
+        // until the worker consumes, then the handler join (on drop) flushes it.
+        let path = temp_path("inbound-async");
+        let sink = JournalSink::from_config(&config(&path)).expect("sink");
+        let mut handler = JournalingHandler::new(Box::new(ContinueLeaf), Arc::clone(&sink));
+        let request = HttpRequest::new("GET", "/async/cat");
+        handler.on_begin_request(&request);
+        let mut response = HttpResponse::new(200);
+        assert_eq!(handler.on_send_response(&mut response), Disposition::Continue);
+
+        // Joining the parked capture (handler drop) guarantees the record landed.
+        drop(handler);
+        let file = File::open(&path).expect("journal exists");
+        let (records, stats) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(stats, ReadStats::default());
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].seam, Seam::Inbound);
+        assert_eq!(records[0].path, "/async/cat");
     }
 
     #[test]
@@ -1064,6 +1110,7 @@ mod tests {
             .with_body(br#"{"results":[]}"#.to_vec());
         handler.on_send_response(&mut response);
 
+        drop(handler);
         let file = File::open(&path).expect("journal exists");
         let (records, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path);
@@ -1427,6 +1474,7 @@ mod tests {
             .with_header("Content-Type", "application/json")
             .with_body(br#"{"results":[]}"#.to_vec());
         handler.on_send_response(&mut response);
+        drop(handler);
         let file = File::open(&path_a).expect("journal a");
         let (records_a, _) = read_records(BufReader::new(file));
         let _ = std::fs::remove_file(&path_a);

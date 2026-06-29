@@ -1118,4 +1118,8 @@ worker read them in place, and complete the request after the worker consumes th
   registration that differ per seam; isolating *which* seam takes which path first keeps AC-2..AC-4
   small and lets sync seams stay provably untouched. Backpressure on the async path follows the
   SHIM-D27 mode policy (journaling fail-loud, primary fault-diagnosable, tracing best-effort drop).
+- **Ingress is wired non-blocking (AC-4).** The inbound IIS seam dispatches via `dispatch_retained`
+  and parks the `RetainedCapture` in the per-request handler, so the request thread returns without
+  blocking; the worker journals and the handler's drop (PostCompletion analog) joins. Egress stays
+  sync (AC-3). The bounded body copy remains until the OOP stage retains true platform buffers.
 

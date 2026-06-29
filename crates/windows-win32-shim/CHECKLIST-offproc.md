@@ -150,7 +150,7 @@ the copy off the hot thread without blocking. Sync-only seams keep the snapshot 
       synchronously by the relay, so there is no async reply to ride and the snapshot stays. Confirm
       the gate routes `Seam::Egress` → `Sync` → the blocking snapshot path, leaving the egress
       decorator unchanged. Test: egress journals via the sync path, classified sync-only.
-- [ ] **AC-4** **PREREQUISITE: AC-2.** Ingress async path (IIS/http.sys): retain the request buffers,
+- [x] **AC-4** **PREREQUISITE: AC-2.** Ingress async path (IIS/http.sys): retain the request buffers,
       hand-off without snapshot, complete on worker done. Test: ingress journals with no hot-thread
       copy; sync fallback intact.
 - [ ] **AC-5** Integration: high-volume mixed sync/async traffic — non-blocking, zero copy on hot

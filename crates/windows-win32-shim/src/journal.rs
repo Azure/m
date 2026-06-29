@@ -29,7 +29,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crossbeam_queue::SegQueue;
+use crossbeam_queue::ArrayQueue;
 
 use api_journal::{
     BodyShape, HeaderField, JournalRecord, QueryParam, RawStr, Seam, infer_scalar, write_record,
@@ -42,6 +42,12 @@ use windows_threadpool::{WaitGate, Work, submit_once};
 
 use crate::marshal::{Interaction, Outcome, RawHeader};
 use crate::pilcfg::{ApiJournalConfig, BodyCapture};
+
+/// Bound on pending records. Caps the producer-to-writer backlog so a flood of
+/// host interceptions applies backpressure (producers yield until the writer
+/// drains room) instead of growing the queue without limit. ~64 K records is a
+/// few MB and dwarfs any realistic burst between two consecutive drain passes.
+const QUEUE_CAPACITY: usize = 65_536;
 
 /// A process-wide, thread-safe NDJSON journal writer.
 ///
@@ -60,11 +66,17 @@ pub struct JournalSink {
     /// single writer (JW-2), so writes never contend.
     file: Mutex<Option<File>>,
     /// Pending records awaiting the single-consumer writer (JW-4). Producers push
-    /// lock-free and return; the writer pops in batches under the file lock.
-    queue: SegQueue<JournalRecord>,
+    /// lock-free and return; the writer pops in batches under the file lock. The
+    /// queue is bounded so a producer flood applies backpressure (yield until the
+    /// consumer makes room) instead of growing without limit.
+    queue: ArrayQueue<JournalRecord>,
     /// 0→1 transition submits the writer; the writer clears it when it drains the
     /// queue empty, so at most one writer work item is ever in flight.
     writer_scheduled: AtomicBool,
+    /// Single-consumer guard. The Windows pool may run a freshly submitted
+    /// callback before the prior one returns; this admits exactly one drain body
+    /// at a time (a concurrent callback bails and lets the active drain finish).
+    draining: AtomicBool,
     /// The single-consumer drain work item; runs on the pool, holds a `Weak` back
     /// to the sink (no cycle). Set once at construction.
     writer: OnceLock<Work>,
@@ -103,8 +115,9 @@ impl JournalSink {
                 session_id: new_session_id(),
                 seq: AtomicU64::new(0),
                 file: Mutex::new(None),
-                queue: SegQueue::new(),
+                queue: ArrayQueue::new(QUEUE_CAPACITY),
                 writer_scheduled: AtomicBool::new(false),
+                draining: AtomicBool::new(false),
                 writer,
                 bodies: config.bodies,
                 max_body_bytes: config.max_body_bytes,
@@ -191,8 +204,19 @@ impl JournalSink {
 
         // Enqueue and return: producers never touch the file (JW-2). The 0→1
         // transition submits the single writer; while it is scheduled, later
-        // pushes just grow the queue and the in-flight writer drains them.
-        self.queue.push(record);
+        // pushes just grow the queue and the in-flight writer drains them. A full
+        // queue means the consumer is behind: keep the writer scheduled and yield
+        // until it makes room (bounded backpressure, never unbounded growth).
+        let mut pending = record;
+        while let Err(returned) = self.queue.push(pending) {
+            pending = returned;
+            if !self.writer_scheduled.swap(true, Ordering::AcqRel) {
+                if let Some(writer) = self.writer.get() {
+                    writer.submit();
+                }
+            }
+            std::thread::yield_now();
+        }
         if !self.writer_scheduled.swap(true, Ordering::AcqRel) {
             if let Some(writer) = self.writer.get() {
                 writer.submit();
@@ -201,10 +225,16 @@ impl JournalSink {
     }
 
     /// Single-consumer drain (JW-2): take the file mutex, write every queued
-    /// record, release, and loop until a full pass finds the queue empty. Clearing
-    /// `writer_scheduled` before the final empty check, then re-checking, closes
-    /// the lost-wakeup window with `record`'s 0→1 submit.
+    /// record, release, and loop until a full pass finds the queue empty. The
+    /// `draining` guard admits one body at a time even if the pool runs a second
+    /// callback early; clearing `writer_scheduled` before the final empty check,
+    /// then re-checking, closes the lost-wakeup window with `record`'s 0→1 submit.
     fn drain(&self) {
+        // Single consumer: a second concurrent callback bails; the active drain
+        // sweeps up anything it pushed before returning.
+        if self.draining.swap(true, Ordering::AcqRel) {
+            return;
+        }
         loop {
             let mut batch: Vec<JournalRecord> = Vec::new();
             while let Some(record) = self.queue.pop() {
@@ -212,13 +242,14 @@ impl JournalSink {
             }
             if batch.is_empty() {
                 self.writer_scheduled.store(false, Ordering::Release);
-                // A producer may have pushed between the last pop and the clear; if
-                // so, reclaim the writer and keep draining, else stop.
+                self.draining.store(false, Ordering::Release);
+                // A producer may have pushed between the last pop and the clears; if
+                // so, reclaim the consumer and keep draining, else stop.
                 if self.queue.is_empty() {
                     return;
                 }
-                if self.writer_scheduled.swap(true, Ordering::AcqRel) {
-                    return; // another submit already reclaimed the writer
+                if self.draining.swap(true, Ordering::AcqRel) {
+                    return; // another callback already became the consumer
                 }
                 continue;
             }

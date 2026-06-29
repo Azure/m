@@ -180,7 +180,7 @@ PIL `rundown.h`): consult `RtlDllShutdownInProgress` and leak on process rundown
       a journal record with no lock on the hot path and ping the single writer; the writer drains it.
       Tests flush the sink before reading. (Removing the per-request `WaitGate`/drop-join is folded
       into AC/OOP; record→enqueue is already non-blocking.)
-- [ ] **JW-5** Re-run the 60s mixed stress: expect higher, possibly CPU-bound throughput with the
+- [x] **JW-5** Re-run the 60s mixed stress: expect higher, possibly CPU-bound throughput with the
       flat-line latch gone; assert no loss, contiguous sequence, no double-free under rundown.
 
 ## Deferred (next stages, not yet planned into milestones)

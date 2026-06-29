@@ -118,11 +118,45 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
       tag (`to_string_lossy`) wherever cartographer consumes record text (path templating / OpenAPI
       synthesis / grouping). Update fixtures and tests for the tagged journal format.
 
+## Milestone AC — Async, zero-copy capture for seams that permit async replies
+
+Today every seam pays a mandatory cost on the *calling* thread: a bounded memcpy of the capped
+bodies + headers into an owned `Interaction` (`egress_interaction` / `raw_egress_headers`). UT-B0
+removed transcoding and JSON from the hot thread, but the snapshot remains because we must not block
+and the caller's buffers may be freed/reused the instant we return. Where the seam's contract permits
+an **async reply**, retain the platform buffers instead of copying them and let the off-thread worker
+read them in place, completing the request only once the worker has consumed what it needs — getting
+the copy off the hot thread without blocking. Sync-only seams keep the snapshot path. Design:
+`SHIM-D28` (author in DESIGN-NOTES with AC-1).
+
+**Open design points (settle before AC-2):**
+- **Seam classification.** Which seams are async-capable (egress WinHTTP async handle; ingress
+  http.sys async I/O) vs. sync-only (must keep the snapshot). The capture path must branch on this.
+- **Buffer lifetime/ownership.** Who pins the platform buffer until the worker is done, and how the
+  request is held open without blocking the hot thread (completion registration, refcount/pin).
+- **Backpressure.** When the worker queue saturates, drop vs. block — must honor SHIM-D27 mode
+  policy (journaling fail-loud, primary fault-diagnosable, tracing best-effort drop).
+- **Interplay with OOP.** Zero-copy in-process and OUT-of-process are in tension: the IPC payload
+  must be serialized eventually. Decide whether AC lands in-process first or co-designs with OOP.
+
+- [ ] **AC-1** Classify each seam (egress/ingress, sync/async) and author `SHIM-D28`; gate the
+      capture path on a per-seam async-capable flag with sync-only seams unchanged. Test: classifier
+      reports expected capability per seam.
+- [ ] **AC-2** **PREREQUISITE: AC-1.** Add buffer-retention + non-blocking-completion primitives
+      (retain caller bodies/headers, complete after worker consumes; no host-thread copy or wait).
+      Test: retained buffer outlives the call and is freed exactly once after worker consumes.
+- [ ] **AC-3** **PREREQUISITE: AC-2.** Egress async path: capture references the WinHTTP buffers,
+      hand-off without snapshot, complete on worker done. Test: egress journals correctly with no
+      hot-thread copy; sync fallback intact.
+- [ ] **AC-4** **PREREQUISITE: AC-2.** Ingress async path: same for http.sys. Test: ingress journals
+      with no hot-thread copy; sync fallback intact.
+- [ ] **AC-5** Integration: high-volume mixed sync/async traffic — non-blocking, zero copy on hot
+      thread for async seams, snapshot preserved for sync seams, no lost/double-freed buffers.
+
 ## Deferred (next stages, not yet planned into milestones)
 
 These seed the next milestones; promote to concrete items when picked up.
 
-- Honor the caller's actual contract (don't always block) — true async for fire-and-forget seams.
 - Move the worker OUT of process (a collector); the marshaled JSON becomes the IPC payload. The
   channel then carries raw context → PII tokenization (D-AJ-4 / PII-A) must happen at the worker
   before persisting.

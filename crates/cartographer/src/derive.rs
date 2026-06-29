@@ -70,17 +70,19 @@ pub fn derive_actors(records: &[JournalRecord]) -> Actors {
         accumulate(&mut local, record.timestamp_ms);
         match record.seam {
             Seam::Egress => {
-                let Some(host) = record.host.as_deref() else {
+                let Some(host) = record.host.as_ref().map(api_journal::RawStr::to_string_lossy)
+                else {
                     continue;
                 };
                 let actor = actors
-                    .entry(authority(host, record.port))
+                    .entry(authority(&host, record.port))
                     .or_insert_with(|| Actor {
                         provenance: Provenance::derived("egress destination"),
                         ..Default::default()
                     });
                 accumulate(&mut actor.observed, record.timestamp_ms);
-                let binding = binding_for(actor, record.scheme.as_deref(), host, record.port);
+                let scheme = record.scheme.as_ref().map(api_journal::RawStr::to_string_lossy);
+                let binding = binding_for(actor, scheme.as_deref(), &host, record.port);
                 accumulate(&mut binding.observed, record.timestamp_ms);
             }
             Seam::Inbound => {
@@ -214,9 +216,9 @@ fn actor_parts(records: &[JournalRecord]) -> BTreeMap<String, BTreeSet<RolePart>
                     .entry(LOCAL_ACTOR.to_string())
                     .or_default()
                     .insert(RolePart::Client);
-                if let Some(host) = record.host.as_deref() {
+                if let Some(host) = record.host.as_ref().map(api_journal::RawStr::to_string_lossy) {
                     parts
-                        .entry(authority(host, record.port))
+                        .entry(authority(&host, record.port))
                         .or_default()
                         .insert(RolePart::Server);
                 }
@@ -274,12 +276,12 @@ fn derive_channels(records: &[JournalRecord], environment: &mut Environment) {
     for record in records {
         let (from, to) = match record.seam {
             Seam::Egress => {
-                let Some(host) = record.host.as_deref() else {
+                let Some(host) = record.host.as_ref().map(api_journal::RawStr::to_string_lossy) else {
                     continue;
                 };
                 (
                     role_id(RolePart::Client, LOCAL_ACTOR),
-                    role_id(RolePart::Server, &authority(host, record.port)),
+                    role_id(RolePart::Server, &authority(&host, record.port)),
                 )
             }
             Seam::Inbound => (
@@ -298,8 +300,8 @@ fn derive_channels(records: &[JournalRecord], environment: &mut Environment) {
                 ..Default::default()
             });
         accumulate(&mut channel.observed, record.timestamp_ms);
-        if let Some(scheme) = record.scheme.as_deref() {
-            schemes.entry(id).or_default().insert(scheme.to_string());
+        if let Some(scheme) = record.scheme.as_ref().map(api_journal::RawStr::to_string_lossy) {
+            schemes.entry(id).or_default().insert(scheme);
         }
     }
 
@@ -353,12 +355,12 @@ fn derive_security(records: &[JournalRecord], environment: &mut Environment) {
         }
         let (client_role, server_role) = match record.seam {
             Seam::Egress => {
-                let Some(host) = record.host.as_deref() else {
+                let Some(host) = record.host.as_ref().map(api_journal::RawStr::to_string_lossy) else {
                     continue;
                 };
                 (
                     role_id(RolePart::Client, LOCAL_ACTOR),
-                    role_id(RolePart::Server, &authority(host, record.port)),
+                    role_id(RolePart::Server, &authority(&host, record.port)),
                 )
             }
             Seam::Inbound => (
@@ -393,8 +395,8 @@ fn derive_security(records: &[JournalRecord], environment: &mut Environment) {
 fn identity_header_names(headers: &[HeaderField]) -> BTreeSet<String> {
     headers
         .iter()
-        .filter(|header| is_identity_header(&header.name.to_ascii_lowercase()))
-        .map(|header| header.name.clone())
+        .filter(|header| is_identity_header(&header.name.to_string_lossy().to_ascii_lowercase()))
+        .map(|header| header.name.to_string_lossy())
         .collect()
 }
 
@@ -424,7 +426,7 @@ fn security_from(names: BTreeSet<String>) -> Security {
 /// a candidate the maintainer refines (their `asserted` edits survive re-synthesis).
 /// The transport/auth and identity axes are deferred (identity gated on PII-A).
 fn subdivide_roles(records: &[JournalRecord], environment: &mut Environment) {
-    let observed: Vec<String> = records.iter().map(|record| record.path.clone()).collect();
+    let observed: Vec<String> = records.iter().map(|record| record.path.to_string_lossy()).collect();
     let templates = TemplateSet::infer(&observed, &[]);
 
     // Per client role, the set of operations (METHOD + inferred path template) its
@@ -436,13 +438,13 @@ fn subdivide_roles(records: &[JournalRecord], environment: &mut Environment) {
             Seam::Egress => role_id(RolePart::Client, LOCAL_ACTOR),
             Seam::Inbound => role_id(RolePart::Client, INBOUND_CLIENT_ACTOR),
         };
-        let Some((template, _matched)) = templates.assign(&record.path) else {
+        let Some((template, _matched)) = templates.assign(&record.path.to_string_lossy()) else {
             continue;
         };
         role_ops
             .entry(client_role)
             .or_default()
-            .insert((record.method.to_ascii_uppercase(), template.raw().to_string()));
+            .insert((record.method.to_string_lossy().to_ascii_uppercase(), template.raw().to_string()));
     }
 
     for (parent_id, operations) in role_ops {
@@ -526,11 +528,11 @@ mod tests {
     fn egress(scheme: &str, host: &str, port: u16, ts: u64) -> JournalRecord {
         JournalRecord {
             seam: Seam::Egress,
-            method: "GET".to_string(),
-            scheme: Some(scheme.to_string()),
-            host: Some(host.to_string()),
+            method: "GET".into(),
+            scheme: Some(scheme.into()),
+            host: Some(host.into()),
             port: Some(port),
-            path: "/x".to_string(),
+            path: "/x".into(),
             status: 200,
             timestamp_ms: ts,
             ..Default::default()
@@ -541,8 +543,8 @@ mod tests {
     fn inbound(ts: u64) -> JournalRecord {
         JournalRecord {
             seam: Seam::Inbound,
-            method: "POST".to_string(),
-            path: "/y".to_string(),
+            method: "POST".into(),
+            path: "/y".into(),
             status: 200,
             timestamp_ms: ts,
             ..Default::default()
@@ -710,7 +712,7 @@ mod tests {
         record.request_headers = names
             .iter()
             .map(|name| HeaderField {
-                name: (*name).to_string(),
+                name: (*name).into(),
                 value: None,
             })
             .collect();
@@ -934,8 +936,8 @@ mod tests {
     fn inbound_op(method: &str, path: &str, ts: u64) -> JournalRecord {
         JournalRecord {
             seam: Seam::Inbound,
-            method: method.to_string(),
-            path: path.to_string(),
+            method: method.into(),
+            path: path.into(),
             status: 200,
             timestamp_ms: ts,
             ..Default::default()
@@ -1045,9 +1047,9 @@ mod tests {
     #[test]
     fn egress_client_subdivides_by_operation() {
         let mut goal = egress("https", "api.example", 443, 1);
-        goal.path = "/goal".to_string();
+        goal.path = "/goal".into();
         let mut health = egress("https", "api.example", 443, 2);
-        health.path = "/health".to_string();
+        health.path = "/health".into();
         let env = derive_environment(&[goal, health], None);
         let parent = &env.roles["client:local"];
         assert_eq!(parent.children.len(), 2);

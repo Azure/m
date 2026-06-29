@@ -37,17 +37,17 @@ use crate::validate::STANDARD_HEADERS;
 /// templates where they match and inferring new templates otherwise.
 #[must_use]
 pub fn synthesize(records: &[JournalRecord], existing: &[PathTemplate]) -> Document {
-    let observed: Vec<String> = records.iter().map(|record| record.path.clone()).collect();
+    let observed: Vec<String> = records.iter().map(|record| record.path.to_string_lossy()).collect();
     let templates = TemplateSet::infer(&observed, existing);
 
     // Group records by template path, then by method.
     let mut by_path: BTreeMap<String, BTreeMap<String, Vec<&JournalRecord>>> = BTreeMap::new();
     for record in records {
-        if let Some((template, _matched)) = templates.assign(&record.path) {
+        if let Some((template, _matched)) = templates.assign(&record.path.to_string_lossy()) {
             by_path
                 .entry(template.raw().to_string())
                 .or_default()
-                .entry(record.method.to_ascii_uppercase())
+                .entry(record.method.to_string_lossy().to_ascii_uppercase())
                 .or_default()
                 .push(record);
         }
@@ -98,9 +98,9 @@ fn synth_query_params(records: &[&JournalRecord], total: usize, out: &mut Vec<Pa
     for record in records {
         let mut seen = HashSet::new();
         for query in &record.query {
-            if seen.insert(query.name.clone()) {
+            if seen.insert(query.name.to_string_lossy()) {
                 let entry = shapes
-                    .entry(query.name.clone())
+                    .entry(query.name.to_string_lossy())
                     .or_insert((BodyShape::Unknown, 0));
                 entry.0 = entry.0.clone().merge(query.value.clone());
                 entry.1 += 1;
@@ -126,13 +126,13 @@ fn synth_header_params(records: &[&JournalRecord], total: usize, out: &mut Vec<P
     for record in records {
         let mut seen = HashSet::new();
         for header in &record.request_headers {
-            let lower = header.name.to_ascii_lowercase();
+            let lower = header.name.to_string_lossy().to_ascii_lowercase();
             if STANDARD_HEADERS.contains(&lower.as_str()) {
                 continue;
             }
             if seen.insert(lower.clone()) {
                 *counts.entry(lower.clone()).or_default() += 1;
-                display.entry(lower.clone()).or_insert_with(|| header.name.clone());
+                display.entry(lower.clone()).or_insert_with(|| header.name.to_string_lossy());
             }
         }
     }
@@ -157,7 +157,7 @@ fn synth_request_body(records: &[&JournalRecord], total: usize) -> Option<Reques
             continue;
         }
         with_body += 1;
-        let media = media_or_default(record.request_content_type());
+        let media = media_or_default(record.request_content_type().as_deref());
         let entry = by_media.entry(media.clone()).or_insert(BodyShape::Unknown);
         *entry = entry.clone().merge(record.request_body.clone());
         if let Some(example) = &record.request_body_example {
@@ -194,7 +194,7 @@ fn synth_responses(records: &[&JournalRecord]) -> Responses {
         if no_body(&record.response_body) {
             continue;
         }
-        let media = media_or_default(record.response_content_type());
+        let media = media_or_default(record.response_content_type().as_deref());
         let entry = by_status
             .entry(record.status)
             .or_default()

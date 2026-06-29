@@ -28,7 +28,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use api_journal::{
-    BodyShape, HeaderField, JournalRecord, QueryParam, Seam, infer_scalar, write_record,
+    BodyShape, HeaderField, JournalRecord, QueryParam, RawStr, Seam, infer_scalar, write_record,
 };
 use windows_platform_isolation::{
     Disposition, EgressRequest, EgressResponse, EgressResult, EgressSurface, Header, HttpRequest,
@@ -276,11 +276,11 @@ impl<S: EgressSurface> EgressSurface for JournalingEgress<S> {
 fn egress_interaction(sink: &JournalSink, req: &EgressRequest, resp: &EgressResponse) -> Interaction {
     Interaction {
         seam: Seam::Egress,
-        method: req.verb.to_utf8().unwrap_or_else(|_| "?".to_string()),
-        scheme: Some(req.scheme.as_str().to_string()),
-        host: req.host.to_utf8().ok(),
+        method: RawStr::from_utf16_units(req.verb.as_units()),
+        scheme: Some(RawStr::from_utf8(req.scheme.as_str())),
+        host: Some(RawStr::from_utf16_units(req.host.as_units())),
         port: Some(req.port),
-        target: req.path.to_utf8().unwrap_or_default(),
+        target: RawStr::from_utf16_units(req.path.as_units()),
         request_headers: raw_egress_headers(&req.headers),
         request_body: sink.capped_body(&req.body),
         status: u16::try_from(resp.status).unwrap_or(0),
@@ -297,17 +297,19 @@ fn raw_egress_headers(headers: &[(Utf16, Utf16)]) -> Vec<RawHeader> {
     headers
         .iter()
         .map(|(name, value)| RawHeader {
-            name: name.to_utf8().unwrap_or_else(|_| "?".to_string()),
-            value: value.to_utf8().unwrap_or_default(),
+            name: RawStr::from_utf16_units(name.as_units()),
+            value: RawStr::from_utf16_units(value.as_units()),
         })
         .collect()
 }
 
-/// Split a raw request target into its path and query parameters. Query values
-/// are reduced to a scalar *shape* (not the literal value).
-fn split_path_query(raw: &str) -> (String, Vec<QueryParam>) {
+/// Split a raw request target into its path and query parameters. The target is
+/// decoded transiently (lossily) to parse `?`/`&`/`=`; the stored path/names are
+/// re-tagged UTF-8 and query values reduced to a scalar *shape*.
+fn split_path_query(target: &RawStr) -> (RawStr, Vec<QueryParam>) {
+    let raw = target.to_string_lossy();
     match raw.split_once('?') {
-        None => (raw.to_string(), Vec::new()),
+        None => (RawStr::from_utf8(&raw), Vec::new()),
         Some((path, query)) => {
             let params = query
                 .split('&')
@@ -315,12 +317,12 @@ fn split_path_query(raw: &str) -> (String, Vec<QueryParam>) {
                 .map(|pair| {
                     let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
                     QueryParam {
-                        name: name.to_string(),
+                        name: RawStr::from_utf8(name),
                         value: infer_scalar(value),
                     }
                 })
                 .collect();
-            (path.to_string(), params)
+            (RawStr::from_utf8(path), params)
         }
     }
 }
@@ -335,14 +337,14 @@ fn header_fields(headers: &[RawHeader]) -> (Vec<HeaderField>, Option<String>) {
     let mut fields = Vec::with_capacity(headers.len());
     let mut content_type = None;
     for header in headers {
-        let lower = header.name.to_ascii_lowercase();
+        let lower = header.name.to_string_lossy().to_ascii_lowercase();
         let retained = if CONTENT_NEGOTIATION_HEADERS.contains(&lower.as_str()) {
             Some(header.value.clone())
         } else {
             None
         };
         if lower == "content-type" {
-            content_type = retained.clone();
+            content_type = Some(header.value.to_string_lossy());
         }
         fields.push(HeaderField {
             name: header.name.clone(),
@@ -484,9 +486,9 @@ pub fn dispatch_off_thread(sink: &Arc<JournalSink>, interaction: Interaction) ->
 /// exchange. No reduction happens here — the literal headers and body bytes are
 /// carried so the off-thread worker can reduce them (SHIM-D25).
 struct PendingInbound {
-    method: String,
+    method: RawStr,
     /// The raw request target (path plus any `?query`), unsplit.
-    target: String,
+    target: RawStr,
     request_headers: Vec<RawHeader>,
     request_body: Vec<u8>,
     /// Interception time (ms since the Unix epoch), sampled when the request began.
@@ -523,8 +525,8 @@ impl RequestHandler for JournalingHandler {
         // Marshal the raw request half; the worker (not this thread) reduces it.
         // The body is capped to what the worker inspects (`max_body_bytes`).
         self.pending = Some(PendingInbound {
-            method: request.method().to_string(),
-            target: request.url().to_string(),
+            method: RawStr::from_bytes(request.method().as_bytes()),
+            target: RawStr::from_bytes(request.url().as_bytes()),
             request_headers: raw_http_headers(request.headers()),
             request_body: self.sink.capped_body(request.body()),
             timestamp_ms: now_ms(),
@@ -567,8 +569,8 @@ fn raw_http_headers(headers: &[Header]) -> Vec<RawHeader> {
     headers
         .iter()
         .map(|header| RawHeader {
-            name: header.name().to_string(),
-            value: header.value().to_string(),
+            name: RawStr::from_bytes(header.name().as_bytes()),
+            value: RawStr::from_bytes(header.value().as_bytes()),
         })
         .collect()
 }
@@ -781,8 +783,8 @@ mod tests {
         let r = &records[0];
         assert_eq!(r.seam, Seam::Egress);
         assert_eq!(r.method, "GET");
-        assert_eq!(r.scheme.as_deref(), Some("http"));
-        assert_eq!(r.host.as_deref(), Some("merriam.local"));
+        assert_eq!(r.scheme.as_ref().map(RawStr::to_string_lossy).as_deref(), Some("http"));
+        assert_eq!(r.host.as_ref().map(RawStr::to_string_lossy).as_deref(), Some("merriam.local"));
         assert_eq!(r.port, Some(8080));
         assert_eq!(r.path, "/custom/cat");
         assert_eq!(
@@ -800,7 +802,7 @@ mod tests {
             .expect("header present");
         assert_eq!(user.value, None);
         assert_eq!(r.status, 200);
-        assert_eq!(r.response_content_type(), Some("application/json"));
+        assert_eq!(r.response_content_type().as_deref(), Some("application/json"));
         assert!(matches!(r.response_body, BodyShape::Object(_)));
     }
 
@@ -873,7 +875,7 @@ mod tests {
                 value: BodyShape::String
             }]
         );
-        assert_eq!(r.request_content_type(), Some("application/json"));
+        assert_eq!(r.request_content_type().as_deref(), Some("application/json"));
         assert!(matches!(r.request_body, BodyShape::Object(_)));
         let user = r
             .request_headers
@@ -882,7 +884,7 @@ mod tests {
             .expect("header present");
         assert_eq!(user.value, None);
         assert_eq!(r.status, 200);
-        assert_eq!(r.response_content_type(), Some("application/json"));
+        assert_eq!(r.response_content_type().as_deref(), Some("application/json"));
         assert!(matches!(r.response_body, BodyShape::Object(_)));
     }
 
@@ -1014,8 +1016,8 @@ mod tests {
         let r = &records[0];
         assert_eq!(r.seam, Seam::Egress);
         assert_eq!(r.method, "POST");
-        assert_eq!(r.scheme.as_deref(), Some("https"));
-        assert_eq!(r.host.as_deref(), Some("api.example"));
+        assert_eq!(r.scheme.as_ref().map(RawStr::to_string_lossy).as_deref(), Some("https"));
+        assert_eq!(r.host.as_ref().map(RawStr::to_string_lossy).as_deref(), Some("api.example"));
         assert_eq!(r.port, Some(443));
         // Path and query are split; the query value is reduced to a scalar shape.
         assert_eq!(r.path, "/custom/cat");
@@ -1023,7 +1025,10 @@ mod tests {
         assert_eq!(r.query[0].name, "pattern");
         assert_eq!(r.query[0].value, infer_scalar("c.t"));
         // Content-Type value retained; the non-safelisted header keeps only its name.
-        assert_eq!(r.request_headers[0].value.as_deref(), Some("application/json"));
+        assert_eq!(
+            r.request_headers[0].value.as_ref().map(RawStr::to_string_lossy).as_deref(),
+            Some("application/json")
+        );
         assert_eq!(r.request_headers[1].name, "X-Wordy-User");
         assert!(r.request_headers[1].value.is_none());
         // Bodies are reduced exactly as the sink's policy dictates, and the
@@ -1127,7 +1132,7 @@ mod tests {
             let interaction = Interaction {
                 seam: Seam::Inbound,
                 method: "GET".into(),
-                target: format!("/i{i}"),
+                target: format!("/i{i}").into(),
                 status: 200,
                 timestamp_ms: 1,
                 ..Default::default()
@@ -1154,12 +1159,26 @@ mod tests {
 
     // === Off-thread vs direct-worker parity (OT-7) ===
 
-    /// Zero the per-sink / wall-clock bookkeeping fields that are not part of the
-    /// reduction under test, so two records can be compared for structural equality.
+    /// Zero the per-sink / wall-clock bookkeeping fields, and canonicalize all text
+    /// to a single encoding (decode-then-retag UTF-8), so two records compare on
+    /// logical content rather than native encoding tag (egress carries UTF-16, hand-
+    /// built fixtures carry UTF-8 — both must reduce to the same record).
     fn normalized(mut r: JournalRecord) -> JournalRecord {
         r.session_id = 0;
         r.seq = 0;
         r.timestamp_ms = 0;
+        let canon = |s: &RawStr| RawStr::from_utf8(&s.to_string_lossy());
+        r.method = canon(&r.method);
+        r.path = canon(&r.path);
+        r.scheme = r.scheme.as_ref().map(canon);
+        r.host = r.host.as_ref().map(canon);
+        for q in &mut r.query {
+            q.name = canon(&q.name);
+        }
+        for h in r.request_headers.iter_mut().chain(r.response_headers.iter_mut()) {
+            h.name = canon(&h.name);
+            h.value = h.value.as_ref().map(canon);
+        }
         r
     }
 
@@ -1464,8 +1483,8 @@ mod tests {
         assert_eq!(stats, ReadStats::default());
         assert_eq!(records.len(), expected);
         // Every distinct path was journaled exactly once — no cross-talk, no dupes.
-        let paths: std::collections::BTreeSet<&str> =
-            records.iter().map(|r| r.path.as_str()).collect();
+        let paths: std::collections::BTreeSet<String> =
+            records.iter().map(|r| r.path.to_string_lossy()).collect();
         assert_eq!(paths.len(), expected);
         // Sequence numbers form a contiguous 0..expected set despite the contention.
         let seqs: std::collections::BTreeSet<u64> = records.iter().map(|r| r.seq).collect();

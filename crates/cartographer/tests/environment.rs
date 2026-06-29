@@ -15,11 +15,11 @@ use cartographer::{
 fn identity_headers() -> Vec<HeaderField> {
     vec![
         HeaderField {
-            name: "X-Wordy-User".to_string(),
+            name: "X-Wordy-User".into(),
             value: None,
         },
         HeaderField {
-            name: "X-Wordy-Locale".to_string(),
+            name: "X-Wordy-Locale".into(),
             value: None,
         },
     ]
@@ -41,8 +41,8 @@ fn wordy_journal() -> Vec<JournalRecord> {
     .enumerate()
     .map(|(seq, (method, path))| JournalRecord {
         seam: Seam::Inbound,
-        method: method.to_string(),
-        path: path.to_string(),
+        method: method.into(),
+        path: path.into(),
         request_headers: identity_headers(),
         status: 200,
         timestamp_ms: 1_700_000_000_000 + seq as u64,
@@ -75,17 +75,17 @@ fn wordy_environment_round_trips_links_the_contract_and_subdivides() {
     assert!(
         caller
             .children
-            .contains(&"client:inbound-client#POST/spellcheck".to_string())
+            .contains(&"client:inbound-client#POST/spellcheck".into())
     );
     assert!(
         caller
             .children
-            .contains(&"client:inbound-client#GET/custom/{id}".to_string())
+            .contains(&"client:inbound-client#GET/custom/{id}".into())
     );
     assert!(
         caller
             .children
-            .contains(&"client:inbound-client#DELETE/custom/{id}".to_string())
+            .contains(&"client:inbound-client#DELETE/custom/{id}".into())
     );
     let get_custom_children = caller
         .children
@@ -99,8 +99,8 @@ fn wordy_environment_round_trips_links_the_contract_and_subdivides() {
         .requires
         .as_ref()
         .expect("requires");
-    assert!(requires.names.contains(&"X-Wordy-User".to_string()));
-    assert!(requires.names.contains(&"X-Wordy-Locale".to_string()));
+    assert!(requires.names.contains(&"X-Wordy-User".into()));
+    assert!(requires.names.contains(&"X-Wordy-Locale".into()));
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn re_synthesis_preserves_a_hand_asserted_role_edit() {
     // asserts it (a "rename" via the human-facing title; the stable id is unchanged).
     let mut curated = derive_environment(&wordy_journal(), Some("wordy-openapi.yaml"));
     let role = curated.roles.get_mut("server:local").expect("role");
-    role.title = Some("Wordy public dictionary API".to_string());
+    role.title = Some("Wordy public dictionary API".into());
     role.provenance = Provenance::asserted();
 
     // A later capture re-derives and merges over the curated descriptor.

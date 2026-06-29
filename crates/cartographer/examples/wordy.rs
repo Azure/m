@@ -44,8 +44,8 @@ fn body(json: &str) -> (BodyShape, Option<serde_json::Value>) {
 
 fn header(name: &str, value: Option<&str>) -> HeaderField {
     HeaderField {
-        name: name.to_string(),
-        value: value.map(str::to_string),
+        name: name.into(),
+        value: value.map(Into::into),
     }
 }
 
@@ -72,12 +72,12 @@ fn mk(
 
     JournalRecord {
         seam: Seam::Inbound,
-        method: method.to_string(),
-        path: path.to_string(),
+        method: method.into(),
+        path: path.into(),
         query: query
             .iter()
             .map(|(name, sample)| QueryParam {
-                name: (*name).to_string(),
+                name: (*name).into(),
                 value: infer_scalar(sample),
             })
             .collect(),

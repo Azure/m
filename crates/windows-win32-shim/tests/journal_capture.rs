@@ -102,7 +102,7 @@ fn session_journals_both_seams_to_one_shared_file() {
 
     assert_eq!(egress.seam, Seam::Egress);
     assert_eq!(egress.method, "POST");
-    assert_eq!(egress.host.as_deref(), Some("merriam.local"));
+    assert!(egress.host.as_ref().is_some_and(|h| h == "merriam.local"));
     assert_eq!(egress.port, Some(8080));
     assert_eq!(egress.path, "/custom/cat");
     assert_eq!(egress.query.len(), 1);

@@ -117,3 +117,15 @@ identities and PII end to end. Recorded now as policy; implementation is deliber
   *identity-axis role subdivision* (EM-D3); when identity is introduced it arrives tokenized.
 - **Deferral is intentional.** This is *not* to be implemented during the current development
   push; it is queued so the requirement is not lost.
+
+
+## D-AJ-5 — Text fields are encoding-tagged `RawStr` (UT-A2, breaking format)
+
+`JournalRecord.method/scheme/host/path`, `HeaderField.name/value`, and `QueryParam.name` are
+`RawStr` / `Option<RawStr>` (was `String`/`Option<String>`). On disk each is the tagged object
+`{ "enc": "u16"|"raw", "b64": "…" }`, never a plain JSON string — a breaking change to the NDJSON
+format. Captured text is carried verbatim in its native encoding (UTF-16 for WinHTTP/wide, raw
+octets for HTTP/narrow); only the reader decodes via `RawStr::to_string_lossy()`. `RawStr` has
+`From<&str>/From<String>` and `PartialEq<&str>` to keep construction/comparison ergonomic. Rationale:
+SHIM-D26 (never transcode captured data in the observed service). content-type accessors now return
+owned `Option<String>` (decoded).

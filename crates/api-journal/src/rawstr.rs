@@ -103,6 +103,42 @@ impl RawStr {
     }
 }
 
+impl From<&str> for RawStr {
+    fn from(s: &str) -> Self {
+        Self::from_utf8(s)
+    }
+}
+
+impl From<String> for RawStr {
+    fn from(s: String) -> Self {
+        Self::from_utf8(&s)
+    }
+}
+
+impl PartialEq<str> for RawStr {
+    fn eq(&self, other: &str) -> bool {
+        self.to_string_lossy() == other
+    }
+}
+
+impl PartialEq<&str> for RawStr {
+    fn eq(&self, other: &&str) -> bool {
+        self.to_string_lossy() == *other
+    }
+}
+
+impl PartialEq<String> for RawStr {
+    fn eq(&self, other: &String) -> bool {
+        self.to_string_lossy() == *other
+    }
+}
+
+impl core::fmt::Display for RawStr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.to_string_lossy())
+    }
+}
+
 /// serde adapter: bytes <-> base64 string. Always present (uniform tagged form).
 mod b64bytes {
     use super::BASE64;

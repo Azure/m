@@ -30,7 +30,7 @@ fn make_record(i: u64) -> JournalRecord {
         _ => BodyShape::derive(br#"[1,2,"x",{"k":null}]"#, Some("application/json")),
     };
     let (scheme, host, port) = if seam == Seam::Egress {
-        (Some("http".to_string()), Some("merriam.local".to_string()), Some(8080))
+        (Some("http".into()), Some("merriam.local".into()), Some(8080))
     } else {
         (None, None, None)
     };
@@ -48,7 +48,7 @@ fn make_record(i: u64) -> JournalRecord {
         scheme,
         host,
         port,
-        path: format!("/custom/word{i}"),
+        path: format!("/custom/word{i}").into(),
         query,
         request_headers: vec![HeaderField {
             name: "X-Wordy-User".into(),

@@ -109,22 +109,22 @@ impl<'a> SpecIndex<'a> {
 pub fn validate_record(index: &SpecIndex, record: &JournalRecord) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
-    let Some((template, item, _matched)) = index.find(&record.path) else {
+    let Some((template, item, _matched)) = index.find(&record.path.to_string_lossy()) else {
         diagnostics.push(Diagnostic::new(
             Severity::Error,
             DiagnosticCode::UndocumentedPath,
-            Location::path(record.path.clone()),
+            Location::path(record.path.to_string_lossy()),
             "no matching path template in the spec",
         ));
         return diagnostics;
     };
     let path = template.raw().to_string();
 
-    let Some(operation) = item.operation(&record.method) else {
+    let Some(operation) = item.operation(&record.method.to_string_lossy()) else {
         diagnostics.push(Diagnostic::new(
             Severity::Error,
             DiagnosticCode::UndocumentedOperation,
-            Location::operation(path, record.method.clone()),
+            Location::operation(path, record.method.to_string_lossy()),
             format!("method {} is not declared on this path", record.method),
         ));
         return diagnostics;
@@ -196,7 +196,7 @@ fn check_status(
         out.push(Diagnostic::new(
             Severity::Error,
             DiagnosticCode::UndeclaredStatus,
-            Location::response(path.to_string(), record.method.clone(), record.status),
+            Location::response(path.to_string(), record.method.to_string_lossy(), record.status),
             "response status is not declared on this operation",
         ));
     }
@@ -218,11 +218,11 @@ fn check_query(
         .map(|p| p.name.as_str())
         .collect();
     for param in &record.query {
-        if !declared.contains(param.name.as_str()) {
+        if !declared.contains(param.name.to_string_lossy().as_str()) {
             out.push(Diagnostic::new(
                 Severity::Warning,
                 DiagnosticCode::UndeclaredParameter,
-                Location::operation(path.to_string(), record.method.clone()),
+                Location::operation(path.to_string(), record.method.to_string_lossy()),
                 format!("query parameter '{}' is not declared", param.name),
             ));
         }
@@ -245,14 +245,14 @@ fn check_headers(
         .map(|p| p.name.to_ascii_lowercase())
         .collect();
     for header in &record.request_headers {
-        let lower = header.name.to_ascii_lowercase();
+        let lower = header.name.to_string_lossy().to_ascii_lowercase();
         if STANDARD_HEADERS.contains(&lower.as_str()) || declared.contains(&lower) {
             continue;
         }
         out.push(Diagnostic::new(
             Severity::Warning,
             DiagnosticCode::UndeclaredHeader,
-            Location::operation(path.to_string(), record.method.clone()),
+            Location::operation(path.to_string(), record.method.to_string_lossy()),
             format!("request header '{}' is not declared", header.name),
         ));
     }
@@ -270,10 +270,10 @@ fn check_request_body(
     let Some(request_body) = &operation.request_body else {
         return;
     };
-    let Some(schema) = select_schema(&request_body.content, record.request_content_type()) else {
+    let Some(schema) = select_schema(&request_body.content, record.request_content_type().as_deref()) else {
         return;
     };
-    let location = Location::operation(path.to_string(), record.method.clone());
+    let location = Location::operation(path.to_string(), record.method.to_string_lossy());
     emit_mismatches(
         &check_body(&record.request_body, schema),
         DiagnosticCode::RequestSchemaMismatch,
@@ -294,10 +294,10 @@ fn check_response_body(
     let Some(response) = select_response(&operation.responses, record.status) else {
         return; // an undeclared status was already reported.
     };
-    let Some(schema) = select_schema(&response.content, record.response_content_type()) else {
+    let Some(schema) = select_schema(&response.content, record.response_content_type().as_deref()) else {
         return;
     };
-    let location = Location::response(path.to_string(), record.method.clone(), record.status);
+    let location = Location::response(path.to_string(), record.method.to_string_lossy(), record.status);
     emit_mismatches(
         &check_body(&record.response_body, schema),
         DiagnosticCode::ResponseSchemaMismatch,
@@ -900,7 +900,7 @@ mod tests {
         let mut records = Vec::new();
         for word in ["a", "b", "c"] {
             let mut record = base_record();
-            record.path = format!("/unknown/{word}");
+            record.path = format!("/unknown/{word}").into();
             // Different concrete paths, but each matches nothing -> same finding
             // keyed on the (identical) message and path? The path differs, so
             // they are distinct findings.

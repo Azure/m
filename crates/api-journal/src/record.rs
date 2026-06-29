@@ -17,6 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::rawstr::RawStr;
 use crate::shape::BodyShape;
 
 /// Which seam observed the interaction.
@@ -34,8 +35,8 @@ pub enum Seam {
 /// literal value).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueryParam {
-    /// The parameter name.
-    pub name: String,
+    /// The parameter name (raw, encoding-tagged; never transcoded by the producer).
+    pub name: RawStr,
     /// The inferred scalar shape of the observed value (`String`/`Integer`/`Number`/`Bool`).
     pub value: BodyShape,
 }
@@ -44,11 +45,11 @@ pub struct QueryParam {
 /// (`Content-Type`, `Accept`); for every other header just the name is kept.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HeaderField {
-    /// The header name (case is preserved as observed; comparisons are case-insensitive).
-    pub name: String,
+    /// The header name, raw and encoding-tagged (case preserved; compare via decoded form).
+    pub name: RawStr,
     /// The literal value, present only for safelisted content-negotiation headers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value: Option<String>,
+    pub value: Option<RawStr>,
 }
 
 /// A single observed request/response interaction.
@@ -62,21 +63,21 @@ pub struct JournalRecord {
     /// Which seam observed the interaction.
     pub seam: Seam,
     /// The HTTP method/verb (e.g. `GET`, `POST`).
-    pub method: String,
+    pub method: RawStr,
 
     /// Destination scheme (`http`/`https`) — egress only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scheme: Option<String>,
+    pub scheme: Option<RawStr>,
     /// Destination host (no scheme or port) — egress only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub host: Option<String>,
+    pub host: Option<RawStr>,
     /// Destination TCP port — egress only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
 
     /// The request path, literal and without the query string (e.g. `/custom/{word}` is an
     /// inferred template, but here the *observed* concrete path such as `/custom/cat`).
-    pub path: String,
+    pub path: RawStr,
     /// Observed query parameters (names + value shapes).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub query: Vec<QueryParam>,
@@ -113,15 +114,15 @@ pub struct JournalRecord {
 }
 
 impl JournalRecord {
-    /// Find a header's retained value by case-insensitive name, if any was captured.
+    /// Find a header's retained value by case-insensitive name, decoded lossily.
     #[must_use]
-    pub fn request_content_type(&self) -> Option<&str> {
+    pub fn request_content_type(&self) -> Option<String> {
         header_value(&self.request_headers, "content-type")
     }
 
-    /// Find the response `Content-Type` value, if one was captured.
+    /// Find the response `Content-Type` value, decoded lossily, if one was captured.
     #[must_use]
-    pub fn response_content_type(&self) -> Option<&str> {
+    pub fn response_content_type(&self) -> Option<String> {
         header_value(&self.response_headers, "content-type")
     }
 }
@@ -164,11 +165,11 @@ pub fn derive_example(bytes: &[u8], content_type: Option<&str>) -> Option<serde_
     serde_json::from_slice::<serde_json::Value>(bytes).ok()
 }
 
-fn header_value<'a>(headers: &'a [HeaderField], name_lower: &str) -> Option<&'a str> {
+fn header_value(headers: &[HeaderField], name_lower: &str) -> Option<String> {
     headers
         .iter()
-        .find(|h| h.name.eq_ignore_ascii_case(name_lower))
-        .and_then(|h| h.value.as_deref())
+        .find(|h| h.name.to_string_lossy().eq_ignore_ascii_case(name_lower))
+        .and_then(|h| h.value.as_ref().map(RawStr::to_string_lossy))
 }
 
 fn is_empty_shape(shape: &BodyShape) -> bool {
@@ -253,8 +254,8 @@ mod tests {
     fn unknown_fields_are_ignored() {
         let json = r#"{
             "seam": "egress",
-            "method": "GET",
-            "path": "/healthz",
+            "method": {"enc":"raw","b64":"R0VU"},
+            "path": {"enc":"raw","b64":"L2hlYWx0aHo="},
             "status": 200,
             "timestamp_ms": 0,
             "session_id": 0,
@@ -308,10 +309,10 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            record.request_content_type(),
+            record.request_content_type().as_deref(),
             Some("application/json; charset=utf-8")
         );
-        assert_eq!(record.response_content_type(), Some("application/json"));
+        assert_eq!(record.response_content_type().as_deref(), Some("application/json"));
     }
 
     #[test]

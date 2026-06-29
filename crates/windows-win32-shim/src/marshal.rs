@@ -18,7 +18,7 @@
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
 
-use api_journal::Seam;
+use api_journal::{RawStr, Seam};
 
 /// serde `with` adapter encoding a `Vec<u8>` body as a base64 string (RFC 4648
 /// standard alphabet) in the marshaled JSON and decoding it back. Empty bodies are
@@ -47,10 +47,10 @@ mod base64_body {
 /// safelist filtering — that is the worker's job).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawHeader {
-    /// The header name.
-    pub name: String,
-    /// The literal header value.
-    pub value: String,
+    /// The header name (raw, encoding-tagged; never transcoded by the producer).
+    pub name: RawStr,
+    /// The literal header value (raw, encoding-tagged).
+    pub value: RawStr,
 }
 
 /// A raw intercepted request/response interaction, marshaled for the off-thread
@@ -61,18 +61,18 @@ pub struct Interaction {
     /// Which seam observed the interaction.
     pub seam: Seam,
     /// The HTTP method/verb.
-    pub method: String,
+    pub method: RawStr,
     /// Destination scheme (`http`/`https`) — egress only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scheme: Option<String>,
+    pub scheme: Option<RawStr>,
     /// Destination host — egress only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub host: Option<String>,
+    pub host: Option<RawStr>,
     /// Destination port — egress only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
     /// The raw request target (path plus any `?query`), unsplit.
-    pub target: String,
+    pub target: RawStr,
     /// Raw request headers (names and literal values).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub request_headers: Vec<RawHeader>,
@@ -145,19 +145,19 @@ mod tests {
 
     fn header(name: &str, value: &str) -> RawHeader {
         RawHeader {
-            name: name.to_string(),
-            value: value.to_string(),
+            name: name.into(),
+            value: value.into(),
         }
     }
 
     fn egress_sample() -> Interaction {
         Interaction {
             seam: Seam::Egress,
-            method: "POST".to_string(),
-            scheme: Some("https".to_string()),
-            host: Some("api.example".to_string()),
+            method: "POST".into(),
+            scheme: Some("https".into()),
+            host: Some("api.example".into()),
             port: Some(443),
-            target: "/custom/cat?pattern=c.t".to_string(),
+            target: "/custom/cat?pattern=c.t".into(),
             request_headers: vec![
                 header("Content-Type", "application/json"),
                 header("X-Wordy-User", "alice"),
@@ -181,8 +181,8 @@ mod tests {
     fn inbound_interaction_round_trips_without_authority() {
         let interaction = Interaction {
             seam: Seam::Inbound,
-            method: "GET".to_string(),
-            target: "/healthz".to_string(),
+            method: "GET".into(),
+            target: "/healthz".into(),
             status: 200,
             timestamp_ms: 42,
             ..Default::default()
@@ -206,8 +206,8 @@ mod tests {
     fn empty_optional_fields_are_omitted_but_round_trip() {
         let interaction = Interaction {
             seam: Seam::Inbound,
-            method: "DELETE".to_string(),
-            target: "/x".to_string(),
+            method: "DELETE".into(),
+            target: "/x".into(),
             status: 204,
             timestamp_ms: 1,
             ..Default::default()
@@ -246,8 +246,8 @@ mod tests {
     fn non_utf8_bytes_survive_the_base64_encoding() {
         let interaction = Interaction {
             seam: Seam::Inbound,
-            method: "POST".to_string(),
-            target: "/bin".to_string(),
+            method: "POST".into(),
+            target: "/bin".into(),
             request_body: vec![0x00, 0xFF, 0x80, 0x7F],
             status: 200,
             timestamp_ms: 1,

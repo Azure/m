@@ -87,7 +87,7 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
       `{ "enc": "u16"|"raw", "b64": "…" }` — never sniff the bytes for UTF-8 validity (that buys only
       journal readability, which has no value to the producer; SHIM-D26). Unit tests: round-trip
       both encodings, ill-formed UTF-16 preserved verbatim, lossy decode.
-- [ ] **UT-A2** Switch the `JournalRecord` text fields (`method`, `scheme`, `host`, `path`),
+- [x] **UT-A2** Switch the `JournalRecord` text fields (`method`, `scheme`, `host`, `path`),
       `HeaderField { name, value }`, and `QueryParam.name` from `String` / `Option<String>` to
       `RawStr` / `Option<RawStr>`. Update `infer_scalar` / `derive_example` call sites and the
       schema doc; record the breaking on-disk format change in `api-journal` DESIGN-NOTES. Update
@@ -101,12 +101,12 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
       `interaction.to_json()` on the host; the worker serializes/`base64`s off-thread (and only at
       the real IPC boundary once out of process). The in-process *reply* serialization is unchanged
       (control data, not captured platform data). This item is shim-local and may land before UT-B1.
-- [ ] **UT-B1** **CROSS-COMPONENT PREREQUISITE:** `api-journal` UT-A2 must land first. Change the
+- [x] **UT-B1** **CROSS-COMPONENT PREREQUISITE:** `api-journal` UT-A2 must land first. Change the
       `marshal::Interaction` text fields to `RawStr`. Capture without transcoding: egress wraps
       `Utf16::as_units()` as `Utf16Le` (delete the `to_utf8()` calls in `egress_interaction` /
       `raw_egress_headers`); inbound wraps its narrow bytes as `Bytes`. Update the `marshal`
       round-trip tests.
-- [ ] **UT-B2** Build the tagged `JournalRecord` in the worker without transcoding the stored
+- [x] **UT-B2** Build the tagged `JournalRecord` in the worker without transcoding the stored
       fields; reductions that need UTF-8 string ops (`split_path_query`, header safelist,
       content-type match, `infer_scalar`) operate on a transient decoded view only. Update the
       worker + decorator parity tests for the tagged record.
@@ -114,7 +114,7 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
 
 ### `cartographer` (consumer)
 
-- [ ] **UT-C1** **CROSS-COMPONENT PREREQUISITE:** shim UT-B2 must land first. Decode `RawStr` per
+- [x] **UT-C1** **CROSS-COMPONENT PREREQUISITE:** shim UT-B2 must land first. Decode `RawStr` per
       tag (`to_string_lossy`) wherever cartographer consumes record text (path templating / OpenAPI
       synthesis / grouping). Update fixtures and tests for the tagged journal format.
 

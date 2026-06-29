@@ -42,6 +42,10 @@ serde = { version = "1", features = ["derive"] }
 # JSON number arrays — ~3x smaller in the marshaled JSON and the standard binary-in-
 # JSON encoding for the eventual cross-process payload.
 base64 = "0.22"
+# Lock-free MPSC queue (JW-4): many seam producers push journal records; a single
+# pool writer drains. `SegQueue` is the unbounded lock-free queue, so producers
+# never take a lock on the hot path. The drain ordering/contract is owned here.
+crossbeam-queue = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 windows-platform-isolation = { path = "../windows-platform-isolation" }

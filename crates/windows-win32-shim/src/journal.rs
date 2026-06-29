@@ -25,10 +25,11 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::collections::VecDeque;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use crossbeam_queue::SegQueue;
 
 use api_journal::{
     BodyShape, HeaderField, JournalRecord, QueryParam, RawStr, Seam, infer_scalar, write_record,
@@ -58,9 +59,9 @@ pub struct JournalSink {
     /// The append handle, opened lazily on the first record. Held only by the
     /// single writer (JW-2), so writes never contend.
     file: Mutex<Option<File>>,
-    /// Pending records awaiting the single-consumer writer (JW-2). Producers push
-    /// and return; the writer drains in batches under the file lock.
-    queue: Mutex<VecDeque<JournalRecord>>,
+    /// Pending records awaiting the single-consumer writer (JW-4). Producers push
+    /// lock-free and return; the writer pops in batches under the file lock.
+    queue: SegQueue<JournalRecord>,
     /// 0→1 transition submits the writer; the writer clears it when it drains the
     /// queue empty, so at most one writer work item is ever in flight.
     writer_scheduled: AtomicBool,
@@ -102,7 +103,7 @@ impl JournalSink {
                 session_id: new_session_id(),
                 seq: AtomicU64::new(0),
                 file: Mutex::new(None),
-                queue: Mutex::new(VecDeque::new()),
+                queue: SegQueue::new(),
                 writer_scheduled: AtomicBool::new(false),
                 writer,
                 bodies: config.bodies,
@@ -191,10 +192,7 @@ impl JournalSink {
         // Enqueue and return: producers never touch the file (JW-2). The 0→1
         // transition submits the single writer; while it is scheduled, later
         // pushes just grow the queue and the in-flight writer drains them.
-        self.queue
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .push_back(record);
+        self.queue.push(record);
         if !self.writer_scheduled.swap(true, Ordering::AcqRel) {
             if let Some(writer) = self.writer.get() {
                 writer.submit();
@@ -208,15 +206,15 @@ impl JournalSink {
     /// the lost-wakeup window with `record`'s 0→1 submit.
     fn drain(&self) {
         loop {
-            let batch: VecDeque<JournalRecord> = {
-                let mut q = self.queue.lock().unwrap_or_else(|p| p.into_inner());
-                std::mem::take(&mut *q)
-            };
+            let mut batch: Vec<JournalRecord> = Vec::new();
+            while let Some(record) = self.queue.pop() {
+                batch.push(record);
+            }
             if batch.is_empty() {
                 self.writer_scheduled.store(false, Ordering::Release);
-                // A producer may have pushed between the take and the clear; if so,
-                // reclaim the writer and keep draining, else stop.
-                if self.queue.lock().unwrap_or_else(|p| p.into_inner()).is_empty() {
+                // A producer may have pushed between the last pop and the clear; if
+                // so, reclaim the writer and keep draining, else stop.
+                if self.queue.is_empty() {
                     return;
                 }
                 if self.writer_scheduled.swap(true, Ordering::AcqRel) {
@@ -246,11 +244,11 @@ impl JournalSink {
     pub fn flush(&self) {
         if let Some(writer) = self.writer.get() {
             loop {
-                if !self.queue.lock().unwrap_or_else(|p| p.into_inner()).is_empty() {
+                if !self.queue.is_empty() {
                     writer.submit();
                 }
                 writer.wait();
-                if self.queue.lock().unwrap_or_else(|p| p.into_inner()).is_empty() {
+                if self.queue.is_empty() {
                     return;
                 }
             }

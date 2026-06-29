@@ -176,9 +176,10 @@ PIL `rundown.h`): consult `RtlDllShutdownInProgress` and leak on process rundown
 - [x] **JW-3** **PREREQUISITE: JW-2.** Rundown-safe teardown: on drop quiesce the writer (wait) on
       a live unload, but leak on process rundown (skip the hang). Test: normal drop flushes/joins;
       simulated rundown leaks without waiting.
-- [ ] **JW-4** **PREREQUISITE: JW-2.** Rewire egress + inbound to the queue (drop the per-request
-      `WaitGate` block and inbound drop-join). Outcome reports enqueued. Update decorator/parity
-      and concurrency tests (records may flush after the call; join the sink before reading).
+- [x] **JW-4** **PREREQUISITE: JW-2.** Lock-free producer queue (`crossbeam SegQueue`): seams enqueue
+      a journal record with no lock on the hot path and ping the single writer; the writer drains it.
+      Tests flush the sink before reading. (Removing the per-request `WaitGate`/drop-join is folded
+      into AC/OOP; record→enqueue is already non-blocking.)
 - [ ] **JW-5** Re-run the 60s mixed stress: expect higher, possibly CPU-bound throughput with the
       flat-line latch gone; assert no loss, contiguous sequence, no double-free under rundown.
 

@@ -48,11 +48,16 @@ mod member {
     pub const SEAMS: &str = "seams";
     pub const INBOUND: &str = "inbound";
     pub const MAX_BODY_BYTES: &str = "max_body_bytes";
+    pub const BUFFER_BYTES: &str = "buffer_bytes";
 }
 
 /// The default value of `api_journal.max_body_bytes`: bodies larger than this are
 /// truncated before a shape is derived or full bytes are captured.
 const DEFAULT_MAX_BODY_BYTES: usize = 64 * 1024;
+
+/// The default value of `api_journal.buffer_bytes`: records are buffered up to
+/// this many bytes before the writer flushes the journal file. 1 MiB.
+const DEFAULT_BUFFER_BYTES: usize = 1024 * 1024;
 
 /// The egress (outbound network-client) isolation mode selected by the `.pilcfg`
 /// `egress.mode` member (MW17 / SHIM-D22). The all-default value is
@@ -130,6 +135,9 @@ pub struct ApiJournalConfig {
     /// Maximum body bytes to inspect when deriving a shape or capturing full
     /// bytes. Default 64 KiB.
     pub max_body_bytes: usize,
+    /// Output buffer size: records accumulate up to this many bytes before the
+    /// writer flushes them to the journal file. Default 1 MiB.
+    pub buffer_bytes: usize,
 }
 
 impl Default for ApiJournalConfig {
@@ -141,6 +149,7 @@ impl Default for ApiJournalConfig {
             capture_inbound: true,
             capture_egress: true,
             max_body_bytes: DEFAULT_MAX_BODY_BYTES,
+            buffer_bytes: DEFAULT_BUFFER_BYTES,
         }
     }
 }
@@ -364,6 +373,7 @@ fn read_api_journal(object: &Object) -> Result<ApiJournalConfig, PilcfgError> {
         capture_inbound,
         capture_egress,
         max_body_bytes: read_usize(journal, member::MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES)?,
+        buffer_bytes: read_usize(journal, member::BUFFER_BYTES, DEFAULT_BUFFER_BYTES)?,
     })
 }
 
@@ -813,6 +823,7 @@ mod tests {
         assert!(journal.capture_inbound);
         assert!(journal.capture_egress);
         assert_eq!(journal.max_body_bytes, DEFAULT_MAX_BODY_BYTES);
+        assert_eq!(journal.buffer_bytes, DEFAULT_BUFFER_BYTES);
     }
 
     #[test]
@@ -828,6 +839,7 @@ mod tests {
         assert_eq!(journal.path, "C:/logs/api.ndjson");
         assert_eq!(journal.bodies, BodyCapture::FullWithPii);
         assert_eq!(journal.max_body_bytes, 4096);
+        assert_eq!(journal.buffer_bytes, DEFAULT_BUFFER_BYTES);
         // Seams default on when the block is omitted.
         assert!(journal.capture_inbound);
         assert!(journal.capture_egress);
@@ -864,6 +876,12 @@ mod tests {
             parse_pilcfg(r#"{ "api_journal": { "seams": { "inbound": false } } }"#).unwrap();
         assert!(!egress_only.api_journal.capture_inbound);
         assert!(egress_only.api_journal.capture_egress);
+    }
+
+    #[test]
+    fn api_journal_buffer_bytes_override() {
+        let cfg = parse_pilcfg(r#"{ "api_journal": { "buffer_bytes": 4096 } }"#).unwrap();
+        assert_eq!(cfg.api_journal.buffer_bytes, 4096);
     }
 
     #[test]

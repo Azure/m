@@ -21,13 +21,14 @@
 //!   silently dropped rather than propagated.
 
 use std::fs::{File, OpenOptions};
+use std::io::BufWriter;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crossbeam_queue::ArrayQueue;
 
@@ -44,10 +45,15 @@ use crate::marshal::{Interaction, Outcome, RawHeader};
 use crate::pilcfg::{ApiJournalConfig, BodyCapture};
 
 /// Bound on pending records. Caps the producer-to-writer backlog so a flood of
-/// host interceptions applies backpressure (producers yield until the writer
+/// host interceptions applies backpressure (producers block until the writer
 /// drains room) instead of growing the queue without limit. ~64 K records is a
 /// few MB and dwarfs any realistic burst between two consecutive drain passes.
 const QUEUE_CAPACITY: usize = 65_536;
+
+/// Backstop wait between rechecks while a producer is blocked on a full queue.
+/// The writer signals room directly; this only bounds a missed wakeup so a
+/// producer can never sleep forever.
+const FULL_BACKOFF: Duration = Duration::from_millis(5);
 
 /// A process-wide, thread-safe NDJSON journal writer.
 ///
@@ -62,14 +68,20 @@ pub struct JournalSink {
     session_id: u64,
     /// Monotonic per-process record sequence.
     seq: AtomicU64,
-    /// The append handle, opened lazily on the first record. Held only by the
-    /// single writer (JW-2), so writes never contend.
-    file: Mutex<Option<File>>,
+    /// The append handle, opened lazily on the first record. Buffered so records
+    /// accrue in memory and reach the file in `buffer_bytes`-sized bursts. Held
+    /// only by the single writer (JW-2), so writes never contend.
+    file: Mutex<Option<BufWriter<File>>>,
     /// Pending records awaiting the single-consumer writer (JW-4). Producers push
     /// lock-free and return; the writer pops in batches under the file lock. The
-    /// queue is bounded so a producer flood applies backpressure (yield until the
+    /// queue is bounded so a producer flood applies backpressure (block until the
     /// consumer makes room) instead of growing without limit.
     queue: ArrayQueue<JournalRecord>,
+    /// Producers wait on this when the queue is full; the writer signals it after
+    /// draining a batch frees slots, so backpressure parks instead of spinning.
+    room: Condvar,
+    /// Mutex paired with `room`. Carries no state; only condvar bookkeeping.
+    room_lock: Mutex<()>,
     /// 0→1 transition submits the writer; the writer clears it when it drains the
     /// queue empty, so at most one writer work item is ever in flight.
     writer_scheduled: AtomicBool,
@@ -84,6 +96,9 @@ pub struct JournalSink {
     bodies: BodyCapture,
     /// Maximum body bytes to inspect when deriving a shape.
     max_body_bytes: usize,
+    /// Output buffer capacity: records accrue up to this many bytes before the
+    /// writer flushes the file.
+    buffer_bytes: usize,
     /// Whether the inbound (IIS) seam should journal.
     capture_inbound: bool,
     /// Whether the outbound (WinHTTP egress) seam should journal.
@@ -116,11 +131,14 @@ impl JournalSink {
                 seq: AtomicU64::new(0),
                 file: Mutex::new(None),
                 queue: ArrayQueue::new(QUEUE_CAPACITY),
+                room: Condvar::new(),
+                room_lock: Mutex::new(()),
                 writer_scheduled: AtomicBool::new(false),
                 draining: AtomicBool::new(false),
                 writer,
                 bodies: config.bodies,
                 max_body_bytes: config.max_body_bytes,
+                buffer_bytes: config.buffer_bytes,
                 capture_inbound: config.capture_inbound,
                 capture_egress: config.capture_egress,
             }
@@ -205,18 +223,23 @@ impl JournalSink {
         // Enqueue and return: producers never touch the file (JW-2). The 0→1
         // transition submits the single writer; while it is scheduled, later
         // pushes just grow the queue and the in-flight writer drains them. A full
-        // queue means the consumer is behind: keep the writer scheduled and yield
-        // until it makes room (bounded backpressure, never unbounded growth).
+        // queue means the consumer is behind: keep the writer scheduled and block
+        // on the room condvar until it drains a slot (bounded backpressure, no
+        // busy-spin, never unbounded growth).
         let mut pending = record;
         while let Err(returned) = self.queue.push(pending) {
             pending = returned;
-            if !self.writer_scheduled.swap(true, Ordering::AcqRel) {
-                if let Some(writer) = self.writer.get() {
-                    writer.submit();
-                }
+            self.schedule_writer();
+            let guard = self.room_lock.lock().unwrap_or_else(|p| p.into_inner());
+            if self.queue.is_full() {
+                let _ = self.room.wait_timeout(guard, FULL_BACKOFF);
             }
-            std::thread::yield_now();
         }
+        self.schedule_writer();
+    }
+
+    /// Submit the single writer on the 0→1 scheduled transition; later callers no-op.
+    fn schedule_writer(&self) {
         if !self.writer_scheduled.swap(true, Ordering::AcqRel) {
             if let Some(writer) = self.writer.get() {
                 writer.submit();
@@ -246,6 +269,7 @@ impl JournalSink {
                 // A producer may have pushed between the last pop and the clears; if
                 // so, reclaim the consumer and keep draining, else stop.
                 if self.queue.is_empty() {
+                    self.flush_file();
                     return;
                 }
                 if self.draining.swap(true, Ordering::AcqRel) {
@@ -259,7 +283,8 @@ impl JournalSink {
                     .create(true)
                     .append(true)
                     .open(&self.path)
-                    .ok();
+                    .ok()
+                    .map(|f| BufWriter::with_capacity(self.buffer_bytes, f));
             }
             if let Some(file) = guard.as_mut() {
                 for record in &batch {
@@ -267,6 +292,19 @@ impl JournalSink {
                     let _ = write_record(file, record);
                 }
             }
+            drop(guard);
+            // Draining a batch freed `batch.len()` slots; wake producers parked on
+            // a full queue so backpressure releases promptly instead of on timeout.
+            self.room.notify_all();
+        }
+    }
+
+    /// Flush buffered records to the file. Best-effort (fail-soft).
+    fn flush_file(&self) {
+        let mut guard = self.file.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(file) = guard.as_mut() {
+            use std::io::Write;
+            let _ = file.flush();
         }
     }
 
@@ -280,10 +318,11 @@ impl JournalSink {
                 }
                 writer.wait();
                 if self.queue.is_empty() {
-                    return;
+                    break;
                 }
             }
         }
+        self.flush_file();
     }
 }
 

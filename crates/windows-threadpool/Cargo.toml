@@ -9,6 +9,7 @@ description = "Safe Rust wrapper over the Windows thread pool API (CreateThreadp
 windows-sys = { version = "0.59", features = [
   "Win32_Foundation",
   "Win32_System_Threading",
+  "Win32_System_LibraryLoader",
 ] }
 
 [target.'cfg(windows)'.dev-dependencies]

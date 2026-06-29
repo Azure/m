@@ -38,6 +38,9 @@ mod wait_gate;
 mod io;
 
 #[cfg(windows)]
+mod rundown;
+
+#[cfg(windows)]
 pub use error::{ThreadPoolError, ThreadPoolResult};
 
 #[cfg(windows)]
@@ -56,3 +59,6 @@ pub use work_queue::{
 
 #[cfg(windows)]
 pub use io::{Completion, Io};
+
+#[cfg(windows)]
+pub use rundown::process_rundown_in_progress;

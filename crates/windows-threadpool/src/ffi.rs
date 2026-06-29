@@ -33,6 +33,45 @@ pub(crate) fn last_error_code() -> u32 {
     unsafe { GetLastError() }
 }
 
+/// Whether the OS loader has begun process rundown (`RtlDllShutdownInProgress`).
+///
+/// ntdll is mapped into every process, so `GetModuleHandleW` never loads it; the
+/// export is not in the public SDK headers, so it is resolved once by name and
+/// cached. A resolution failure reports `false` — the conservative answer that
+/// keeps normal teardown running. Mirrors PIL `process_rundown_in_progress()`.
+pub(crate) fn dll_shutdown_in_progress() -> bool {
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+
+    // 0 = unresolved, 1 = resolved-to-null, else = function pointer (usize).
+    static CACHED: AtomicUsize = AtomicUsize::new(0);
+    let mut slot = CACHED.load(Ordering::Acquire);
+    if slot == 0 {
+        // "ntdll.dll\0" as UTF-16.
+        const NTDLL: [u16; 10] = [0x6e, 0x74, 0x64, 0x6c, 0x6c, 0x2e, 0x64, 0x6c, 0x6c, 0];
+        // SAFETY: a NUL-terminated wide name and a NUL-terminated ASCII export
+        // name; both modules/exports may be absent, handled as null.
+        let resolved: usize = unsafe {
+            let ntdll = GetModuleHandleW(NTDLL.as_ptr());
+            if ntdll.is_null() {
+                0
+            } else {
+                GetProcAddress(ntdll, c"RtlDllShutdownInProgress".as_ptr().cast())
+                    .map_or(0, |p| p as usize)
+            }
+        };
+        slot = resolved;
+        CACHED.store(if slot == 0 { 1 } else { slot }, Ordering::Release);
+    }
+    if slot <= 1 {
+        return false;
+    }
+    // SAFETY: `slot` is a resolved `RtlDllShutdownInProgress` address; it takes no
+    // args and returns BOOLEAN (non-zero ⇒ rundown).
+    let f: unsafe extern "system" fn() -> u8 = unsafe { core::mem::transmute(slot) };
+    unsafe { f() != 0 }
+}
+
 /// `WaitOnAddress` "no timeout" sentinel (Win32 `INFINITE`).
 const WAIT_INFINITE: u32 = 0xFFFF_FFFF;
 

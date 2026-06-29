@@ -156,6 +156,32 @@ the copy off the hot thread without blocking. Sync-only seams keep the snapshot 
 - [ ] **AC-5** Integration: high-volume mixed sync/async traffic — non-blocking, zero copy on hot
       thread for async seams, snapshot preserved for sync seams, no lost/double-freed buffers.
 
+## Milestone JW — Single-consumer journal writer (drains an MPSC queue off the pool)
+
+The stress bench (RS-3) is latch-bound, not CPU-bound: every record blocks the producer on a
+per-request `WaitGate` round-trip and serializes through one `Mutex<File>` — one record in flight.
+Decouple capture from durability: producers enqueue without blocking; a **single** writer work item
+drains the queue under the file mutex in batches. This removes both the per-request latch and the
+single-in-flight cap. Rundown is the hazard — a worker join during DLL unload hangs (mwin32 D16,
+PIL `rundown.h`): consult `RtlDllShutdownInProgress` and leak on process rundown, quiesce on live
+`FreeLibrary`. Design: `SHIM-D29`.
+
+- [x] **JW-1** Expose a process-rundown query in `windows-threadpool` backed by ntdll
+      `RtlDllShutdownInProgress` (resolved by name; false where unavailable). Mirrors PIL
+      `process_rundown_in_progress()`. Test: returns false in a normally-running process.
+- [ ] **JW-2** **PREREQUISITE: JW-1.** Add the MPSC queue + single-consumer drain to `JournalSink`:
+      `record` enqueues and (0→1) submits the writer; the writer takes the file mutex, drains to
+      empty, releases, and re-checks for a clean empty pass. Producers never block. Test: many
+      threads enqueue, one writer drains, every record lands, no loss.
+- [ ] **JW-3** **PREREQUISITE: JW-2.** Rundown-safe teardown: on drop quiesce the writer (wait) on
+      a live unload, but leak on process rundown (skip the hang). Test: normal drop flushes/joins;
+      simulated rundown leaks without waiting.
+- [ ] **JW-4** **PREREQUISITE: JW-2.** Rewire egress + inbound to the queue (drop the per-request
+      `WaitGate` block and inbound drop-join). Outcome reports enqueued. Update decorator/parity
+      and concurrency tests (records may flush after the call; join the sink before reading).
+- [ ] **JW-5** Re-run the 60s mixed stress: expect higher, possibly CPU-bound throughput with the
+      flat-line latch gone; assert no loss, contiguous sequence, no double-free under rundown.
+
 ## Deferred (next stages, not yet planned into milestones)
 
 These seed the next milestones; promote to concrete items when picked up.

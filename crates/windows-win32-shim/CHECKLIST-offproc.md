@@ -139,7 +139,7 @@ the copy off the hot thread without blocking. Sync-only seams keep the snapshot 
 - **Interplay with OOP.** Zero-copy in-process and OUT-of-process are in tension: the IPC payload
   must be serialized eventually. Decide whether AC lands in-process first or co-designs with OOP.
 
-- [ ] **AC-1** Classify each seam (egress/ingress, sync/async) and author `SHIM-D28`; gate the
+- [x] **AC-1** Classify each seam (egress/ingress, sync/async) and author `SHIM-D28`; gate the
       capture path on a per-seam async-capable flag with sync-only seams unchanged. Test: classifier
       reports expected capability per seam.
 - [ ] **AC-2** **PREREQUISITE: AC-1.** Add buffer-retention + non-blocking-completion primitives

@@ -261,8 +261,9 @@ impl<S: EgressSurface> EgressSurface for JournalingEgress<S> {
         if let (Some(sink), Ok(response)) = (&self.sink, &result) {
             // Off-thread (SHIM-D25): marshal the raw context and hand it to the
             // worker, blocking until it finishes. The reduction to the on-disk
-            // record now lives in the worker, not on this calling thread.
-            let _ = dispatch_off_thread(sink, egress_interaction(sink, req, response));
+            // record now lives in the worker, not on this calling thread. The
+            // capability gate (AC-1) keeps egress on the sync snapshot path.
+            let _ = dispatch_capture(sink, egress_interaction(sink, req, response));
         }
         result
     }
@@ -406,6 +407,45 @@ fn interaction_record(sink: &JournalSink, interaction: Interaction) -> JournalRe
 }
 
 // === Off-thread dispatcher (OT-4) ===
+
+/// Whether a seam's platform contract permits completing the request *asynchronously*
+/// (releasing the calling thread before the journaling worker finishes). This decides
+/// whether the snapshot-on-the-host copy can be replaced by retaining the platform
+/// buffers and letting the worker read them in place (milestone AC; SHIM-D28).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeamCapability {
+    /// The relay drives the exchange synchronously; the snapshot-then-block path
+    /// must stay. WinHTTP egress (`Seam::Egress`) is sync-only.
+    Sync,
+    /// The platform supports async completion (IIS `RQ_NOTIFICATION_PENDING` +
+    /// `PostCompletion`), so capture may retain buffers and complete off-thread.
+    AsyncCapable,
+}
+
+/// Classify a seam's async capability (SHIM-D28). Fixed by the platform contract
+/// behind the seam, keyed off the position-independent [`Seam`] identity.
+#[must_use]
+pub fn seam_capability(seam: Seam) -> SeamCapability {
+    match seam {
+        Seam::Egress => SeamCapability::Sync,
+        Seam::Inbound => SeamCapability::AsyncCapable,
+    }
+}
+
+/// Route a marshaled interaction to the journaling worker, gated on the seam's
+/// async capability (AC-1; SHIM-D28). AC-1 only introduces the gate: both branches
+/// take the synchronous snapshot-then-block path, so behavior is identical to
+/// pre-AC. AC-2..AC-4 will give async-capable seams a zero-copy, non-blocking path.
+#[must_use]
+pub fn dispatch_capture(sink: &Arc<JournalSink>, interaction: Interaction) -> Outcome {
+    match seam_capability(interaction.seam) {
+        // Sync-only seams keep the snapshot-then-block path, unchanged.
+        SeamCapability::Sync => dispatch_off_thread(sink, interaction),
+        // Async-capable seams will get the zero-copy path in AC-2; until then they
+        // share the blocking path so behavior is unchanged.
+        SeamCapability::AsyncCapable => dispatch_off_thread(sink, interaction),
+    }
+}
 
 /// Reduce and journal a marshaled interaction in-process (struct path, UT-B0): the
 /// calling thread serializes nothing. The JSON [`handle_interaction`] is retained
@@ -554,7 +594,7 @@ impl RequestHandler for JournalingHandler {
                 response_body: self.sink.capped_body(response.body()),
                 timestamp_ms: pending.timestamp_ms,
             };
-            let _ = dispatch_off_thread(&self.sink, interaction);
+            let _ = dispatch_capture(&self.sink, interaction);
         }
         disposition
     }
@@ -1119,6 +1159,39 @@ mod tests {
         assert_eq!(records[0].seam, Seam::Egress);
         assert_eq!(records[0].timestamp_ms, 999);
         assert!(records[0].response_body_example.is_some());
+    }
+
+    #[test]
+    fn seam_capability_classifies_each_seam() {
+        // SHIM-D28 / AC-1: egress is sync-only, inbound is async-capable.
+        assert_eq!(seam_capability(Seam::Egress), SeamCapability::Sync);
+        assert_eq!(seam_capability(Seam::Inbound), SeamCapability::AsyncCapable);
+    }
+
+    #[test]
+    fn dispatch_capture_journals_both_seams() {
+        // AC-1 only gates the path; both capabilities still journal synchronously.
+        for seam in [Seam::Egress, Seam::Inbound] {
+            let path = temp_path("dispatch-capture");
+            let sink = JournalSink::from_config(&config(&path)).expect("sink");
+            let outcome = dispatch_capture(
+                &sink,
+                Interaction {
+                    seam,
+                    method: "GET".into(),
+                    target: "/cap".into(),
+                    status: 200,
+                    timestamp_ms: 1,
+                    ..Default::default()
+                },
+            );
+            assert_eq!(outcome, Outcome { journaled: true });
+            let file = File::open(&path).expect("journal exists");
+            let (records, _) = read_records(BufReader::new(file));
+            let _ = std::fs::remove_file(&path);
+            assert_eq!(records.len(), 1);
+            assert_eq!(records[0].seam, seam);
+        }
     }
 
     #[test]

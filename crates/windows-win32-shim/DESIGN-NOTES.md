@@ -1094,3 +1094,28 @@ This corrects the prior assumption that journaling must always be best-effort.
   thing — so panic containment stays; this adds explicit fatal handling for capture failure.
 - **`mode` becomes first-class `.pilcfg` state.** Implementation (mode-aware failure policy) is
   future work tied to the out-of-process milestones; the decision is recorded now.
+
+## SHIM-D28 — Per-seam async capability classification (milestone AC)
+
+UT-B0 took transcoding and JSON off the calling thread, but a bounded snapshot remains: each seam
+memcpy's the capped bodies + headers into an owned `Interaction` before hand-off, because we do not
+block and the caller's buffers can be freed/reused the instant we return. That copy can only be
+removed where the seam's contract permits an **async reply** — retain the platform buffers, let the
+worker read them in place, and complete the request after the worker consumes them. Milestone AC.
+
+- **Capability is a property of the seam, not the journal.** Whether a seam can complete
+  asynchronously is fixed by the platform contract behind it, so the classifier keys off the
+  marshaled `Seam`, the position-independent identity carried across the boundary. Today:
+  `Seam::Egress` (WinHTTP `WinHttpSendRequest`/`Receive` driven synchronously by the relay) is
+  **sync-only**; `Seam::Inbound` (IIS, which supports `RQ_NOTIFICATION_PENDING` + `PostCompletion`,
+  per wordy MW13) is **async-capable**.
+- **Gate now, diverge later.** AC-1 only introduces the flag and branches the capture path on it.
+  Sync-only seams keep the exact snapshot-then-block path unchanged; the async branch currently
+  falls through to the same blocking dispatch, so behavior is identical until AC-2 supplies the
+  buffer-retention + non-blocking-completion primitives. This keeps the classification testable and
+  the seam routing in place without changing observable behavior.
+- **Why gate before building.** The zero-copy path needs buffer-lifetime ownership and a completion
+  registration that differ per seam; isolating *which* seam takes which path first keeps AC-2..AC-4
+  small and lets sync seams stay provably untouched. Backpressure on the async path follows the
+  SHIM-D27 mode policy (journaling fail-loud, primary fault-diagnosable, tracing best-effort drop).
+

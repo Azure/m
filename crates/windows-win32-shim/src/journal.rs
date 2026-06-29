@@ -359,11 +359,10 @@ impl<S: EgressSurface> EgressSurface for JournalingEgress<S> {
         let result = self.inner.send(req);
         // Journal only real exchanges: a transport error is not an API interaction.
         if let (Some(sink), Ok(response)) = (&self.sink, &result) {
-            // Off-thread (SHIM-D25): marshal the raw context and hand it to the
-            // worker, blocking until it finishes. The reduction to the on-disk
-            // record now lives in the worker, not on this calling thread. The
-            // capability gate (AC-1) keeps egress on the sync snapshot path.
-            let _ = dispatch_capture(sink, egress_interaction(sink, req, response));
+            // Enqueue and return (JW-4): build the reduced record and hand it to the
+            // lock-free queue; the single pool writer persists it. No per-request
+            // pool round-trip or latch — the host thread is not blocked.
+            sink.record(interaction_record(sink, egress_interaction(sink, req, response)));
         }
         result
     }
@@ -719,10 +718,6 @@ pub struct JournalingHandler {
     inner: Box<dyn RequestHandler>,
     sink: Arc<JournalSink>,
     pending: Option<PendingInbound>,
-    // The async capture for the in-flight exchange (AC-4): parked here so the
-    // request thread does not block; dropping it joins, so it lives until the next
-    // request replaces it or the handler is torn down.
-    capture: Option<RetainedCapture<Interaction>>,
 }
 
 impl JournalingHandler {
@@ -733,7 +728,6 @@ impl JournalingHandler {
             inner,
             sink,
             pending: None,
-            capture: None,
         }
     }
 }
@@ -776,7 +770,7 @@ impl RequestHandler for JournalingHandler {
                 response_body: self.sink.capped_body(response.body()),
                 timestamp_ms: pending.timestamp_ms,
             };
-            self.capture = dispatch_capture_async(&self.sink, interaction);
+            self.sink.record(interaction_record(&self.sink, interaction));
         }
         disposition
     }

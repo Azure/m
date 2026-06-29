@@ -55,6 +55,22 @@ const QUEUE_CAPACITY: usize = 65_536;
 /// producer can never sleep forever.
 const FULL_BACKOFF: Duration = Duration::from_millis(5);
 
+/// Runtime counters for diagnosing the producer/consumer regime (perf only;
+/// relaxed atomics, no correctness role). A high `producer_waits` with large
+/// average batch size means the writer is the bottleneck (consumer-behind); a
+/// high `empty_passes` with ~unit batches means producers are (consumer-ahead).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct JournalStats {
+    /// Times a producer blocked on a full queue (consumer-behind signal).
+    pub producer_waits: u64,
+    /// Times the writer found the queue empty (consumer-ahead signal).
+    pub empty_passes: u64,
+    /// Number of non-empty batches the writer drained.
+    pub batches: u64,
+    /// Records actually serialized and written to the buffer.
+    pub records_written: u64,
+}
+
 /// A process-wide, thread-safe NDJSON journal writer.
 ///
 /// Construct via [`JournalSink::from_config`] (returns `None` when journaling is
@@ -103,6 +119,14 @@ pub struct JournalSink {
     capture_inbound: bool,
     /// Whether the outbound (WinHTTP egress) seam should journal.
     capture_egress: bool,
+    /// Perf counter: producer blocked on a full queue. Relaxed; diagnostics only.
+    producer_waits: AtomicU64,
+    /// Perf counter: writer found the queue empty. Relaxed; diagnostics only.
+    empty_passes: AtomicU64,
+    /// Perf counter: non-empty batches drained. Relaxed; diagnostics only.
+    batches: AtomicU64,
+    /// Perf counter: records serialized + written. Relaxed; diagnostics only.
+    records_written: AtomicU64,
 }
 
 impl JournalSink {
@@ -141,6 +165,10 @@ impl JournalSink {
                 buffer_bytes: config.buffer_bytes,
                 capture_inbound: config.capture_inbound,
                 capture_egress: config.capture_egress,
+                producer_waits: AtomicU64::new(0),
+                empty_passes: AtomicU64::new(0),
+                batches: AtomicU64::new(0),
+                records_written: AtomicU64::new(0),
             }
         });
         Some(sink)
@@ -232,10 +260,22 @@ impl JournalSink {
             self.schedule_writer();
             let guard = self.room_lock.lock().unwrap_or_else(|p| p.into_inner());
             if self.queue.is_full() {
+                self.producer_waits.fetch_add(1, Ordering::Relaxed);
                 let _ = self.room.wait_timeout(guard, FULL_BACKOFF);
             }
         }
         self.schedule_writer();
+    }
+
+    /// A snapshot of the runtime perf counters (diagnostics only).
+    #[must_use]
+    pub fn stats(&self) -> JournalStats {
+        JournalStats {
+            producer_waits: self.producer_waits.load(Ordering::Relaxed),
+            empty_passes: self.empty_passes.load(Ordering::Relaxed),
+            batches: self.batches.load(Ordering::Relaxed),
+            records_written: self.records_written.load(Ordering::Relaxed),
+        }
     }
 
     /// Submit the single writer on the 0→1 scheduled transition; later callers no-op.
@@ -264,6 +304,7 @@ impl JournalSink {
                 batch.push(record);
             }
             if batch.is_empty() {
+                self.empty_passes.fetch_add(1, Ordering::Relaxed);
                 self.writer_scheduled.store(false, Ordering::Release);
                 self.draining.store(false, Ordering::Release);
                 // A producer may have pushed between the last pop and the clears; if
@@ -291,6 +332,9 @@ impl JournalSink {
                     // Fail-soft: a write error drops this record but keeps the host alive.
                     let _ = write_record(file, record);
                 }
+                self.batches.fetch_add(1, Ordering::Relaxed);
+                self.records_written
+                    .fetch_add(batch.len() as u64, Ordering::Relaxed);
             }
             drop(guard);
             // Draining a batch freed `batch.len()` slots; wake producers parked on
@@ -1824,7 +1868,8 @@ mod tests {
             Arc::new((0..BUCKETS).map(|_| std::sync::atomic::AtomicU64::new(0)).collect());
 
         let path = temp_path("rs3-concurrent-mixed");
-        let sink = JournalSink::from_config(&config(&path)).expect("sink");
+        let cfg = config(&path);
+        let sink = JournalSink::from_config(&cfg).expect("sink");
         let sent = Arc::new(std::sync::atomic::AtomicU64::new(0));
         let start = std::time::Instant::now();
         let deadline = start + RUN;
@@ -1894,9 +1939,7 @@ mod tests {
         }
 
         sink.flush();
-        let file = File::open(&path).expect("journal exists");
-        let (records, stats) = read_records(BufReader::new(file));
-        let _ = std::fs::remove_file(&path);
+        let bench = sink.stats();
 
         let expected = sent.load(Ordering::SeqCst) as usize;
         let counts: Vec<u64> = buckets.iter().map(|b| b.load(Ordering::SeqCst)).collect();
@@ -1906,11 +1949,27 @@ mod tests {
             EGRESS_CLIENTS + INBOUND_CLIENTS,
             expected / 60
         );
+        let avg_batch = if bench.batches > 0 {
+            bench.records_written as f64 / bench.batches as f64
+        } else {
+            0.0
+        };
+        eprintln!(
+            "regime: producer_waits={} empty_passes={} batches={} records_written={} avg_batch={avg_batch:.1} buf={}B",
+            bench.producer_waits,
+            bench.empty_passes,
+            bench.batches,
+            bench.records_written,
+            cfg.buffer_bytes,
+        );
         eprintln!("per-5s throughput histogram (records, ~rec/s):");
         for (i, c) in counts.iter().enumerate() {
             let bar = "#".repeat(((c * 50) / peak) as usize);
             eprintln!("  {:>2}-{:>2}s | {:>7} | {:>5}/s | {bar}", i * 5, i * 5 + 5, c, c / 5);
         }
+        let file = File::open(&path).expect("journal exists");
+        let (records, stats) = read_records(BufReader::new(file));
+        let _ = std::fs::remove_file(&path);
         // No torn lines and no lost records.
         assert_eq!(stats, ReadStats::default());
         assert_eq!(records.len(), expected);

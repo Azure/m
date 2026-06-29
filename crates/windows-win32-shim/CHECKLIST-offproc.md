@@ -96,7 +96,7 @@ text field as **raw bytes + a 1-byte encoding tag** (`Utf16Le` for WinHTTP/wide,
 
 ### `windows-win32-shim` (producer)
 
-- [ ] **UT-B0** Stop serializing captured data on the calling thread: `dispatch_off_thread` hands
+- [x] **UT-B0** Stop serializing captured data on the calling thread: `dispatch_off_thread` hands
       the worker the raw in-memory `Interaction` (a move — zero encoding) instead of calling
       `interaction.to_json()` on the host; the worker serializes/`base64`s off-thread (and only at
       the real IPC boundary once out of process). The in-process *reply* serialization is unchanged

@@ -407,6 +407,14 @@ fn interaction_record(sink: &JournalSink, interaction: Interaction) -> JournalRe
 
 // === Off-thread dispatcher (OT-4) ===
 
+/// Reduce and journal a marshaled interaction in-process (struct path, UT-B0): the
+/// calling thread serializes nothing. The JSON [`handle_interaction`] is retained
+/// for the eventual out-of-process boundary, where serialization is unavoidable.
+fn journal_interaction(sink: &JournalSink, interaction: Interaction) -> Outcome {
+    sink.record(interaction_record(sink, interaction));
+    Outcome { journaled: true }
+}
+
 /// Signals a [`WaitGate`] on drop so the dispatcher's worker always releases the
 /// waiting host thread — on normal completion *and* while unwinding from a panic
 /// in the worker (RS-2). Combined with the thread pool's panic containment (RS-1),
@@ -420,31 +428,24 @@ impl Drop for SignalGuard {
     }
 }
 
-/// Marshal a raw [`Interaction`], hand it to the off-thread worker, and block the
-/// calling thread until the worker finishes — returning the worker's [`Outcome`].
+/// Hand a raw [`Interaction`] to the off-thread worker and block until it finishes
+/// — returning the worker's [`Outcome`].
 ///
-/// This is the first migration step (SHIM-D25 / milestone OT): the host thread no
-/// longer journals inline. It marshals the position-independent context, enqueues
-/// [`handle_interaction`] on a Windows thread-pool work item, and waits on a
-/// `WaitOnAddress` latch ([`WaitGate`]) for the worker to signal completion. The
-/// caller's contract is honored by *always* blocking for now; a later stage will
-/// make fire-and-forget seams truly asynchronous, and a stage after that will move
-/// the worker out of process (the marshaled JSON is the eventual IPC payload).
+/// SHIM-D25 / milestone OT: the host thread no longer journals inline. It moves the
+/// raw in-memory `Interaction` (zero encoding — no serialization on the calling
+/// thread, UT-B0) onto a Windows thread-pool work item, which reduces and writes the
+/// record, and waits on a `WaitOnAddress` latch ([`WaitGate`]) for completion. The
+/// caller's contract is honored by *always* blocking for now; a later stage makes
+/// fire-and-forget seams async, and out-of-process moves the worker behind a JSON
+/// channel ([`handle_interaction`]) where serialization happens off-host.
 ///
-/// Fail-soft (mwin32 D5): if the context cannot be marshaled the interaction is
-/// dropped; if the pool refuses the work item the worker runs inline so a record
-/// is never silently lost.
+/// Fail-soft (mwin32 D5): if the pool refuses the work item the record is dropped
+/// (rare; never blocks/abort the host).
 #[must_use]
 pub fn dispatch_off_thread(sink: &Arc<JournalSink>, interaction: Interaction) -> Outcome {
-    let request = match interaction.to_json() {
-        Ok(json) => json,
-        // A context that cannot be marshaled cannot cross to the worker; drop it.
-        Err(_) => return Outcome { journaled: false },
-    };
-
-    // The worker writes its JSON reply into this slot before signaling the latch;
-    // the store-before-signal / wait-before-load ordering hands the reply across.
-    let reply_slot: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    // The worker writes its outcome into this slot before signaling the latch; the
+    // store-before-signal / wait-before-load ordering hands the reply across.
+    let reply_slot: Arc<Mutex<Option<Outcome>>> = Arc::new(Mutex::new(None));
     let gate = WaitGate::new();
 
     let worker_sink = Arc::clone(sink);
@@ -453,30 +454,27 @@ pub fn dispatch_off_thread(sink: &Arc<JournalSink>, interaction: Interaction) ->
     let submitted = submit_once(move || {
         // Signal the latch from an RAII guard so the waiter is released even if the
         // worker panics (RS-2); the pool contains the panic itself (RS-1). On the
-        // normal path the guard drops last, after the reply is in the slot.
+        // normal path the guard drops last, after the outcome is in the slot.
         let _signal = SignalGuard(worker_gate);
-        let reply = handle_interaction(&request, &worker_sink);
+        let outcome = journal_interaction(&worker_sink, interaction);
         *worker_slot
             .lock()
-            .unwrap_or_else(|poison| poison.into_inner()) = Some(reply);
+            .unwrap_or_else(|poison| poison.into_inner()) = Some(outcome);
     });
 
     let Ok(_work) = submitted else {
-        // The pool refused the item; journal inline so nothing is lost.
-        let request = interaction.to_json().unwrap_or_default();
-        let reply = handle_interaction(&request, sink);
-        return Outcome::from_json(&reply).unwrap_or_default();
+        // The pool refused the item; drop fail-soft (the host serialized nothing).
+        return Outcome { journaled: false };
     };
 
     // Block until the worker finishes. `_work` additionally joins on drop, so the
     // callback can never outlive this frame.
     gate.wait();
-    let reply = reply_slot
+    reply_slot
         .lock()
         .unwrap_or_else(|poison| poison.into_inner())
         .take()
-        .unwrap_or_default();
-    Outcome::from_json(&reply).unwrap_or_default()
+        .unwrap_or_default()
 }
 
 // === Inbound journaling decorator (AJ-B4) ===

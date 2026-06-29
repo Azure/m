@@ -129,9 +129,10 @@ read them in place, completing the request only once the worker has consumed wha
 the copy off the hot thread without blocking. Sync-only seams keep the snapshot path. Design:
 `SHIM-D28` (author in DESIGN-NOTES with AC-1).
 
-**Open design points (settle before AC-2):**
-- **Seam classification.** Which seams are async-capable (egress WinHTTP async handle; ingress
-  http.sys async I/O) vs. sync-only (must keep the snapshot). The capture path must branch on this.
+**Open design points (settle before AC-4):**
+- **Seam classification — RESOLVED (SHIM-D28).** Egress (WinHTTP, relay-driven) is **sync-only** and
+  keeps the snapshot; ingress (IIS/http.sys, `RQ_NOTIFICATION_PENDING` + `PostCompletion`) is
+  **async-capable**. The capture path branches on this in `dispatch_capture`.
 - **Buffer lifetime/ownership.** Who pins the platform buffer until the worker is done, and how the
   request is held open without blocking the hot thread (completion registration, refcount/pin).
 - **Backpressure.** When the worker queue saturates, drop vs. block — must honor SHIM-D27 mode
@@ -145,11 +146,13 @@ the copy off the hot thread without blocking. Sync-only seams keep the snapshot 
 - [x] **AC-2** **PREREQUISITE: AC-1.** Add buffer-retention + non-blocking-completion primitives
       (retain caller bodies/headers, complete after worker consumes; no host-thread copy or wait).
       Test: retained buffer outlives the call and is freed exactly once after worker consumes.
-- [ ] **AC-3** **PREREQUISITE: AC-2.** Egress async path: capture references the WinHTTP buffers,
-      hand-off without snapshot, complete on worker done. Test: egress journals correctly with no
-      hot-thread copy; sync fallback intact.
-- [ ] **AC-4** **PREREQUISITE: AC-2.** Ingress async path: same for http.sys. Test: ingress journals
-      with no hot-thread copy; sync fallback intact.
+- [x] **AC-3** **PREREQUISITE: AC-2.** Egress is **sync-only** (SHIM-D28): WinHTTP is driven
+      synchronously by the relay, so there is no async reply to ride and the snapshot stays. Confirm
+      the gate routes `Seam::Egress` → `Sync` → the blocking snapshot path, leaving the egress
+      decorator unchanged. Test: egress journals via the sync path, classified sync-only.
+- [ ] **AC-4** **PREREQUISITE: AC-2.** Ingress async path (IIS/http.sys): retain the request buffers,
+      hand-off without snapshot, complete on worker done. Test: ingress journals with no hot-thread
+      copy; sync fallback intact.
 - [ ] **AC-5** Integration: high-volume mixed sync/async traffic — non-blocking, zero copy on hot
       thread for async seams, snapshot preserved for sync seams, no lost/double-freed buffers.
 

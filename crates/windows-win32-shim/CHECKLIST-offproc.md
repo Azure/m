@@ -142,7 +142,7 @@ the copy off the hot thread without blocking. Sync-only seams keep the snapshot 
 - [x] **AC-1** Classify each seam (egress/ingress, sync/async) and author `SHIM-D28`; gate the
       capture path on a per-seam async-capable flag with sync-only seams unchanged. Test: classifier
       reports expected capability per seam.
-- [ ] **AC-2** **PREREQUISITE: AC-1.** Add buffer-retention + non-blocking-completion primitives
+- [x] **AC-2** **PREREQUISITE: AC-1.** Add buffer-retention + non-blocking-completion primitives
       (retain caller bodies/headers, complete after worker consumes; no host-thread copy or wait).
       Test: retained buffer outlives the call and is freed exactly once after worker consumes.
 - [ ] **AC-3** **PREREQUISITE: AC-2.** Egress async path: capture references the WinHTTP buffers,

@@ -34,7 +34,7 @@ use windows_platform_isolation::{
     Disposition, EgressRequest, EgressResponse, EgressResult, EgressSurface, Header, HttpRequest,
     HttpResponse, RequestHandler, Utf16,
 };
-use windows_threadpool::{WaitGate, submit_once};
+use windows_threadpool::{WaitGate, Work, submit_once};
 
 use crate::marshal::{Interaction, Outcome, RawHeader};
 use crate::pilcfg::{ApiJournalConfig, BodyCapture};
@@ -453,6 +453,67 @@ pub fn dispatch_capture(sink: &Arc<JournalSink>, interaction: Interaction) -> Ou
 fn journal_interaction(sink: &JournalSink, interaction: Interaction) -> Outcome {
     sink.record(interaction_record(sink, interaction));
     Outcome { journaled: true }
+}
+
+// === Async, zero-copy capture primitives (AC-2; SHIM-D28) ===
+
+/// A non-blocking completion handle for a capture whose buffers are *retained*
+/// rather than copied (AC-2). The host neither memcpy's nor waits: it shares the
+/// platform payload behind an `Arc`, hands the worker a clone, and returns this
+/// handle immediately. The async seam parks the handle in its request context and
+/// releases it on `PostCompletion`; the retained payload is freed exactly once,
+/// after the worker has consumed it and the handle is dropped.
+///
+/// The `Work` is held so the payload outlives any in-flight callback; dropping the
+/// handle joins, so dropping it before completion would block — async seams must
+/// keep it until the worker signals [`is_complete`](Self::is_complete).
+#[must_use = "dropping the handle joins the worker; park it until completion"]
+pub struct RetainedCapture<T: Send + Sync + 'static> {
+    _work: Work,
+    done: WaitGate,
+    // Keeps the platform payload alive until the host releases the handle; freed
+    // exactly once when this and the worker's clone are both dropped.
+    _payload: Arc<T>,
+}
+
+impl<T: Send + Sync + 'static> RetainedCapture<T> {
+    /// Whether the worker has finished consuming the retained payload.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.done.is_signaled()
+    }
+
+    /// Block until the worker has consumed the payload (test/drain only — async
+    /// seams poll [`is_complete`](Self::is_complete) and release on completion).
+    pub fn wait(&self) {
+        self.done.wait();
+    }
+}
+
+/// Retain `payload` and run `consume` against it on a pool thread without copying
+/// or blocking the host (AC-2). Returns a [`RetainedCapture`] immediately; the
+/// caller parks it and releases on completion. Fail-soft: if the pool refuses the
+/// item the payload is dropped here and `None` is returned.
+pub fn dispatch_retained<T, F>(payload: Arc<T>, consume: F) -> Option<RetainedCapture<T>>
+where
+    T: Send + Sync + 'static,
+    F: FnOnce(&T) + Send + 'static,
+{
+    let done = WaitGate::new();
+    let worker_payload = Arc::clone(&payload);
+    let worker_done = done.clone();
+    let work = submit_once(move || {
+        // Always signal so completion is released even on a panic (RS-2); the pool
+        // contains the panic itself (RS-1).
+        let _signal = SignalGuard(worker_done);
+        consume(&worker_payload);
+    })
+    .ok()?;
+    Some(RetainedCapture {
+        _work: work,
+        done,
+        _payload: payload,
+    })
 }
 
 /// Signals a [`WaitGate`] on drop so the dispatcher's worker always releases the
@@ -1192,6 +1253,41 @@ mod tests {
             assert_eq!(records.len(), 1);
             assert_eq!(records[0].seam, seam);
         }
+    }
+
+    #[test]
+    fn dispatch_retained_frees_payload_once_after_consume() {
+        use std::sync::atomic::{AtomicBool, AtomicU32};
+
+        struct Probe {
+            drops: Arc<AtomicU32>,
+            consumed: AtomicBool,
+        }
+        impl Drop for Probe {
+            fn drop(&mut self) {
+                self.drops.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        let drops = Arc::new(AtomicU32::new(0));
+        let payload = Arc::new(Probe {
+            drops: Arc::clone(&drops),
+            consumed: AtomicBool::new(false),
+        });
+        let verify = Arc::clone(&payload);
+
+        // Non-blocking hand-off: no copy, no wait — just a retained reference.
+        let cap = dispatch_retained(payload, |p| p.consumed.store(true, Ordering::SeqCst))
+            .expect("submit");
+        cap.wait();
+
+        assert!(cap.is_complete());
+        assert!(verify.consumed.load(Ordering::SeqCst), "worker consumed in place");
+        assert_eq!(drops.load(Ordering::SeqCst), 0, "retained until handle released");
+
+        drop(cap);
+        drop(verify);
+        assert_eq!(drops.load(Ordering::SeqCst), 1, "freed exactly once after consume");
     }
 
     #[test]

@@ -7,12 +7,12 @@ jobs:
   build:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v4   
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install build dependencies
         run: sudo apt install -y ninja-build
 
       - name: Clone LLVM
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
         with:
           repository: llvm/llvm-project
           path: llvm
@@ -31,7 +31,7 @@ jobs:
         working-directory: llvm/build
         run: ninja install
       - name: Upload Clang binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3.2.1
         with:
           name: clang-binary
           path: ${{ github.workspace }}/clang
